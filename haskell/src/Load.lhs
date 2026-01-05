@@ -8,4 +8,4 @@ import qualified Util.Basic as UB
 import qualified Util.Exception as UE
 import qualified Util.FileHelper as UFH
 import qualified Util.Trie as UT
-import qualified Util.Types as UT
+import qualified Util.Types as UTypes

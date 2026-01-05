@@ -76,7 +76,7 @@ library
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:      base ^>=4.17.2.1,
+    build-depends:      base >= 4.17.2.1 && < 4.19,
                         containers,
                         text,
                         unordered-containers,
@@ -107,7 +107,7 @@ test-suite xlang-test
                       Util.FileHelperTest,
                       Util.TrieTest
 
-    build-depends:    base ^>=4.17.2.1,
+    build-depends:    base >= 4.17.2.1 && < 4.19,
                       xlang,
                       text,
                       aeson,
@@ -135,8 +135,3 @@ test-suite xlang-test
 
     -- The entrypoint to the test suite.
     main-is:          Main.hs
-
-    -- Test dependencies.
-    build-depends:
-        base ^>=4.17.2.1,
-        xlang
