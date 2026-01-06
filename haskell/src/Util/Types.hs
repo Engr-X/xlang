@@ -2,59 +2,70 @@
 
 module Util.Types where
 
-import Data.Int (Int32, Int64)
-
 import GHC.Generics (Generic)
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as B
 
--- | path of a file
+
+-- | File path represented as a string.
+--
+-- Used to indicate the location of a source file for errors,
+-- lexer/parser input, or I/O operations.
 type Path = String
 
+
+-- | Regular expression pattern represented as a string.
+--
+-- Used in lexer functions to match tokens in source code.
 type Regex = String
 
+
+-- | JSON object serialized as a lazy ByteString.
+--
+-- Useful for structured error reporting, logging, or communication
+-- with external tools.
 type JSONObject = B.ByteString
 
--- | usually store col and line
+
+-- | Represents a position in a source file.
+--
+-- Typically used to store the **line** and **column** of a token or error.
+--
+-- Fields:
+--   * 'line'   — line number (1-based)
+--   * 'column' — column number (1-based)
+--   * 'length' — length of the span in characters
+--
+-- Example usage:
+-- > Position { line = 3, column = 5, length = 2 }
 data Position = Position {
     line :: Int,
     column :: Int,
-    length :: Int
+    len :: Int
 } deriving (Show, Generic)
 
 instance ToJSON Position
 
 
--- | eg store range of an string
+-- | Construct a new 'Position' from its line, column, and token length.
+--
+-- Position {line = 3, column = 5, len = 2}
+makePosition :: Int -> Int -> Int -> Position
+makePosition l c size = Position {line = l, column = c, len = size}
+
+
+-- | Convert a 'Position' into a tuple (line, column, len).
+--
+-- Useful for functions that prefer tuple representation.
+positionToTuple :: Position -> (Int, Int, Int)
+positionToTuple pos = (line pos, column pos, len pos)
+
+
+-- | A simple range represented as a tuple of start and end indices.
+--
+-- Usually used to store the span of a substring, token, or text segment
+-- in the input stream.
+--
+-- Example usage:
+-- > type Range = (10, 15)  -- represents characters from index 10 to 15 [10, 15)
 type Range = (Int, Int)
-
-
-{-- 
- | all symbol in X language
-    =, ==, !=, >, <    
-    >=, <=, <<, <<=
-    >>, >>=, |, |=
-    ^, ^=, !^, !^=
-    &, $=, +, +=
-    -, -=, *, *=    
-    /, /=, %, %=      
-    **, **=, !
-    ++, --, @, $
-    (, ), [, ], {, }
-
-    ?, : , ?->, ,,, ;
---}
-
-data Operator = Asign | Equal | NotEqual | Greater
-
-data Token = CharConst Char Position
-           | StrConst String Position
-           | IntConst Int32 Position
-           | LongConst Int64 Position
-           | FloatConst Float Position
-           | DoubleConst Double Position
-           | Float128Const Rational Position
-
-           | Dot Position
-           | Ident String Operator  -- maybe variable name or something
-           | Operation Operator Operator

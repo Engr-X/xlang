@@ -78,10 +78,11 @@ library
     -- Other library packages from which modules are imported.
     build-depends:      base >= 4.17.2.1 && < 4.19,
                         containers,
+                        mtl,
+
                         text,
                         unordered-containers,
                         hashable,
-
                         regex-tdfa,
                         aeson,
                         aeson-pretty,

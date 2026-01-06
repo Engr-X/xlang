@@ -1,0 +1,100 @@
+Test suite xlang-test: RUNNING...
+run test for: Lexer.Tokenizer.matchBracket
+Lexer.Tokenizer.matchBracket: 6 / 6
+
+run test for: Lexer.Tokenizer.eatBlockComments
+Lexer.Tokenizer.eatBlockComments: 9 / 9
+
+run test for: Lexer.Tokenizer.eatSpace
+Lexer.Tokenizer.eatSpace: 7 / 7
+
+run test for: Lexer.Tokenizer.eatSymbol
+Lexer.Tokenizer.eatSymbol: 8 / 8
+
+run test for: Lexer.Tokenizer.eatIdentity
+Lexer.Tokenizer.eatIdentity: 9 / 9
+
+run test for: Lexer.Tokenizer.eatNumber
+Lexer.Tokenizer.eatNumber: 41 / 41
+
+run test for: Lexer.Tokenizer.eatStringLiteral
+Lexer.Tokenizer.eatStringLiteral: 30 / 30
+
+run test for: Lexer.Tokenizer.eatCharLiteral
+Lexer.Tokenizer.eatCharLiteral: 27 / 27
+
+run test for: Util.Trie.prefixLengths
+Util.Trie.prefixLengths: 26 / 26
+
+run test for: Util.Trie.longestPrefixLength
+Util.Trie.longestPrefixLength: 26 / 26
+
+run test for: Util.Trie.eatLongest
+Util.Trie.eatLongest: 27 / 27
+
+run test for: Util.Trie.contains
+Util.Trie.contains: 23 / 23
+
+run test for: Util.Trie.hasPrefix
+Util.Trie.hasPrefix: 23 / 23
+
+run test for: Util.Basic.isIdentChar
+Util.Basic.isIdentChar: 10 / 10
+
+run test for: Util.Basic.isIntLiteral
+Util.Basic.isIntLiteral: 19 / 19
+
+run test for: Util.Basic.isLongLiteral
+Util.Basic.isLongLiteral: 11 / 11
+
+run test for: Util.Basic.isHexIntLiteral
+Util.Basic.isHexIntLiteral: 10 / 10
+
+run test for: Util.Basic.isHexLongLiteral
+Util.Basic.isHexLongLiteral: 10 / 10
+
+run test for: Util.Basic.isFloatLiteral
+Util.Basic.isFloatLiteral: 27 / 27
+
+run test for: Util.Basic.isDoubleLiteral
+Util.Basic.isDoubleLiteral: 47 / 47
+
+run test for: Util.Basic.isLongDoubleLiteral
+Util.Basic.isLongDoubleLiteral: 8 / 8
+
+run test for: Util.Basic.isNumber
+Util.Basic.isNumber: 4 / 4
+
+run test for: Util.Basic.isStringLiteral
+Util.Basic.isStringLiteral: 8 / 8
+
+run test for: Util.Basic.isCharLiteral
+Util.Basic.isCharLiteral: 9 / 9
+
+run test for: Util.Basic.isBoolLiteral
+Util.Basic.isBoolLiteral: 9 / 9
+
+run test for: Util.Basic.full
+Util.Basic.full: 2 / 2
+
+run test for: Util.Basic.start
+Util.Basic.start: 2 / 2
+
+run test for: Util.Basic.match
+Util.Basic.match: 2 / 2
+
+run test for: Util.Basic.matchFull
+Util.Basic.matchFull: 2 / 2
+
+run test for: Util.Basic.matchLength
+Util.Basic.matchLength: 6 / 6
+
+run test for: Util.Basic.findMatches
+Util.Basic.findMatches: 16 / 16
+
+run test for: Util.FileHelper.processContent
+Util.FileHelper.processContent: 5 / 5
+
+onIOComplete: failed to grab table semaphore (res=197, err=-1), dropping request 0x6
+Test suite xlang-test: PASS
+Test suite logged to: D:\Coding\projects\Mixed\xlang\haskell\dist-newstyle\build\x86_64-windows\ghc-9.4.8\xlang-0.1.0.0\t\xlang-test\test\xlang-0.1.0.0-xlang-test.log

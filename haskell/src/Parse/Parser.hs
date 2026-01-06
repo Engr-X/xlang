@@ -1,5 +1,7 @@
 module Parse.Parser where
 
+data Class = IntT
+
 data Expression = 
     IntConst String | -- For precesion use String to store rather than Integer
     LongConst String |

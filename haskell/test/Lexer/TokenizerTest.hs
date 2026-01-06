@@ -14,6 +14,28 @@ matchBracketTests = map (\(x, e) -> LT.matchBracket x --> e) [
     (')', Nothing),
     (']', Nothing)]
 
+eatBlockCommentsTests :: [TestCase]
+eatBlockCommentsTests = map (\(input, expected) -> LT.eatBlockComments input --> expected) [
+    ("/* abc */", "         "),
+    ("/* abc */rest",  "         rest"),
+    ("x=1;/*comment*/y=2;", "x=1;           y=2;"),
+    ("/* a\nb\nc */", "    \n \n    "),
+    ("/* ** */ */", "         */"),
+    ("abc /* comment */ def", "abc               def"),
+    ("/* unterminated", "               "),
+    ("/* a /* b */ c */", "             c */"),
+    ("no comment here", "no comment here")]
+
+eatSpaceTests :: [TestCase]
+eatSpaceTests = map (\(x, expected) -> LT.eatSpace x --> expected) [
+    ("   abc", (3, "abc")),
+    ("\tabc", (4, "abc")),
+    (" \tabc", (5, "abc")),
+    ("abc", (0, "abc")),
+    ("", (0, "")),
+    ("\f\fNext", (2, "Next")),
+    (" \t\fend", (6, "end"))]
+
 eatSymbolTests :: [TestCase]
 eatSymbolTests = map (\(x, s, r) -> LT.eatSymbol x --> (s, r)) [
     ("==abc", "==", "abc"),
@@ -43,6 +65,7 @@ eatNumberTests = map (\(input, p1, p2) -> LT.eatNumber input --> (p1, p2)) [
     ("+456 rest", "+456", " rest"),
     ("-789xyz", "-789", "xyz"),
     ("0 ", "0", " "),
+    ("abc123.3", "", "abc123.3"),
     
     ("123L rest", "123L", " rest"),
     ("456l+", "456l", "+"),
@@ -133,10 +156,52 @@ eatStringLiteralTests = map (\(input, expected) -> LT.eatStringLiteral input -->
     ("\"test\");", Just ("\"test\"", ");")),
     ("\"value\" + \"other\"", Just ("\"value\"", " + \"other\""))]
 
+
+eatCharLiteralTests :: [TestCase]
+eatCharLiteralTests = map (\(input, expected) -> LT.eatCharLiteral input --> expected) [
+    ("'a' rest", Just ("'a'", " rest")),
+    ("'Z';", Just ("'Z'", ";")),
+    ("'0'", Just ("'0'", "")),
+    ("'_' rest", Just ("'_'", " rest")),
+
+    ("'\\n' rest", Just ("'\\n'", " rest")),
+    ("'\\t' rest", Just ("'\\t'", " rest")),
+    ("'\\r' rest", Just ("'\\r'", " rest")),
+    ("'\\0' rest", Just ("'\\0'", " rest")),
+
+    ("'\\'' rest", Just ("'\\''", " rest")),
+    ("'\\\\' rest", Just ("'\\\\'", " rest")),
+
+    ("'\\x41' rest", Just ("'\\x41'", " rest")),
+    ("'\\101' rest", Just ("'\\101'", " rest")),
+
+    ("'你' rest", Just ("'你'", " rest")),
+    ("'é' rest", Just ("'é'", " rest")),
+    ("'😀' rest", Just ("'😀'", " rest")),
+
+    ("'a''b'", Just ("'a'", "'b'")),
+    ("'x''y''z'", Just ("'x'", "'y''z'")),
+
+    ("", Nothing),
+    ("abc", Nothing),
+
+    ("'' rest", Nothing),
+    ("'ab' rest", Nothing),
+    ("'a", Nothing),
+    ("'\\' rest", Nothing),
+    ("'\\x' rest", Nothing),
+    ("'\\xZZ' rest", Nothing),
+
+    ("'a', next", Just ("'a'", ", next")),
+    ("'b');", Just ("'b'", ");"))]
+
 tests :: [TestGroup]
 tests = [
     testGroup "Lexer.Tokenizer.matchBracket" matchBracketTests,
+    testGroup "Lexer.Tokenizer.eatBlockComments" eatBlockCommentsTests,
+    testGroup "Lexer.Tokenizer.eatSpace" eatSpaceTests,
     testGroup "Lexer.Tokenizer.eatSymbol" eatSymbolTests,
     testGroup "Lexer.Tokenizer.eatIdentity" eatIdentityTests,
     testGroup "Lexer.Tokenizer.eatNumber" eatNumberTests,
-    testGroup "Lexer.Tokenizer.eatStringLiteral" eatStringLiteralTests]
+    testGroup "Lexer.Tokenizer.eatStringLiteral" eatStringLiteralTests,
+    testGroup "Lexer.Tokenizer.eatCharLiteral" eatCharLiteralTests]

@@ -101,6 +101,9 @@ isBoolLiteralTests = map (\(c, e) -> UB.isBoolLiteral c --> e) [
     ("fals", False),
     ("", False)]
 
+startRegexTest :: [TestCase]
+startRegexTest = map (\(c, e) -> UB.start c --> e) [("[1-9]", "^([1-9])"), ("", "^()")]
+
 fullRegexTest :: [TestCase]
 fullRegexTest = map (\(c, e) -> UB.full c --> e) [("[1-9]", "^([1-9])$"), ("", "^()$")]
 
@@ -164,6 +167,8 @@ tests = [
     testGroup "Util.Basic.isBoolLiteral" isBoolLiteralTests,
 
     testGroup "Util.Basic.full" fullRegexTest,
+    testGroup "Util.Basic.start" startRegexTest,
+
     testGroup "Util.Basic.match" matchTests,
     testGroup "Util.Basic.matchFull" matchFullTests,
     testGroup "Util.Basic.matchLength" matchLengthTests,
