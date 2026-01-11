@@ -29,10 +29,40 @@ data BasicError = BasicError {
 
     -- | Line and column position of the error.
     startPosition :: Position,
+ 
+    -- | What the hell is going on?
+    why :: String
+} deriving (Eq, Show, Generic)
 
-    -- | Absolute index of the error in the input stream.
-    index :: Int
-} deriving (Show, Generic)
+
+-- | Construct a 'BasicError' given the file path, position, and reason.
+makeError :: Path -> Position -> String -> BasicError
+makeError path pos reason = BasicError {filePath = path, startPosition = pos, why = reason}
+
+
+-- Error message for an invalid string literal
+invalidStringLiteralMsg :: String
+invalidStringLiteralMsg = "Invalid string literal"
+
+
+-- Error message for an invalid character literal
+invalidCharLiteralMsg :: String
+invalidCharLiteralMsg = "Invalid character literal"
+
+
+-- Error message for a comment that was not properly closed
+unclosedCommentMsg :: String
+unclosedCommentMsg = "Unclosed comment"
+
+
+-- Error message for an invalid or unrecognized symbol
+invalidSymbolMsg :: String
+invalidSymbolMsg = "Invalid Symbol"
+
+
+-- Error message for an invalid character
+invalidCharMsg :: String
+invalidCharMsg = "invalid Char"
 
 
 -- | Basic warning information shared by lexer and parser warnings.
@@ -56,15 +86,18 @@ instance ToJSON BasicError
 --
 --   * 'None'        — no error
 --   * 'ReadError'  — file I/O failure
+--   * 'SyntaxError' — syntax parsing error
 --   * 'LexerError' — lexical analysis error
 --   * 'ParingError'— syntax parsing error
 --
 -- Each error variant carries the minimum information required for reporting.
-data Error = None
-           | ReadError Path
-           | LexerError BasicError 
-           | ParingError BasicError
-           deriving (Show)
+data ErrorKind = None
+    | ReadError Path
+    | LexerError BasicError 
+    | SyntaxError BasicError
+    | ParingError BasicError
+    deriving (Eq, Show)
+
 
 -- | Unified warning type for the compiler.
 --
@@ -81,26 +114,28 @@ data Warning = Null
              | UnderflowWarning BasicWarning
              deriving (Show)
 
--- | Convert an 'Error' to a numeric error code.
+
+-- | Convert an 'ErrorKind' to a numeric error code.
 --
 -- These codes are intended for external interfaces such as:
 --   * command-line exit codes
 --   * JSON diagnostics
 --   * test assertions
 --
--- Error code mapping:
+-- ErrorKind code mapping:
 --   * 0 — No error
 --   * 1 — File read error
 --   * 2 — Lexer error
 --   * 3 — Parser error
-getErrorCode :: Error -> Int
-getErrorCode None           = 0
+getErrorCode :: ErrorKind -> Int
+getErrorCode None = 0
 getErrorCode (ReadError _)  = 1
 getErrorCode (LexerError _) = 2
-getErrorCode (ParingError _) = 3
+getErrorCode (SyntaxError _) = 3
+getErrorCode (ParingError _) = 4
 
 
--- | Convert an 'Error' into a JSON value representing the error message.
+-- | Convert an 'ErrorKind' into a JSON value representing the error message.
 --
 -- For simple errors, this returns a human-readable string.
 -- For structured errors (lexer / parser), this returns a JSON object
@@ -108,14 +143,15 @@ getErrorCode (ParingError _) = 3
 --
 -- This separation allows consumers to distinguish error categories
 -- programmatically.
-getErrorMessage :: Error -> Value
-getErrorMessage None           = String ""
+getErrorMessage :: ErrorKind -> Value
+getErrorMessage None = String ""
 getErrorMessage (ReadError path) = String $ "Cannot open file: " <> DText.pack path
 getErrorMessage (LexerError be)  = toJSON be
+getErrorMessage (SyntaxError be) = toJSON be
 getErrorMessage (ParingError be) = toJSON be
 
 
--- | Convert an 'Error' into a pretty-printed JSON string.
+-- | Convert an 'ErrorKind' into a pretty-printed JSON string.
 --
 -- The resulting JSON object has the following structure:
 --
@@ -128,7 +164,7 @@ getErrorMessage (ParingError be) = toJSON be
 --
 -- This function is typically used as the final step before reporting
 -- an error to the user or writing diagnostics to output.
-errorToString :: Error -> String
+errorToString :: ErrorKind -> String
 errorToString err = DText.unpack $ DTL.toStrict $ DTL.decodeUtf8 $ encodePretty $ object [
     "code"  .= getErrorCode err, 
     "error" .= getErrorMessage err]

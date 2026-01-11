@@ -1,2 +1,0 @@
-D:/Coding/projects/Mixed/xlang/haskell/build/CMakeFiles/edit_cache.dir
-D:/Coding/projects/Mixed/xlang/haskell/build/CMakeFiles/rebuild_cache.dir

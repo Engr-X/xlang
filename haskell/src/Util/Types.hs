@@ -42,7 +42,10 @@ data Position = Position {
     line :: Int,
     column :: Int,
     len :: Int
-} deriving (Show, Generic)
+} deriving (Eq, Generic)
+
+instance Show Position where
+    show = show . positionToTuple
 
 instance ToJSON Position
 

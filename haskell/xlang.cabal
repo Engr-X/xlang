@@ -61,13 +61,14 @@ library
     -- Modules exported by the library.
     exposed-modules:  Main,
 
+                      Data.Trie,
+
                       Lexer.Tokenizer,
 
                       Util.Basic,  
                       Util.Exception,
                       Util.FileHelper,
                       Util.Types,
-                      Util.Trie
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -76,13 +77,11 @@ library
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:      base >= 4.17.2.1 && < 4.19,
+    build-depends:      base >= 4.17.2.1,
                         containers,
                         mtl,
-
                         text,
-                        unordered-containers,
-                        hashable,
+                        
                         regex-tdfa,
                         aeson,
                         aeson-pretty,
@@ -100,15 +99,19 @@ test-suite xlang-test
     -- Import common warning flags.
     import:           warnings
 
-    other-modules:    IC.TestHelper,
+    other-modules:    
+                      Data.TrieTest,
+                      IC.TestHelper,
 
                       Lexer.TokenizerTest,
 
                       Util.BasicTest,
-                      Util.FileHelperTest,
-                      Util.TrieTest
+                      Util.FileHelperTest
 
-    build-depends:    base >= 4.17.2.1 && < 4.19,
+    build-depends:    base >= 4.17.2.1,
+                      containers,
+                      mtl,
+                      
                       xlang,
                       text,
                       aeson,

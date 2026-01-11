@@ -3,10 +3,77 @@ module Lexer.TokenizerTest where
 
 import IC.TestHelper
 
-import qualified Lexer.Tokenizer as LT
+import Data.Trie
+import Lexer.Tokenizer
+import Control.Monad.State.Strict (evalState)
+
+import qualified Data.Map.Strict as Map
+import qualified Util.Exception as UE
+import qualified Util.Types as UTypes
+
+-- Basic
+
+symbolMapTest :: [TestCase]
+symbolMapTest = [symbolsMap --> Map.fromList [
+            ("!", BitReverse), ("!=", NotEqual), ("!^", BitXnor), ("!^=", BitXnorAssign), ("\"", DoubleQuote),
+            ("#", Hash),("$", Dollar),("%", Modulo),("%=", ModuloAssign),("&", BitAnd),
+            ("'", SingleQuote), ("(", LParen), (")", RParen), ("*", Multiply), ("**", Power),
+            ("**=",PowerAssign), ("*/", BlockCommentEnd), ("*=", MultiplyAssign), ("+", Plus), ("++", PlusPlus),
+            ("+=", PlusAssign), ("-", Minus), ("--", MinusMinus), ("-=", MinusAssign), (".", Dot), ("..", DoubleDot),
+            ("/", Divide), ("/*", BlockCommentStart),("//", LineComment),("/=", DivideAssign), (":", Colon),
+            (";", Semicolon), ("<", LessThan), ("<<", BitLShift), ("<<=", BitLShiftAssign), ("<=", LessEqual),
+            ("=", Assign), ("==", Equal), (">", GreaterThan), (">=", GreaterEqual), (">>", BitRShift),
+            (">>=", BitRShiftAssign), ("?", Question),("?->", QuestionArrow), ("@", At), ("[", LBracket),
+            ("\\", Backslash), ("]", RBracket),("^", BitXor),("^=", BitXorAssign),("{", LBrace),
+            ("|", BitOr), ("|=", BitOrAssign), ("}", RBrace)]]
+
+
+symbolsTreeTest :: [TestCase]
+symbolsTreeTest = [symbolsTree --> Node False (
+    Map.fromList [('!', Node True (Map.fromList [('=', Node True Map.empty), ('^', Node True (Map.fromList [('=', Node True Map.empty)]))])),
+    ('"', Node True Map.empty),
+    ('#', Node True Map.empty),
+    ('$', Node True Map.empty),
+    ('%', Node True (Map.fromList [('=', Node True Map.empty)])),
+    ('&', Node True Map.empty),
+    ('\'', Node True Map.empty),
+    ('(', Node True Map.empty),
+    (')', Node True Map.empty),
+    ('*', Node True (Map.fromList [('*', Node True (Map.fromList [('=', Node True Map.empty)])),
+    ('/', Node True Map.empty), ('=', Node True Map.empty)])),
+    ('+', Node True (Map.fromList [('+', Node True Map.empty), ('=', Node True Map.empty)])),
+    ('-', Node True (Map.fromList [('-', Node True Map.empty), ('=', Node True Map.empty)])),
+    ('.', Node True (Map.fromList [('.', Node True Map.empty)])),
+    ('/', Node True (Map.fromList [('*', Node True Map.empty), ('/', Node True Map.empty), ('=', Node True Map.empty)])),
+    (':', Node True Map.empty),
+    (';', Node True Map.empty),
+    ('<', Node True (Map.fromList [('<', Node True (Map.fromList [('=', Node True Map.empty)])), ('=', Node True Map.empty)])), ('=', Node True (Map.fromList [('=', Node True Map.empty)])),
+    ('>', Node True (Map.fromList [('=', Node True Map.empty), ('>', Node True (Map.fromList [('=', Node True Map.empty)]))])),
+    ('?', Node True (Map.fromList [('-', Node False (Map.fromList [('>', Node True Map.empty)]))])),
+    ('@', Node True Map.empty),
+    ('[', Node True Map.empty),
+    ('\\', Node True Map.empty),
+    (']', Node True Map.empty),
+    ('^', Node True (Map.fromList [('=', Node True Map.empty)])),
+    ('{', Node True Map.empty),
+    ('|', Node True (Map.fromList [('=', Node True Map.empty)])), ('}', Node True Map.empty)])]
+
+
+getTokenPosTests :: [TestCase]
+getTokenPosTests = map (\(tok, expectedPos) -> getTokenPos tok --> expectedPos) [
+    (CharConst 'a' (UTypes.makePosition 1 1 0), UTypes.makePosition 1 1 0),
+    (StrConst "hello" (UTypes.makePosition 2 5 0), UTypes.makePosition 2 5 0),
+    (NumberConst "123" (UTypes.makePosition 3 2 0), UTypes.makePosition 3 2 0),
+    (NumberConst "123L" (UTypes.makePosition 4 4 0), UTypes.makePosition 4 4 0),
+    (NumberConst "3.14" (UTypes.makePosition 5 3 0), UTypes.makePosition 5 3 0),
+    (NumberConst "2.718" (UTypes.makePosition 6 1 0), UTypes.makePosition 6 1 0),
+    (NumberConst "1.0e-10" (UTypes.makePosition 7 7 0), UTypes.makePosition 7 7 0),
+    (Ident "x" (UTypes.makePosition 9 5 0), UTypes.makePosition 9 5 0),
+    (Symbol Plus (UTypes.makePosition 10 1 0), UTypes.makePosition 10 1 0)]
+
 
 matchBracketTests :: [TestCase]
-matchBracketTests = map (\(x, e) -> LT.matchBracket x --> e) [
+matchBracketTests = map (\(x, e) -> matchBracket x --> e) [
     ('(', Just ')'),
     ('[', Just ']'),
     ('{', Just '}'),
@@ -14,8 +81,9 @@ matchBracketTests = map (\(x, e) -> LT.matchBracket x --> e) [
     (')', Nothing),
     (']', Nothing)]
 
+
 eatBlockCommentsTests :: [TestCase]
-eatBlockCommentsTests = map (\(input, expected) -> LT.eatBlockComments input --> expected) [
+eatBlockCommentsTests = map (\(input, expected) -> eatBlockComments input --> expected) [
     ("/* abc */", "         "),
     ("/* abc */rest",  "         rest"),
     ("x=1;/*comment*/y=2;", "x=1;           y=2;"),
@@ -26,8 +94,9 @@ eatBlockCommentsTests = map (\(input, expected) -> LT.eatBlockComments input -->
     ("/* a /* b */ c */", "             c */"),
     ("no comment here", "no comment here")]
 
+
 eatSpaceTests :: [TestCase]
-eatSpaceTests = map (\(x, expected) -> LT.eatSpace x --> expected) [
+eatSpaceTests = map (\(x, expected) -> eatSpace x --> expected) [
     ("   abc", (3, "abc")),
     ("\tabc", (4, "abc")),
     (" \tabc", (5, "abc")),
@@ -36,8 +105,9 @@ eatSpaceTests = map (\(x, expected) -> LT.eatSpace x --> expected) [
     ("\f\fNext", (2, "Next")),
     (" \t\fend", (6, "end"))]
 
+
 eatSymbolTests :: [TestCase]
-eatSymbolTests = map (\(x, s, r) -> LT.eatSymbol x --> (s, r)) [
+eatSymbolTests = map (\(x, s, r) -> eatSymbol x --> (s, r)) [
     ("==abc", "==", "abc"),
     ("+=xyz", "+=", "xyz"),
     ("!^=123", "!^=", "123"),
@@ -47,8 +117,9 @@ eatSymbolTests = map (\(x, s, r) -> LT.eatSymbol x --> (s, r)) [
     ("unknown", "", "unknown"),
     ("=!=!=", "=", "!=!=")]
 
+
 eatIdentityTests :: [TestCase]
-eatIdentityTests = map (\(x, s, r) -> LT.eatIdentity x --> (s, r)) [
+eatIdentityTests = map (\(x, s, r) -> eatIdentity x --> (s, r)) [
     ("variable1 = 10", "variable1", " = 10"),
     ("_hiddenVar + 5", "_hiddenVar", " + 5"),
     ("3invalidStart", "3invalidStart", ""),
@@ -59,8 +130,22 @@ eatIdentityTests = map (\(x, s, r) -> LT.eatIdentity x --> (s, r)) [
     ("with space", "with", " space"),
     ("", "", "")]
 
+
+-- | Test cases for 'eatByPattern' with corrected behavior
+eatByPatternTests :: [TestCase]
+eatByPatternTests = map (\(pat, input, e1, e2) -> eatByPattern pat input --> (e1, e2)) [
+    ("^([0-9]+)", "123abc", "123", "abc"),
+    ("^([0-9]+)", "abc123", "", "abc123"),
+    ("^([0-9]*)", "abc123", "", "abc123"),
+    ("^([a-zA-Z]+)", "hello123", "hello", "123"),
+    ("^([a-zA-Z]+)", "123hello", "", "123hello"),
+    ("^([a-zA-Z0-9]+)", "abc123def", "abc123def", ""),
+    ("^(==)", "==x", "==", "x"),
+    ("^(==)", "=x", "", "=x")]
+
+
 eatNumberTests :: [TestCase]
-eatNumberTests = map (\(input, p1, p2) -> LT.eatNumber input --> (p1, p2)) [
+eatNumberTests = map (\(input, p1, p2) -> eatNumber input --> (p1, p2)) [
     ("123abc", "123", "abc"),
     ("+456 rest", "+456", " rest"),
     ("-789xyz", "-789", "xyz"),
@@ -113,8 +198,9 @@ eatNumberTests = map (\(input, p1, p2) -> LT.eatNumber input --> (p1, p2)) [
     ("+0.0 ", "+0.0", " "),
     ("-.5e-3L,", "-.5e-3L", ",")]
 
+
 eatStringLiteralTests :: [TestCase]
-eatStringLiteralTests = map (\(input, expected) -> LT.eatStringLiteral input --> expected) [
+eatStringLiteralTests = map (\(input, expected) -> eatStringLiteral input --> expected) [
     ("\"hello\" rest", Just ("\"hello\"", " rest")),
     ("\"world\";", Just ("\"world\"", ";")),
     ("\"test\"", Just ("\"test\"", "")),
@@ -158,7 +244,7 @@ eatStringLiteralTests = map (\(input, expected) -> LT.eatStringLiteral input -->
 
 
 eatCharLiteralTests :: [TestCase]
-eatCharLiteralTests = map (\(input, expected) -> LT.eatCharLiteral input --> expected) [
+eatCharLiteralTests = map (\(input, expected) -> eatCharLiteral input --> expected) [
     ("'a' rest", Just ("'a'", " rest")),
     ("'Z';", Just ("'Z'", ";")),
     ("'0'", Just ("'0'", "")),
@@ -195,13 +281,70 @@ eatCharLiteralTests = map (\(input, expected) -> LT.eatCharLiteral input --> exp
     ("'a', next", Just ("'a'", ", next")),
     ("'b');", Just ("'b'", ");"))]
 
+
+unwrapStringTests :: [TestCase]
+unwrapStringTests = map (\(input, expected) -> unwrapString input --> expected) [
+    ("\"hello\"", "hello"),
+    ("\"world\"", "world"),
+    ("\"\"", ""),
+    ("\"123 + 456\"", "123 + 456"),
+    ("\"a@b#c$d\"", "a@b#c$d"),
+    ("\"\"你好世界\"", "\"你好世界")]
+
+
+unwrapCharTests :: [TestCase]
+unwrapCharTests = map (\(input, expected) -> unwrapChar input --> expected) [
+    ("'a'", 'a'), ("'Z'", 'Z'), ("'0'", '0'), ("'+'", '+'),
+    ("'你'", '你'), ("'书'", '书'), ("'界'", '界'),
+    ("'\\n'", '\n'), ("'\\t'", '\t'), ("'\\r'", '\r'), ("'\\b'", '\b'), ("'\\f'", '\f'), ("'\\v'", '\v'),
+    ("'\\\\'", '\\'), ("'\\''", '\''), ("'\\\"'", '\"'),
+    ("'\\0'", '\0'), ("'\\12'", '\n'), ("'\\256'", '\174'),
+    ("'\\x41'", 'A'), ("'\\x7a'", 'z'), ("'\\u4E66'", '书'), ("'\\u4F60'", '你'), ("'\\U00004E16'", '世')]
+
+
+parseSymbolTests :: [TestCase]
+parseSymbolTests =  map (\(input, expected) -> parseSymbol input --> expected) [
+    ("=", Just Assign), ("<<=", Just BitLShiftAssign), ("@", Just At), ("~", Nothing)]
+
+
+defaultPath :: UTypes.Path
+defaultPath = "default path"
+
+
+getTokenizerState :: [String] -> TokenizerState
+getTokenizerState = makeState defaultPath (UTypes.makePosition 1 1 0)
+
+
+eatTests :: [TestCase]
+eatTests = map (\(ls, expected) -> let st = getTokenizerState ls in evalState eat st --> expected) [
+    ([""], Right End), (["   "], Right End),
+    (["a"], Right $ Ident "a" (UTypes.makePosition 1 1 1)), (["  _abc"], Right $ Ident "_abc" (UTypes.makePosition 1 3 4)),
+    (["   // do som", "  123"], Right $ NumberConst "123" (UTypes.makePosition 2 3 3)),
+    (["+123 + 1234"], Right $ NumberConst "+123" (UTypes.makePosition 1 1 4)),
+    ([".123456aaa"], Right $ NumberConst ".123456" (UTypes.makePosition 1 1 7)),
+    ([".function"], Right $ Symbol Dot (UTypes.makePosition 1 1 1)), 
+    ([" /* dosomething"], Left $ UE.LexerError $ UE.makeError defaultPath (UTypes.makePosition 1 2 2) UE.unclosedCommentMsg),
+    (["// do", "// aaa", "var a = 1"], Right $ Ident "var" (UTypes.makePosition 3 1 3))]
+
+
 tests :: [TestGroup]
 tests = [
+    testGroup "Lexer.Tokenizer.symbolMap" symbolMapTest,
+    testGroup "Lexer.Tokenizer.symbolsTree" symbolsTreeTest,
+    testGroup "Lexer.Tokenizer.getTokenPos" getTokenPosTests,
+
     testGroup "Lexer.Tokenizer.matchBracket" matchBracketTests,
     testGroup "Lexer.Tokenizer.eatBlockComments" eatBlockCommentsTests,
     testGroup "Lexer.Tokenizer.eatSpace" eatSpaceTests,
     testGroup "Lexer.Tokenizer.eatSymbol" eatSymbolTests,
     testGroup "Lexer.Tokenizer.eatIdentity" eatIdentityTests,
+    testGroup "Lexer.Tokenizer.eatByPattern" eatByPatternTests,
     testGroup "Lexer.Tokenizer.eatNumber" eatNumberTests,
     testGroup "Lexer.Tokenizer.eatStringLiteral" eatStringLiteralTests,
-    testGroup "Lexer.Tokenizer.eatCharLiteral" eatCharLiteralTests]
+    testGroup "Lexer.Tokenizer.eatCharLiteral" eatCharLiteralTests,
+    
+    testGroup "Lexer.Tokenizer.unwrapString" unwrapStringTests,
+    testGroup "Lexer.Tokenizer.unwrapChar" unwrapCharTests,
+    
+    testGroup "Lexer.Tokenizer.parseSymbol" parseSymbolTests,
+    testGroup "Lexer.Tokenizer.eat" eatTests]
