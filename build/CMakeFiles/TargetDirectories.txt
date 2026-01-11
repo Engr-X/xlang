@@ -1,0 +1,6 @@
+D:/Coding/projects/Mixed/xlang/build/CMakeFiles/parser_lib.dir
+D:/Coding/projects/Mixed/xlang/build/CMakeFiles/edit_cache.dir
+D:/Coding/projects/Mixed/xlang/build/CMakeFiles/rebuild_cache.dir
+D:/Coding/projects/Mixed/xlang/lexparse/build/CMakeFiles/lexparse.dir
+D:/Coding/projects/Mixed/xlang/lexparse/build/CMakeFiles/edit_cache.dir
+D:/Coding/projects/Mixed/xlang/lexparse/build/CMakeFiles/rebuild_cache.dir

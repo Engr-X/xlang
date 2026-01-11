@@ -1,6 +1,8 @@
 #ifndef LIBHASKELL_H
 #define LIBHASKELL_H
 
-int add(int x, int y);
+#include <HsFFI.h>
+
+HsInt32 add3(HsInt32 a, HsInt32 b, HsInt32 c);
 
 #endif

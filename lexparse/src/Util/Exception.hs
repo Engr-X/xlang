@@ -1,0 +1,170 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+
+module Util.Exception where
+
+import qualified Data.Text as DText
+import Data.Aeson
+import Data.Aeson.Encode.Pretty (encodePretty)
+import qualified Data.Text.Lazy as DTL
+import qualified Data.Text.Lazy.Encoding as DTL
+import GHC.Generics (Generic)
+
+import Util.Types
+
+
+-- | Basic error information shared by lexer and parser errors.
+--
+-- This structure records:
+--
+--   * 'filePath'       — the source file where the error occurred
+--   * 'startPosition' — the line/column position of the error
+--   * 'index'         — the absolute character index in the source
+--
+-- It is designed to be embedded inside higher-level error types.
+data BasicError = BasicError {
+
+    -- | Path of the source file in which the error occurred.
+    filePath :: Path,
+
+    -- | Line and column position of the error.
+    startPosition :: Position,
+ 
+    -- | What the hell is going on?
+    why :: String
+} deriving (Eq, Show, Generic)
+
+
+-- | Construct a 'BasicError' given the file path, position, and reason.
+makeError :: Path -> Position -> String -> BasicError
+makeError path pos reason = BasicError {filePath = path, startPosition = pos, why = reason}
+
+
+-- Error message for an invalid string literal
+invalidStringLiteralMsg :: String
+invalidStringLiteralMsg = "Invalid string literal"
+
+
+-- Error message for an invalid character literal
+invalidCharLiteralMsg :: String
+invalidCharLiteralMsg = "Invalid character literal"
+
+
+-- Error message for a comment that was not properly closed
+unclosedCommentMsg :: String
+unclosedCommentMsg = "Unclosed comment"
+
+
+-- Error message for an invalid or unrecognized symbol
+invalidSymbolMsg :: String
+invalidSymbolMsg = "Invalid Symbol"
+
+
+-- Error message for an invalid character
+invalidCharMsg :: String
+invalidCharMsg = "invalid Char"
+
+
+-- | Basic warning information shared by lexer and parser warnings.
+--
+-- This structure records:
+--
+--   * 'filePath'       — the source file where the warning occurred
+--   * 'startPosition' — the line/column position of the warning
+--   * 'index'         — the absolute character index in the source
+--
+-- It is designed to be embedded inside higher-level error types.
+type BasicWarning = BasicError
+
+instance ToJSON BasicError
+
+
+-- | Unified error type for the compiler.
+--
+-- This type represents all possible error categories that may occur during
+-- compilation, including:
+--
+--   * 'None'        — no error
+--   * 'ReadError'  — file I/O failure
+--   * 'SyntaxError' — syntax parsing error
+--   * 'LexerError' — lexical analysis error
+--   * 'ParingError'— syntax parsing error
+--
+-- Each error variant carries the minimum information required for reporting.
+data ErrorKind = None
+    | ReadError Path
+    | LexerError BasicError 
+    | SyntaxError BasicError
+    | ParingError BasicError
+    deriving (Eq, Show)
+
+
+-- | Unified warning type for the compiler.
+--
+-- This type represents all possible warning categories that may occur during
+-- compilation, including:
+--
+--  * 'Null'               — no warning
+--  * 'OverflowWarning'    — numeric overflow warning
+--  * 'UnderflowWarning'   — numeric underflow warning
+--
+-- Each warning variant carries the minimum information required for reporting.
+data Warning = Null
+             | OverflowWarning BasicWarning
+             | UnderflowWarning BasicWarning
+             deriving (Show)
+
+
+-- | Convert an 'ErrorKind' to a numeric error code.
+--
+-- These codes are intended for external interfaces such as:
+--   * command-line exit codes
+--   * JSON diagnostics
+--   * test assertions
+--
+-- ErrorKind code mapping:
+--   * 0 — No error
+--   * 1 — File read error
+--   * 2 — Lexer error
+--   * 3 — Parser error
+getErrorCode :: ErrorKind -> Int
+getErrorCode None = 0
+getErrorCode (ReadError _)  = 1
+getErrorCode (LexerError _) = 2
+getErrorCode (SyntaxError _) = 3
+getErrorCode (ParingError _) = 4
+
+
+-- | Convert an 'ErrorKind' into a JSON value representing the error message.
+--
+-- For simple errors, this returns a human-readable string.
+-- For structured errors (lexer / parser), this returns a JSON object
+-- derived from 'BasicError'.
+--
+-- This separation allows consumers to distinguish error categories
+-- programmatically.
+getErrorMessage :: ErrorKind -> Value
+getErrorMessage None = String ""
+getErrorMessage (ReadError path) = String $ "Cannot open file: " <> DText.pack path
+getErrorMessage (LexerError be)  = toJSON be
+getErrorMessage (SyntaxError be) = toJSON be
+getErrorMessage (ParingError be) = toJSON be
+
+
+-- | Convert an 'ErrorKind' into a pretty-printed JSON string.
+--
+-- The resulting JSON object has the following structure:
+--
+-- @
+-- {
+--   "code":  <error code>,
+--   "error": <error message or object>
+-- }
+-- @
+--
+-- This function is typically used as the final step before reporting
+-- an error to the user or writing diagnostics to output.
+errorToString :: ErrorKind -> String
+errorToString err = DText.unpack $ DTL.toStrict $ DTL.decodeUtf8 $ encodePretty $ object [
+    "code"  .= getErrorCode err, 
+    "error" .= getErrorMessage err]

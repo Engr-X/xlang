@@ -1,0 +1,123 @@
+Test suite xlang-parser-test: RUNNING...
+run test for: Lexer.Tokenizer.symbolMap
+Lexer.Tokenizer.symbolMap: 1 / 1
+
+run test for: Lexer.Tokenizer.symbolsTree
+Lexer.Tokenizer.symbolsTree: 1 / 1
+
+run test for: Lexer.Tokenizer.getTokenPos
+Lexer.Tokenizer.getTokenPos: 9 / 9
+
+run test for: Lexer.Tokenizer.matchBracket
+Lexer.Tokenizer.matchBracket: 6 / 6
+
+run test for: Lexer.Tokenizer.eatBlockComments
+Lexer.Tokenizer.eatBlockComments: 9 / 9
+
+run test for: Lexer.Tokenizer.eatSpace
+Lexer.Tokenizer.eatSpace: 7 / 7
+
+run test for: Lexer.Tokenizer.eatSymbol
+Lexer.Tokenizer.eatSymbol: 8 / 8
+
+run test for: Lexer.Tokenizer.eatIdentity
+Lexer.Tokenizer.eatIdentity: 9 / 9
+
+run test for: Lexer.Tokenizer.eatByPattern
+Lexer.Tokenizer.eatByPattern: 8 / 8
+
+run test for: Lexer.Tokenizer.eatNumber
+Lexer.Tokenizer.eatNumber: 41 / 41
+
+run test for: Lexer.Tokenizer.eatStringLiteral
+Lexer.Tokenizer.eatStringLiteral: 30 / 30
+
+run test for: Lexer.Tokenizer.eatCharLiteral
+Lexer.Tokenizer.eatCharLiteral: 27 / 27
+
+run test for: Lexer.Tokenizer.unwrapString
+Lexer.Tokenizer.unwrapString: 6 / 6
+
+run test for: Lexer.Tokenizer.unwrapChar
+Lexer.Tokenizer.unwrapChar: 24 / 24
+
+run test for: Lexer.Tokenizer.parseSymbol
+Lexer.Tokenizer.parseSymbol: 4 / 4
+
+run test for: Lexer.Tokenizer.eat
+Lexer.Tokenizer.eat: 10 / 10
+
+run test for: Data.Trie.prefixLengths
+Data.Trie.prefixLengths: 26 / 26
+
+run test for: Data.Trie.longestPrefixLength
+Data.Trie.longestPrefixLength: 26 / 26
+
+run test for: Data.Trie.eatLongest
+Data.Trie.eatLongest: 27 / 27
+
+run test for: Data.Trie.contains
+Data.Trie.contains: 23 / 23
+
+run test for: Data.Trie.hasPrefix
+Data.Trie.hasPrefix: 23 / 23
+
+run test for: Util.Basic.isIdentChar
+Util.Basic.isIdentChar: 10 / 10
+
+run test for: Util.Basic.isIntLiteral
+Util.Basic.isIntLiteral: 19 / 19
+
+run test for: Util.Basic.isLongLiteral
+Util.Basic.isLongLiteral: 11 / 11
+
+run test for: Util.Basic.isHexIntLiteral
+Util.Basic.isHexIntLiteral: 10 / 10
+
+run test for: Util.Basic.isHexLongLiteral
+Util.Basic.isHexLongLiteral: 10 / 10
+
+run test for: Util.Basic.isFloatLiteral
+Util.Basic.isFloatLiteral: 27 / 27
+
+run test for: Util.Basic.isDoubleLiteral
+Util.Basic.isDoubleLiteral: 47 / 47
+
+run test for: Util.Basic.isLongDoubleLiteral
+Util.Basic.isLongDoubleLiteral: 8 / 8
+
+run test for: Util.Basic.isNumber
+Util.Basic.isNumber: 4 / 4
+
+run test for: Util.Basic.isStringLiteral
+Util.Basic.isStringLiteral: 8 / 8
+
+run test for: Util.Basic.isCharLiteral
+Util.Basic.isCharLiteral: 9 / 9
+
+run test for: Util.Basic.isBoolLiteral
+Util.Basic.isBoolLiteral: 9 / 9
+
+run test for: Util.Basic.full
+Util.Basic.full: 2 / 2
+
+run test for: Util.Basic.start
+Util.Basic.start: 2 / 2
+
+run test for: Util.Basic.match
+Util.Basic.match: 2 / 2
+
+run test for: Util.Basic.matchFull
+Util.Basic.matchFull: 2 / 2
+
+run test for: Util.Basic.matchLength
+Util.Basic.matchLength: 6 / 6
+
+run test for: Util.Basic.findMatches
+Util.Basic.findMatches: 16 / 16
+
+run test for: Util.FileHelper.processContent
+Util.FileHelper.processContent: 5 / 5
+
+Test suite xlang-parser-test: PASS
+Test suite logged to: D:\Coding\projects\Mixed\xlang\lexparse\dist-newstyle\build\x86_64-windows\ghc-9.4.8\lexparse-0.1.0.0\t\xlang-parser-test\test\lexparse-0.1.0.0-xlang-parser-test.log
