@@ -104,6 +104,8 @@ instance Show Token where
     show (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
 
 
+-- | Check whether a token represents a lexer error.
+-- Returns True only for 'Error' tokens, False otherwise.
 isErrToken :: Token -> Bool
 isErrToken (Error _ _) = True
 isErrToken _ = False

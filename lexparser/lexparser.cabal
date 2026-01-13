@@ -77,7 +77,7 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends: 
-                base ^>=4.17.2.1,
+                base >=4.17.2.1,
                 text,
                 array,
 
@@ -124,5 +124,5 @@ test-suite lexparser-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.17.2.1,
+        base >=4.17.2.1,
         lexparser
