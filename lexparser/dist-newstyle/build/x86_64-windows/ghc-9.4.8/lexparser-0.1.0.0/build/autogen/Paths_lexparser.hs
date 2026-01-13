@@ -46,12 +46,12 @@ getBinDir, getLibDir, getDynLibDir, getDataDir, getLibexecDir, getSysconfDir :: 
 
 
 bindir, libdir, dynlibdir, datadir, libexecdir, sysconfdir :: FilePath
-bindir     = "/homes/dw725/.cabal/bin"
-libdir     = "/homes/dw725/.cabal/lib/x86_64-linux-ghc-9.6.7/lexparser-0.1.0.0-inplace"
-dynlibdir  = "/homes/dw725/.cabal/lib/x86_64-linux-ghc-9.6.7"
-datadir    = "/homes/dw725/.cabal/share/x86_64-linux-ghc-9.6.7/lexparser-0.1.0.0"
-libexecdir = "/homes/dw725/.cabal/libexec/x86_64-linux-ghc-9.6.7/lexparser-0.1.0.0"
-sysconfdir = "/homes/dw725/.cabal/etc"
+bindir     = "C:\\Users\\Murphy\\AppData\\Roaming\\cabal\\bin"
+libdir     = "C:\\Users\\Murphy\\AppData\\Roaming\\cabal\\x86_64-windows-ghc-9.4.8\\lexparser-0.1.0.0-inplace"
+dynlibdir  = "C:\\Users\\Murphy\\AppData\\Roaming\\cabal\\x86_64-windows-ghc-9.4.8"
+datadir    = "C:\\Users\\Murphy\\AppData\\Roaming\\cabal\\x86_64-windows-ghc-9.4.8\\lexparser-0.1.0.0"
+libexecdir = "C:\\Users\\Murphy\\AppData\\Roaming\\cabal\\lexparser-0.1.0.0-inplace\\x86_64-windows-ghc-9.4.8\\lexparser-0.1.0.0"
+sysconfdir = "C:\\Users\\Murphy\\AppData\\Roaming\\cabal\\etc"
 
 getBinDir     = catchIO (getEnv "lexparser_bindir")     (\_ -> return bindir)
 getLibDir     = catchIO (getEnv "lexparser_libdir")     (\_ -> return libdir)
@@ -71,7 +71,7 @@ joinFileName dir fname
   | otherwise                       = dir ++ pathSeparator : fname
 
 pathSeparator :: Char
-pathSeparator = '/'
+pathSeparator = '\\'
 
 isPathSeparator :: Char -> Bool
-isPathSeparator c = c == '/'
+isPathSeparator c = c == '/' || c == '\\'

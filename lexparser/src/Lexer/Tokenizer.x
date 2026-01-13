@@ -4,7 +4,7 @@ module Lexer.Tokenizer where
 import Data.List (partition)
 import Numeric (readHex, readOct)
 import Lexer.Token
-import Util.Exception (ErrorKind, internalErrorMsg, unterminatedStrLiteralMsg)
+import Util.Exception (ErrorKind, internalErrorMsg, unterminatedStrLiteralMsg, unterminatedCharLiteralMsg, invalidCharLiteralMsg)
 import Util.Types (Position, Path)
 
 import qualified Data.Char as DC
@@ -75,6 +75,7 @@ tokens :-
 
 -- comment: eat until */, allow newlines
 <comment> "*/"          { endBlockComment } -- encounter */ the block comment end
+<comment> \r?\n         { skipTok } 
 <comment> .             { skipTok }         -- other anything just skip
 
 
@@ -95,7 +96,10 @@ tokens :-
 
 
 -- char state rules
-
+<char> \'               { endChar }
+<char> \\\\ .           { skipTok }   -- escaped char: \" \\ \n etc.
+<char> [^\'\\\n]+       { skipTok }   -- normal chars
+<char> \n                { unterminatedChar }
 
 
 -- string state rules
@@ -210,6 +214,33 @@ beginChar (p, _, _, s0) _ = do
     alexSetStartCode char
     alexSetUserState (Just (p, s0))
     alexMonadScan
+
+unterminatedChar :: AlexInput -> Int -> Alex Token
+unterminatedChar (pNow, _, _, sNow) _ = do
+    st <- alexGetUserState
+    alexSetStartCode 0
+    alexSetUserState Nothing
+    case st of
+        Just (pStart, sStart) -> do
+            let consumed = length sStart - length sNow
+            let len = max 0 (consumed - 1)
+            return $ Error unterminatedCharLiteralMsg (makePos pStart len)
+        Nothing -> return $ Error internalErrorMsg (makePos pNow 0)
+
+endChar :: AlexInput -> Int -> Alex Token
+endChar (_pEnd, _, _, sEnd) _ = do
+    st <- alexGetUserState
+    alexSetStartCode 0
+    alexSetUserState Nothing
+    case st of
+        Just (pStart, sStart) -> do
+            let consumed = length sStart - length sEnd
+    
+            case unwrapChar $ take consumed sStart of
+                Just c -> return $ CharConst c (makePos pStart consumed)
+                Nothing -> return $ Error invalidCharLiteralMsg (makePos pStart 0)
+
+        Nothing -> return $ Error internalErrorMsg (makePos _pEnd 0)
 
 
 

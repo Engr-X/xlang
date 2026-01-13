@@ -48,6 +48,10 @@ internalErrorMsg = "internal error"
 unterminatedStrLiteralMsg :: String
 unterminatedStrLiteralMsg = "unterminated string literal"
 
+-- Error message for an invalid char literal
+unterminatedCharLiteralMsg :: String
+unterminatedCharLiteralMsg = "unterminated character literal"
+
 
 -- Error message for an invalid character literal
 invalidCharLiteralMsg :: String
