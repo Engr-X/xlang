@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"D:/Coding/projects/Mixed/xlang/build/cmake_install.cmake",
-		"D:/Coding/projects/Mixed/xlang/lexparse/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

@@ -1,0 +1,1 @@
+alex ./src/Lexer Tokenizer.x -o ./src/Lexer Tokenizer.hs

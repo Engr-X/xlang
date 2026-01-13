@@ -1,8 +1,0 @@
-[
-{
-  "directory": "D:/Coding/projects/Mixed/xlang/c/build",
-  "command": "D:\\Coding\\compilers\\Mingw-13.2.0\\bin\\gcc.exe  @CMakeFiles/xlang_c.dir/includes_C.rsp -g -o CMakeFiles\\xlang_c.dir\\src\\xlang.c.obj -c D:\\Coding\\projects\\Mixed\\xlang\\c\\src\\xlang.c",
-  "file": "D:/Coding/projects/Mixed/xlang/c/src/xlang.c",
-  "output": "D:/Coding/projects/Mixed/xlang/c/build/CMakeFiles/xlang_c.dir/src/xlang.c.obj"
-}
-]
