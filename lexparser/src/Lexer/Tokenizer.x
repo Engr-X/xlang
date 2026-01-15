@@ -4,7 +4,7 @@ module Lexer.Tokenizer where
 import Data.List (partition)
 import Numeric (readHex, readOct)
 import Lexer.Token
-import Util.Exception (ErrorKind, internalErrorMsg, unterminatedStrLiteralMsg, unterminatedCharLiteralMsg, invalidCharLiteralMsg)
+import Util.Exception (ErrorKind, internalErrorMsg, unterminatedStrLiteralMsg, unterminatedCharLiteralMsg, invalidCharLiteralMsg, invalidNumericLiteralMsg)
 import Util.Types (Position, Path)
 
 import qualified Data.Char as DC
@@ -83,6 +83,7 @@ tokens :-
 -- normal tokens (default state!)
 
 -- if match a number then eat as number
+<0> @numberLit / ($letter | $underscore)   { invalidNumber }
 <0> @numberLit          { eatNumber }
 
 -- if there is letter or underscore then eat as identity
@@ -402,6 +403,12 @@ endString (_pEnd, _, _, sEnd) len = do
             return $ StrConst (unwrapString lexeme) (makePos pStart consumed)
         Just _ ->return $ Error internalErrorMsg (makePos _pEnd 0)
         Nothing -> return $ Error internalErrorMsg (makePos _pEnd 0)
+
+
+-- | Consume a invalid numeric literal token.
+-- The lexeme is kept as-is and interpreted later.
+invalidNumber :: AlexInput -> Int -> Alex Token
+invalidNumber (p, _, _, s) len = let lexeme = take len s in return $ Error invalidNumericLiteralMsg (makePos p len)
 
 
 -- | Consume a numeric literal token.

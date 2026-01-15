@@ -91,10 +91,10 @@ for (x = a_address.getSize(); x <= 10; x *= 2) /* iterate the list */
     (unlines [
         "for (x = a_address.getSize(); x <= 10; x *= 2) /* iterate the list */",
         "    print(x) # this is a comment too"], ([], [
-        makeId "for" 1 1 3, makeSymbol LParen 1 5 1, makeId "x" 1 6 1, makeSymbol Assign 1 8 1, makeId "a_address" 1 10 9, makeSymbol Dot 1 19 1, makeId "getSize" 1 20 7, makeSymbol LParen 1 27 1, makeSymbol LParen 1 28 1, makeSymbol Semicolon 1 29 1,
-            makeId "x" 1 31 1, makeSymbol LessEqual 1 33 1, makeNum "10" 1 36 2, makeSymbol Semicolon 1 38 1,
-            makeId "x" 1 40 1, makeSymbol MultiplyAssign 1 42 2, makeNum "2" 1 45 1, makeSymbol Semicolon 1 46 1,
-        makeId "print" 2 4 5, makeSymbol LParen 2 10 1, makeId "x" 2 11 1, makeSymbol RParen 2 12 1
+        makeId "for" 1 1 3, makeSymbol LParen 1 5 1, makeId "x" 1 6 1, makeSymbol Assign 1 8 1, makeId "a_address" 1 10 9, makeSymbol Dot 1 19 1, makeId "getSize" 1 20 7, makeSymbol LParen 1 27 1, makeSymbol RParen 1 28 1, makeSymbol Semicolon 1 29 1,
+            makeId "x" 1 31 1, makeSymbol LessEqual 1 33 2, makeNum "10" 1 36 2, makeSymbol Semicolon 1 38 1,
+            makeId "x" 1 40 1, makeSymbol MultiplyAssign 1 42 2, makeNum "2" 1 45 1, makeSymbol RParen 1 46 1,
+        makeId "print" 2 5 5, makeSymbol LParen 2 10 1, makeId "x" 2 11 1, makeSymbol RParen 2 12 1
     ]))]
 
 

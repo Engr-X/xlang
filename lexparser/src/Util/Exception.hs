@@ -53,6 +53,11 @@ unterminatedCharLiteralMsg :: String
 unterminatedCharLiteralMsg = "unterminated character literal"
 
 
+-- invalid number formate, usually a number started identity
+invalidNumericLiteralMsg :: String
+invalidNumericLiteralMsg = "invalid numeric literal"
+
+
 -- Error message for an invalid character literal
 invalidCharLiteralMsg :: String
 invalidCharLiteralMsg = "Invalid character literal"
