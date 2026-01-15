@@ -45,12 +45,13 @@ internalErrorMsg = "internal error"
 
 
 -- Error message for an invalid string literal
-unterminatedStrLiteralMsg :: String
-unterminatedStrLiteralMsg = "unterminated string literal"
+unclosedStrLiteralMsg :: String
+unclosedStrLiteralMsg = "unterminated string literal"
+
 
 -- Error message for an invalid char literal
-unterminatedCharLiteralMsg :: String
-unterminatedCharLiteralMsg = "unterminated character literal"
+unclosedCharLiteralMsg :: String
+unclosedCharLiteralMsg = "unterminated character literal"
 
 
 -- invalid number formate, usually a number started identity
@@ -65,17 +66,10 @@ invalidCharLiteralMsg = "Invalid character literal"
 
 -- Error message for a comment that was not properly closed
 unclosedCommentMsg :: String
-unclosedCommentMsg = "Unclosed comment"
+unclosedCommentMsg = "unterminated comment"
 
 
--- Error message for an invalid or unrecognized symbol
-invalidSymbolMsg :: String
-invalidSymbolMsg = "Invalid Symbol"
 
-
--- Error message for an invalid character
-invalidCharMsg :: String
-invalidCharMsg = "invalid Char"
 
 
 -- | Basic warning information shared by lexer and parser warnings.

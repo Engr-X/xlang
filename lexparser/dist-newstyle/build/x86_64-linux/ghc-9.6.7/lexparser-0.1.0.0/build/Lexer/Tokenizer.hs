@@ -10,7 +10,7 @@ module Lexer.Tokenizer where
 import Data.List (partition)
 import Numeric (readHex, readOct)
 import Lexer.Token
-import Util.Exception (ErrorKind, internalErrorMsg, unterminatedStrLiteralMsg, unterminatedCharLiteralMsg, invalidCharLiteralMsg, invalidNumericLiteralMsg)
+import Util.Exception (ErrorKind, internalErrorMsg, unclosedStrLiteralMsg, unclosedCharLiteralMsg, invalidCharLiteralMsg, invalidNumericLiteralMsg)
 import Util.Types (Position, Path)
 
 import qualified Data.Char as DC
@@ -1281,12 +1281,12 @@ alexEOF = do
         Just (KString, pStart, sStart) -> do
             let consumed = length sStart - length sNow
             let len = max 0 (consumed - 1)
-            return $ Error unterminatedStrLiteralMsg (makePos pStart len)
+            return $ Error unclosedStrLiteralMsg (makePos pStart len)
 
         Just (KChar, pStart, sStart) -> do
             let consumed = length sStart - length sNow
             let len = max 0 (consumed - 1)
-            return $ Error unterminatedCharLiteralMsg (makePos pStart len)
+            return $ Error unclosedCharLiteralMsg (makePos pStart len)
 
         Just (KComment, pStart, sStart) -> do
             let consumed = length sStart - length sNow
@@ -1353,8 +1353,7 @@ unterminatedChar (pNow, _, _, sNow) _ = do
     case st of
         Just (KChar, pStart, sStart) -> do
             let consumed = length sStart - length sNow
-            let len = max 0 (consumed - 1)
-            return $ Error unterminatedCharLiteralMsg (makePos pStart len)
+            return $ Error unclosedCharLiteralMsg (makePos pStart consumed)
         Just _ -> return $ Error internalErrorMsg (makePos pNow 0)
         Nothing -> return $ Error internalErrorMsg (makePos pNow 0)
 
@@ -1400,8 +1399,7 @@ unterminatedString (pNow, _, _, sNow) _ = do
     case st of
         Just (KString, pStart, sStart) -> do
             let consumed = length sStart - length sNow
-            let len = max 0 (consumed - 1)
-            return $ Error unterminatedStrLiteralMsg (makePos pStart len)
+            return $ Error unclosedStrLiteralMsg (makePos pStart consumed)
         Just _ -> return $ Error internalErrorMsg (makePos pNow 0)
         Nothing -> return $ Error internalErrorMsg (makePos pNow 0)
 
@@ -1497,7 +1495,7 @@ tokenize p str =
 
 -- | used for debug
 debugTokenize :: String -> ([ErrorKind], [Token])
-debugTokenize = tokenize "debug path"
+debugTokenize = tokenize "stdin"
 
 
 

@@ -94,7 +94,6 @@ instance Show Token where
     show (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
     show (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
     show (Error e pos) = "Error at: " ++ show pos ++ e
-   
 
 
 -- | Check whether a token represents a lexer error.
