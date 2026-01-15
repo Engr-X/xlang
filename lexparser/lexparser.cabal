@@ -100,6 +100,7 @@ library
     x-alex-sources:  src/Lexer/Tokenizer.x
     x-alex-output-dir: src/Lexer
 
+
 test-suite lexparser-test
     -- Import common warning flags.
     import:           warnings
@@ -122,7 +123,15 @@ test-suite lexparser-test
     -- The entrypoint to the test suite.
     main-is:          Main.hs
 
+
+    other-modules:  
+        Lexer.TokenizerTest
+
     -- Test dependencies.
     build-depends:
         base >=4.17.2.1,
+        lexparser,
+        tasty,
+        tasty-hunit,
+
         lexparser

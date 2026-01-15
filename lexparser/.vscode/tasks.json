@@ -17,7 +17,7 @@
       "label": "haskell build",
       "type": "shell",
       //"command": "cabal configure && cabal build"
-      "command": "stack build"
+      "command": "cabal build"
     },
     {
       // F6
@@ -25,8 +25,8 @@
       "type": "shell",
       "label": "haskell clean & build",
       //"command": "cabal clean && cabal configure && cabal build"
-      "command": "stack clean && stack build"
-      //"command": "stack clean ; stack build"  // for powershell
+      "command": "cabal clean && cabal build"
+      //"command": "cabal clean ; cabal build"  // for powershell
     },
     {
       // F8
@@ -37,14 +37,14 @@
       "type": "shell",
       "label": "haskell test",
       //"command": "cabal test"
-      "command": "stack test"
+      "command": "cabal test"
     },
     {
       // F6
       "isBackground": true,
       "type": "shell",
       "label": "haskell watch",
-      "command": "stack build --test --no-run-tests --file-watch"
+      "command": "cabal build --test --no-run-tests --file-watch"
     }
   ]
 }

@@ -61,8 +61,6 @@ data Symbol
     | RBrace           -- "}"
 
     -- Functional / miscellaneous symbols
-    | DoubleQuote      -- "\""
-    | SingleQuote      -- "'"
     | Semicolon        -- ";"
     | Comma            -- ","
     | Question         -- "?"
@@ -71,12 +69,6 @@ data Symbol
     | Dot              -- "."
     | DoubleDot        -- ".."
     | Backslash        -- "\\"
-
-    -- Comments / preprocessor
-    | LineComment      -- "//"
-    | Hash             -- "#"
-    | BlockCommentStart -- "/*"
-    | BlockCommentEnd   -- "*/"
     deriving (Eq, Show, Ord)
 
 
@@ -84,24 +76,25 @@ data Symbol
 -- in the source code after lexical analysis.
 -- Each token carries a position from the source code for error reporting.
 data Token = Error String Position
-    | CharConst Char Position -- contain ''
-    | StrConst String Position -- contain ""
-    | NumberConst String Position
-
     | Ident String Position
     | Symbol Symbol Position
+    | NumberConst String Position
+
+    | CharConst Char Position -- contain ''
+    | StrConst String Position -- contain ""
     deriving (Eq)
 
 
 -- | 'Show' instance for 'Token' provides a human-readable representation
 -- of each token, including its value (if applicable) and its source position.
 instance Show Token where
-    show (Error e pos) = "Error at: " ++ show pos ++ e
-    show (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
-    show (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
-    show (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
     show (Ident name pos) = "Ident@" ++ name ++ " " ++ show pos
     show (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
+    show (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
+    show (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
+    show (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
+    show (Error e pos) = "Error at: " ++ show pos ++ e
+   
 
 
 -- | Check whether a token represents a lexer error.
