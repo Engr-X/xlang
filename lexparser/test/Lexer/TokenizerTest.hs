@@ -51,8 +51,14 @@ a='\n'; /* this is crazy
 b='\t'; // this is crazy too~
 c='\''; // this is crazy 2
 d='\\'; // this is awesome
+
 -}       
-    ("a='\\n'; /* this is crazy\n*/\nb='\\t'; // this is crazy too~\nc='\\''; // this is crazy 2\nd='\\\\'; // this is awesome", ([], [
+    (unlines [
+        "a='\\n'; /* this is crazy",
+        "*/",
+        "b='\\t'; // this is crazy too~",
+        "c='\\''; // this is crazy 2",
+        "d='\\\\'; // this is awesome"], ([], [
         makeId "a" 1 1 1,  makeSymbol Assign 1 2 1,  makeChar '\n' 1 3 4,  makeSymbol Semicolon 1 7 1,
         makeId "b" 3 1 1,  makeSymbol Assign 3 2 1,  makeChar '\t' 3 3 4,  makeSymbol Semicolon 3 7 1,
         makeId "c" 4 1 1,  makeSymbol Assign 4 2 1,  makeChar '\'' 4 3 4,  makeSymbol Semicolon 4 7 1,
@@ -65,13 +71,32 @@ str2 = "hello, world in Chinese is 世界你好";
 /* /* perfect */
 str4 = null
 -}
-    ("str1 = \"hello, this is my own program language!!!\";\nstr2 = \"hello, world in Chinese is \19990\30028\20320\22909\";\n/* this is a test */ str3 = \"\\0\";\n/* /* perfect */\nstr4 = null", ([], [
+    (unlines [
+        "str1 = \"hello, this is my own program language!!!\";",
+        "str2 = \"hello, world in Chinese is \19990\30028\20320\22909\";",
+        "/* this is a test */ str3 = \"\\0\";",
+        "/* /* perfect */",
+        "str4 = null"], ([], [
         makeId "str1" 1 1 4,  makeSymbol Assign 1 6 1,  makeStr "hello, this is my own program language!!!" 1 8 43,  makeSymbol Semicolon 1 51 1,
         makeId "str2" 2 1 4,  makeSymbol Assign 2 6 1,  makeStr "hello, world in Chinese is 世界你好" 2 8 33,  makeSymbol Semicolon 2 41 1,
 
         makeId "str3" 3 22 4,  makeSymbol Assign 3 27 1,  makeStr  "\\0" 3 29 4, makeSymbol Semicolon 3 33 1,
         makeId "str4" 5 1 4,  makeSymbol Assign 5 6 1,  makeId "null" 5 8 4
+    ])),
+
+{-
+for (x = a_address.getSize(); x <= 10; x *= 2) /* iterate the list */
+    print(x) # this is a comment too
+-}
+    (unlines [
+        "for (x = a_address.getSize(); x <= 10; x *= 2) /* iterate the list */",
+        "    print(x) # this is a comment too"], ([], [
+        makeId "for" 1 1 3, makeSymbol LParen 1 5 1, makeId "x" 1 6 1, makeSymbol Assign 1 8 1, makeId "a_address" 1 10 9, makeSymbol Dot 1 19 1, makeId "getSize" 1 20 7, makeSymbol LParen 1 27 1, makeSymbol LParen 1 28 1, makeSymbol Semicolon 1 29 1,
+            makeId "x" 1 31 1, makeSymbol LessEqual 1 33 1, makeNum "10" 1 36 2, makeSymbol Semicolon 1 38 1,
+            makeId "x" 1 40 1, makeSymbol MultiplyAssign 1 42 2, makeNum "2" 1 45 1, makeSymbol Semicolon 1 46 1,
+        makeId "print" 2 4 5, makeSymbol LParen 2 10 1, makeId "x" 2 11 1, makeSymbol RParen 2 12 1
     ]))]
+
 
 
 tests :: TestTree
