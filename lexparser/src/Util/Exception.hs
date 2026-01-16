@@ -3,14 +3,14 @@
 
 module Util.Exception where
 
-import qualified Data.Text as DText
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
+import GHC.Generics (Generic)
+import Util.Type
+
+import qualified Data.Text as DText
 import qualified Data.Text.Lazy as DTL
 import qualified Data.Text.Lazy.Encoding as DTL
-import GHC.Generics (Generic)
-
-import Util.Types
 
 
 -- | Basic error information shared by lexer and parser errors.
@@ -94,7 +94,7 @@ instance ToJSON BasicError
 --   * 'None'        — no error
 --   * 'Reading'  — file I/O failure
 --   * 'Syntax' — syntax parsing error
---   * 'Lexer' — lexical analysis error
+--   * 'Lex' — lexical analysis error
 --   * 'Paring'— syntax parsing error
 --
 -- Each error variant carries the minimum information required for reporting.
@@ -133,7 +133,7 @@ data Warning = Null
 -- ErrorKind code mapping:
 --   * 0 — No error
 --   * 1 — File read error
---   * 2 — Lexer error
+--   * 2 — Lex error
 --   * 3 — Parser error
 getErrorCode :: ErrorKind -> Int
 getErrorCode (Unkown _) = -1

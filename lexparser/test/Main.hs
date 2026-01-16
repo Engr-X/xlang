@@ -1,11 +1,18 @@
 module Main (main) where
 
 
-import Lexer.TokenizerTest
+import Lex.TokenTest
+import Lex.TokenizerTest
 
+import Parse.ParserTest
+
+import Util.ExceptionTest
+import Util.FileHelperTest
+import Util.TypeTest
 import Test.Tasty
 
 
 main :: IO ()
 main = defaultMain $ testGroup "All tests" [
-    Lexer.TokenizerTest.tests]
+    Util.TypeTest.tests, Util.ExceptionTest.tests, Util.FileHelperTest.tests,
+    Lex.TokenTest.tests, Lex.TokenizerTest.tests, Parse.ParserTest.tests]

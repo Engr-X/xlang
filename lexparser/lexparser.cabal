@@ -61,10 +61,13 @@ library
     exposed-modules:  
                 Lexparser
 
-                Lexer.Token
-                Lexer.Tokenizer
+                Lex.Token
+                Lex.Tokenizer
 
-                Util.Types
+                Parse.SyntaxTree
+                Parse.Parser
+
+                Util.Type
                 Util.FileHelper
                 Util.Exception
 
@@ -80,13 +83,13 @@ library
                 base >=4.17.2.1,
                 text,
                 array,
-
                 aeson,
                 aeson-pretty,
                 bytestring
 
     build-tool-depends:
-                alex:alex
+                alex:alex,
+                happy:happy
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -97,8 +100,11 @@ library
     default-extensions: CPP
 
     -- alex file and build settings
-    x-alex-sources:  src/Lexer/Tokenizer.x
-    x-alex-output-dir: src/Lexer
+    x-alex-sources:         src/Lex/Tokenizer.x
+    x-alex-output-dir:      src/Lex
+
+    x-happy-sources:        src/Parser/Parser.y
+    x-happy-output-dir:     src/Parser
 
 
 test-suite lexparser-test
@@ -125,13 +131,34 @@ test-suite lexparser-test
 
 
     other-modules:  
-        Lexer.TokenizerTest
+        Lex.TokenTest
+        Lex.TokenizerTest
+        Parse.ParserTest
+
+        Util.ExceptionTest
+        Util.FileHelperTest
+        Util.TypeTest
 
     -- Test dependencies.
     build-depends:
+        lexparser,
         base >=4.17.2.1,
+        aeson,
+        text,
+        bytestring,
+
         lexparser,
         tasty,
         tasty-hunit,
 
-        lexparser
+    build-tool-depends:
+        alex:alex,
+        happy:happy
+
+    x-alex-sources:         src/Lex/Tokenizer.x
+    x-alex-output-dir:      src/Lex
+
+    x-happy-sources:        src/Parser/Parser.y
+    x-happy-output-dir:     src/Parser
+
+        

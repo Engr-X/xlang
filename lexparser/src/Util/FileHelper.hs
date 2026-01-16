@@ -1,7 +1,7 @@
 module Util.FileHelper where
 
 import Control.Exception (IOException)
-import Util.Types
+import Util.Type
 
 import qualified Data.Text as DText
 import qualified Data.Text.IO as DTIO

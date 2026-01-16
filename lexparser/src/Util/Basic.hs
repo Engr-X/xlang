@@ -1,14 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
-
-
 module Util.Basic where
 
 import Text.Regex.TDFA ((=~), getAllMatches)
 
 import qualified Data.Char as DC
 import qualified Data.List as DL
-
-import qualified Util.Types as DT
+import qualified Util.Type as DT
 
 
 -- | spanWithLength` is a variant of the standard `span` function that, in addition to splitting a list,
