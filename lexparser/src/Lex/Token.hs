@@ -82,18 +82,18 @@ data Token = Error String Position
 
     | CharConst Char Position -- contain ''
     | StrConst String Position -- contain ""
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 -- | 'Show' instance for 'Token' provides a human-readable representation
 -- of each token, including its value (if applicable) and its source position.
-instance Show Token where
-    show (Ident name pos) = "Ident@" ++ name ++ " " ++ show pos
-    show (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
-    show (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
-    show (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
-    show (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
-    show (Error e pos) = "Error at: " ++ show pos ++ e
+prettyToken :: Token -> String
+prettyToken (Ident name pos) = "Ident@" ++ name ++ " " ++ show pos
+prettyToken (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
+prettyToken (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
+prettyToken (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
+prettyToken (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
+prettyToken (Error e pos) = "Error at: " ++ show pos ++ e
 
 
 -- | Check whether a token represents a lexer error.
@@ -103,11 +103,30 @@ isErrToken (Error _ _) = True
 isErrToken _ = False
 
 
+-- | Check whether a token represents a left bracket.
+isLBracketToken (Symbol LParen _) = True
+isLBracketToken (Symbol LBracket _) = True
+isLBracketToken (Symbol LBrace _) = True
+isLBracketToken _ = False
+
+
+-- | Check whether a token represents a left bracket.
+isRBracketToken (Symbol RParen _) = True
+isRBracketToken (Symbol RBracket _) = True
+isRBracketToken (Symbol RBrace _) = True
+isRBracketToken _ = False
+
+
+-- | Check whether a token represents a bracket.
+isBracketToken :: Token -> Bool
+isBracketToken t = isLBracketToken t || isRBracketToken t 
+
+
 -- | get the position of the token
-tokPos :: Token -> Position
-tokPos (Error _ p) = p
-tokPos (Ident _ p) = p
-tokPos (Symbol _ p) = p
-tokPos (NumberConst _ p) = p
-tokPos (CharConst _ p) = p
-tokPos (StrConst _ p) = p
+tokenPos :: Token -> Position
+tokenPos (Error _ p) = p
+tokenPos (Ident _ p) = p
+tokenPos (Symbol _ p) = p
+tokenPos (NumberConst _ p) = p
+tokenPos (CharConst _ p) = p
+tokenPos (StrConst _ p) = p

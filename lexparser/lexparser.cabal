@@ -67,6 +67,7 @@ library
                 Parse.SyntaxTree
                 Parse.Parser
 
+                Util.Basic
                 Util.Type
                 Util.FileHelper
                 Util.Exception
@@ -85,7 +86,10 @@ library
                 array,
                 aeson,
                 aeson-pretty,
-                bytestring
+                bytestring,
+
+                regex-base,
+                regex-tdfa
 
     build-tool-depends:
                 alex:alex,
@@ -133,8 +137,11 @@ test-suite lexparser-test
     other-modules:  
         Lex.TokenTest
         Lex.TokenizerTest
-        Parse.ParserTest
 
+        Parse.ParserTest
+        Parse.SyntaxTreeTest
+
+        Util.BasicTest
         Util.ExceptionTest
         Util.FileHelperTest
         Util.TypeTest
@@ -150,6 +157,9 @@ test-suite lexparser-test
         lexparser,
         tasty,
         tasty-hunit,
+
+        regex-base,
+        regex-tdfa
 
     build-tool-depends:
         alex:alex,

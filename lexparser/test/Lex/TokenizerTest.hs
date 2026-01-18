@@ -12,64 +12,64 @@ import qualified Util.Exception as UE
 
 makePosTests :: TestTree
 makePosTests = testGroup "Lex.Tokenizer.makePos" [
-    testCase "Lex.Tokenizer.makePos0" $ makePos (AlexPn 0 1 1) 5 @?= makePosition 1 1 5,
-    testCase "Lex.Tokenizer.makePos1" $ makePos (AlexPn 123 10 20) 3 @?= makePosition 10 20 3,
-    testCase "Lex.Tokenizer.makePos2" $ makePos (AlexPn 999 0 0) 0 @?= makePosition 0 0 0,
-    testCase "Lex.Tokenizer.makePos3" $ makePos (AlexPn (-1) 7 8) 42 @?= makePosition 7 8 42]
+    testCase "0" $ makePos (AlexPn 0 1 1) 5 @?= makePosition 1 1 5,
+    testCase "1" $ makePos (AlexPn 123 10 20) 3 @?= makePosition 10 20 3,
+    testCase "2" $ makePos (AlexPn 999 0 0) 0 @?= makePosition 0 0 0,
+    testCase "3" $ makePos (AlexPn (-1) 7 8) 42 @?= makePosition 7 8 42]
 
 
 unwrapStringTests :: TestTree
 unwrapStringTests = testGroup "Lex.Tokenizer.unwrapString" $ map (\(i, e, n) -> testCase n $ unwrapString i @?= e) [
-    ("\"hello\"", "hello", "Lex.Tokenizer.unwrapString0"),
-    ("\"world\"", "world", "Lex.Tokenizer.unwrapString1"),
-    ("\"\"", "", "Lex.Tokenizer.unwrapString2"),
-    ("\"123 + 456\"", "123 + 456", "Lex.Tokenizer.unwrapString3"),
-    ("\"a@b#c$d\"", "a@b#c$d", "Lex.Tokenizer.unwrapString4"),
-    ("\"你好世界\"", "你好世界", "Lex.Tokenizer.unwrapString5")]
+    ("\"hello\"", "hello", "0"),
+    ("\"world\"", "world", "1"),
+    ("\"\"", "", "2"),
+    ("\"123 + 456\"", "123 + 456", "3"),
+    ("\"a@b#c$d\"", "a@b#c$d", "4"),
+    ("\"你好世界\"", "你好世界", "5")]
 
 
 unwrapCharTests :: TestTree
 unwrapCharTests = testGroup "Lex.Tokenizer.unwrapChar" $ map (\(i, e, n) -> testCase n $ unwrapChar i @?= e) [
-    ("'a'", Just 'a', "Lex.Tokenizer.unwrapChar0"),
-    ("'Z'", Just 'Z', "Lex.Tokenizer.unwrapChar1"),
-    ("'0'", Just '0', "Lex.Tokenizer.unwrapChar2"),
-    ("'+'", Just '+', "Lex.Tokenizer.unwrapChar3"),
+    ("'a'", Just 'a', "0"),
+    ("'Z'", Just 'Z', "1"),
+    ("'0'", Just '0', "2"),
+    ("'+'", Just '+', "3"),
 
-    ("'你'", Just '你', "Lex.Tokenizer.unwrapChar4"),
-    ("'书'", Just '书', "Lex.Tokenizer.unwrapChar5"),
-    ("'界'", Just '界', "Lex.Tokenizer.unwrapChar6"),
+    ("'你'", Just '你', "4"),
+    ("'书'", Just '书', "5"),
+    ("'界'", Just '界', "6"),
 
-    ("'\\n'", Just '\n', "Lex.Tokenizer.unwrapChar7"),
-    ("'\\t'", Just '\t', "Lex.Tokenizer.unwrapChar8"),
-    ("'\\r'", Just '\r', "Lex.Tokenizer.unwrapChar9"),
-    ("'\\b'", Just '\b', "Lex.Tokenizer.unwrapChar10"),
-    ("'\\f'", Just '\f', "Lex.Tokenizer.unwrapChar11"),
-    ("'\\v'", Just '\v', "Lex.Tokenizer.unwrapChar12"),
+    ("'\\n'", Just '\n', "7"),
+    ("'\\t'", Just '\t', "8"),
+    ("'\\r'", Just '\r', "9"),
+    ("'\\b'", Just '\b', "10"),
+    ("'\\f'", Just '\f', "11"),
+    ("'\\v'", Just '\v', "12"),
 
-    ("'\\\\'", Just '\\', "Lex.Tokenizer.unwrapChar13"),
-    ("'\\''", Just '\'', "Lex.Tokenizer.unwrapChar14"),
-    ("'\\\"'", Just '\"', "Lex.Tokenizer.unwrapChar15"),
+    ("'\\\\'", Just '\\', "13"),
+    ("'\\''", Just '\'', "14"),
+    ("'\\\"'", Just '\"', "15"),
 
-    ("'\\0'", Just '\0', "Lex.Tokenizer.unwrapChar16"),
-    ("'\\12'", Just '\n', "Lex.Tokenizer.unwrapChar17"),
-    ("'\\256'", Just '\174', "Lex.Tokenizer.unwrapChar18"),
+    ("'\\0'", Just '\0', "16"),
+    ("'\\12'", Just '\n', "17"),
+    ("'\\256'", Just '\174', "18"),
 
-    ("'\\x41'", Just 'A', "Lex.Tokenizer.unwrapChar19"),
-    ("'\\x7a'", Just 'z', "Lex.Tokenizer.unwrapChar20"),
-    ("'\\u4E66'", Just '书', "Lex.Tokenizer.unwrapChar21"),
-    ("'\\U00004E16'", Just '世', "Lex.Tokenizer.unwrapChar22"),
-    ("'ab'", Nothing, "Lex.Tokenizer.unwrapChar23")]
+    ("'\\x41'", Just 'A', "19"),
+    ("'\\x7a'", Just 'z', "20"),
+    ("'\\u4E66'", Just '书', "21"),
+    ("'\\U00004E16'", Just '世', "22"),
+    ("'ab'", Nothing, "23")]
 
 
 eofTokenTests :: TestTree
 eofTokenTests = testGroup "Lex.Tokenizer.eofToken" [
-    testCase "eofToken_KString"  $ eofToken (AlexPn 0 1 1) "" (Just (KString,  AlexPn 0 3 5, "abc\"")) @?=
+    testCase "0"  $ eofToken (AlexPn 0 1 1) "" (Just (KString,  AlexPn 0 3 5, "abc\"")) @?=
         Error unclosedStrLiteralMsg  (makePos (AlexPn 0 3 5) 3),
-    testCase "eofToken_KChar"    $ eofToken (AlexPn 0 1 1) "" (Just (KChar,    AlexPn 0 4 2, "x'")) @?=
+    testCase "1"    $ eofToken (AlexPn 0 1 1) "" (Just (KChar,    AlexPn 0 4 2, "x'")) @?=
         Error unclosedCharLiteralMsg (makePos (AlexPn 0 4 2) 1),
-    testCase "eofToken_KComment" $ eofToken (AlexPn 0 1 1) "c" (Just (KComment, AlexPn 0 2 1, "/*c")) @?=
+    testCase "2" $ eofToken (AlexPn 0 1 1) "c" (Just (KComment, AlexPn 0 2 1, "/*c")) @?=
         Error UE.unclosedCommentMsg   (makePos (AlexPn 0 2 1) 2),
-    testCase "eofToken_Nothing"  $ eofToken (AlexPn 0 9 9) "" Nothing @?= Error "<EOF>" (makePos (AlexPn 0 9 9) 0)]
+    testCase "3"  $ eofToken (AlexPn 0 9 9) "" Nothing @?= Error "<EOF>" (makePos (AlexPn 0 9 9) 0)]
 
 
 name :: String
@@ -80,7 +80,7 @@ path = "stdin"
 
 
 makeTest :: Int -> String -> ([ErrorKind], [Token]) -> TestTree
-makeTest i input expect = let name' = name ++ show i in testCase name' $ debugTokenize input @=? expect
+makeTest i input expect = let name' = show i in testCase name' $ debugTokenize input @=? expect
 
 makeId :: String -> Int -> Int -> Int -> Token
 makeId s a b c = Ident s $ makePosition a b c

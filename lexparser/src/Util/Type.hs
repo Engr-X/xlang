@@ -14,12 +14,6 @@ import qualified Data.ByteString.Lazy.Char8 as B
 type Path = String
 
 
--- | Regular expression pattern represented as a string.
---
--- Used in lexer functions to match tokens in source code.
-type Regex = String
-
-
 -- | JSON object serialized as a lazy ByteString.
 --
 -- Useful for structured error reporting, logging, or communication

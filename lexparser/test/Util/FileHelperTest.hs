@@ -5,21 +5,19 @@ import Test.Tasty.HUnit
 import Util.FileHelper
 
 import qualified Util.Exception as UE
-import qualified System.IO as SIO
-import qualified System.IO.Error as SIE
 
 
 classifyErrorTests :: TestTree
 classifyErrorTests = testGroup "Util.FileHelper.classifyError" [
-    testCase "Util.FileHelper.classifyError0" $ classifyError (userError "no such file") @?= UE.Reading "user error (no such file)",
-    testCase "Util.FileHelper.classifyError0" $ classifyError (userError "fuck") @?= UE.Reading "user error (fuck)",
-    testCase "Util.FileHelper.classifyError0" $ classifyError (userError "fuck WT") @?= UE.Reading "user error (fuck WT)",
-    testCase "Util.FileHelper.classifyError0" $ classifyError (userError "fuck BYD") @?= UE.Reading "user error (fuck BYD)"]
+    testCase "0" $ classifyError (userError "no such file") @?= UE.Reading "user error (no such file)",
+    testCase "0" $ classifyError (userError "fuck") @?= UE.Reading "user error (fuck)",
+    testCase "0" $ classifyError (userError "fuck WT") @?= UE.Reading "user error (fuck WT)",
+    testCase "0" $ classifyError (userError "fuck BYD") @?= UE.Reading "user error (fuck BYD)"]
 
 
 readFileTests :: TestTree
 readFileTests = testGroup "Util.FileHelper.readFile" [
-    testCase "Util.FileHelper.readFile0" $ do
+    testCase "0" $ do
         let path = "test_input.input"
         result <- Util.FileHelper.readFile path
         result @?= Right "世界你好 Hello World\n"]

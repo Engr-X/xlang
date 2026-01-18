@@ -61,7 +61,7 @@ invalidNumericLiteralMsg = "invalid numeric literal"
 
 -- Error message for an invalid character literal
 invalidCharLiteralMsg :: String
-invalidCharLiteralMsg = "Invalid character literal"
+invalidCharLiteralMsg = "invalid character literal"
 
 
 -- Error message for a comment that was not properly closed
@@ -69,7 +69,14 @@ unclosedCommentMsg :: String
 unclosedCommentMsg = "unterminated comment"
 
 
+-- Error message for a mismatched bracket
+mismatchedBracket :: String
+mismatchedBracket = "mismatched bracket"
 
+
+-- Expected expression
+expectedExpression :: String -> String
+expectedExpression s = "expected an expression after: '" ++ s ++ "'"
 
 
 -- | Basic warning information shared by lexer and parser warnings.
