@@ -1,14 +1,19 @@
 module Parse.SyntaxTree where
     
 import Lex.Token (Token)
+import Data.Map.Strict (Map)
+import Data.Maybe (fromMaybe)
+
+import qualified Data.Map.Strict as Map
 
 
-{-data Class = Unknown |
-             Int8T | Int16T | Int32T | Int64T |
-             Float16T | Float32T | Float64T | Float128T |
-             Bool | Char | 
-             Array Class Int |
-             Function [Class] -}
+data Class = Unknown |
+    Int8T | Int16T | Int32T | Int64T |
+    Float16T | Float32T | Float64T | Float128T |
+    Bool | Char | 
+    Array Class Int |
+    Class String
+    deriving (Eq, Show)
 
 
 data Command = Continue | Break | Return (Maybe Expression)
@@ -63,21 +68,16 @@ data Operator =
 
 
 data Expression = 
-    Error Token String|
-    Empty |
-    Command Command |
-    IntConst String | -- For precesion use String to store rather than Integer
-    LongConst String |
-    FloatConst String |
-    DoubleConst String |
-    LongDoubleConst String | 
+    Error Token String| Empty | Command Command |
 
-    CharConst Char | -- the ' is not include
-    StringConst String | -- the " is not include
-    BoolConst Bool |
+
+    IntConst String | LongConst String | FloatConst String | DoubleConst String |
+    LongDoubleConst String | CharConst Char | StringConst String | BoolConst Bool |
 
     Variable String |
+    Qualified [String] | -- eg: java.lang.math.PI
 
+    Cast Class Expression |
     Unary Operator Expression |
     Binary Operator Expression Expression
     deriving (Eq, Show)
@@ -105,3 +105,21 @@ data Statement =
 
 
 type Program = ([String], [Statement])
+
+
+classesMap :: Map String Class
+classesMap = Map.fromList [
+    ("bool", Bool),
+    ("byte", Int8T), ("int8", Int8T),
+    ("short", Int16T), ("int16", Int16T),
+    ("int", Int32T), ("int32", Int32T), 
+    ("long", Int32T), ("int64", Int64T),
+    
+    ("float", Float32T), ("float32", Float32T),
+    ("double", Float64T), ("float64", Float64T),
+    ("float128", Float128T)]
+
+
+toClass :: String -> Class
+toClass k = fromMaybe (Class k) $ Map.lookup k classesMap
+

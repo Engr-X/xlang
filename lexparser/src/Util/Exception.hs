@@ -75,8 +75,11 @@ mismatchedBracket = "mismatched bracket"
 
 
 -- Expected expression
-expectedExpression :: String -> String
-expectedExpression s = "expected an expression after: '" ++ s ++ "'"
+expectedExpression :: Int -> String -> String
+expectedExpression pos s
+    | pos == 0 = "expected an expression before: '" ++ s ++ "'"
+    | otherwise = "expected an expression after: '" ++ s ++ "'"
+    
 
 
 -- | Basic warning information shared by lexer and parser warnings.

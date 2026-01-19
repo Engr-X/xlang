@@ -1,0 +1,342 @@
+Test suite lexparser-test: RUNNING...
+All tests
+  Util.Basic
+    Util.Basic.full
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Basic.match
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Basic.isInt
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      11:                   OK
+      12:                   OK
+      13:                   OK
+      14:                   OK
+      15:                   OK
+      16:                   OK
+      17:                   OK
+      18:                   OK
+      19:                   OK
+      20:                   OK
+      21:                   OK
+      22:                   OK
+      23:                   OK
+      24:                   OK
+      25:                   OK
+      26:                   OK
+      27:                   OK
+      28:                   OK
+    Util.Basic.isLong
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      11:                   OK
+      12:                   OK
+      13:                   OK
+      14:                   OK
+      15:                   OK
+      16:                   OK
+      17:                   OK
+      18:                   OK
+      18:                   OK
+    Util.Basic.isFloat
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      12:                   OK
+      13:                   OK
+      14:                   OK
+      15:                   OK
+      16:                   OK
+      17:                   OK
+      18:                   OK
+      19:                   OK
+      20:                   OK
+      21:                   OK
+      22:                   OK
+      23:                   OK
+      24:                   OK
+      25:                   OK
+      25:                   OK
+      26:                   OK
+    Util.Basic.isDouble
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      11:                   OK
+      12:                   OK
+      13:                   OK
+      14:                   OK
+      15:                   OK
+      16:                   OK
+      17:                   OK
+      18:                   OK
+      19:                   OK
+      20:                   OK
+      21:                   OK
+      Util.Basic.isDoubl22: OK
+      23:                   OK
+      24:                   OK
+      25:                   OK
+      26:                   OK
+      27:                   OK
+      28:                   OK
+      29:                   OK
+      30:                   OK
+      31:                   OK
+      32:                   OK
+      33:                   OK
+      34:                   OK
+      35:                   OK
+      36:                   OK
+      37:                   OK
+      38:                   OK
+      39:                   OK
+      40:                   OK
+      41:                   OK
+      42:                   OK
+      43:                   OK
+      44:                   OK
+      45:                   OK
+      46:                   OK
+    Util.Basic.isLongDouble
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+    Util.Basic.isBoolTrue
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Basic.isBool
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Basic.isBool
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+  Util.Type
+    Util.Type.makePosition
+      0:                    OK
+      1:                    OK
+      1:                    OK
+      1:                    OK
+    Util.Type.positionToTuple
+      0:                    OK
+      1:                    OK
+      1:                    OK
+      1:                    OK
+  Util.Exception
+    Util.Exception.makeError
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Exception.expectedExpression
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Exception.getErrorCode
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Exception.getErrorMessage
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Util.Exception.errorToString
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+  Util.FileHelper
+    Util.FileHelper.classifyError
+      0:                    OK
+      0:                    OK
+      0:                    OK
+      0:                    OK
+    Util.FileHelper.readFile
+      0:                    OK
+  Lex.Token
+    Lex.Token.isErrToken
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Lex.Token.isLBracketToken
+      0:                    OK
+      0:                    OK
+      0:                    OK
+      0:                    OK
+    Lex.Token.isRBracketToken
+      0:                    OK
+      0:                    OK
+      0:                    OK
+      0:                    OK
+    Lex.Token.isBracketToken
+      0:                    OK
+      0:                    OK
+      0:                    OK
+      0:                    OK
+    Lex.Token.tokenPos
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+  Lexer.Tokenizer
+    Lex.Tokenizer.makePos
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Lex.Tokenizer.unwrapString
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+    Lex.Tokenizer.unwrapChar
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      11:                   OK
+      12:                   OK
+      13:                   OK
+      14:                   OK
+      15:                   OK
+      16:                   OK
+      17:                   OK
+      18:                   OK
+      19:                   OK
+      20:                   OK
+      21:                   OK
+      22:                   OK
+      23:                   OK
+    Lex.Tokenizer.eofToken
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+    Lexer.Tokenizer.tokenize
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      11:                   OK
+      12:                   OK
+      13:                   OK
+      14:                   OK
+  Parse.SyntaxTree
+    Parse.SyntaxTree.isErrExpr
+      0:                    OK
+      0:                    OK
+      0:                    OK
+      0:                    OK
+    Parse.SyntaxTree.toClass
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6:                    OK
+      7:                    OK
+      8:                    OK
+      9:                    OK
+      10:                   OK
+      11:                   OK
+  Parse.Parser
+    Parse.Parser.checkBracket
+      0:                    OK
+      1:                    OK
+      2 complex:            OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      6 missing }:          OK
+      7:                    OK
+    Parse.Parser.classifyNumber
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+      5:                    OK
+    Parse.Parser.classifyId
+      0:                    OK
+      1:                    OK
+      2:                    OK
+      3:                    OK
+      4:                    OK
+      5:                    OK
+
+All 294 tests passed (0.01s)
+Test suite lexparser-test: PASS
+Test suite logged to: D:\Coding\projects\Mixed\xlang\lexparser\dist-newstyle\build\x86_64-windows\ghc-9.4.8\lexparser-0.1.0.0\t\lexparser-test\test\lexparser-0.1.0.0-lexparser-test.log

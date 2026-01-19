@@ -1,7 +1,7 @@
 {
 module Parse.Parser where
 
-import Data.List (find)
+import Data.List (find, intercalate)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Lex.Token (Token, tokenPos, isLBracketToken, isRBracketToken, isBracketToken)
 import Parse.SyntaxTree
@@ -18,51 +18,79 @@ import qualified Util.Exception as UE
 %error { happyError }
 
 %token
-    identity    { Lex.Ident $$ _ }
-    number      { Lex.NumberConst $$ _ }
-    character   { Lex.CharConst $$ _ }
-    string      { Lex.StrConst $$ _ }
+    identity            { Lex.Ident $$ _ }
+    number              { Lex.NumberConst $$ _ }
+    character           { Lex.CharConst $$ _ }
+    string              { Lex.StrConst $$ _ }
 
-    '+'         { Lex.Symbol Lex.Plus _ }
-    '-'         { Lex.Symbol Lex.Minus _ }
-    '*'         { Lex.Symbol Lex.Multiply _ }
-    '/'         { Lex.Symbol Lex.Divide _ }
-    '('         { Lex.Symbol Lex.LParen _ }
-    ')'         { Lex.Symbol Lex.RParen _ }
+    KW_AS               { Lex.Ident "as" _ }   -- English: keyword 'as'
 
+
+    --bitLShiftAssign     {}  
+    '.'                 { Lex.Symbol Lex.Dot _ }
+    '+'                 { Lex.Symbol Lex.Plus _ }
+    '-'                 { Lex.Symbol Lex.Minus _ }
+    '*'                 { Lex.Symbol Lex.Multiply _ }
+    '/'                 { Lex.Symbol Lex.Divide _ }
+    '('                 { Lex.Symbol Lex.LParen _ }
+    ')'                 { Lex.Symbol Lex.RParen _ }
+
+%left '='
 %left '+' '-'
 %left '*' '/'
 %right UPLUS UMINUS
 
 %%
 
-Expr
-    : Expr '+' Expr   { Binary Add $1 $3 }
-    | Expr '+' error  { Error $2 $ expectedExpression "+" }
-
-    | Expr '-' Expr   { Binary Sub $1 $3 }
-    | Expr '-' error  { Error $2 $ expectedExpression "-" }
-
-    | Expr '*' Expr   { Binary Mul $1 $3 }
-    | Expr '*' error  { Error $2 $ expectedExpression "*" }
-
-    | Expr '/' Expr   { Binary Div $1 $3 }
-    | Expr '/' error  { Error $2 $ expectedExpression "/" }
-
-    | '+' Expr %prec UPLUS  { Unary UnaryPlus $2 }
-    | '+' error %prec UPLUS { Error $2 $ expectedExpression "+" }
-
-    | '-' Expr %prec UMINUS { Unary UnaryMinus $2 }
-    | '-' error %prec UPLUS { Error $2 $ expectedExpression "+" }
-
-    | '(' Expr ')'     { $2 }
-
-    | number            { fromMaybe (error "what the hell is going on? on") $ classifyNumber $1 }
-    | character         { CharConst $1 }
-    | string            { StringConst $1 }
-    | identity          { classifyId $1 }
+-- like com.wangdi.util
+QName
+    : identity               { [$1] }
+    | QName '.' identity     { $1 ++ [$3] }
     ;
 
+Type
+    : QName { toClass (intercalate "." $1) }
+    ;
+
+Atom
+    : '+' Atom %prec UPLUS   { Unary UnaryPlus  $2 }
+    | '+' error %prec UPLUS  { Error $1 (expectedExpression 1 "+") }
+
+    | '-' Atom %prec UMINUS  { Unary UnaryMinus $2 }
+    | '-' error %prec UMINUS { Error $1 (expectedExpression 1 "-") }
+
+    | '(' Expr ')'           { $2 }
+
+    | QName                   { Qualified $1 }
+    | identity                { classifyId $1 }
+
+    | number                  { fromMaybe (error "classifyNumber failed") (classifyNumber $1) }
+    | character               { CharConst $1 }
+    | string                  { StringConst $1 }
+    ;
+
+Postfix
+    : Atom                  { $1 }
+    
+    | Postfix KW_AS Type    { Cast $3 $1 }
+    | Postfix KW_AS error   { Error $2 (expectedExpression 0 "as") }
+    ;
+
+Expr
+    : Expr '+' Expr   { Binary Add $1 $3 }
+    | Expr '+' error  { Error $2 (expectedExpression 1 "+") }
+
+    | Expr '-' Expr   { Binary Sub $1 $3 }
+    | Expr '-' error  { Error $2 (expectedExpression 1 "-") }
+
+    | Expr '*' Expr   { Binary Mul $1 $3 }
+    | Expr '*' error  { Error $2 (expectedExpression 1 "*") }
+
+    | Expr '/' Expr   { Binary Div $1 $3 }
+    | Expr '/' error  { Error $2 (expectedExpression 1 "/") }
+
+    | Postfix         { $1 }
+    ;
 
 {
 happyError :: [Token] -> a

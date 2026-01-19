@@ -39,10 +39,10 @@ makeErrorTests = testGroup "Util.Exception.makeError" [
 
 expectedExpressionTests :: TestTree
 expectedExpressionTests = testGroup "Util.Exception.expectedExpression" [
-    testCase "0" $ expectedExpression "+" @?= "expected an expression after: '+'",
-    testCase "1" $ expectedExpression "-" @?= "expected an expression after: '-'",
-    testCase "2" $ expectedExpression "*" @?= "expected an expression after: '*'",
-    testCase "3" $ expectedExpression "/" @?= "expected an expression after: '/'"]
+    testCase "0" $ expectedExpression 0 "+" @?= "expected an expression before: '+'",
+    testCase "1" $ expectedExpression 0 "-" @?= "expected an expression before: '-'",
+    testCase "2" $ expectedExpression 1 "*" @?= "expected an expression after: '*'",
+    testCase "3" $ expectedExpression 1 "/" @?= "expected an expression after: '/'"]
 
 
 getErrorCodeTests :: TestTree
