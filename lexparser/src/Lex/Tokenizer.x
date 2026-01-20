@@ -448,6 +448,7 @@ isEOF _ = False
 alexScanTokens :: String -> Either String [Token]
 alexScanTokens input = runAlex input collectTokens
 
+
 -- | Internal loop that repeatedly scans tokens.
 -- Stops when the EOF token is encountered.
 collectTokens :: Alex [Token]
@@ -484,7 +485,7 @@ debugTokenize :: String -> ([ErrorKind], [Token])
 debugTokenize = tokenize "stdin"
 
 
-
+-- | read a file and tokenize the code
 fileTokenize :: Path -> IO ([ErrorKind], [Token])
 fileTokenize p = do
     result <- FileHelper.readFile p

@@ -2,12 +2,14 @@ module Parse.SyntaxTree where
     
 import Lex.Token (Token)
 import Data.Map.Strict (Map)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 
 import qualified Data.Map.Strict as Map
 
 
-data Class = Unknown |
+-- | Language-level type representation.
+--   Includes primitive types, arrays, and user-defined classes.
+data Class = 
     Int8T | Int16T | Int32T | Int64T |
     Float16T | Float32T | Float64T | Float128T |
     Bool | Char | 
@@ -16,10 +18,14 @@ data Class = Unknown |
     deriving (Eq, Show)
 
 
+-- | Control-flow commands that can appear as expressions.
+--   Used for statements such as return, break, and continue.
 data Command = Continue | Break | Return (Maybe Expression)
     deriving (Eq, Show)
 
 
+-- | Operators grouped by precedence level.
+--   Includes assignment, arithmetic, bitwise, unary, and pointer operators.
 data Operator = 
     -- 0
     Assign | BitLShiftAssign | BitRShiftAssign | BitOrAssign | BitXorAssign | BitXnorAssign |
@@ -67,8 +73,10 @@ data Operator =
     deriving (Eq, Show)
 
 
+-- | Abstract syntax tree for expressions.
+--   Covers literals, variables, casts, unary/binary operations, and errors.
 data Expression = 
-    Error Token String| Empty | Command Command |
+    Error Token String | Command Command |
 
 
     IntConst String | LongConst String | FloatConst String | DoubleConst String |
@@ -83,28 +91,72 @@ data Expression =
     deriving (Eq, Show)
 
 
--- To check this expression is error or not
+-- | Check whether an expression represents a syntax or semantic error.
 isErrExpr :: Expression -> Bool
 isErrExpr (Error _ _) = True
 isErrExpr _ = False
 
 
+-- | Statement block representation.
+--   A block may contain a single statement or multiple statements.
 data Block =
-    Single Statement | Multiple [Statement] |
-    Case Int Block | Default Block
+    Single Statement | Multiple [Statement]
     deriving (Eq, Show)
 
 
+-- | Flatten all expressions contained in a block.
+--   Useful for traversal, analysis, or validation passes.
+flattenBlock :: Maybe Block -> [Expression]
+flattenBlock Nothing = []
+flattenBlock (Just (Single s)) = flattenStatement $ Just s
+flattenBlock (Just (Multiple ss)) = concatMap (flattenStatement . Just) ss
+
+
+-- | Switch-case representation.
+--   A case may have an expression or be a default case.
+data SwitchCase = Case Expression Block | Default Block
+    deriving (Eq, Show)
+
+
+-- | Extract all expressions from a switch case.
+--   Includes the case condition and expressions in its block.
+flattenCase :: Maybe SwitchCase -> [Expression]
+flattenCase Nothing = []
+flattenCase (Just (Case e b)) = e : flattenBlock (Just b)
+flattenCase (Just (Default b)) = flattenBlock (Just b)
+
+
+-- | Abstract syntax tree for statements.
+--   Supports control flow constructs and expression statements.
 data Statement = 
     Expr Expression |
-    If Expression Block Block |
-    For (Expression, Expression, Expression) Block |
-    While Expression Block |
-    Switch Expression [Block]
+    If Expression (Maybe Block) (Maybe Block) |
+    For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
+    While Expression (Maybe Block) |
+    Switch Expression [SwitchCase]
     deriving (Eq, Show)
 
 
+-- | Flatten all expressions contained in a statement.
+--   Recursively traverses nested blocks and control structures.
+flattenStatement :: Maybe Statement -> [Expression]
+flattenStatement Nothing = []
+flattenStatement (Just (Expr e)) = [e]
+flattenStatement (Just (If e b1 b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
+flattenStatement (Just (While e b)) = e : flattenBlock b
+flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
+
+
+-- | Program representation.
+--   Consists of imported modules and a list of top-level statements.
 type Program = ([String], [Statement])
+
+
+-- | Flatten all programs contained in a statement.
+--   Recursively traverses nested statements and control structures.
+flattenProgram :: Program -> [Expression]
+flattenProgram (_, ss) = concatMap (flattenStatement . Just) ss
 
 
 classesMap :: Map String Class
@@ -120,6 +172,13 @@ classesMap = Map.fromList [
     ("float128", Float128T)]
 
 
+-- | Extract all error expressions from a program.
+--   Traverses the entire syntax tree and filters expressions marked as errors.
+getErrorProgram :: Program -> [Expression]
+getErrorProgram = filter isErrExpr . flattenProgram
+
+
+-- | Convert a type name into its corresponding Class.
+--   Unknown names are treated as user-defined classes.
 toClass :: String -> Class
 toClass k = fromMaybe (Class k) $ Map.lookup k classesMap
-

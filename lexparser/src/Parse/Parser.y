@@ -93,6 +93,8 @@ Expr
     ;
 
 {
+-- | Report a parse error with the token nearest to the failure point.
+--   If no tokens remain, the error is reported at EOF.
 happyError :: [Token] -> a
 happyError ts = error $ "Parse error near: " ++
     case ts of
@@ -100,6 +102,8 @@ happyError ts = error $ "Parse error near: " ++
         [] -> "EOF"
 
 
+-- | Check for mismatched or unbalanced brackets in the token stream.
+--   Returns the first offending token, or Nothing if brackets are balanced.
 checkBracket :: [Token] -> Maybe Token
 checkBracket = go []
     where
@@ -128,11 +132,14 @@ checkBracket = go []
         eq _ _ = error "what did u input?"
 
 
+-- | Classify a numeric literal string into the first matching numeric type.
+--   Returns Nothing if the string does not represent a valid number.
 classifyNumber :: String -> Maybe Expression
 classifyNumber s = let types = [(IntConst, isInt), (LongConst, isLong), (FloatConst, isFloat), (DoubleConst, isDouble), (LongDoubleConst, isLongDouble)] in
     fmap (\(f, _) -> f s) $ find (\(_, f) -> f s) types
 
 
+-- | Classify an identifier as a boolean literal or a variable expression.
 classifyId :: String -> Expression
 classifyId str
     | isBoolTrue str = BoolConst True
@@ -140,7 +147,18 @@ classifyId str
     | otherwise = Variable str
 
 
+-- | Parse a token stream into a program after performing bracket validation.
+--   Reports a syntax error if mismatched brackets are detected.
 parse :: Path -> [Token] -> Either [ErrorKind] Program
 parse p ts = case checkBracket ts of
     Just t -> Left [UE.Syntax $ makeError p (tokenPos t) mismatchedBracket]
+    Nothing -> let exp = parseExpr ts
+                   errs = getErrorProgram ([], [Expr exp]) in case errs of
+                    [] -> Right ([], [Expr exp])
+                    es -> Left $ map (toException p) es
+
+    where
+        toException :: Path -> Expression -> ErrorKind
+        toException p (Error t why) = UE.Syntax $ UE.makeError p (tokenPos t) why
+        toException _ _ = error "Is is really an error bro?"
 }
