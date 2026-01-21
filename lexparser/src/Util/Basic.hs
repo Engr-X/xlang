@@ -76,35 +76,6 @@ doubleLitPat = "[+-]?((([0-9]+([.][0-9]*)|[.][0-9]+)([eE][+-]?[0-9]+)?)|([0-9]+(
 longDoubleLitPat = doubleLitPat ++ "(l|L)"
 
 
-trueLitPat, falseLitPat, boolLitPat :: String
-
--- | Regular expression for true literals.
---
--- Accepts both lowercase and capitalized variants.
---
--- Examples:
---   true and True
-trueLitPat = "true|True"
-
--- | Regular expression for false literals.
---
--- Accepts both lowercase and capitalized variants.
---
--- Examples:
---   true and True
-falseLitPat = "false|False"
-
-
--- | Regular expression for false literals.
---
--- Accepts both lowercase and capitalized variants.
---
--- Examples:
---   false, False, true and True
-boolLitPat = trueLitPat ++ ('|' : falseLitPat)
-
-
-
 intLitReg, longLitReg, hexIntLitlReg, hexLongLitReg, floatLitReg, doubleLitReg, longDoubleLitReg :: Regex
 intLitReg = makeRegex $ full intLitPat
 longLitReg = makeRegex $ full longLitPat
@@ -118,13 +89,6 @@ longDoubleLitReg = makeRegex $ full longDoubleLitPat
 intReg, longReg :: Regex
 intReg = makeRegex $ full $ intLitPat ++ ('|' : hexIntLitlPat)
 longReg = makeRegex $ full $ longLitPat ++ ('|' : hexLongLitPat)
-
-
-trueLitReg, falseLitReg, boolLitReg :: Regex
-trueLitReg = makeRegex $ full trueLitPat
-falseLitReg = makeRegex $ full falseLitPat
-boolLitReg = makeRegex $ full boolLitPat
-
 
 
 -- | Anchor a regular expression to match the entire input.
@@ -166,18 +130,3 @@ isDouble = match doubleLitReg
 -- | Check whether a string is a long double literal.
 isLongDouble :: String -> Bool
 isLongDouble = match longDoubleLitReg
-
-
--- | Check whether a string is a boolean true literal.
-isBoolTrue :: String -> Bool
-isBoolTrue = match trueLitReg
-
-
--- | Check whether a string is a boolean true literal.
-isBoolFalse :: String -> Bool
-isBoolFalse = match falseLitReg
-
-
--- | Check whether a string is a boolean literal.
-isBool :: String -> Bool
-isBool = match boolLitReg

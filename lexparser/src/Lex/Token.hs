@@ -1,6 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
+
 module Lex.Token where
 
 import Util.Type
+import GHC.Generics (Generic)
+import Data.Hashable (Hashable)
 
 
 -- | Symbol tokens for operators and delimiters in the language.
@@ -65,17 +69,23 @@ data Symbol
     | Comma            -- ","
     | Question         -- "?"
     | Colon            -- ":"
+    | Arrow            -- "->"
+    | FatArrow         -- "\=>"
     | QuestionArrow    -- "?->"
     | Dot              -- "."
     | DoubleDot        -- ".."
     | Backslash        -- "\\"
-    deriving (Eq, Show, Ord)
+    deriving (Eq, Ord, Show, Generic)
+
+instance Hashable Symbol
 
 
 -- | The 'Token' data type represents all possible tokens that can appear
 -- in the source code after lexical analysis.
 -- Each token carries a position from the source code for error reporting.
-data Token = Error String Position
+data Token = 
+      Error String Position
+    | NewLine Position
     | Ident String Position
     | Symbol Symbol Position
     | NumberConst String Position
@@ -88,6 +98,7 @@ data Token = Error String Position
 -- | 'Show' instance for 'Token' provides a human-readable representation
 -- of each token, including its value (if applicable) and its source position.
 prettyToken :: Token -> String
+prettyToken (NewLine pos) = "nl@" ++ show pos
 prettyToken (Ident name pos) = "Ident@" ++ name ++ " " ++ show pos
 prettyToken (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
 prettyToken (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
@@ -104,6 +115,7 @@ isErrToken _ = False
 
 
 -- | Check whether a token represents a left bracket.
+isLBracketToken :: Token -> Bool 
 isLBracketToken (Symbol LParen _) = True
 isLBracketToken (Symbol LBracket _) = True
 isLBracketToken (Symbol LBrace _) = True
@@ -111,6 +123,7 @@ isLBracketToken _ = False
 
 
 -- | Check whether a token represents a left bracket.
+isRBracketToken :: Token -> Bool
 isRBracketToken (Symbol RParen _) = True
 isRBracketToken (Symbol RBracket _) = True
 isRBracketToken (Symbol RBrace _) = True

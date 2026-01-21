@@ -61,12 +61,13 @@ library
     exposed-modules:  
                 Lexparser
 
+                Lex.NewLine
                 Lex.Token
                 Lex.Tokenizer
 
                 Parse.SyntaxTree
                 Parse.Parser
-
+    
                 Util.Basic
                 Util.Type
                 Util.FileHelper
@@ -83,6 +84,8 @@ library
     build-depends: 
                 base >=4.17.2.1,
                 containers,
+                unordered-containers,
+                hashable,
                 text,
                 array,
                 aeson,
@@ -136,6 +139,7 @@ test-suite lexparser-test
 
 
     other-modules:  
+        Lex.NewLineTest
         Lex.TokenTest
         Lex.TokenizerTest
 

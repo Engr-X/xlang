@@ -86,20 +86,5 @@ isLongDoubleTests = testGroup "Util.Basic.isLongDouble" $ map (\(name, c, e) -> 
     ("4", "123", False), ("5", "123L", False), ("6", "1.0", False), ("7", "1e3", False)]
 
 
-isBoolTrueTests :: TestTree
-isBoolTrueTests = testGroup "Util.Basic.isBoolTrue" $ map (\(name, c, e) -> testCase name $ isBoolTrue c @?= e) [
-    ("0", "true", True), ("1", "false", False), ("2", "True", True), ("3", "tRue", False)]
-
-
-isBoolFalseTests :: TestTree
-isBoolFalseTests = testGroup "Util.Basic.isBool" $ map (\(name, c, e) -> testCase name $ isBoolFalse c @?= e) [
-    ("0", "true", False), ("1", "false", True), ("2", "True", False), ("3", "tRue", False)]
-
-
-isBoolTests :: TestTree
-isBoolTests = testGroup "Util.Basic.isBool" $ map (\(name, c, e) -> testCase name $ isBool c @?= e) [
-    ("0", "true", True), ("1", "false", True), ("2", "True", True), ("3", "tRue", False)]
-
-
 tests :: TestTree
-tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests, isBoolTrueTests, isBoolFalseTests, isBoolTests]
+tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests]

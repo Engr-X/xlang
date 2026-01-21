@@ -33,11 +33,11 @@ $hexdigit = [0-9a-fA-F]
 -- $floatLit = $doubleLit(l/L)
 
 -- $numberLit = $intLit | $longLit | $hexIntLit | $hexLongLit | $doubleLit | $floatLit | $floatLit
-@intLit = $sign? $digit+
-@longLit = $sign? $digit+ [lL]
+@intLit = $digit+
+@longLit = $digit+ [lL]
 
 @hexPrefix = 0 [xX]
-@hexIntLit = $sign? @hexPrefix $hexdigit+
+@hexIntLit = @hexPrefix $hexdigit+
 @hexLongLit = @hexIntLit [lL]
 
 @expPart = [eE] $sign? $digit+
@@ -46,7 +46,7 @@ $hexdigit = [0-9a-fA-F]
 @frac2 = \. $digit+
 @decimal = (@frac1 | @frac2)
 
-@doubleLit = $sign? ((@decimal @expPart?) | ($digit+ @expPart))
+@doubleLit = ((@decimal @expPart?) | ($digit+ @expPart))
 
 @floatLit = @doubleLit [fF]
 @doubleLongLit = @doubleLit [lL]
@@ -144,6 +144,9 @@ tokens :-
 <0> "++"                { eatSymbol PlusPlus }
 <0> "--"                { eatSymbol MinusMinus }
 <0> ".."                { eatSymbol DoubleDot }
+
+<0> "->"                { eatSymbol Arrow }
+<0> "=>"                { eatSymbol FatArrow }
 
 
 -- symbol 1 (28)
@@ -466,6 +469,9 @@ collectTokens = loop []
 convertErrToken :: Path -> Token -> ErrorKind
 convertErrToken p (Error why pos) = UE.Lexer $ UE.makeError p pos why
 convertErrToken _ _ = error "what the hell is going on???"
+
+
+-- TODO insert mission; 
 
 
 -- | Tokenize an input string and collect lexer errors.

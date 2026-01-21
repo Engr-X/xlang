@@ -91,6 +91,13 @@ data Expression =
     deriving (Eq, Show)
 
 
+{-
+-- | toString in human version
+prettyExpr :: Maybe Expression -> String
+prettyExpr Nothing = ""
+prettyExpr (Just ) -}
+
+
 -- | Check whether an expression represents a syntax or semantic error.
 isErrExpr :: Expression -> Bool
 isErrExpr (Error _ _) = True
@@ -98,9 +105,8 @@ isErrExpr _ = False
 
 
 -- | Statement block representation.
---   A block may contain a single statement or multiple statements.
-data Block =
-    Single Statement | Multiple [Statement]
+--  A block may contain a single statement or multiple statements.
+newtype Block = Multiple [Statement]
     deriving (Eq, Show)
 
 
@@ -108,7 +114,6 @@ data Block =
 --   Useful for traversal, analysis, or validation passes.
 flattenBlock :: Maybe Block -> [Expression]
 flattenBlock Nothing = []
-flattenBlock (Just (Single s)) = flattenStatement $ Just s
 flattenBlock (Just (Multiple ss)) = concatMap (flattenStatement . Just) ss
 
 
@@ -130,9 +135,11 @@ flattenCase (Just (Default b)) = flattenBlock (Just b)
 --   Supports control flow constructs and expression statements.
 data Statement = 
     Expr Expression |
+    BlockStmt Block |
     If Expression (Maybe Block) (Maybe Block) |
     For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
     While Expression (Maybe Block) |
+    DoWhile (Maybe Block) Expression |
     Switch Expression [SwitchCase]
     deriving (Eq, Show)
 
@@ -142,9 +149,11 @@ data Statement =
 flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
 flattenStatement (Just (Expr e)) = [e]
+flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b1 b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
 flattenStatement (Just (While e b)) = e : flattenBlock b
+flattenStatement (Just (DoWhile b e)) = e : flattenBlock b
 flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
 
 

@@ -73,7 +73,7 @@ eofTokenTests = testGroup "Lex.Tokenizer.eofToken" [
 
 
 name :: String
-name = "Lexer.Tokenizer.tokenize"
+name = "Lex.Tokenizer.tokenize"
 
 path :: Path
 path = "stdin"
@@ -174,7 +174,7 @@ for (x = a_address.getSize(); x <= 10; x *= 2) /* iterate the list */
 0x1f + -42L * 3.14e-2f
 -}
     ("0x1f + -42L * 3.14e-2f", ([], [
-        makeNum "0x1f" 1 1 4, makeSymbol Plus 1 6 1, makeNum "-42L" 1 8 4, makeSymbol Multiply 1 13 1, makeNum "3.14e-2f" 1 15 8])),
+        makeNum "0x1f" 1 1 4, makeSymbol Plus 1 6 1, makeSymbol Minus 1 8 1, makeNum "42L" 1 9 3, makeSymbol Multiply 1 13 1, makeNum "3.14e-2f" 1 15 8])),
 
 
 {-
@@ -299,8 +299,8 @@ c = '\t
 
 
 tokenizeTests :: TestTree
-tokenizeTests = testGroup "Lexer.Tokenizer.tokenize" $ zipWith (\idx (input, expect) -> makeTest idx input expect) [0..] datas
+tokenizeTests = testGroup "Lex.Tokenizer.tokenize" $ zipWith (\idx (input, expect) -> makeTest idx input expect) [0..] datas
 
 
 tests :: TestTree
-tests = testGroup "Lexer.Tokenizer" [makePosTests, unwrapStringTests, unwrapCharTests, eofTokenTests, tokenizeTests]
+tests = testGroup "Lex.Tokenizer" [makePosTests, unwrapStringTests, unwrapCharTests, eofTokenTests, tokenizeTests]

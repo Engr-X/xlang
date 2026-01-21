@@ -30,17 +30,7 @@ classifyNumberTests = testGroup "Parse.Parser.classifyNumber" [
     testCase "5" $ classifyNumber "1e9l" @=? Just (LongDoubleConst "1e9l")]
 
 
-classifyIdTests :: TestTree
-classifyIdTests = testGroup "Parse.Parser.classifyId" [
-    testCase "0" $ classifyId "true" @=? BoolConst True,
-    testCase "1" $ classifyId "false" @=? BoolConst False,
-
-    testCase "2" $ classifyId "x" @=? Variable "x",
-    testCase "3" $ classifyId "flag" @=? Variable "flag",
-    testCase "4" $ classifyId "true1" @=? Variable "true1",
-    testCase "5" $ classifyId "False" @=? BoolConst False]
-
 
 
 tests :: TestTree
-tests = testGroup "Parse.Parser" [checkBracketTests, classifyNumberTests, classifyIdTests]
+tests = testGroup "Parse.Parser" [checkBracketTests, classifyNumberTests]
