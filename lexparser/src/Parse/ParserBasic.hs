@@ -54,4 +54,4 @@ checkBracket = go []
 --   Returns Nothing if the string does not represent a valid number.
 classifyNumber :: String -> Maybe Expression
 classifyNumber s = let types = [(IntConst, isInt), (LongConst, isLong), (FloatConst, isFloat), (DoubleConst, isDouble), (LongDoubleConst, isLongDouble)] in
-    fmap (\(f, _) -> f s) $ find (\(_, f) -> f s) types
+    ((\ (f, _) -> f s) <$> find (\ (_, f) -> f s) types)

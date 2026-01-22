@@ -1,7 +1,6 @@
 {
 module Parse.Parser where
 
-import System.IO.Unsafe (unsafePerformIO)
 import Data.List (find, intercalate)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Lex.NewLine

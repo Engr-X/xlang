@@ -1,9 +1,13 @@
 {
 module Parse.ParseExpr where
 
+import Unsafe.Coerce (unsafeCoerce)
+import Data.List (intercalate)
+import Data.Maybe (fromMaybe)
 import Lex.Token (Token)
-import Parse.SyntaxTree (Expression(..))
-import Parse.ParserBasic (mkHappyErrorExpr, classifyNumber)
+import Parse.SyntaxTree
+import Parse.ParserBasic
+import Util.Exception (ErrorKind, mismatchedBracket, makeError, expectedExpression)
 
 import qualified Lex.Token as Lex
 }
@@ -47,11 +51,6 @@ Start
 #include "Parse/GrammarExpr.inc"
 
 {
-    -- Debug wrapper.
-    debugParseExpr :: [Token] -> Expression
-    debugParseExpr = parseExpr
-
-    -- Happy fatal parse error handler (must not throw).
-    parseExprError :: [Token] -> Expression
-    parseExprError = mkHappyErrorExpr
+parseExprError :: [Token] -> a
+parseExprError toks = unsafeCoerce (mkHappyErrorExpr toks)
 }

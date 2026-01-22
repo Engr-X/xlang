@@ -42,7 +42,7 @@ maintainer:         dw725@ic.ac.uk
 
 -- A copyright notice.
 -- copyright:
-build-type:         Simple
+build-type:         Custom
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
 extra-doc-files:    CHANGELOG.md
@@ -53,8 +53,22 @@ extra-doc-files:    CHANGELOG.md
 common warnings
     ghc-options: -Wall
 
+custom-setup
+    setup-depends:
+        base,
+        Cabal,
+        directory,
+        filepath,
+        process,
+        containers
+
+
+extra-source-files: src/Parse/GrammarExpr.inc, src/Parse/ParseExpr.ypp, src/Parse/ParseStmt.ypp
+
+
 library
     -- Import common warning flags.
+
     import:           warnings
 
     -- Modules exported by the library.
@@ -68,11 +82,20 @@ library
                 Parse.SyntaxTree
                 Parse.ParserBasic
                 Parse.ParseExpr
+                Parse.ParseStmt     
+                Parse.ParseBlock
+                Parse.ParseProgm
     
                 Util.Basic
                 Util.Type
                 Util.FileHelper
                 Util.Exception
+
+    autogen-modules:
+                Parse.ParseExpr
+                Parse.ParseStmt
+                Parse.ParseBlock
+                Parse.ParseProgm
 
 
     -- Modules included in this library but not exported.
@@ -112,8 +135,12 @@ library
     x-alex-sources:         src/Lex/Tokenizer.x
     x-alex-output-dir:      src/Lex
 
-    x-happy-sources:        src/Parser/ParseExpr.y
-    x-happy-output-dir:     src/Parser
+    x-happy-sources:        src/Parse/ParseExpr.y,
+                            src/Parse/ParseStmt.y,
+                            src/Parse/ParseBlock.y
+                            src/Parse/ParseProgm.y
+                            
+    x-happy-output-dir:     src/Parse
 
 
 test-suite lexparser-test
@@ -174,7 +201,9 @@ test-suite lexparser-test
     x-alex-sources:         src/Lex/Tokenizer.x
     x-alex-output-dir:      src/Lex
 
-    x-happy-sources:        src/Parser/ParseExpr.y
-    x-happy-output-dir:     src/Parser
+    x-happy-sources:        src/Parse/ParseExpr.y,
+                            src/Parse/ParseStmt.y,
+                            src/Parse/ParseBlock.y
+    x-happy-output-dir:     src/Parse
 
         
