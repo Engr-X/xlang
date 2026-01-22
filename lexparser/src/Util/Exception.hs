@@ -105,15 +105,15 @@ instance ToJSON BasicError
 --   * 'Reading'  — file I/O failure
 --   * 'Syntax' — syntax parsing error
 --   * 'Lex' — lexical analysis error
---   * 'Paring'— syntax parsing error
+--   * 'Parsing'— syntax parsing error
 --
 -- Each error variant carries the minimum information required for reporting.
 data ErrorKind = None
     | Unkown Path
     | Reading Path
     | Lexer BasicError 
+    | Parsing BasicError
     | Syntax BasicError
-    | Paring BasicError
     deriving (Eq, Show)
 
 
@@ -151,7 +151,7 @@ getErrorCode None = 0
 getErrorCode (Reading _)  = 1
 getErrorCode (Lexer _) = 2
 getErrorCode (Syntax _) = 3
-getErrorCode (Paring _) = 4
+getErrorCode (Parsing _) = 4
 
 
 -- | Convert an 'ErrorKind' into a JSON value representing the error message.
@@ -168,7 +168,7 @@ getErrorMessage None = String ""
 getErrorMessage (Reading path) = String $ "Cannot open file: " <> DText.pack path
 getErrorMessage (Lexer be)  = toJSON be
 getErrorMessage (Syntax be) = toJSON be
-getErrorMessage (Paring be) = toJSON be
+getErrorMessage (Parsing be) = toJSON be
 
 
 -- | Convert an 'ErrorKind' into a pretty-printed JSON string.

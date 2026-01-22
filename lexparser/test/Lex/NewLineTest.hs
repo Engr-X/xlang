@@ -30,6 +30,7 @@ replacePos = go []
         setPos (Lex.CharConst c _) p = Lex.CharConst c p
         setPos (Lex.Symbol sym _) p = Lex.Symbol sym p
         setPos (Lex.Error msg _) p = Lex.Error msg p
+        setPos (Lex.EOF _) p = Lex.EOF p
 
 
 insertNewLineTest :: TestTree
@@ -44,7 +45,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
             
         ident "package", ident "com", sym Lex.Dot, ident "wangdi",
         nl,
-        ident "class", ident "A"]),
+        ident "class", ident "A",
+        nl,
+        eof]),
 
     -- English comment:
     -- Colon is banned on both sides (banNext/banPrev), so we should NOT insert NL around ':'.
@@ -54,7 +57,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         "B"], [
         ident "class", ident "A",
         sym Lex.Colon,
-        ident "B"]),
+        ident "B",
+        nl,
+        eof]),
         
     ("2", unlines [
         "if a",
@@ -62,7 +67,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         
         ident "if", ident "a",
         nl,
-        ident "b", sym Lex.LParen, sym Lex.RParen]),
+        ident "b", sym Lex.LParen, sym Lex.RParen,
+        nl,
+        eof]),
         
     ("3", unlines [
         "if a",
@@ -76,7 +83,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         ident "else",
         nl,
-        ident "c", sym Lex.LParen, sym Lex.RParen]),
+        ident "c", sym Lex.LParen, sym Lex.RParen,
+        nl,
+        eof]),
 
     -- English comment: else followed by statement on same line; only NL between lines.
     ("4", unlines [
@@ -91,7 +100,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         ident "else", ident "c", sym Lex.LParen, sym Lex.RParen,
         nl,
-        ident "d", sym Lex.LParen, sym Lex.RParen]),
+        ident "d", sym Lex.LParen, sym Lex.RParen,
+        nl,
+        eof]),
       
     ("5", unlines [
         "for i",
@@ -99,7 +110,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
             
         ident "for", ident "i",
         nl,
-        ident "work", sym Lex.LParen, ident "i", sym Lex.RParen]),
+        ident "work", sym Lex.LParen, ident "i", sym Lex.RParen,
+        nl,
+        eof]),
 
     ("6", unlines [
         "while cond",
@@ -107,7 +120,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
             
         ident "while", ident "cond",
         nl,
-        ident "work", sym Lex.LParen, sym Lex.RParen]),
+        ident "work", sym Lex.LParen, sym Lex.RParen,
+        nl,
+        eof]),
 
     -- English comment: do/while across lines; NL should appear before work and before while.
     ("7", unlines [
@@ -119,7 +134,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         ident "work", sym Lex.LParen, sym Lex.RParen,
         nl,
-        ident "while", ident "cond"]),
+        ident "while", ident "cond",
+        nl,
+        eof]),
 
     -- English comment:
     -- Current implementation does NOT insert NL immediately after '{' (block-first-token),
@@ -134,7 +151,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "work", sym Lex.LParen, sym Lex.RParen,
         sym Lex.RBrace,
         nl,
-        ident "while", ident "cond"]),
+        ident "while", ident "cond",
+        nl,
+        eof]),
 
     -- English comment:
     -- No NL after '{' and no NL after ':' because ':' is banned on both sides.
@@ -147,7 +166,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "switch", ident "x", sym Lex.LBrace,
         ident "case", number "1", sym Lex.Colon,
         ident "work", sym Lex.LParen, sym Lex.RParen,
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
 
     -- English comment:
     -- NL is inserted before '{' (line change), but not inserted after '{' or before '}'.
@@ -164,7 +185,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         sym Lex.LBrace,
         ident "return",
         number "1",
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
 
     -- English comment:
     -- parenDepth suppresses NL inside () even across lines.
@@ -182,7 +205,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "b",
         sym Lex.RParen,
         sym Lex.LBrace,
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
 
     -- English comment: no NL after '{' and no NL before '}' under current block handling.
     ("12", unlines [
@@ -192,7 +217,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
             
         ident "class", ident "A", sym Lex.LBrace,
         ident "int", ident "x", sym Lex.Assign, number "1",
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
 
     -- English comment:
     -- ':' is banned on both sides, so no NL around it.
@@ -208,7 +235,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         sym Lex.Colon,
         ident "B", sym Lex.LParen, sym Lex.RParen,
         sym Lex.LBrace,
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
 
     -- English comment:
     -- No NL right after '{' and no NL right before '}' (current design),
@@ -223,7 +252,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "a", sym Lex.LParen, sym Lex.RParen,
         nl,
         ident "b", sym Lex.LParen, sym Lex.RParen,
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
         
     ("15", unlines [
         "{",
@@ -241,7 +272,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "for", ident "i",
         nl,
         ident "c", sym Lex.LParen, sym Lex.RParen,
-        sym Lex.RBrace]),
+        sym Lex.RBrace,
+        nl,
+        eof]),
         
     ( "16", unlines [
         "package com.wangdi.collections",
@@ -295,8 +328,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "return", ident "this", sym Lex.Dot, ident "data",
         sym Lex.LBracket, number "0", sym Lex.RBracket,
         sym Lex.RBrace,
-        sym Lex.RBrace])]
-
+        sym Lex.RBrace,
+        nl,
+        eof])]
     where
         -- English comment: Test helpers that ignore real positions (replacePos will normalize anyway).
         z :: Position
@@ -304,6 +338,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
 
         ident :: String -> Token
         ident s = Lex.Ident s z
+
+        eof :: Token
+        eof = Lex.EOF z
 
         str :: String -> Token
         str s = Lex.StrConst s z

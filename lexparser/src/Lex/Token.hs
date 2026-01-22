@@ -85,6 +85,7 @@ instance Hashable Symbol
 -- Each token carries a position from the source code for error reporting.
 data Token = 
       Error String Position
+    | EOF Position
     | NewLine Position
     | Ident String Position
     | Symbol Symbol Position
@@ -105,6 +106,7 @@ prettyToken (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
 prettyToken (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
 prettyToken (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
 prettyToken (Error e pos) = "Error at: " ++ show pos ++ e
+prettyToken (EOF pos) = "eof@" ++ show pos
 
 
 -- | Check whether a token represents a lexer error.
@@ -137,7 +139,9 @@ isBracketToken t = isLBracketToken t || isRBracketToken t
 
 -- | get the position of the token
 tokenPos :: Token -> Position
+tokenPos (EOF p) = p
 tokenPos (Error _ p) = p
+tokenPos (NewLine p) = p
 tokenPos (Ident _ p) = p
 tokenPos (Symbol _ p) = p
 tokenPos (NumberConst _ p) = p

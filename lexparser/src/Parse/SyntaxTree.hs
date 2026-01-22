@@ -191,3 +191,4 @@ getErrorProgram = filter isErrExpr . flattenProgram
 --   Unknown names are treated as user-defined classes.
 toClass :: String -> Class
 toClass k = fromMaybe (Class k) $ Map.lookup k classesMap
+

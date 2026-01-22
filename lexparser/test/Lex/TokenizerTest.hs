@@ -69,7 +69,7 @@ eofTokenTests = testGroup "Lex.Tokenizer.eofToken" [
         Error unclosedCharLiteralMsg (makePos (AlexPn 0 4 2) 1),
     testCase "2" $ eofToken (AlexPn 0 1 1) "c" (Just (KComment, AlexPn 0 2 1, "/*c")) @?=
         Error UE.unclosedCommentMsg   (makePos (AlexPn 0 2 1) 2),
-    testCase "3"  $ eofToken (AlexPn 0 9 9) "" Nothing @?= Error "<EOF>" (makePos (AlexPn 0 9 9) 0)]
+    testCase "3"  $ eofToken (AlexPn 0 9 9) "" Nothing @?= EOF (makePos (AlexPn 0 9 9) 0)]
 
 
 name :: String
@@ -100,6 +100,9 @@ makeStr str a b c = StrConst str $ makePosition a b c
 makeLexErr :: String -> Int -> Int -> Int -> ErrorKind
 makeLexErr why a b c = UE.Lexer $ UE.makeError path (makePosition a b c) why
 
+makeEOF :: Int -> Int -> Int -> Token
+makeEOF a b c = EOF $ makePosition a b c
+
 
 datas :: [(String, ([ErrorKind], [Token]))]
 datas = [
@@ -110,7 +113,8 @@ int x = 1, y = 2.0f, c = '\0'; // some basic val
         makeId "int" 1 1 3,
         makeId "x" 1 5 1, makeSymbol Assign 1 7 1, makeNum "1" 1 9 1, makeSymbol Comma 1 10 1,
         makeId "y" 1 12 1, makeSymbol Assign 1 14 1, makeNum "2.0f" 1 16 4, makeSymbol Comma 1 20 1,
-        makeId "c" 1 22 1, makeSymbol Assign 1 24 1, makeChar '\0' 1 26 4, makeSymbol Semicolon 1 30 1])),
+        makeId "c" 1 22 1, makeSymbol Assign 1 24 1, makeChar '\0' 1 26 4, makeSymbol Semicolon 1 30 1,
+        makeEOF 1 49 0])),
 
 
 {-
@@ -131,7 +135,8 @@ d='\\'; // this is awesome
         makeId "a" 1 1 1,  makeSymbol Assign 1 2 1,  makeChar '\n' 1 3 4,  makeSymbol Semicolon 1 7 1,
         makeId "b" 3 1 1,  makeSymbol Assign 3 2 1,  makeChar '\t' 3 3 4,  makeSymbol Semicolon 3 7 1,
         makeId "c" 4 1 1,  makeSymbol Assign 4 2 1,  makeChar '\'' 4 3 4,  makeSymbol Semicolon 4 7 1,
-        makeId "d" 5 1 1,  makeSymbol Assign 5 2 1,  makeChar '\\' 5 3 4,  makeSymbol Semicolon 5 7 1])),
+        makeId "d" 5 1 1,  makeSymbol Assign 5 2 1,  makeChar '\\' 5 3 4,  makeSymbol Semicolon 5 7 1,
+        makeEOF 6 1 0])),
 
 
 {-
@@ -151,8 +156,8 @@ str4 = null
         makeId "str2" 2 1 4,  makeSymbol Assign 2 6 1,  makeStr "hello, world in Chinese is 世界你好" 2 8 33,  makeSymbol Semicolon 2 41 1,
 
         makeId "str3" 3 22 4,  makeSymbol Assign 3 27 1,  makeStr  "\\0" 3 29 4, makeSymbol Semicolon 3 33 1,
-        makeId "str4" 5 1 4,  makeSymbol Assign 5 6 1,  makeId "null" 5 8 4
-    ])),
+        makeId "str4" 5 1 4,  makeSymbol Assign 5 6 1,  makeId "null" 5 8 4,
+        makeEOF 6 1 0])),
 
 
 {-
@@ -166,15 +171,16 @@ for (x = a_address.getSize(); x <= 10; x *= 2) /* iterate the list */
             makeId "x" 1 31 1, makeSymbol LessEqual 1 33 2, makeNum "10" 1 36 2, makeSymbol Semicolon 1 38 1,
             makeId "x" 1 40 1, makeSymbol MultiplyAssign 1 42 2, makeNum "2" 1 45 1, makeSymbol RParen 1 46 1,
 
-        makeId "print" 2 5 5, makeSymbol LParen 2 10 1, makeId "x" 2 11 1, makeSymbol RParen 2 12 1
-    ])),
+        makeId "print" 2 5 5, makeSymbol LParen 2 10 1, makeId "x" 2 11 1, makeSymbol RParen 2 12 1,
+        makeEOF 3 1 0])),
 
 
 {-
 0x1f + -42L * 3.14e-2f
 -}
     ("0x1f + -42L * 3.14e-2f", ([], [
-        makeNum "0x1f" 1 1 4, makeSymbol Plus 1 6 1, makeSymbol Minus 1 8 1, makeNum "42L" 1 9 3, makeSymbol Multiply 1 13 1, makeNum "3.14e-2f" 1 15 8])),
+        makeNum "0x1f" 1 1 4, makeSymbol Plus 1 6 1, makeSymbol Minus 1 8 1, makeNum "42L" 1 9 3, makeSymbol Multiply 1 13 1, makeNum "3.14e-2f" 1 15 8,
+        makeEOF 1 23 0])),
 
 
 {-
@@ -185,7 +191,8 @@ a<<=1; b>>=2; c!^=3; d**=4; e?->f
         makeId "b" 1 8 1, makeSymbol BitRShiftAssign 1 9 3, makeNum "2" 1 12 1, makeSymbol Semicolon 1 13 1,
         makeId "c" 1 15 1, makeSymbol BitXnorAssign 1 16 3, makeNum "3" 1 19 1, makeSymbol Semicolon 1 20 1,
         makeId "d" 1 22 1, makeSymbol PowerAssign 1 23 3, makeNum "4" 1 26 1, makeSymbol Semicolon 1 27 1,
-        makeId "e" 1 29 1, makeSymbol QuestionArrow 1 30 3, makeId "f" 1 33 1])),
+        makeId "e" 1 29 1, makeSymbol QuestionArrow 1 30 3, makeId "f" 1 33 1,
+        makeEOF 1 34 0])),
 
 
 {-
@@ -193,7 +200,7 @@ a..b . c ++d -- e
 -}
     ("a..b . c ++d -- e", ([], [
         makeId "a" 1 1 1, makeSymbol DoubleDot 1 2 2, makeId "b" 1 4 1, makeSymbol Dot 1 6 1, makeId "c" 1 8 1, makeSymbol PlusPlus 1 10 2,
-            makeId "d" 1 12 1, makeSymbol MinusMinus 1 14 2, makeId "e" 1 17 1])),
+            makeId "d" 1 12 1, makeSymbol MinusMinus 1 14 2, makeId "e" 1 17 1, makeEOF 1 18 0])),
 
 
 {-
@@ -204,13 +211,14 @@ c=3
         "a=1/*x*/b=2//y",
         "c=3"], ([], [
         makeId "a" 1 1 1, makeSymbol Assign 1 2 1, makeNum "1" 1 3 1, makeId "b" 1 9 1, makeSymbol Assign 1 10 1, makeNum "2" 1 11 1,
-        makeId "c" 2 1 1, makeSymbol Assign 2 2 1, makeNum "3" 2 3 1])),
+        makeId "c" 2 1 1, makeSymbol Assign 2 2 1, makeNum "3" 2 3 1,
+        makeEOF 3 1 0])),
 
 
 {-
 123abc
 -}
-    ("123abc", ([makeLexErr invalidNumericLiteralMsg 1 1 3], [makeId "abc" 1 4 3])),
+    ("123abc", ([makeLexErr invalidNumericLiteralMsg 1 1 3], [makeId "abc" 1 4 3, makeEOF 1 7 0])),
 
 
 {-
@@ -222,7 +230,8 @@ char b = 'I love u guys
         "char b = 'I love u guys"], (
         [makeLexErr unclosedStrLiteralMsg 1 12 34, makeLexErr unclosedCharLiteralMsg 2 10 14], 
         [makeId "string" 1 1 6, makeId "a" 1 8 1, makeSymbol Assign 1 10 1,
-         makeId "char" 2 1 4, makeId "b" 2 6 1, makeSymbol Assign 2 8 1])),
+         makeId "char" 2 1 4, makeId "b" 2 6 1, makeSymbol Assign 2 8 1,
+         makeEOF 3 1 0])),
 
 
 {-
@@ -236,7 +245,8 @@ int y = 1e, z = 1e6
         "int y = 1e, z = 1e6"], (
         [makeLexErr invalidCharLiteralMsg 1 11 4, makeLexErr invalidNumericLiteralMsg 3 9 1],
         [makeId "int" 1 1 3, makeId "a" 1 5 1, makeSymbol BitLShiftAssign 1 7 3,
-         makeId "int" 3 1 3, makeId "y" 3 5 1, makeSymbol Assign 3 7 1, makeId "e" 3 10 1, makeSymbol Comma 3 11 1, makeId "z" 3 13 1, makeSymbol Assign 3 15 1, makeNum "1e6" 3 17 3])),
+         makeId "int" 3 1 3, makeId "y" 3 5 1, makeSymbol Assign 3 7 1, makeId "e" 3 10 1, makeSymbol Comma 3 11 1, makeId "z" 3 13 1, makeSymbol Assign 3 15 1, makeNum "1e6" 3 17 3,
+         makeEOF 4 1 0])),
 
 
 {-
@@ -260,8 +270,9 @@ int main() {
                 makeId "c" 3 13 1, makeSymbol Assign 3 14 1, makeChar '\t' 3 15 4, makeSymbol Semicolon 3 19 1,
 
             makeId "return" 4 3 6, makeId "x" 4 10 1, makeSymbol Plus 4 11 1, makeId "y" 4 12 1, makeSymbol Multiply 4 13 1, makeId "z" 4 14 1,
-                makeSymbol Semicolon 4 15 1, makeSymbol RBrace 4 17 1
-        ])),
+                makeSymbol Semicolon 4 15 1, makeSymbol RBrace 4 17 1,
+            
+            makeEOF 5 1 0])),
 
 
 {-
@@ -271,8 +282,7 @@ arr[i++] += (x<<2) ** 3 - y--;
         makeId "arr" 1 1 3, makeSymbol LBracket 1 4 1, makeId "i" 1 5 1, makeSymbol PlusPlus 1 6 2, makeSymbol RBracket 1 8 1,
             makeSymbol PlusAssign 1 10 2, makeSymbol LParen 1 13 1, makeId "x" 1 14 1, makeSymbol BitLShift 1 15 2,
             makeNum "2" 1 17 1, makeSymbol RParen 1 18 1, makeSymbol Power 1 20 2, makeNum "3" 1 23 1, makeSymbol Minus 1 25 1,
-            makeId "y" 1 27 1, makeSymbol MinusMinus 1 28 2, makeSymbol Semicolon 1 30 1
-    ])),
+            makeId "y" 1 27 1, makeSymbol MinusMinus 1 28 2, makeSymbol Semicolon 1 30 1, makeEOF 1 31 0])),
 
 
 {-
@@ -281,7 +291,8 @@ still
 -}
     (unlines ["a=1; /* block", "still"], (
         [makeLexErr unclosedCommentMsg 1 6 15],
-        [makeId "a" 1 1 1, makeSymbol Assign 1 2 1, makeNum "1" 1 3 1, makeSymbol Semicolon 1 4 1])),
+        [makeId "a" 1 1 1, makeSymbol Assign 1 2 1, makeNum "1" 1 3 1, makeSymbol Semicolon 1 4 1,
+        makeEOF 3 1 0])),
 
 
 {-
@@ -295,7 +306,8 @@ c = '\t
         [makeLexErr unclosedStrLiteralMsg 1 5 17, makeLexErr unclosedCharLiteralMsg 3 5 3, makeLexErr unclosedCommentMsg 4 1 3],
         [makeId "a" 1 1 1, makeSymbol Assign 1 3 1,
          makeId "b" 2 1 1, makeSymbol Assign 2 3 1, makeChar '\0' 2 5 4,
-         makeId "c" 3 1 1, makeSymbol Assign 3 3 1]))]
+         makeId "c" 3 1 1, makeSymbol Assign 3 3 1,
+         makeEOF 5 1 0]))]
 
 
 tokenizeTests :: TestTree

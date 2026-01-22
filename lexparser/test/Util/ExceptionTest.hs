@@ -50,7 +50,7 @@ getErrorCodeTests = testGroup "Util.Exception.getErrorCode" [
     testCase "0" $ getErrorCode None @?= 0,
     testCase "1" $ getErrorCode (Unkown "unknown error") @?= (-1),
     testCase "2" $ getErrorCode (Syntax $ makeErr "bad token") @?= 3,
-    testCase "3" $ getErrorCode (Paring $ makeErr "unexpected token") @?= 4]
+    testCase "3" $ getErrorCode (Parsing $ makeErr "unexpected token") @?= 4]
 
 
 getErrorMessageTests :: TestTree
@@ -66,7 +66,7 @@ errorToStringTests = testGroup "Util.Exception.errorToString" [
     testCase "0" $ decodeValue (errorToString None) @?= object [fromString "code" .= (0 :: Int),  fromString "error" .= getErrorMessage None],
     testCase "1" $ decodeValue (errorToString (Unkown "test.x")) @?= object [fromString "code" .= (-1 :: Int), fromString "error" .= getErrorMessage (Unkown "test.x")],
     testCase "2" $ decodeValue (errorToString (Reading "input.x")) @?= object [fromString "code" .= (1 :: Int),  fromString "error" .= getErrorMessage (Reading "input.x")],
-    testCase "3" $ decodeValue (errorToString (Paring (makeError "p.x" (makePosition 1 2 3) "unexpected token"))) @?= object [fromString "code" .= (4 :: Int),  fromString "error" .= getErrorMessage (Paring (makeError "p.x" (makePosition 1 2 3) "unexpected token"))]]
+    testCase "3" $ decodeValue (errorToString (Parsing (makeError "p.x" (makePosition 1 2 3) "unexpected token"))) @?= object [fromString "code" .= (4 :: Int),  fromString "error" .= getErrorMessage (Parsing (makeError "p.x" (makePosition 1 2 3) "unexpected token"))]]
 
 
 tests :: TestTree

@@ -274,7 +274,7 @@ eofToken pNow sNow st = case st of
         let consumed = length sStart - length sNow
         in Error UE.unclosedCommentMsg (makePos pStart consumed)
 
-    Nothing -> Error "<EOF>" (makePos pNow 0)
+    Nothing -> EOF (makePos pNow 0)
 
 
 alexEOF :: Alex Token
@@ -442,7 +442,7 @@ lexError (p, _, _, s) len = let bad = take len s in return $ Error bad (makePos 
 -- | Check whether a token represents the EOF sentinel.
 -- Used internally to terminate token collection.
 isEOF :: Token -> Bool
-isEOF (Error "<EOF>" _) = True
+isEOF (EOF _) = True
 isEOF _ = False
 
 
@@ -456,12 +456,10 @@ alexScanTokens input = runAlex input collectTokens
 -- Stops when the EOF token is encountered.
 collectTokens :: Alex [Token]
 collectTokens = loop []
-  where
-    loop acc = do
-      tok <- alexMonadScan
-      if isEOF tok
-        then return (reverse acc)
-        else loop (tok : acc)
+    where
+        loop acc = do
+            tok <- alexMonadScan
+            if isEOF tok then return (reverse (tok : acc)) else loop (tok : acc)
 
 
 -- | Convert an error token into a structured 'ErrorKind'.
@@ -471,19 +469,14 @@ convertErrToken p (Error why pos) = UE.Lexer $ UE.makeError p pos why
 convertErrToken _ _ = error "what the hell is going on???"
 
 
--- TODO insert mission; 
-
-
 -- | Tokenize an input string and collect lexer errors.
 -- Returns both errors and successfully parsed tokens.
 tokenize :: Path -> String -> ([ErrorKind], [Token])
 tokenize p str =
-  case alexScanTokens str of
-    Left _ -> ([UE.Unkown p], [])
-    Right tokens ->
-        let (errs, correct) = partition isErrToken tokens
-            errs' = filter (not . isEOF) errs
-        in (map (convertErrToken p) errs', correct)
+    case alexScanTokens str of
+        Left _ -> ([UE.Unkown p], [])
+        Right tokens -> let (errs, correct) = partition isErrToken tokens
+            in (map (convertErrToken p) errs, correct)
 
 
 -- | used for debug

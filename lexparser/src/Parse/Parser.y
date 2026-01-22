@@ -201,10 +201,10 @@ classifyNumber s = let types = [(IntConst, isInt), (LongConst, isLong), (FloatCo
 
 
 -- | Parse a token stream into a program after performing bracket validation.
---   Reports a syntax error if mismatched brackets are detected.
+--   Reports a Parsing error if mismatched brackets are detected.
 parse :: Path -> [Token] -> Either [ErrorKind] Program
 parse p ts = case checkBracket ts of
-    Just t -> Left [UE.Syntax $ makeError p (tokenPos t) mismatchedBracket]
+    Just t -> Left [UE.Parsing $ makeError p (tokenPos t) mismatchedBracket]
     Nothing -> let res = parseProg ts
                    errs = getErrorProgram res in case errs of
                         [] -> Right res
@@ -212,7 +212,7 @@ parse p ts = case checkBracket ts of
 
     where
         toException :: Path -> Expression -> ErrorKind
-        toException p (Error t why) = UE.Syntax $ UE.makeError p (tokenPos t) why
+        toException p (Error t why) = UE.Parsing $ UE.makeError p (tokenPos t) why
         toException _ _ = error "Is is really an error bro?"
 
 
