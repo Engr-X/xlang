@@ -1,0 +1,57 @@
+{
+module Parse.ParseExpr where
+
+import Lex.Token (Token)
+import Parse.SyntaxTree (Expression(..))
+import Parse.ParserBasic (mkHappyErrorExpr, classifyNumber)
+
+import qualified Lex.Token as Lex
+}
+
+%name parseExpr Start
+%tokentype { Token }
+%error { parseExprError }
+
+%token
+    KW_TRUE             { Lex.Ident "true" _ }
+    KW_FALSE            { Lex.Ident "false" _ }
+
+    KW_AS               { Lex.Ident "as" _ }
+
+    identity            { Lex.Ident $$ _ }
+    number              { Lex.NumberConst $$ _ }
+    character           { Lex.CharConst $$ _ }
+    string              { Lex.StrConst $$ _ }
+
+    '.'                 { Lex.Symbol Lex.Dot _ }
+    '+'                 { Lex.Symbol Lex.Plus _ }
+    '-'                 { Lex.Symbol Lex.Minus _ }
+    '*'                 { Lex.Symbol Lex.Multiply _ }
+    '/'                 { Lex.Symbol Lex.Divide _ }
+
+    '('                 { Lex.Symbol Lex.LParen _ }
+    ')'                 { Lex.Symbol Lex.RParen _ }
+
+%left '='
+%left '+' '-'
+%left '*' '/'
+%right UPLUS UMINUS
+
+%%
+
+-- English comment: Entry point.
+Start
+    : Expr { $1 }
+    ;
+
+#include "Parse/GrammarExpr.inc"
+
+{
+    -- Debug wrapper.
+    debugParseExpr :: [Token] -> Expression
+    debugParseExpr = parseExpr
+
+    -- Happy fatal parse error handler (must not throw).
+    parseExprError :: [Token] -> Expression
+    parseExprError = mkHappyErrorExpr
+}

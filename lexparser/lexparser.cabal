@@ -66,7 +66,8 @@ library
                 Lex.Tokenizer
 
                 Parse.SyntaxTree
-                Parse.Parser
+                Parse.ParserBasic
+                Parse.ParseExpr
     
                 Util.Basic
                 Util.Type
@@ -111,7 +112,7 @@ library
     x-alex-sources:         src/Lex/Tokenizer.x
     x-alex-output-dir:      src/Lex
 
-    x-happy-sources:        src/Parser/Parser.y
+    x-happy-sources:        src/Parser/ParseExpr.y
     x-happy-output-dir:     src/Parser
 
 
@@ -143,7 +144,7 @@ test-suite lexparser-test
         Lex.TokenTest
         Lex.TokenizerTest
 
-        Parse.ParserTest
+        Parse.ParserBasicTest
         Parse.SyntaxTreeTest
 
         Util.BasicTest
@@ -173,7 +174,7 @@ test-suite lexparser-test
     x-alex-sources:         src/Lex/Tokenizer.x
     x-alex-output-dir:      src/Lex
 
-    x-happy-sources:        src/Parser/Parser.y
+    x-happy-sources:        src/Parser/ParseExpr.y
     x-happy-output-dir:     src/Parser
 
         

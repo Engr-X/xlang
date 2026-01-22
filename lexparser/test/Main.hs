@@ -4,7 +4,7 @@ import Lex.NewLineTest
 import Lex.TokenTest
 import Lex.TokenizerTest
 
-import Parse.ParserTest
+import Parse.ParserBasicTest
 import Parse.SyntaxTreeTest
 
 import Util.BasicTest
@@ -19,4 +19,4 @@ main :: IO ()
 main = defaultMain $ testGroup "All tests" [
     Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.FileHelperTest.tests,
     Lex.TokenTest.tests, Lex.TokenizerTest.tests, Lex.NewLineTest.tests,
-    Parse.SyntaxTreeTest.tests, Parse.ParserTest.tests]
+    Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests]
