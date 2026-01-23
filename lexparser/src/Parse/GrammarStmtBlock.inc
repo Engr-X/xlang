@@ -1,32 +1,36 @@
--- separators
 Term :: { () }
     : ';' { () }
     | NL  { () }
-
-Terms0 :: { () }          -- 0 or more separators
-    : {- empty -}         { () }
-    | Terms0 Term         { () }
-
-Terms1 :: { () }          -- 1 or more separators
-    : Term Terms0         { () }
-
--- statements
-Stmt :: { Statement }
-    : Expr                { Expr $1 }
-    | Block               { BlockStmt $1 }
     ;
 
--- block
+OptTerms :: { () }
+    : {- empty -}   { () }
+    | OptTerms Term { () }
+    ;
+
+Terms1 :: { () }
+    : Term OptTerms { () }
+    ;
+
 Block :: { Block }
-    : '{' Terms0 StmtSeqOpt '}'   { Multiple $3 }
+    : '{' OptTerms StmtSeqOpt OptTerms '}' { Multiple $3 }
+    ;
 
 StmtSeqOpt :: { [Statement] }
-    : {- empty -}                 { [] }
-    | StmtSeq                     { $1 }
+    : {- empty -} { [] }
+    | StmtSeq     { $1 }
+    ;
+
+StmtTerm :: { Statement }
+    : Stmt Terms1 { $1 }
+    ;
 
 StmtSeq :: { [Statement] }
-    : Stmt StmtSeqTail            { $1 : $2 }
+    : StmtTerm          { [$1] }
+    | StmtTerm StmtSeq  { $1 : $2 }
+    ;
 
-StmtSeqTail :: { [Statement] }
-    : {- empty -}                 { [] }
-    | Terms1 Stmt StmtSeqTail     { $2 : $3 }
+Stmt :: { Statement }
+    : Expr  { Expr $1 }
+    | Block { BlockStmt $1 }
+    ;
