@@ -63,7 +63,13 @@ custom-setup
         containers
 
 
-extra-source-files: src/Parse/GrammarExpr.inc, src/Parse/ParseExpr.ypp, src/Parse/ParseStmt.ypp
+extra-source-files:
+        src/Parse/GrammarExpr.inc,
+        src/Parse/GrammarStmtBlock.inc
+        src/Parse/ParseExpr.ypp,
+        src/Parse/ParseStmt.ypp,
+        src/Parse/ParseBlock.ypp,
+        src/Parse/ParseProgm.ypp
 
 
 library
@@ -204,6 +210,7 @@ test-suite lexparser-test
     x-happy-sources:        src/Parse/ParseExpr.y,
                             src/Parse/ParseStmt.y,
                             src/Parse/ParseBlock.y
+                            src/Parse/ParseProgm.y
     x-happy-output-dir:     src/Parse
 
         

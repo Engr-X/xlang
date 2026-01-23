@@ -26,8 +26,7 @@ Atom
     | '(' Expr ')'           { $2 }
 
     -- identifiers
-    | QName                  { Qualified $1 }
-    | identity               { Variable $1 }
+    | QName                  { qnameToExpr $1 }
 
     -- literals
     | number                 { fromMaybe (error "classifyNumber failed")

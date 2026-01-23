@@ -1,13 +1,12 @@
 {
 module Parse.ParseProgm where
 
-
 import Unsafe.Coerce (unsafeCoerce)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Lex.Token (Token)
 import Parse.SyntaxTree
-import Parse.ParserBasic (mkHappyErrorExpr, classifyNumber)
+import Parse.ParserBasic
 import Util.Exception (expectedExpression)
 
 import qualified Lex.Token as Lex
@@ -54,64 +53,23 @@ import qualified Lex.Token as Lex
 
 %%
 
--- ============================================================
--- Entry
--- ============================================================
+ProgramEOF :: { Program } : OptTerms StmtSeq OptTerms EOF { ([], $2) }
 
-ProgramEOF :: { Program }
-  : OptTerms StmtSeq OptTerms EOF { ([], $2) }
-
--- ============================================================
--- Separators / terminators
--- ============================================================
-
-Term :: { () }
-    : ';' { () }
-    | NL  { () }
-
-OptTerms :: { () }
-    : {- empty -}   { () }
-    | OptTerms Term { () }
-
--- ============================================================
--- Top-level statements (minimal)
--- ============================================================
 
 StmtSeq :: { [Statement] }
-    : {- empty -}            { [] }
-    | StmtSeq OptTerms Stmt  { $1 ++ [$3] }
+    : {- empty -}                 { [] }
+    | StmtSeq OptTerms Stmt       { $1 ++ [$3] }
     ;
 
-Stmt :: { Statement }
-    : ExprStmt { Expr $1 }
-    | Block    { BlockStmt $1 }
-    ;
-
-ExprStmt :: { Expression }
-    : Expr Term { $1 }
-    ;
-
-Block :: { Block }
-    : '{' BlockBody '}' { Multiple $2 }
-    ;
-
-BlockBody :: { [Statement] }
-    : {- empty -}        { [] }
-    | BlockBody Term     { $1 }
-    | BlockBody Stmt     { $1 ++ [$2] }
-    ;
-
--- ============================================================
--- Shared expression grammar
--- ============================================================
-
+#include "Parse/GrammarStmtBlock.inc"
 #include "Parse/GrammarExpr.inc"
 
 {
--- English comment: Happy 2.0 expects a polymorphic error handler.
+-- Happy expects a polymorphic error handler.
 -- We return a sentinel program containing one error expression statement.
 parseProgmError :: [Token] -> a
 parseProgmError toks =
     let e  = mkHappyErrorExpr toks
-        pr = ([], [Expr e]) :: Program in unsafeCoerce pr
+        pr = ([], [Expr e]) :: Program
+    in unsafeCoerce pr
 }

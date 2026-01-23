@@ -5,7 +5,7 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Lex.Token (Token)
 import Parse.SyntaxTree
-import Parse.ParserBasic (mkHappyErrorExpr, classifyNumber)
+import Parse.ParserBasic
 import Util.Exception (expectedExpression)
 import qualified Lex.Token as Lex
 }
@@ -41,45 +41,28 @@ import qualified Lex.Token as Lex
 %left '*' '/'
 %right UPLUS UMINUS
 %%
--- ============================================================
--- Entry
--- ============================================================
-ProgramEOF :: { Program }
-  : OptTerms StmtSeq OptTerms EOF { ([], $2) }
--- ============================================================
--- Separators / terminators
--- ============================================================
+ProgramEOF :: { Program } : OptTerms StmtSeq OptTerms EOF { ([], $2) }
+StmtSeq :: { [Statement] }
+    : {- empty -} { [] }
+    | StmtSeq OptTerms Stmt { $1 ++ [$3] }
+    ;
+-- separators
 Term :: { () }
     : ';' { () }
     | NL { () }
 OptTerms :: { () }
     : {- empty -} { () }
     | OptTerms Term { () }
--- ============================================================
--- Top-level statements (minimal)
--- ============================================================
-StmtSeq :: { [Statement] }
-    : {- empty -} { [] }
-    | StmtSeq OptTerms Stmt { $1 ++ [$3] }
-    ;
 Stmt :: { Statement }
-    : ExprStmt { Expr $1 }
+    : Expr { Expr $1 }
     | Block { BlockStmt $1 }
     ;
-ExprStmt :: { Expression }
-    : Expr Term { $1 }
-    ;
+-- block\U0000ff08\U00005982\U0000679c Stmt \U000091cc\U00005f15\U00007528\U00004e86 Block\U0000ff0cBlock \U00004e5f\U00005fc5\U0000987b\U00005b58\U00005728\U0000ff09
 Block :: { Block }
-    : '{' BlockBody '}' { Multiple $2 }
-    ;
+    : '{' OptTerms BlockBody OptTerms '}' { Multiple $3 }
 BlockBody :: { [Statement] }
     : {- empty -} { [] }
-    | BlockBody Term { $1 }
-    | BlockBody Stmt { $1 ++ [$2] }
-    ;
--- ============================================================
--- Shared expression grammar
--- ============================================================
+    | BlockBody OptTerms Stmt { $1 ++ [$3] }
 -- ============================================================
 -- Expression grammar (shared by Expr / Stmt / Block / Program)
 -- ============================================================
@@ -101,8 +84,7 @@ Atom
     -- parenthesized expression
     | '(' Expr ')' { $2 }
     -- identifiers
-    | QName { Qualified $1 }
-    | identity { Variable $1 }
+    | QName { qnameToExpr $1 }
     -- literals
     | number { fromMaybe (error "classifyNumber failed")
                                       (classifyNumber $1) }
@@ -127,10 +109,11 @@ Expr
     | Postfix { $1 }
     ;
 {
--- English comment: Happy 2.0 expects a polymorphic error handler.
+-- Happy expects a polymorphic error handler.
 -- We return a sentinel program containing one error expression statement.
 parseProgmError :: [Token] -> a
 parseProgmError toks =
     let e = mkHappyErrorExpr toks
-        pr = ([], [Expr e]) :: Program in unsafeCoerce pr
+        pr = ([], [Expr e]) :: Program
+    in unsafeCoerce pr
 }

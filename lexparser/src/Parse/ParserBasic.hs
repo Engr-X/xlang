@@ -9,6 +9,13 @@ import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
 import qualified Lex.Token as Lex
 
 
+-- Convert a qualified name to an expression.
+-- A single segment is treated as a Variable; otherwise Qualified.
+qnameToExpr :: [String] -> Expression
+qnameToExpr [x] = Variable x
+qnameToExpr xs = Qualified xs
+
+
 --  Choose a token to anchor diagnostics.
 nearestTok :: [Token] -> Token
 nearestTok (t:_) = t

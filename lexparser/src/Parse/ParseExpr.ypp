@@ -43,7 +43,6 @@ import qualified Lex.Token as Lex
 
 %%
 
--- English comment: Entry point.
 Start
     : Expr { $1 }
     ;

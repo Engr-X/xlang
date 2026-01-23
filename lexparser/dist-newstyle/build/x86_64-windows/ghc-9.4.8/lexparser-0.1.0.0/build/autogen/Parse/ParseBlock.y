@@ -5,16 +5,15 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Lex.Token (Token)
 import Parse.SyntaxTree
-import Parse.ParserBasic (mkHappyErrorExpr, classifyNumber)
+import Parse.ParserBasic
 import Util.Exception (expectedExpression)
-import Unsafe.Coerce (unsafeCoerce)
 import qualified Lex.Token as Lex
 }
 %name parseBlock BlockEOF
 %tokentype { Token }
 %error { parseBlockError }
 %token
-    -- keywords (Ident)
+    -- keywords
     KW_TRUE { Lex.Ident "true" _ }
     KW_FALSE { Lex.Ident "false" _ }
     KW_AS { Lex.Ident "as" _ }
@@ -26,7 +25,7 @@ import qualified Lex.Token as Lex
     -- newline / eof
     NL { Lex.NewLine _ }
     EOF { Lex.EOF _ }
-    -- symbols (Expr)
+    -- expression symbols
     '.' { Lex.Symbol Lex.Dot _ }
     '+' { Lex.Symbol Lex.Plus _ }
     '-' { Lex.Symbol Lex.Minus _ }
@@ -34,7 +33,7 @@ import qualified Lex.Token as Lex
     '/' { Lex.Symbol Lex.Divide _ }
     '(' { Lex.Symbol Lex.LParen _ }
     ')' { Lex.Symbol Lex.RParen _ }
-    -- symbols (Stmt/Block)
+    -- statement / block symbols
     '{' { Lex.Symbol Lex.LBrace _ }
     '}' { Lex.Symbol Lex.RBrace _ }
     ';' { Lex.Symbol Lex.Semicolon _ }
@@ -42,44 +41,24 @@ import qualified Lex.Token as Lex
 %left '*' '/'
 %right UPLUS UMINUS
 %%
--- ============================================================
--- Entry
--- ============================================================
-BlockEOF :: { Block }
-    : OptTerms Block OptTerms EOF { $2 }
--- ============================================================
--- Separators / terminators
--- ============================================================
+BlockEOF :: { Block } : OptTerms Block OptTerms EOF { $2 }
+-- separators
 Term :: { () }
     : ';' { () }
     | NL { () }
 OptTerms :: { () }
     : {- empty -} { () }
     | OptTerms Term { () }
--- ============================================================
--- Minimal statements inside a block
--- ============================================================
 Stmt :: { Statement }
-    : ExprStmt { Expr $1 }
+    : Expr { Expr $1 }
     | Block { BlockStmt $1 }
     ;
-ExprStmt :: { Expression }
-    : Expr Term { $1 }
-    ;
--- ============================================================
--- Block
--- ============================================================
+-- block\U0000ff08\U00005982\U0000679c Stmt \U000091cc\U00005f15\U00007528\U00004e86 Block\U0000ff0cBlock \U00004e5f\U00005fc5\U0000987b\U00005b58\U00005728\U0000ff09
 Block :: { Block }
-    : '{' BlockBody '}' { Multiple $2 }
-    ;
+    : '{' OptTerms BlockBody OptTerms '}' { Multiple $3 }
 BlockBody :: { [Statement] }
     : {- empty -} { [] }
-    | BlockBody Term { $1 }
-    | BlockBody Stmt { $1 ++ [$2] }
-    ;
--- ============================================================
--- Shared expression grammar
--- ============================================================
+    | BlockBody OptTerms Stmt { $1 ++ [$3] }
 -- ============================================================
 -- Expression grammar (shared by Expr / Stmt / Block / Program)
 -- ============================================================
@@ -101,8 +80,7 @@ Atom
     -- parenthesized expression
     | '(' Expr ')' { $2 }
     -- identifiers
-    | QName { Qualified $1 }
-    | identity { Variable $1 }
+    | QName { qnameToExpr $1 }
     -- literals
     | number { fromMaybe (error "classifyNumber failed")
                                       (classifyNumber $1) }
