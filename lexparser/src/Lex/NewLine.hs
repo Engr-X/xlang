@@ -39,7 +39,6 @@ banNextSet = HashSet.fromList [
     Lex.Semicolon, Lex.Comma, Lex.Dot, Lex.DoubleDot, Lex.Colon, Lex.Arrow, Lex.FatArrow, Lex.QuestionArrow, Lex.Question, Lex.Backslash]
 
 
--- English comment:
 -- banPrev prevTok == True means: do NOT insert NL after prevTok.
 {-# INLINE banPrev #-}
 banPrev :: Token -> Bool
@@ -47,7 +46,6 @@ banPrev (Symbol sym _) = HashSet.member sym banPrevSet
 banPrev _ = False
 
 
--- English comment:
 -- banNext cursor == True means: do NOT insert NL before cursor.
 {-# INLINE banNext #-}
 banNext :: Token -> Bool
@@ -55,9 +53,7 @@ banNext (Symbol sym _) = HashSet.member sym banNextSet
 banNext _ = False
 
 
-
 -- | Insert NL tokens inferred from Position.line changes.
--- English comment:
 -- The tokenizer removed NL, so we re-insert NL by checking whether
 -- the line number changed between adjacent tokens.
 -- We also recursively process inside '{ ... }' blocks.

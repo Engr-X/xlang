@@ -179,6 +179,7 @@ test-suite lexparser-test
 
         Parse.ParserBasicTest
         Parse.SyntaxTreeTest
+        Parse.ParseExprTest
 
         Util.BasicTest
         Util.ExceptionTest

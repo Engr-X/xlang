@@ -33,6 +33,46 @@ replacePos = go []
         setPos (Lex.EOF _) p = Lex.EOF p
 
 
+banPrevTests :: TestTree
+banPrevTests = testGroup "Lex.NewLine.banPrev" $ map (\(n, tok, e) -> testCase n $ banPrev tok @=? e) [
+    ("0 in set: LBrace", Lex.Symbol Lex.LBrace (makePosition 1 1 1), True),
+    ("1 in set: Semicolon", Lex.Symbol Lex.Semicolon (makePosition 1 2 1)
+        , True
+        )
+      , ("2 not in set: RBrace"
+        , Lex.Symbol Lex.RBrace (makePosition 1 3 1)
+        , False
+        )
+      , ("3 non-symbol token"
+        , Lex.Ident "x" (makePosition 1 4 1)
+        , False
+        )
+      ]
+
+
+banNextTests :: TestTree
+banNextTests =
+  testGroup "Lex.NewLine.banNext" $
+    map (\(n, tok, e) -> testCase n $ banNext tok @=? e)
+      [ ("0 in set: Assign"
+        , Lex.Symbol Lex.Assign (makePosition 1 1 1)
+        , True
+        )
+      , ("1 in set: PlusPlus"
+        , Lex.Symbol Lex.PlusPlus (makePosition 1 2 1)
+        , True
+        )
+      , ("2 not in set: At"
+        , Lex.Symbol Lex.At (makePosition 1 3 1)
+        , False
+        )
+      , ("3 non-symbol token"
+        , Lex.NumberConst 42 (makePosition 1 4 1)
+        , False
+        )
+      ]
+
+
 insertNewLineTest :: TestTree
 insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expected) ->
     testCase n $
@@ -356,7 +396,4 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
 
 
 tests :: TestTree
-tests =
-  testGroup "Lex.NewLineTest"
-    [ insertNewLineTest
-    ]
+tests = testGroup "Lex.NewLineTest" [banPrevTests, banNextTests, insertNewLineTest]

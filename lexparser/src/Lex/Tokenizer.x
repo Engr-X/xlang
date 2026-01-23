@@ -4,6 +4,7 @@ module Lex.Tokenizer where
 import Data.List (partition)
 import Numeric (readHex, readOct)
 import Lex.Token
+import Lex.NewLine (insertNewLine)
 import Util.Exception (ErrorKind, internalErrorMsg, unclosedStrLiteralMsg, unclosedCharLiteralMsg, invalidCharLiteralMsg, invalidNumericLiteralMsg)
 import Util.Type (Position, Path)
 
@@ -479,9 +480,19 @@ tokenize p str =
             in (map (convertErrToken p) errs, correct)
 
 
+-- | tokenize and automatically add NL 
+tokenizeWithNL :: Path -> String -> ([ErrorKind], [Token])
+tokenizeWithNL p str = let (errs, toks) = tokenize p str in (errs, insertNewLine toks)
+
+
 -- | used for debug
 debugTokenize :: String -> ([ErrorKind], [Token])
 debugTokenize = tokenize "stdin"
+
+
+-- | used for debug
+debugTokenizeWithNL :: String -> ([ErrorKind], [Token])
+debugTokenizeWithNL = tokenizeWithNL "stdin"
 
 
 -- | read a file and tokenize the code

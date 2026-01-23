@@ -10,6 +10,7 @@ module Lex.Tokenizer where
 import Data.List (partition)
 import Numeric (readHex, readOct)
 import Lex.Token
+import Lex.NewLine (insertNewLine)
 import Util.Exception (ErrorKind, internalErrorMsg, unclosedStrLiteralMsg, unclosedCharLiteralMsg, invalidCharLiteralMsg, invalidNumericLiteralMsg)
 import Util.Type (Position, Path)
 
@@ -1205,7 +1206,7 @@ alexRightContext IBOX(sc) user__ _ _ input__ =
         -- match when checking the right context, just
         -- the first match will do.
 #endif
-{-# LINE 189 "src/Lex/Tokenizer.x" #-}
+{-# LINE 190 "src/Lex/Tokenizer.x" #-}
 -- ! create postion by using alexPosn
 makePos :: AlexPosn -> Int -> Position
 makePos (AlexPn _ line col) = UType.makePosition line col
@@ -1498,9 +1499,19 @@ tokenize p str =
             in (map (convertErrToken p) errs, correct)
 
 
+-- | tokenize and automatically add NL 
+tokenizeWithNL :: Path -> String -> ([ErrorKind], [Token])
+tokenizeWithNL p str = let (errs, toks) = tokenize p str in (errs, insertNewLine toks)
+
+
 -- | used for debug
 debugTokenize :: String -> ([ErrorKind], [Token])
 debugTokenize = tokenize "stdin"
+
+
+-- | used for debug
+debugTokenizeWithNL :: String -> ([ErrorKind], [Token])
+debugTokenizeWithNL = tokenizeWithNL "stdin"
 
 
 -- | read a file and tokenize the code
