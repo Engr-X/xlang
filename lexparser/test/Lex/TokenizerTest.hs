@@ -80,7 +80,7 @@ path = "stdin"
 
 
 makeTest :: Int -> String -> ([ErrorKind], [Token]) -> TestTree
-makeTest i input expect = let name' = show i in testCase name' $ debugTokenize input @=? expect
+makeTest i input expect = let name' = show i in testCase name' $ replTokenize input @=? expect
 
 makeId :: String -> Int -> Int -> Int -> Token
 makeId s a b c = Ident s $ makePosition a b c

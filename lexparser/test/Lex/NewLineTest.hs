@@ -14,7 +14,7 @@ import qualified Lex.Token as Lex
 replacePos :: [Token] -> [Token]
 replacePos = go []
     where
-        -- English comment: Normalize all token positions to zero to make comparisons stable.
+        -- Normalize all token positions to zero to make comparisons stable.
         zeroPos :: Position
         zeroPos = makePosition 0 0 0
 
@@ -36,48 +36,24 @@ replacePos = go []
 banPrevTests :: TestTree
 banPrevTests = testGroup "Lex.NewLine.banPrev" $ map (\(n, tok, e) -> testCase n $ banPrev tok @=? e) [
     ("0 in set: LBrace", Lex.Symbol Lex.LBrace (makePosition 1 1 1), True),
-    ("1 in set: Semicolon", Lex.Symbol Lex.Semicolon (makePosition 1 2 1)
-        , True
-        )
-      , ("2 not in set: RBrace"
-        , Lex.Symbol Lex.RBrace (makePosition 1 3 1)
-        , False
-        )
-      , ("3 non-symbol token"
-        , Lex.Ident "x" (makePosition 1 4 1)
-        , False
-        )
-      ]
+    ("1 in set: Semicolon", Lex.Symbol Lex.Semicolon (makePosition 1 2 1), True),
+    ("2 not in set: RBrace", Lex.Symbol Lex.RBrace (makePosition 1 3 1), False),
+    ("3 non-symbol token", Lex.Ident "x" (makePosition 1 4 1), False)]
 
 
 banNextTests :: TestTree
-banNextTests =
-  testGroup "Lex.NewLine.banNext" $
-    map (\(n, tok, e) -> testCase n $ banNext tok @=? e)
-      [ ("0 in set: Assign"
-        , Lex.Symbol Lex.Assign (makePosition 1 1 1)
-        , True
-        )
-      , ("1 in set: PlusPlus"
-        , Lex.Symbol Lex.PlusPlus (makePosition 1 2 1)
-        , True
-        )
-      , ("2 not in set: At"
-        , Lex.Symbol Lex.At (makePosition 1 3 1)
-        , False
-        )
-      , ("3 non-symbol token"
-        , Lex.NumberConst 42 (makePosition 1 4 1)
-        , False
-        )
-      ]
+banNextTests = testGroup "Lex.NewLine.banNext" $ map (\(n, tok, e) -> testCase n $ banNext tok @=? e) [
+    ("0", Lex.Symbol Lex.Assign (makePosition 1 1 1), True),
+    ("1", Lex.Symbol Lex.PlusPlus (makePosition 1 2 1), True),
+    ("2", Lex.Symbol Lex.At (makePosition 1 3 1), False),
+    ("3", Lex.NumberConst "42" (makePosition 1 4 1), False)]
 
 
 insertNewLineTest :: TestTree
 insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expected) ->
     testCase n $
-        let inputToks = snd (debugTokenize s)
-            actual   = replacePos (insertNewLine inputToks)
+        let inputToks = snd (replTokenizeWithNL s)
+            actual = replacePos inputToks
         in actual @=? replacePos expected)[
     ("0", unlines [
         "package com.wangdi",
@@ -89,7 +65,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- Colon is banned on both sides (banNext/banPrev), so we should NOT insert NL around ':'.
     ("1", unlines [
         "class A",
@@ -127,7 +103,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment: else followed by statement on same line; only NL between lines.
+    -- else followed by statement on same line; only NL between lines.
     ("4", unlines [
         "if a",
         "b()",
@@ -164,7 +140,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment: do/while across lines; NL should appear before work and before while.
+    -- do/while across lines; NL should appear before work and before while.
     ("7", unlines [
         "do",
         "work()",
@@ -178,7 +154,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- Current implementation does NOT insert NL immediately after '{' (block-first-token),
     -- because inner recursion starts with prev = Nothing.
     ("8", unlines [
@@ -195,7 +171,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- No NL after '{' and no NL after ':' because ':' is banned on both sides.
     ("9", unlines [
         "switch x {",
@@ -210,7 +186,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- NL is inserted before '{' (line change), but not inserted after '{' or before '}'.
     ("10", unlines [
         "int f()",
@@ -229,7 +205,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- parenDepth suppresses NL inside () even across lines.
     -- We still expect NL before '{' due to line change after ')'.
     ("11", unlines [
@@ -249,7 +225,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment: no NL after '{' and no NL before '}' under current block handling.
+    -- no NL after '{' and no NL before '}' under current block handling.
     ("12", unlines [
         "class A {",
         "int x = 1",
@@ -261,7 +237,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- ':' is banned on both sides, so no NL around it.
     -- NL is inserted before '{' because previous token ')' is on a different line.
     ( "13", unlines [
@@ -279,7 +255,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof]),
 
-    -- English comment:
+
     -- No NL right after '{' and no NL right before '}' (current design),
     -- but NL should appear between a() and b() inside the block.
     ("14", unlines [
@@ -372,7 +348,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         eof])]
     where
-        -- English comment: Test helpers that ignore real positions (replacePos will normalize anyway).
+        -- Test helpers that ignore real positions (replacePos will normalize anyway).
         z :: Position
         z = makePosition 0 0 0
 

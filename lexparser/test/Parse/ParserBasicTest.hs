@@ -1,6 +1,6 @@
 module Parse.ParserBasicTest where
 
-import Lex.Tokenizer (debugTokenize)
+import Lex.Tokenizer (replTokenize)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Parse.ParserBasic
@@ -50,7 +50,7 @@ mkHappyErrorExprTests = testGroup "Parse.ParserBasic.mkHappyErrorExpr" $ map (\(
 
 checkBracketTests :: TestTree
 checkBracketTests = testGroup "Parse.ParserBasic.checkBracket" $ map (\(n, s, e) -> 
-    let (_, tokens) = debugTokenize s in testCase n $ checkBracket tokens @=? e) [
+    let (_, tokens) = replTokenize s in testCase n $ checkBracket tokens @=? e) [
         ("0", "", Nothing), ("1", "()[]{}", Nothing), ("2 complex", "[() {[], [a..b]} () ]", Nothing),
         ("3", "() )", Just $ Lex.Symbol Lex.RParen $ makePosition 1 4 1), ("4", "[()] ]", Just $ Lex.Symbol Lex.RBracket $ makePosition 1 6 1),
         ("5", "(", Just $ Lex.Symbol Lex.LParen $ makePosition 1 1 1), ("6 missing }", "{ [() ]", Just $ Lex.Symbol Lex.LBrace $ makePosition 1 1 1),

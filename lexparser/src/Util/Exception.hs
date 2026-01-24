@@ -70,8 +70,13 @@ unclosedCommentMsg = "unterminated comment"
 
 
 -- Error message for a mismatched bracket
-mismatchedBracket :: String
-mismatchedBracket = "mismatched bracket"
+mismatchedBracketMsg :: String
+mismatchedBracketMsg = "mismatched bracket"
+
+
+-- assign error like this: 10 = a;
+assignErrorMsg :: String
+assignErrorMsg = "The left-hand side of an assignment must be a variable"
 
 
 -- Expected expression

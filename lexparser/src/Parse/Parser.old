@@ -7,7 +7,7 @@ import Lex.NewLine
 import Lex.Token (Token, tokenPos, isLBracketToken, isRBracketToken, isBracketToken)
 import Lex.Tokenizer (tokenize)
 import Parse.SyntaxTree
-import Util.Exception (ErrorKind, mismatchedBracket, makeError, expectedExpression)
+import Util.Exception (ErrorKind, mismatchedBracketMsg, makeError, expectedExpression)
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
 import Util.Type
 
@@ -203,7 +203,7 @@ classifyNumber s = let types = [(IntConst, isInt), (LongConst, isLong), (FloatCo
 --   Reports a Parsing error if mismatched brackets are detected.
 parse :: Path -> [Token] -> Either [ErrorKind] Program
 parse p ts = case checkBracket ts of
-    Just t -> Left [UE.Parsing $ makeError p (tokenPos t) mismatchedBracket]
+    Just t -> Left [UE.Parsing $ makeError p (tokenPos t) mismatchedBracketMsg]
     Nothing -> let res = parseProg ts
                    errs = getErrorProgram res in case errs of
                         [] -> Right res

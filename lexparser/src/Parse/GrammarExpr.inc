@@ -7,9 +7,9 @@ QName
     | QName '.' identity     { $1 ++ [$3] }
     ;
 
-Type
-    : QName { toClass (intercalate "." $1) }
-    ;
+LValue : QName               { qnameToExpr $1 };
+
+Type : QName { toClass (intercalate "." $1) };
 
 Atom
     : KW_TRUE   { BoolConst True }
@@ -29,8 +29,7 @@ Atom
     | QName                  { qnameToExpr $1 }
 
     -- literals
-    | number                 { fromMaybe (error "classifyNumber failed")
-                                      (classifyNumber $1) }
+    | number                 { fromMaybe (error "classifyNumber failed") (classifyNumber $1) }
     | character              { CharConst $1 }
     | string                 { StringConst $1 }
     ;
@@ -44,7 +43,10 @@ Postfix
     ;
 
 Expr
-    : Expr '+' Expr          { Binary Add $1 $3 }
+    : LValue '=' Expr        { Binary Assign $1 $3 }
+    | Expr '=' Expr          { Error $2 assignErrorMsg}
+
+    | Expr '+' Expr          { Binary Add $1 $3 }
     | Expr '+' error         { Error $2 (expectedExpression 1 "+") }
 
     | Expr '-' Expr          { Binary Sub $1 $3 }

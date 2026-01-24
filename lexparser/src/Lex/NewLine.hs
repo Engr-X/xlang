@@ -62,7 +62,7 @@ banNext _ = False
 insertNewLine :: [Token] -> [Token]
 insertNewLine = dedupNL . go 0 Nothing
     where
-        -- English comment:
+    
         -- Remove repeated NLs produced by blank lines / block stitching.
         dedupNL :: [Token] -> [Token]
         dedupNL = loop False
@@ -77,7 +77,7 @@ insertNewLine = dedupNL . go 0 Nothing
                     else t : loop True ts
                 _ -> t : loop False ts
 
-        -- English comment:
+    
         -- parenDepth tracks only () and [] nesting; braces {} are handled by takeBlock recursion.
         go :: Int -> Maybe Token -> [Token] -> [Token]
         go _ _ [] = []
@@ -94,7 +94,7 @@ insertNewLine = dedupNL . go 0 Nothing
                     parenDepth' = updateParenDepth parenDepth cursor
                 in out ++ go parenDepth' (Just cursor) rest
 
-        -- English comment:
+    
         -- Insert one NL token between prev and cursor iff:
         --   * line(cursor) > line(prev)
         --   * parenDepth == 0 (not inside () or [])
@@ -111,7 +111,7 @@ insertNewLine = dedupNL . go 0 Nothing
                 okNext  = not (banNext cursor)
             in [mkNL cursor | okLine && okDepth && okPrev && okNext]
 
-        -- English comment:
+    
         -- Put NL at the beginning of the cursor token's line (col=0, len=0).
         mkNL :: Token -> Token
         mkNL cursor = let l = line (tokenPos cursor)

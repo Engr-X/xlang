@@ -7,7 +7,7 @@ import Data.Maybe (fromMaybe)
 import Lex.Token (Token)
 import Parse.SyntaxTree
 import Parse.ParserBasic
-import Util.Exception (expectedExpression)
+import Util.Exception (expectedExpression, assignErrorMsg)
 
 import qualified Lex.Token as Lex
 }
@@ -17,7 +17,8 @@ import qualified Lex.Token as Lex
 %error { parseStmtError }
 
 %token
-    -- keywords
+    EOF                 { Lex.EOF _ }
+    NL                  { Lex.NewLine _ }
     KW_TRUE             { Lex.Ident "true" _ }
     KW_FALSE            { Lex.Ident "false" _ }
     KW_AS               { Lex.Ident "as" _ }
@@ -28,12 +29,9 @@ import qualified Lex.Token as Lex
     character           { Lex.CharConst $$ _ }
     string              { Lex.StrConst $$ _ }
 
-    -- newline / eof
-    NL                  { Lex.NewLine _ }
-    EOF                 { Lex.EOF _ }
 
     -- expression symbols
-    '.'                 { Lex.Symbol Lex.Dot _ }
+    '='                 { Lex.Symbol Lex.Assign _ }
     '+'                 { Lex.Symbol Lex.Plus _ }
     '-'                 { Lex.Symbol Lex.Minus _ }
     '*'                 { Lex.Symbol Lex.Multiply _ }
@@ -44,8 +42,10 @@ import qualified Lex.Token as Lex
     -- statement / block symbols
     '{'                 { Lex.Symbol Lex.LBrace _ }
     '}'                 { Lex.Symbol Lex.RBrace _ }
+    '.'                 { Lex.Symbol Lex.Dot _ }
     ';'                 { Lex.Symbol Lex.Semicolon _ }
 
+%right '='
 %left '+' '-'
 %left '*' '/'
 %right UPLUS UMINUS

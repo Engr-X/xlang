@@ -1,5 +1,6 @@
 module Parse.ParserBasic where
 
+import Data.Maybe (listToMaybe)
 import Data.List (find)
 import Lex.Token (Token, isLBracketToken, isRBracketToken)
 import Parse.SyntaxTree (Expression(..))

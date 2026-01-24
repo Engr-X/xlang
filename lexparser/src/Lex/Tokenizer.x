@@ -486,13 +486,13 @@ tokenizeWithNL p str = let (errs, toks) = tokenize p str in (errs, insertNewLine
 
 
 -- | used for debug
-debugTokenize :: String -> ([ErrorKind], [Token])
-debugTokenize = tokenize "stdin"
+replTokenize :: String -> ([ErrorKind], [Token])
+replTokenize = tokenize "stdin"
 
 
 -- | used for debug
-debugTokenizeWithNL :: String -> ([ErrorKind], [Token])
-debugTokenizeWithNL = tokenizeWithNL "stdin"
+replTokenizeWithNL :: String -> ([ErrorKind], [Token])
+replTokenizeWithNL = tokenizeWithNL "stdin"
 
 
 -- | read a file and tokenize the code
