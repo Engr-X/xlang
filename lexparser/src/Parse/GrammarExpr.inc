@@ -46,6 +46,20 @@ Expr
     : LValue '=' Expr        { if isVariable $1 then Binary Assign $1 $3 $2 else Error $2 assignErrorMsg }
     | LValue '=' error       { Error $2 (expectedExpression 1 "=") }
 
+    -- 
+    | Expr '==' Expr          { Binary Equal $1 $3 $2}
+    | Expr '==' error         { Error $2 (expectedExpression 1 "==") }
+
+    | Expr '!=' Expr          { Binary NotEqual $1 $3 $2}
+    | Expr '!=' error         { Error $2 (expectedExpression 1 "!=") }
+
+    | Expr '>' Expr          { Binary GreaterThan $1 $3 $2}
+    | Expr '>' error         { Error $2 (expectedExpression 1 ">") }
+
+    | Expr '<' Expr          { Binary LessThan $1 $3 $2}
+    | Expr '<' error         { Error $2 (expectedExpression 1 "<") }
+
+    --
     | Expr '+' Expr          { Binary Add $1 $3 $2}
     | Expr '+' error         { Error $2 (expectedExpression 1 "+") }
 

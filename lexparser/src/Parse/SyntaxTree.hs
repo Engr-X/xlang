@@ -1,6 +1,6 @@
 module Parse.SyntaxTree where
     
-import Data.List (intersperse)
+import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe, catMaybes)
 import Lex.Token (Token)
@@ -72,7 +72,36 @@ data Operator =
     -- 13
     AddrOf | DeRef
    
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
+
+
+operatorTextMap :: Map Operator String
+operatorTextMap = Map.fromList [
+    (Assign, "="), (BitLShiftAssign, "<<="), (BitRShiftAssign, ">>="), (BitOrAssign, "|="), (BitXorAssign, "^="),
+    (BitXnorAssign, "!^="), (PlusAssign, "+="), (MinusAssign, "-="), (MultiplyAssign, "*="), (DivideAssign, "/="),
+    (ModuloAssign, "%="), (PowerAssign, "**="),
+    
+    (Equal, "=="), (NotEqual, "!="),
+    
+    (GreaterThan, ">"), (LessThan, "<"), (GreaterEqual, ">="), (LessEqual, "<="),
+    
+    (BitRShift, ">>"), (BitLShift, "<<"), (BitOr, "|"),
+    
+    (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitReverse, "!"),
+    
+    (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),
+    
+    (Pow, "**"), (UnaryPlus, "+"), (UnaryMinus, "-"),
+    
+    (IncSelf, "++"), (DecSelf, "--"),
+    (SelfInc, "++"), (SelfDec, "--"),
+    
+    (AddrOf, "&"), (DeRef, "*")]
+
+
+-- better toString for op
+prettyOp :: Operator -> String
+prettyOp k = fromMaybe (error "cannot find the error") (Map.lookup k operatorTextMap)
 
 
 -- | Abstract syntax tree for expressions.
@@ -112,7 +141,7 @@ prettyExpr (Just (CharConst s _)) = show s
 prettyExpr (Just (StringConst s _)) = show s
 prettyExpr (Just (BoolConst b _)) = if b then "true" else "false"
 prettyExpr (Just (Variable s _)) = s
-prettyExpr (Just (Qualified ss _)) = concat $ intersperse "." ss
+prettyExpr (Just (Qualified ss _)) = intercalate "." ss
 
 
 -- | Check whether an expression represents a syntax or semantic error.
@@ -260,4 +289,8 @@ exprTok (Unary _ _ t) = t
 exprTok (Binary _ _ _ t) = t
 
 
-
+-- Convert a statement into a block.
+-- If it's already a block statement, reuse it; otherwise wrap it.
+stmtToBlock :: Statement -> Block
+stmtToBlock (BlockStmt b) = b
+stmtToBlock s = Multiple [s]

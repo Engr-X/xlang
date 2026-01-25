@@ -31,16 +31,24 @@ import qualified Util.Exception as UE
     string              { t@(Lex.StrConst _ _) }
 
     '='                 { t@(Lex.Symbol Lex.Assign _) }
+
+    '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
+    '<'                 { t@(Lex.Symbol Lex.LessThan _) }
+    '=='                 { t@(Lex.Symbol Lex.Equal _) }
+    '!='                 { t@(Lex.Symbol Lex.NotEqual _) }
+
     '+'                 { t@(Lex.Symbol Lex.Plus _) }
     '-'                 { t@(Lex.Symbol Lex.Minus _) }
     '*'                 { t@(Lex.Symbol Lex.Multiply _) }
     '/'                 { t@(Lex.Symbol Lex.Divide _) }
+
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
-
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 %right '='
+%left '!=' '=='
+%left '>' '<'
 %left '+' '-'
 %left '*' '/'
 %right UPLUS UMINUS

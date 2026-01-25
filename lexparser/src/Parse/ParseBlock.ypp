@@ -26,6 +26,9 @@ import qualified Util.Exception as UE
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
     KW_AS               { t@(Lex.Ident "as" _) }
+    KW_IF               { t@(Lex.Ident "if" _) }
+    KW_ELSE             { t@(Lex.Ident "else" _) }
+    KW_WHILE            { t@(Lex.Ident "while" _) }
 
     -- literals / identifiers
     identity            { t@(Lex.Ident _ _) }
@@ -33,22 +36,29 @@ import qualified Util.Exception as UE
     character           { t@(Lex.CharConst _ _) }
     string              { t@(Lex.StrConst _ _) }
 
-    -- expression symbols
+
     '='                 { t@(Lex.Symbol Lex.Assign _) }
+
+    '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
+    '<'                 { t@(Lex.Symbol Lex.LessThan _) }
+    '=='                 { t@(Lex.Symbol Lex.Equal _) }
+    '!='                 { t@(Lex.Symbol Lex.NotEqual _) }
+
     '+'                 { t@(Lex.Symbol Lex.Plus _) }
     '-'                 { t@(Lex.Symbol Lex.Minus _) }
     '*'                 { t@(Lex.Symbol Lex.Multiply _) }
     '/'                 { t@(Lex.Symbol Lex.Divide _) }
+
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
-
-    -- statement / block symbols
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
     ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
 
 %right '='
+%left '!=' '=='
+%left '>' '<'
 %left '+' '-'
 %left '*' '/'
 %right UPLUS UMINUS

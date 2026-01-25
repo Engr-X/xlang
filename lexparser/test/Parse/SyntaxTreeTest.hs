@@ -9,50 +9,50 @@ import Lex.Token (Token, Symbol)
 import qualified Lex.Token as Lex
 
 
-mkNum :: String -> Token
-mkNum s = Lex.NumberConst s $ makePosition 0 0 0
+mkNumD :: String -> Token
+mkNumD s = Lex.NumberConst s $ makePosition 0 0 0
 
-mkId :: String -> Token
-mkId s = Lex.Ident s $ makePosition 0 0 0
+mkIdD :: String -> Token
+mkIdD s = Lex.Ident s $ makePosition 0 0 0
 
-mkSym :: Symbol -> Token
-mkSym s = Lex.Symbol s $ makePosition 0 0 0
+mkSymD :: Symbol -> Token
+mkSymD s = Lex.Symbol s $ makePosition 0 0 0
 
 
 flattenBlockTests :: TestTree
 flattenBlockTests = testGroup "Parse.SyntaxTree.flattenBlock" $ map (\(i, inp, out) -> testCase i $ flattenBlock inp @=? out) [
     ("0", Nothing, []),
     ("1", Just (Multiple
-        [Expr (IntConst "1" $ mkNum "1"), Expr (IntConst "2" $ mkNum "2")]),
-        [IntConst "1" (mkNum "1"), IntConst "2" (mkNum "2")]),
+        [Expr (IntConst "1" $ mkNumD "1"), Expr (IntConst "2" $ mkNumD "2")]),
+        [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")]),
 
     ("2", Just (Multiple
-        [Expr (IntConst "1" $ mkNum "1"), Expr (BoolConst True $ mkId "true"), Expr (Variable "x" $ mkId "x")]),
-        [IntConst "1" $ mkNum "1", BoolConst True $ mkId "true", Variable "x" $ mkId "x"]),
+        [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true"), Expr (Variable "x" $ mkIdD "x")]),
+        [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true", Variable "x" $ mkIdD "x"]),
 
     ("3", Just (Multiple
-        [Expr (IntConst "1" $ mkNum "1"), Expr (Binary Mul (IntConst "2"  $ mkNum "2") (IntConst "3"  $ mkNum "3") (mkSym Lex.Multiply))]),
-        [IntConst "1" $ mkNum "1", Binary Mul (IntConst "2" $ mkNum "2") (IntConst "3" $ mkNum "3") (mkSym Lex.Multiply)])]
+        [Expr (IntConst "1" $ mkNumD "1"), Expr (Binary Mul (IntConst "2"  $ mkNumD "2") (IntConst "3"  $ mkNumD "3") (mkSymD Lex.Multiply))]),
+        [IntConst "1" $ mkNumD "1", Binary Mul (IntConst "2" $ mkNumD "2") (IntConst "3" $ mkNumD "3") (mkSymD Lex.Multiply)])]
 
 
 flattenCaseTests :: TestTree
 flattenCaseTests = testGroup "Parse.SyntaxTree.flattenCase" $ map (\(i, inp, out) -> testCase i $ flattenCase inp @=? out) [
     ("0", Nothing, []),
-    ("1", Just (Case (IntConst "1" $ mkNum "1") (Multiple [Expr (IntConst "2" $ mkNum "2")])),
-        [IntConst "1" $ mkNum "1", IntConst "2" $ mkNum "2"]),
+    ("1", Just (Case (IntConst "1" $ mkNumD "1") (Multiple [Expr (IntConst "2" $ mkNumD "2")])),
+        [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2"]),
 
-    ("2", Just (Case (IntConst "1" $ mkNum "1") (Multiple [Expr (IntConst "2" $ mkNum "2"), Expr (IntConst "3" $ mkNum "3")])),
-        [IntConst "1" $ mkNum "1", IntConst "2" $ mkNum "2", IntConst "3" $ mkNum "3"]),
+    ("2", Just (Case (IntConst "1" $ mkNumD "1") (Multiple [Expr (IntConst "2" $ mkNumD "2"), Expr (IntConst "3" $ mkNumD "3")])),
+        [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3"]),
 
-    ("3", Just (Case (Binary Add (IntConst "1" $ mkNum "1") (IntConst "2" $ mkNum "2") (mkSym Lex.Plus)) (Multiple [Expr (IntConst "3" $ mkNum "3")])),
-        [Binary Add (IntConst "1" $ mkNum "1") (IntConst "2" $ mkNum "2") (mkSym Lex.Plus), IntConst "3" $ mkNum "3"]),
+    ("3", Just (Case (Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus)) (Multiple [Expr (IntConst "3" $ mkNumD "3")])),
+        [Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus), IntConst "3" $ mkNumD "3"]),
 
-    ("4", Just (Default (Multiple [Expr (IntConst "1" $ mkNum "1")])), [IntConst "1" $ mkNum "1"]),
+    ("4", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1")])), [IntConst "1" $ mkNumD "1"]),
 
-    ("5", Just (Default (Multiple [Expr (IntConst "1" $ mkNum "1"), Expr (BoolConst True $ mkId "true")])),
-        [IntConst "1" $ mkNum "1", BoolConst True $ mkId "true"]),
+    ("5", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")])),
+        [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
 
-    ("6", Just (Case (IntConst "1" $ mkNum "1") (Multiple [])), [IntConst "1" $ mkNum "1"]),
+    ("6", Just (Case (IntConst "1" $ mkNumD "1") (Multiple [])), [IntConst "1" $ mkNumD "1"]),
 
     ("7", Just (Default (Multiple [])), [])]
 
@@ -60,40 +60,40 @@ flattenCaseTests = testGroup "Parse.SyntaxTree.flattenCase" $ map (\(i, inp, out
 flattenStatementTests :: TestTree
 flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i, inp, out) -> testCase i $ flattenStatement inp @=? out) [
     ("0", Nothing, []),
-    ("1", Just (Expr (IntConst "1" $ mkNum "1")), [IntConst "1" $ mkNum "1"]),
+    ("1", Just (Expr (IntConst "1" $ mkNumD "1")), [IntConst "1" $ mkNumD "1"]),
 
-    ("2", Just (If (BoolConst True $ mkId "true") (Just (Multiple [Expr (IntConst "1" $ mkNum "1")])) (Just (Multiple [Expr (IntConst "0" $ mkNum "0")]))),
-        [BoolConst True $ mkId "true", IntConst "1" $ mkNum "1", IntConst "0" $ mkNum "0"]),
+    ("2", Just (If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))),
+        [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
 
-    ("3", Just (If (BoolConst True $ mkId "true") (Just (Multiple [Expr (IntConst "1" $ mkNum "1")])) Nothing),
-        [BoolConst True $ mkId "true", IntConst "1" $ mkNum "1"]),
+    ("3", Just (If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing),
+        [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"]),
 
-    ("4", Just (For (Just (IntConst "1" $ mkNum "1"), Just (IntConst "2" $ mkNum "2"), Just (IntConst "3" $ mkNum "3")) (Just (Multiple [Expr (IntConst "4" $ mkNum "4")]))),
-        [IntConst "1" $ mkNum "1", IntConst "2" $ mkNum "2", IntConst "3" $ mkNum "3", IntConst "4" $ mkNum "4"]),
+    ("4", Just (For (Just (IntConst "1" $ mkNumD "1"), Just (IntConst "2" $ mkNumD "2"), Just (IntConst "3" $ mkNumD "3")) (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")]))),
+        [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3", IntConst "4" $ mkNumD "4"]),
 
-    ("5", Just (For (Nothing, Just (IntConst "2" $ mkNum "2"), Nothing) Nothing), [IntConst "2" $ mkNum "2"]),
+    ("5", Just (For (Nothing, Just (IntConst "2" $ mkNumD "2"), Nothing) Nothing), [IntConst "2" $ mkNumD "2"]),
 
-    ("6", Just (While (Variable "cond" $ mkId "cond") (Just (Multiple [Expr (IntConst "1" $ mkNum "1")]))),
-        [Variable "cond" $ mkId "cond", IntConst "1" $ mkNum "1"]),
+    ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))),
+        [Variable "cond" $ mkIdD "cond", IntConst "1" $ mkNumD "1"]),
 
-    ("7", Just (Switch (Variable "x" $ mkId "x") [Case (IntConst "1" $ mkNum "1") (Multiple [Expr (IntConst "10" $ mkNum "10")]), Default (Multiple [Expr (IntConst "0" $ mkNum "0")])]),
-        [Variable "x" $ mkId "x", IntConst "1" $ mkNum "1", IntConst "10" $ mkNum "10", IntConst "0" $ mkNum "0"])]
+    ("7", Just (Switch (Variable "x" $ mkIdD "x") [Case (IntConst "1" $ mkNumD "1") (Multiple [Expr (IntConst "10" $ mkNumD "10")]), Default (Multiple [Expr (IntConst "0" $ mkNumD "0")])]),
+        [Variable "x" $ mkIdD "x", IntConst "1" $ mkNumD "1", IntConst "10" $ mkNumD "10", IntConst "0" $ mkNumD "0"])]
 
 
 flattenProgramTests :: TestTree
 flattenProgramTests = testGroup "Parse.SyntaxTree.flattenProgram" $ map (\(i, inp, out) -> testCase i $ flattenProgram inp @=? out) [
     ("0", ([], []), []),
-    ("1", ([], [Expr (IntConst "1" $ mkNum "1")]), [IntConst "1" $ mkNum "1"]),
-    ("2", ([], [Expr (IntConst "1" $ mkNum "1"), Expr (BoolConst True $ mkId "true")]), [IntConst "1" $ mkNum "1", BoolConst True $ mkId "true"]),
-    ("3", ([], [If (BoolConst True $ mkId "true") (Just (Multiple [Expr (IntConst "1" $ mkNum "1")])) Nothing]), [BoolConst True $ mkId "true", IntConst "1" $ mkNum "1"])]
+    ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), [IntConst "1" $ mkNumD "1"]),
+    ("2", ([], [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")]), [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
+    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
 
 
 getErrorProgramTests :: TestTree
 getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, inp, out) -> testCase i $ getErrorProgram inp @=? out) [
     ("0", ([], []), []),
-    ("1", ([], [Expr (IntConst "1" $ mkNum "1")]), []),
+    ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), []),
     ("2", ([], [Expr (makeError "err")]), [makeError "err"]),
-    ("3", ([], [If (BoolConst True $ mkId "true") (Just (Multiple [Expr (makeError "err1")])) (Just (Multiple [Expr (makeError "err2")]))]),
+    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (makeError "err1")])) (Just (Multiple [Expr (makeError "err2")]))]),
         [makeError "err1", makeError "err2"])]
     where
         dummyTok :: String -> Token
@@ -174,9 +174,57 @@ exprTokTests = testGroup "Parse.SyntaxTree.exprTok" $ map (\(n, e, t) -> testCas
         tokPlus   = Lex.Symbol Lex.Plus (makePosition 1 3 1)
 
 
+stmtToBlockTests :: TestTree
+stmtToBlockTests = testGroup "Parse.SyntaxTree.stmtToBlock" $
+    map (\(name, stmt, expected) -> testCase name $ stmtToBlock stmt @=? expected) [
+        ("0",
+            Expr (IntConst "1" (mkNum "1" 1 1 1)),
+            Multiple [
+                Expr (IntConst "1" (mkNum "1" 1 1 1))
+            ]),
+
+        ("1",
+            BlockStmt (Multiple [
+                Expr (IntConst "1" (mkNum "1" 1 1 1))
+            ]),
+            Multiple [
+                Expr (IntConst "1" (mkNum "1" 1 1 1))
+            ]),
+
+        ("2",
+            While
+                (BoolConst True (mkId "true" 1 1 4))
+                (Just (Multiple [
+                    Expr (IntConst "1" (mkNum "1" 2 1 1))
+                ])),
+            Multiple [
+                While
+                    (BoolConst True (mkId "true" 1 1 4))
+                    (Just (Multiple [
+                        Expr (IntConst "1" (mkNum "1" 2 1 1))
+                    ]))]),
+
+        ("3",
+            While
+                (BoolConst True (mkId "true" 1 1 4))
+                Nothing,
+            Multiple [
+                While
+                    (BoolConst True (mkId "true" 1 1 4))
+                    Nothing])]
+    where
+        mkSym :: Symbol -> Int -> Int -> Int -> Token
+        mkSym s a b c = Lex.Symbol s $ Position a b c
+
+        mkNum :: String -> Int -> Int -> Int -> Token
+        mkNum s a b c = Lex.NumberConst s $ Position a b c
+
+        mkId :: String -> Int -> Int -> Int -> Token
+        mkId s a b c = Lex.Ident s $ makePosition a b c
+
 
 tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
     getErrorProgramTests, toClassTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
-    exprTokTests]
+    exprTokTests, stmtToBlockTests]
