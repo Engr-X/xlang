@@ -3,20 +3,28 @@ module Parse.ParserBasicTest where
 import Lex.Tokenizer (replTokenize)
 import Test.Tasty
 import Test.Tasty.HUnit
+import Lex.Token (Token, tokenPos)
 import Parse.ParserBasic
 import Parse.SyntaxTree
 import Util.Type
 
 import qualified Lex.Token as Lex
+import qualified Util.Exception as UE
 
 
 qnameToExprTests :: TestTree
-qnameToExprTests = testGroup "Parse.ParserBasic.qnameToExpr" $
-    map (\(n, xs, e) -> testCase n $ qnameToExpr xs @=? e) [
-        ("0 singleton", ["x"], Variable "x"),
-        ("1 singleton empty ident", [""], Variable ""),
-        ("2 qualified 2", ["A", "B"], Qualified ["A", "B"]),
-        ("3 qualified 3", ["A", "B", "C"], Qualified ["A", "B", "C"])]
+qnameToExprTests = testGroup "Parse.ParserBasic.qnameToExpr" $ map (\(n, xs, ts, e) -> testCase n $ qnameToExpr (xs, ts) @=? e) [
+    ("0", ["x"], [tokX], Variable "x" tokX),
+    ("1", [""], [tokEmpty], Variable "" tokEmpty),
+    ("2" , ["A", "B"], [tokA, tokB], Qualified ["A", "B"] [tokA, tokB]),
+    ("3 qualified 3", ["A", "B", "C"], [tokA, tokB, tokC], Qualified ["A", "B", "C"] [tokA, tokB, tokC])]
+    where
+        tokX, tokEmpty, tokA, tokB, tokC :: Token
+        tokX     = Lex.Ident "x"     (makePosition 1 1 1)
+        tokEmpty = Lex.Ident ""      (makePosition 1 1 0)
+        tokA     = Lex.Ident "A"     (makePosition 1 1 1)
+        tokB     = Lex.Ident "B"     (makePosition 1 3 1)
+        tokC     = Lex.Ident "C"     (makePosition 1 5 1)
 
 
 nearestTokTests :: TestTree
@@ -58,15 +66,44 @@ checkBracketTests = testGroup "Parse.ParserBasic.checkBracket" $ map (\(n, s, e)
 
 
 classifyNumberTests :: TestTree
-classifyNumberTests = testGroup "Parse.ParserBasic.classifyNumber" [
-    testCase "0" $ classifyNumber "0" @=? Just (IntConst "0"),
-    testCase "1" $ classifyNumber "0xff" @=? Just (IntConst "0xff"),
-    testCase "2" $ classifyNumber "0xaal" @=? Just (LongConst "0xaal"),
-    testCase "3" $ classifyNumber "123.4" @=? Just (DoubleConst "123.4"),
-    testCase "4" $ classifyNumber "1233l" @=? Just (LongConst "1233l"),
-    testCase "5" $ classifyNumber "1e9l" @=? Just (LongDoubleConst "1e9l"),
-    testCase "5" $ classifyNumber "1e9l" @=? Just (LongDoubleConst "1e9l")]
+classifyNumberTests = testGroup "Parse.ParserBasic.classifyNumber" $ map (\(i, s, e) -> testCase i $ classifyNumber s (mkTok s) @=? e) [
+    ("int", "0", Just (IntConst "0" (mkTok "0"))),
+    ("double", "123.4", Just (DoubleConst "123.4" (mkTok "123.4"))),
+    ("longdouble", "1e9l", Just (LongDoubleConst "1e9l" (mkTok "1e9l"))),
+    ("invalid", "0x", Nothing)]
+    where
+        mkTok :: String -> Token
+        mkTok s = Lex.NumberConst s $ makePosition 1 1 (length s)
+
+
+toExceptionTests :: TestTree
+toExceptionTests = testGroup "toException" $ map (\(i, expr, expected) ->
+    testCase i $ toException "stdin" expr @=? expected) [
+    ("0",
+        Error tokBad "boom",
+        UE.Parsing (UE.makeError "stdin" (tokenPos tokBad) "boom")),
+        
+    ("1",
+        Error tokPlus "bad plus",
+        UE.Parsing (UE.makeError "stdin" (tokenPos tokPlus) "bad plus")),
+        
+    ("2",
+        Error tokNum "bad number",
+        UE.Parsing (UE.makeError "stdin" (tokenPos tokNum) "bad number")),
+        
+    ("3",
+        Error tokId "bad ident",
+        UE.Parsing (UE.makeError "stdin" (tokenPos tokId) "bad ident"))]
+    where
+        tokBad, tokNum, tokId, tokPlus :: Token
+        tokBad  = Lex.Symbol Lex.RBrace (makePosition 1 4 1)
+        tokNum  = Lex.NumberConst "1"   (makePosition 1 1 1)
+        tokId   = Lex.Ident "x"         (makePosition 1 1 1)
+        tokPlus = Lex.Symbol Lex.Plus   (makePosition 1 3 1)
+
+
 
 
 tests :: TestTree
-tests = testGroup "Parse.ParserBasic" [qnameToExprTests, nearestTokTests, mkHappyErrorExprTests, checkBracketTests, classifyNumberTests]
+tests = testGroup "Parse.ParserBasic" [
+    qnameToExprTests, nearestTokTests, mkHappyErrorExprTests, classifyNumberTests, toExceptionTests]

@@ -1,10 +1,12 @@
 module Parse.SyntaxTree where
     
-import Lex.Token (Token)
+import Data.List (intersperse)
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe, catMaybes)
+import Lex.Token (Token)
 
 import qualified Data.Map.Strict as Map
+import qualified Lex.Token as Lex
 
 
 -- | Language-level type representation.
@@ -76,26 +78,41 @@ data Operator =
 -- | Abstract syntax tree for expressions.
 --   Covers literals, variables, casts, unary/binary operations, and errors.
 data Expression = 
-    Error Token String | Command Command |
+    Error Token String
+    | Command Command Token
+    
+    | IntConst String Token
+    | LongConst String Token
+    | FloatConst String Token
+    | DoubleConst String Token
+    | LongDoubleConst String Token
+    | CharConst Char Token
+    | StringConst String Token
+    | BoolConst Bool Token
+    
+    | Variable String Token
+    | Qualified [String] [Token] -- eg: java.lang.math.PI
 
-
-    IntConst String | LongConst String | FloatConst String | DoubleConst String |
-    LongDoubleConst String | CharConst Char | StringConst String | BoolConst Bool |
-
-    Variable String |
-    Qualified [String] | -- eg: java.lang.math.PI
-
-    Cast Class Expression |
-    Unary Operator Expression |
-    Binary Operator Expression Expression
+    | Cast Class Expression Token
+    | Unary Operator Expression Token
+    | Binary Operator Expression Expression Token
     deriving (Eq, Show)
 
 
-{-
 -- | toString in human version
 prettyExpr :: Maybe Expression -> String
 prettyExpr Nothing = ""
-prettyExpr (Just ) -}
+prettyExpr (Just (Error t why)) = "error at: "  ++ show t ++ " " ++ why
+prettyExpr (Just (IntConst s _)) = s
+prettyExpr (Just (LongConst s _)) = s
+prettyExpr (Just (FloatConst s _)) = s
+prettyExpr (Just (DoubleConst s _)) = s
+prettyExpr (Just (LongDoubleConst s _)) = s
+prettyExpr (Just (CharConst s _)) = show s
+prettyExpr (Just (StringConst s _)) = show s
+prettyExpr (Just (BoolConst b _)) = if b then "true" else "false"
+prettyExpr (Just (Variable s _)) = s
+prettyExpr (Just (Qualified ss _)) = concat $ intersperse "." ss
 
 
 -- | Check whether an expression represents a syntax or semantic error.
@@ -191,3 +208,56 @@ getErrorProgram = filter isErrExpr . flattenProgram
 --   Unknown names are treated as user-defined classes.
 toClass :: String -> Class
 toClass k = fromMaybe (Class k) $ Map.lookup k classesMap
+
+
+-- Check a expresson is a variable or not
+isVariable :: Expression -> Bool
+isVariable (Variable _ _)  = True
+isVariable (Qualified _ _) = True
+isVariable _ = False
+
+
+-- Extract payload from tokens (used by parser actions). for identity name
+identText :: Token -> String
+identText (Lex.Ident s _) = s
+identText _ = error "identText: expected Ident token"
+
+
+-- Extract payload from tokens (used by parser actions). for number
+numText :: Token -> String
+numText (Lex.NumberConst s _) = s
+numText _ = error "numText: expected NumberConst token"
+
+
+-- Extract payload from tokens (used by parser actions). for char
+charVal :: Token -> Char
+charVal (Lex.CharConst c _) = c
+charVal _ = error "charVal: expected CharConst token"
+
+
+-- Extract payload from tokens (used by parser actions). for str
+strVal :: Token -> String
+strVal (Lex.StrConst s _) = s
+strVal _ = error "strVal: expected StrConst token"
+
+
+-- Choose an anchor token for diagnostics.
+exprTok :: Expression -> Token
+exprTok (Error t _) = t
+exprTok (Command _ t) = t
+exprTok (IntConst _ t) = t
+exprTok (LongConst _ t) = t
+exprTok (FloatConst _ t) = t
+exprTok (DoubleConst _ t) = t
+exprTok (LongDoubleConst _ t) = t
+exprTok (CharConst _ t) = t
+exprTok (StringConst _ t) = t
+exprTok (BoolConst _ t) = t
+exprTok (Variable _ t) = t
+exprTok (Qualified _ ts) = last ts
+exprTok (Cast _ _ t) = t
+exprTok (Unary _ _ t) = t
+exprTok (Binary _ _ _ t) = t
+
+
+

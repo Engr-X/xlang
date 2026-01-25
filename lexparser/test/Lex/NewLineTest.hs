@@ -44,7 +44,7 @@ banPrevTests = testGroup "Lex.NewLine.banPrev" $ map (\(n, tok, e) -> testCase n
 banNextTests :: TestTree
 banNextTests = testGroup "Lex.NewLine.banNext" $ map (\(n, tok, e) -> testCase n $ banNext tok @=? e) [
     ("0", Lex.Symbol Lex.Assign (makePosition 1 1 1), True),
-    ("1", Lex.Symbol Lex.PlusPlus (makePosition 1 2 1), True),
+    ("1", Lex.Symbol Lex.PlusPlus (makePosition 1 2 1), False),
     ("2", Lex.Symbol Lex.At (makePosition 1 3 1), False),
     ("3", Lex.NumberConst "42" (makePosition 1 4 1), False)]
 
@@ -165,6 +165,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         
         ident "do", sym Lex.LBrace,
         ident "work", sym Lex.LParen, sym Lex.RParen,
+        nl,
         sym Lex.RBrace,
         nl,
         ident "while", ident "cond",
@@ -182,6 +183,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "switch", ident "x", sym Lex.LBrace,
         ident "case", number "1", sym Lex.Colon,
         ident "work", sym Lex.LParen, sym Lex.RParen,
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -201,6 +203,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         sym Lex.LBrace,
         ident "return",
         number "1",
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -221,6 +224,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "b",
         sym Lex.RParen,
         sym Lex.LBrace,
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -233,6 +237,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
             
         ident "class", ident "A", sym Lex.LBrace,
         ident "int", ident "x", sym Lex.Assign, number "1",
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -251,6 +256,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         sym Lex.Colon,
         ident "B", sym Lex.LParen, sym Lex.RParen,
         sym Lex.LBrace,
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -268,6 +274,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "a", sym Lex.LParen, sym Lex.RParen,
         nl,
         ident "b", sym Lex.LParen, sym Lex.RParen,
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -288,6 +295,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "for", ident "i",
         nl,
         ident "c", sym Lex.LParen, sym Lex.RParen,
+        nl,
         sym Lex.RBrace,
         nl,
         eof]),
@@ -329,6 +337,7 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         ident "List", sym Lex.LParen, sym Lex.RParen,
         sym Lex.LBrace,
         ident "println", sym Lex.LParen, str "List created", sym Lex.RParen,
+        nl,
         sym Lex.RBrace,
         nl,
         ident "public", ident "int", ident "getSize", sym Lex.LParen, sym Lex.RParen,
@@ -343,7 +352,9 @@ insertNewLineTest = testGroup "Lex.NewLine.insertNewLine" $ map (\(n, s, expecte
         nl,
         ident "return", ident "this", sym Lex.Dot, ident "data",
         sym Lex.LBracket, number "0", sym Lex.RBracket,
+        nl,
         sym Lex.RBrace,
+        nl,
         sym Lex.RBrace,
         nl,
         eof])]

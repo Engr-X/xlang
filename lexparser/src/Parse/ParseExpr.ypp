@@ -20,25 +20,25 @@ import qualified Util.Exception as UE
 %error { parseExprError }
 
 %token
-    EOF                 { Lex.EOF _ }
-    KW_TRUE             { Lex.Ident "true" _ }
-    KW_FALSE            { Lex.Ident "false" _ }
-    KW_AS               { Lex.Ident "as" _ }
+    EOF                 { t@(Lex.EOF _) }
+    KW_TRUE             { t@(Lex.Ident "true" _) }
+    KW_FALSE            { t@(Lex.Ident "false" _) }
+    KW_AS               { t@(Lex.Ident "as" _) }
 
-    identity            { Lex.Ident $$ _ }
-    number              { Lex.NumberConst $$ _ }
-    character           { Lex.CharConst $$ _ }
-    string              { Lex.StrConst $$ _ }
+    identity            { t@(Lex.Ident _ _) }
+    number              { t@(Lex.NumberConst _ _) }
+    character           { t@(Lex.CharConst _ _) }
+    string              { t@(Lex.StrConst _ _) }
 
-    '='                 { Lex.Symbol Lex.Assign _ }
-    '+'                 { Lex.Symbol Lex.Plus _ }
-    '-'                 { Lex.Symbol Lex.Minus _ }
-    '*'                 { Lex.Symbol Lex.Multiply _ }
-    '/'                 { Lex.Symbol Lex.Divide _ }
-    '('                 { Lex.Symbol Lex.LParen _ }
-    ')'                 { Lex.Symbol Lex.RParen _ }
+    '='                 { t@(Lex.Symbol Lex.Assign _) }
+    '+'                 { t@(Lex.Symbol Lex.Plus _) }
+    '-'                 { t@(Lex.Symbol Lex.Minus _) }
+    '*'                 { t@(Lex.Symbol Lex.Multiply _) }
+    '/'                 { t@(Lex.Symbol Lex.Divide _) }
+    '('                 { t@(Lex.Symbol Lex.LParen _) }
+    ')'                 { t@(Lex.Symbol Lex.RParen _) }
 
-    '.'                 { Lex.Symbol Lex.Dot _ }
+    '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 %right '='
 %left '+' '-'
@@ -94,11 +94,6 @@ lexparseExpr p str = let (errs, tokens) = tokenizeWithNL p str in case errs of
         [] -> Right expr
         errs -> Left $ map (toException p) errs
     _ -> Left errs
-
-    where
-        toException :: Path -> Expression -> ErrorKind
-        toException p (Error t why) = UE.Parsing $ UE.makeError p (tokenPos t) why
-        toException _ _ = error "Is is really an error bro?"
 
 
 -- |  used for debug version

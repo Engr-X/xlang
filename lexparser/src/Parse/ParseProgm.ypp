@@ -4,12 +4,15 @@ module Parse.ParseProgm where
 import Unsafe.Coerce (unsafeCoerce)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
-import Lex.Token (Token)
+import Lex.Token (Token, tokenPos)
+import Lex.Tokenizer (tokenizeWithNL)
 import Parse.SyntaxTree
 import Parse.ParserBasic
-import Util.Exception (expectedExpression, assignErrorMsg)
+import Util.Exception (ErrorKind, makeError, expectedExpression, assignErrorMsg)
+import Util.Type (Path)
 
 import qualified Lex.Token as Lex
+import qualified Util.Exception as UE
 }
 
 %name parseProgm ProgramEOF
@@ -19,33 +22,33 @@ import qualified Lex.Token as Lex
 
 %token
     -- keywords (Ident)
-    EOF                 { Lex.EOF _ }
-    NL                  { Lex.NewLine _ }
-    KW_TRUE             { Lex.Ident "true" _ }
-    KW_FALSE            { Lex.Ident "false" _ }
-    KW_AS               { Lex.Ident "as" _ }
+    EOF                 { t@(Lex.EOF _) }
+    NL                  { t@(Lex.NewLine _) }
+    KW_TRUE             { t@(Lex.Ident "true" _) }
+    KW_FALSE            { t@(Lex.Ident "false" _) }
+    KW_AS               { t@(Lex.Ident "as" _) }
 
    
-    identity            { Lex.Ident $$ _ }
-    number              { Lex.NumberConst $$ _ }
-    character           { Lex.CharConst $$ _ }
-    string              { Lex.StrConst $$ _ }
+    identity            { t@(Lex.Ident _ _) }
+    number              { t@(Lex.NumberConst _ _) }
+    character           { t@(Lex.CharConst _ _) }
+    string              { t@(Lex.StrConst _ _) }
 
 
     -- symbols (Expr)
-    '='                 { Lex.Symbol Lex.Assign _ }
-    '+'                 { Lex.Symbol Lex.Plus _ }
-    '-'                 { Lex.Symbol Lex.Minus _ }
-    '*'                 { Lex.Symbol Lex.Multiply _ }
-    '/'                 { Lex.Symbol Lex.Divide _ }
-    '('                 { Lex.Symbol Lex.LParen _ }
-    ')'                 { Lex.Symbol Lex.RParen _ }
+    '='                 { t@(Lex.Symbol Lex.Assign _) }
+    '+'                 { t@(Lex.Symbol Lex.Plus _) }
+    '-'                 { t@(Lex.Symbol Lex.Minus _) }
+    '*'                 { t@(Lex.Symbol Lex.Multiply _) }
+    '/'                 { t@(Lex.Symbol Lex.Divide _) }
+    '('                 { t@(Lex.Symbol Lex.LParen _) }
+    ')'                 { t@(Lex.Symbol Lex.RParen _) }
 
     -- symbols (Stmt/Block)
-    '{'                 { Lex.Symbol Lex.LBrace _ }
-    '}'                 { Lex.Symbol Lex.RBrace _ }
-    '.'                 { Lex.Symbol Lex.Dot _ }
-    ';'                 { Lex.Symbol Lex.Semicolon _ }
+    '{'                 { t@(Lex.Symbol Lex.LBrace _) }
+    '}'                 { t@(Lex.Symbol Lex.RBrace _) }
+    '.'                 { t@(Lex.Symbol Lex.Dot _) }
+    ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
 
 %right '='
 %left '+' '-'
@@ -53,8 +56,6 @@ import qualified Lex.Token as Lex
 %right UPLUS UMINUS
 
 %%
-
-ProgramEOF :: { Program } : OptTerms StmtSeq OptTerms EOF { ([], $2) }
 
 #include "Parse/GrammarStmtBlock.inc"
 #include "Parse/GrammarExpr.inc"
@@ -67,4 +68,21 @@ parseProgmError toks =
     let e  = mkHappyErrorExpr toks
         pr = ([], [Expr e]) :: Program
     in unsafeCoerce pr
+
+
+-- prase the whole program to abstract syntax tree
+lexparseProgm :: Path -> String -> Either [ErrorKind] Program
+lexparseProgm p str =
+    let (errs, tokens) = tokenizeWithNL p str
+    in case errs of
+        [] ->
+            let prog = parseProgm tokens
+            in case getErrorProgram prog of
+                [] -> Right prog
+                es -> Left $ map (toException p) es
+        _  -> Left errs
+
+-- |  used for debug version
+replLexparseProgm :: String -> Either [ErrorKind] Program
+replLexparseProgm = lexparseProgm "stdin"
 }

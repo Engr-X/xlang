@@ -1,19 +1,20 @@
-Term :: { () }
+Sep :: { () }
     : ';' { () }
     | NL  { () }
     ;
 
-OptTerms :: { () }
-    : {- empty -}   { () }
-    | OptTerms Term { () }
+Seps :: { () }
+    : {- empty -} { () }
+    | Seps Sep    { () }
     ;
 
-Terms1 :: { () }
-    : Term OptTerms { () }
+Seps1 :: { () }
+    : Sep         { () }
+    | Seps1 Sep   { () }
     ;
 
-Block :: { Block }
-    : '{' OptTerms StmtSeqOpt OptTerms '}' { Multiple $3 }
+StmtItem :: { Statement }
+    : Stmt Seps1 { $1 }
     ;
 
 StmtSeqOpt :: { [Statement] }
@@ -21,16 +22,25 @@ StmtSeqOpt :: { [Statement] }
     | StmtSeq     { $1 }
     ;
 
-StmtTerm :: { Statement }
-    : Stmt Terms1 { $1 }
+StmtSeq :: { [Statement] }
+    : StmtItem             { [$1] }
+    | StmtSeq StmtItem     { $1 ++ [$2] }
     ;
 
-StmtSeq :: { [Statement] }
-    : StmtTerm          { [$1] }
-    | StmtTerm StmtSeq  { $1 : $2 }
+Block :: { Block }
+    : '{' Seps StmtSeqOpt Seps '}' { Multiple $3 }
     ;
 
 Stmt :: { Statement }
     : Expr  { Expr $1 }
     | Block { BlockStmt $1 }
+    ;
+
+
+StmtEOF   :: { Statement } : Seps Stmt   Seps EOF { $2 };
+BlockEOF  :: { Block }     : Seps Block  Seps EOF { $2 };
+
+
+ProgramEOF :: { Program }
+    : Seps StmtSeqOpt Seps EOF { ([], $2) }
     ;

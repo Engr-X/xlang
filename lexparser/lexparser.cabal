@@ -180,6 +180,9 @@ test-suite lexparser-test
         Parse.ParserBasicTest
         Parse.SyntaxTreeTest
         Parse.ParseExprTest
+        Parse.ParseBlockTest
+        Parse.ParseStmtTest
+        Parse.ParseProgmTest
 
         Util.BasicTest
         Util.ExceptionTest

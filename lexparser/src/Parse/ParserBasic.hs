@@ -1,26 +1,27 @@
 module Parse.ParserBasic where
 
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Data.List (find)
-import Lex.Token (Token, isLBracketToken, isRBracketToken)
+import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
 import Parse.SyntaxTree (Expression(..))
-import Util.Type (makePosition)
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
+import Util.Exception (ErrorKind)
+import Util.Type (Path, makePosition)
 
 import qualified Lex.Token as Lex
+import qualified Util.Exception as UE
 
 
 -- Convert a qualified name to an expression.
 -- A single segment is treated as a Variable; otherwise Qualified.
-qnameToExpr :: [String] -> Expression
-qnameToExpr [x] = Variable x
-qnameToExpr xs = Qualified xs
+qnameToExpr :: ([String], [Token]) -> Expression
+qnameToExpr ([x], [t]) = Variable x t
+qnameToExpr (xs, ts) = Qualified xs ts
 
 
 --  Choose a token to anchor diagnostics.
 nearestTok :: [Token] -> Token
-nearestTok (t:_) = t
-nearestTok [] = Lex.EOF (makePosition 0 0 0)  -- ideally real EOF pos from tokenizer
+nearestTok = fromMaybe (Lex.EOF (makePosition 0 0 0)) . listToMaybe
 
 
 -- Canonical fatal parse error expression.
@@ -60,6 +61,15 @@ checkBracket = go []
 
 -- | Classify a numeric literal string into the first matching numeric type.
 --   Returns Nothing if the string does not represent a valid number.
-classifyNumber :: String -> Maybe Expression
-classifyNumber s = let types = [(IntConst, isInt), (LongConst, isLong), (FloatConst, isFloat), (DoubleConst, isDouble), (LongDoubleConst, isLongDouble)] in
-    ((\ (f, _) -> f s) <$> find (\ (_, f) -> f s) types)
+classifyNumber :: String -> Token -> Maybe Expression
+classifyNumber s t = let xs = [(IntConst, isInt),
+                              (LongConst, isLong),
+                              (FloatConst, isFloat),
+                              (DoubleConst, isDouble),
+                              (LongDoubleConst, isLongDouble)]
+                    in (\(ctor, _) -> ctor s t) <$> find (\(_, p) -> p s) xs
+
+
+toException :: Path -> Expression -> ErrorKind
+toException p (Error t why) = UE.Parsing $ UE.makeError p (tokenPos t) why
+toException _ _  = error "Expected an Error expression."
