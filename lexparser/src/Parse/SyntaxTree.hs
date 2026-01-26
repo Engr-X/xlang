@@ -13,11 +13,24 @@ import qualified Lex.Token as Lex
 --   Includes primitive types, arrays, and user-defined classes.
 data Class = 
     Int8T | Int16T | Int32T | Int64T |
-    Float16T | Float32T | Float64T | Float128T |
+    Float32T | Float64T | Float128T |
     Bool | Char | 
     Array Class Int |
     Class String
     deriving (Eq, Show)
+
+
+prettyClass :: Class -> String
+prettyClass Int8T = "byte"
+prettyClass Int16T = "short"
+prettyClass Int32T = "int"
+prettyClass Int64T = "long"
+prettyClass Float32T = "float"
+prettyClass Float64T = "double"
+prettyClass Float128T = "float128"
+prettyClass Bool = "bool"
+prettyClass Char = "char"
+prettyClass (Array c l) = (prettyClass c)
 
 
 -- | Control-flow commands that can appear as expressions.
@@ -60,7 +73,7 @@ data Operator =
     -- 9
     Mod | 
 
-    -- 10
+    -- 10Cast
     Pow | UnaryPlus | UnaryMinus |
 
     -- 11
@@ -131,7 +144,7 @@ data Expression =
 -- | toString in human version
 prettyExpr :: Maybe Expression -> String
 prettyExpr Nothing = ""
-prettyExpr (Just (Error t why)) = "error at: "  ++ show t ++ " " ++ why
+prettyExpr (Just (Error t why)) = "error at: " ++ show t ++ " " ++ why
 prettyExpr (Just (IntConst s _)) = s
 prettyExpr (Just (LongConst s _)) = s
 prettyExpr (Just (FloatConst s _)) = s
@@ -142,6 +155,7 @@ prettyExpr (Just (StringConst s _)) = show s
 prettyExpr (Just (BoolConst b _)) = if b then "true" else "false"
 prettyExpr (Just (Variable s _)) = s
 prettyExpr (Just (Qualified ss _)) = intercalate "." ss
+--prettyExpr (Just (Cast c e _)) = prettyExpr (Just e)
 
 
 -- | Check whether an expression represents a syntax or semantic error.
