@@ -36,9 +36,8 @@ WhileStmt :: { Statement }
 WhileBody :: { Maybe Block }
     : Block                     { Just $1 }                -- while e { ... }  or while e ;
     | NL Stmt                   { Just (stmtToBlock $2) }  -- while e \n stmt  (single stmt only)
-    | ';'                       { Just (Multiple []) }     -- explicit empty body (optional, but clear)
+    | ';'                       { Just (Multiple []) }     -- while e ;
     ;
-
 
 -- assembled statement
 Stmt :: { Statement }
