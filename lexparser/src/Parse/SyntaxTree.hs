@@ -20,6 +20,7 @@ data Class =
     deriving (Eq, Show)
 
 
+-- better toString of class instance
 prettyClass :: Class -> String
 prettyClass Int8T = "byte"
 prettyClass Int16T = "short"
@@ -30,7 +31,8 @@ prettyClass Float64T = "double"
 prettyClass Float128T = "float128"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
-prettyClass (Array c l) = (prettyClass c)
+prettyClass (Array c l) = "Array<" ++ prettyClass c ++ ">"
+prettyClass (Class s) = s
 
 
 -- | Control-flow commands that can appear as expressions.
@@ -142,20 +144,23 @@ data Expression =
 
 
 -- | toString in human version
-prettyExpr :: Maybe Expression -> String
-prettyExpr Nothing = ""
-prettyExpr (Just (Error t why)) = "error at: " ++ show t ++ " " ++ why
-prettyExpr (Just (IntConst s _)) = s
-prettyExpr (Just (LongConst s _)) = s
-prettyExpr (Just (FloatConst s _)) = s
-prettyExpr (Just (DoubleConst s _)) = s
-prettyExpr (Just (LongDoubleConst s _)) = s
-prettyExpr (Just (CharConst s _)) = show s
-prettyExpr (Just (StringConst s _)) = show s
-prettyExpr (Just (BoolConst b _)) = if b then "true" else "false"
-prettyExpr (Just (Variable s _)) = s
-prettyExpr (Just (Qualified ss _)) = intercalate "." ss
---prettyExpr (Just (Cast c e _)) = prettyExpr (Just e)
+prettyExpr :: Int -> Maybe Expression -> String
+prettyExpr n me = replicate (4 * n) ' ' ++ prettyExpr' me
+    where
+        prettyExpr' :: Maybe Expression -> String
+        prettyExpr' Nothing = ""
+        prettyExpr' (Just (Error t why)) = "error at: " ++ show t ++ " " ++ why
+        prettyExpr' (Just (IntConst s _)) = s
+        prettyExpr' (Just (LongConst s _)) = s
+        prettyExpr' (Just (FloatConst s _)) = s
+        prettyExpr' (Just (DoubleConst s _)) = s
+        prettyExpr' (Just (LongDoubleConst s _)) = s
+        prettyExpr' (Just (CharConst s _)) = show s
+        prettyExpr' (Just (StringConst s _)) = show s
+        prettyExpr' (Just (BoolConst b _)) = if b then "true" else "false"
+        prettyExpr' (Just (Variable s _)) = s
+        prettyExpr' (Just (Qualified ss _)) = intercalate "." ss
+        prettyExpr' (Just (Cast c e _)) = '(': prettyClass c ++ (")(" ++ prettyExpr' (Just e) ++ ")")
 
 
 -- | Check whether an expression represents a syntax or semantic error.

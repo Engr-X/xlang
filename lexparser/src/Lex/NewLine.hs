@@ -120,6 +120,33 @@ insertNewLine = dedupNL . go 0 Nothing
                     parenDepth' = updateParenDepth parenDepth cursor
                 in out ++ go parenDepth' (Just cursor) rest
 
+       
+        -- Ensure there is a statement separator (NL or ';') right before EOF.
+        -- This is a post-pass and does NOT change any existing insertion behavior.
+        --------------------------------------------------------------------------------
+        ensureSepAtEOF :: [Token] -> [Token]
+        ensureSepAtEOF [] = []
+        ensureSepAtEOF ts =
+            case splitEOF ts of
+                Nothing -> ts
+                Just (prefix, eofTok) ->
+                    case reverse prefix of
+                        (t:_) | isSep t -> prefix ++ [eofTok]
+                        [] -> [mkNL eofTok, eofTok]
+                        _ -> prefix ++ [mkNL eofTok, eofTok]
+
+
+        -- Split tokens into (tokens before EOF, EOF token).
+        -- Return Nothing if EOF is absent.
+        splitEOF :: [Token] -> Maybe ([Token], Token)
+        splitEOF = goSplit []
+            where
+                goSplit :: [Token] -> [Token] -> Maybe ([Token], Token)
+                goSplit _ [] = Nothing
+                goSplit acc (t:ts) = case t of
+                    EOF _ -> Just (reverse acc, t)
+                    _ -> goSplit (t:acc) ts
+
 
         --------------------------------------------------------------------------------
         -- Insert one inferred NL between prev and cursor iff:

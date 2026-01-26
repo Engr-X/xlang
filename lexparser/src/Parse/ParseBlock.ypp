@@ -55,6 +55,7 @@ import qualified Util.Exception as UE
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
     ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
+    ':'                 { t@(Lex.Symbol Lex.Colon _) }
 
 %right '='
 %left '!=' '=='
