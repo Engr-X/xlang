@@ -2,8 +2,9 @@ module Parse.SyntaxTree where
     
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe, catMaybes, isNothing)
 import Lex.Token (Token)
+import Util.Basic
 
 import qualified Data.Map.Strict as Map
 import qualified Lex.Token as Lex
@@ -43,10 +44,10 @@ data Command = Continue | Break | Return (Maybe Expression)
 
 -- pretty toString method for command
 prettyCmd :: Int -> Command -> String
-prettyCmd n Continue = replicate (4 * n) ' ' ++  "continue"
-prettyCmd n Break = replicate (4 * n) ' ' ++ "break"
-prettyCmd n (Return Nothing) = replicate (4 * n) ' ' ++ "return;"
-prettyCmd n (Return e) = replicate (4 * n) ' ' ++ "return " ++ prettyExpr 0 e
+prettyCmd n Continue = insertSpace (4 * n) ++  "continue"
+prettyCmd n Break = insertSpace (4 * n) ++ "break"
+prettyCmd n (Return Nothing) = insertSpace (4 * n) ++ "return;"
+prettyCmd n (Return e) = insertSpace (4 * n) ++ "return " ++ prettyExpr 0 e
 
 
 -- | Operators grouped by precedence level.
@@ -154,7 +155,7 @@ data Expression =
 -- | toString in human version
 prettyExpr :: Int -> Maybe Expression -> String
 prettyExpr n (Just (Command c _)) = prettyCmd n c
-prettyExpr n me = replicate (4 * n) ' ' ++ prettyExpr' me
+prettyExpr n me = insertSpace (4 * n) ++ prettyExpr' me
     where
         prettyExpr' :: Maybe Expression -> String
         prettyExpr' Nothing = ""
@@ -188,7 +189,7 @@ newtype Block = Multiple [Statement]
 
 -- better toString method for block
 prettyBlock :: Int -> Block -> String
-prettyBlock n (Multiple ss) = "{\n" ++ concatMap (prettyStmt (n + 1) . Just) ss ++ "}\n"
+prettyBlock n (Multiple ss) = unlines ["{", concatMap (prettyStmt (n + 1) . Just) ss, "}"]
 
 
 -- | Flatten all expressions contained in a block.
@@ -200,15 +201,31 @@ flattenBlock (Just (Multiple ss)) = concatMap (flattenStatement . Just) ss
 
 -- | Switch-case representation.
 --   A case may have an expression or be a default case.
-data SwitchCase = Case Expression Block | Default Block
+data SwitchCase = Case Expression (Maybe Block) | Default Block
     deriving (Eq, Show)
+
+
+-- | pretty toString version for switch case
+prettySwitchCase :: Int -> SwitchCase -> String
+prettySwitchCase n (Case e b)
+    | isNothing b = concat [space, "case: ", prettyExpr 0 (Just e), ":\n"]
+    | otherwise = unlines [concat ["case ", prettyExpr 0 (Just e), ":"],
+        space ++ "{", prettyBlock (n + 1) (fromMaybe (error "this is impossible") b), space ++ "}"]
+    where
+        space :: String
+        space = insertSpace n
+prettySwitchCase n (Default b) = unlines [space ++ "default: ", space ++ "{", prettyBlock (n + 1) b, space ++ "}"]
+    where
+        space :: String
+        space = insertSpace n
 
 
 -- | Extract all expressions from a switch case.
 --   Includes the case condition and expressions in its block.
 flattenCase :: Maybe SwitchCase -> [Expression]
 flattenCase Nothing = []
-flattenCase (Just (Case e b)) = e : flattenBlock (Just b)
+flattenCase (Just (Case e Nothing)) = [e]
+flattenCase (Just (Case e b)) = e : flattenBlock b
 flattenCase (Just (Default b)) = flattenBlock (Just b)
 
 
@@ -217,8 +234,7 @@ flattenCase (Just (Default b)) = flattenBlock (Just b)
 data Statement = 
     Expr Expression |
     BlockStmt Block |
-    If Expression (Maybe Block) |
-    Else (Maybe Block) |
+    If Expression (Maybe Block) (Maybe Block) |
     For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
     While Expression (Maybe Block) |
     DoWhile (Maybe Block) Expression |
@@ -228,9 +244,47 @@ data Statement =
 
 -- beter toString for string instance
 prettyStmt :: Int -> Maybe Statement -> String
-prettyStmt a Nothing = "\n"
-prettyStmt a (Just (Expr e)) = prettyExpr a (Just e) ++ "\n"
-prettyStmt a (Just (BlockStmt b)) = prettyBlock a b
+prettyStmt _ Nothing = "\n"
+prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
+prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
+
+-- if 
+prettyStmt n (Just (If expr Nothing Nothing)) = concat [insertSpace n, "if (", prettyExpr 0 (Just expr), "); else;\n"]
+prettyStmt n (Just (If expr (Just b) Nothing)) = let
+    body = prettyBlock n b
+    space = insertSpace n in
+    unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body, space ++ "else;"]
+
+prettyStmt n (Just (If expr Nothing (Just b))) = let
+    body = prettyBlock n b
+    space = insertSpace n in
+    unlines [concat [insertSpace n, "if (", prettyExpr 0 (Just expr), ");"], space ++ "else", body]
+
+prettyStmt n (Just (If expr (Just a) (Just b))) = let
+    (body1, body2) = (prettyBlock n a, prettyBlock n b)
+    space = insertSpace n in 
+    unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body1, space ++ "else", body2]
+
+prettyStmt n (Just (For (s1, s2, s3) Nothing)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
+    concat [insertSpace n, "for(", s, ");\n"]
+prettyStmt n (Just (For (s1, s2, s3) (Just b))) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
+    unlines [insertSpace n ++ "for(", s, ");", prettyBlock n b]
+
+-- while
+prettyStmt n (Just (While e Nothing)) = concat [insertSpace n, "while(", prettyExpr 0 (Just e), ");\n"]
+prettyStmt n (Just (While e (Just b))) = unlines [concat [insertSpace n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+
+-- dowhile
+prettyStmt n (Just (DoWhile Nothing e)) = let space = insertSpace n in
+    unlines [space ++ "do", concat [space, "while(", prettyExpr 0 (Just e), ")"]]
+
+prettyStmt n (Just (DoWhile (Just b) e)) = let space = insertSpace n in
+    unlines [space ++ "do",  concat [space, "while(", prettyExpr 0 (Just e), ")", prettyBlock n b]]
+
+
+prettyStmt n (Just (Switch e xs)) = let space = insertSpace n in unlines
+    [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs,space ++ "}" ]
+
 
 
 -- | Flatten all expressions contained in a statement.
@@ -239,8 +293,7 @@ flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
 flattenStatement (Just (Expr e)) = [e]
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
-flattenStatement (Just (If e b)) = e : flattenBlock b
-flattenStatement (Just (Else b)) = flattenBlock b
+flattenStatement (Just (If e b c)) = e : (flattenBlock b ++ flattenBlock c)
 flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
 flattenStatement (Just (While e b)) = e : flattenBlock b
 flattenStatement (Just (DoWhile b e)) = e : flattenBlock b
@@ -250,6 +303,11 @@ flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
 -- | Program representation.
 --   Consists of imported modules and a list of top-level statements.
 type Program = ([String], [Statement])
+
+
+-- better toString value for program
+prettyProgram :: Program -> String
+prettyProgram (_, ss) = concatMap (prettyStmt 0 . Just) ss
 
 
 -- | Flatten all programs contained in a statement.

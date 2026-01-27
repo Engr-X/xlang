@@ -130,3 +130,12 @@ isDouble = match doubleLitReg
 -- | Check whether a string is a long double literal.
 isLongDouble :: String -> Bool
 isLongDouble = match longDoubleLitReg
+
+
+-- | Generate a string consisting of a given number of spaces.
+--
+--   This function takes an integer @n@ and returns a string
+--   containing exactly @n@ space characters.
+--
+insertSpace :: Int -> String
+insertSpace = (`replicate` ' ')

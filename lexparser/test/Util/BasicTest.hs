@@ -86,5 +86,11 @@ isLongDoubleTests = testGroup "Util.Basic.isLongDouble" $ map (\(name, c, e) -> 
     ("4", "123", False), ("5", "123L", False), ("6", "1.0", False), ("7", "1e3", False)]
 
 
+insertSpaceTests :: TestTree
+insertSpaceTests = testGroup "Utils.insertSpace" $ map
+    (\(name, n, expected) -> testCase name $ insertSpace n @=? expected) [
+        ("0 spaces", 0, ""), ("1 space", 1, " "), ("3 spaces", 3, "   "), ("10 spaces", 10, "          ")]
+
+
 tests :: TestTree
-tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests]
+tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests, insertSpaceTests]

@@ -4,6 +4,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Parse.SyntaxTree
 import Util.Type
+import Util.Basic
 import Lex.Token (Token, Symbol)
 
 import qualified Lex.Token as Lex
@@ -38,13 +39,13 @@ flattenBlockTests = testGroup "Parse.SyntaxTree.flattenBlock" $ map (\(i, inp, o
 flattenCaseTests :: TestTree
 flattenCaseTests = testGroup "Parse.SyntaxTree.flattenCase" $ map (\(i, inp, out) -> testCase i $ flattenCase inp @=? out) [
     ("0", Nothing, []),
-    ("1", Just (Case (IntConst "1" $ mkNumD "1") (Multiple [Expr (IntConst "2" $ mkNumD "2")])),
+    ("1", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "2" $ mkNumD "2")])),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2"]),
 
-    ("2", Just (Case (IntConst "1" $ mkNumD "1") (Multiple [Expr (IntConst "2" $ mkNumD "2"), Expr (IntConst "3" $ mkNumD "3")])),
+    ("2", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "2" $ mkNumD "2"), Expr (IntConst "3" $ mkNumD "3")])),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3"]),
 
-    ("3", Just (Case (Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus)) (Multiple [Expr (IntConst "3" $ mkNumD "3")])),
+    ("3", Just (Case (Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus)) (Just $ Multiple [Expr (IntConst "3" $ mkNumD "3")])),
         [Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus), IntConst "3" $ mkNumD "3"]),
 
     ("4", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1")])), [IntConst "1" $ mkNumD "1"]),
@@ -52,7 +53,7 @@ flattenCaseTests = testGroup "Parse.SyntaxTree.flattenCase" $ map (\(i, inp, out
     ("5", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")])),
         [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
 
-    ("6", Just (Case (IntConst "1" $ mkNumD "1") (Multiple [])), [IntConst "1" $ mkNumD "1"]),
+    ("6", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [])), [IntConst "1" $ mkNumD "1"]),
 
     ("7", Just (Default (Multiple [])), [])]
 
@@ -62,15 +63,16 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
     ("0", Nothing, []),
     ("1", Just (Expr (IntConst "1" $ mkNumD "1")), [IntConst "1" $ mkNumD "1"]),
 
-    ("2", Just (BlockStmt (Multiple [
-            If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])),
-            Else (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))])), [
-                
-            BoolConst True $ mkIdD "true",
-            IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
+    ("2", Just (BlockStmt (Multiple
+            [
+                If (BoolConst True $ mkIdD "true")
+                (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))
+                (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))
+            ])), [
+        BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
             
     ("3", Just (
-        If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))), [
+        If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing), [
         BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"]),
 
     ("4", Just (For (Just (IntConst "1" $ mkNumD "1"), Just (IntConst "2" $ mkNumD "2"), Just (IntConst "3" $ mkNumD "3")) (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")]))),
@@ -81,7 +83,7 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
     ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))),
         [Variable "cond" $ mkIdD "cond", IntConst "1" $ mkNumD "1"]),
 
-    ("7", Just (Switch (Variable "x" $ mkIdD "x") [Case (IntConst "1" $ mkNumD "1") (Multiple [Expr (IntConst "10" $ mkNumD "10")]), Default (Multiple [Expr (IntConst "0" $ mkNumD "0")])]),
+    ("7", Just (Switch (Variable "x" $ mkIdD "x") [Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "10" $ mkNumD "10")]), Default (Multiple [Expr (IntConst "0" $ mkNumD "0")])]),
         [Variable "x" $ mkIdD "x", IntConst "1" $ mkNumD "1", IntConst "10" $ mkNumD "10", IntConst "0" $ mkNumD "0"])]
 
 
@@ -90,7 +92,7 @@ flattenProgramTests = testGroup "Parse.SyntaxTree.flattenProgram" $ map (\(i, in
     ("0", ([], []), []),
     ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), [IntConst "1" $ mkNumD "1"]),
     ("2", ([], [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")]), [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
-    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
+    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
 
 
 getErrorProgramTests :: TestTree
@@ -98,8 +100,10 @@ getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, 
     ("0", ([], []), []),
     ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), []),
     ("2", ([], [Expr (makeError "err")]), [makeError "err"]),
-    ("3", ([], [ If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (makeError "err1")])), Else (Just (Multiple [Expr (makeError "err2")]))]),
-        [makeError "err1", makeError "err2"])]
+    ("3", ([], [ If (BoolConst True $ mkIdD "true")
+        (Just (Multiple [Expr (makeError "err1")]))
+        (Just (Multiple [Expr (makeError "err2")]))]),
+        [ makeError "err1", makeError "err2"])]
     where
         dummyTok :: String -> Token
         dummyTok str = Lex.Ident str (makePosition 1 1 (length str))
@@ -179,8 +183,74 @@ exprTokTests = testGroup "Parse.SyntaxTree.exprTok" $ map (\(n, e, t) -> testCas
         tokPlus   = Lex.Symbol Lex.Plus (makePosition 1 3 1)
 
 
+prettyExprTests :: TestTree
+prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, out) -> testCase i $ prettyExpr n inp @=? out) [
+    ("0", 0, Nothing, ""),
+    ("1", 1, Just (IntConst "1" (mkNumD "1")), insertSpace 4 ++ "1"),
+    ("2", 2, Just (BoolConst True (mkIdD "true")), insertSpace 8 ++ "true"),
+    ("3", 1, Just (BoolConst False (mkIdD "false")), insertSpace 4 ++ "false"),
+    ("4", 0, Just (Variable "x" (mkIdD "x")), "x"),
+    ("5", 0, Just (Qualified ["a","b","c"] [mkIdD "a"]), "a.b.c"),
+    ("6", 0, Just (Cast (Class "Int") (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(Int)(1)"),
+    ("7", 0, Just (Binary Add
+        (Unary Sub (Variable "x" (mkIdD "x")) (mkIdD "-"))
+        (IntConst "2" (mkNumD "2"))
+        (mkIdD "+")), "-x+2")]
+
+
+prettyBlockTests :: TestTree
+prettyBlockTests =
+  testGroup "Parse.SyntaxTree.prettyBlock" $
+    map (\(i, n, inp, out) -> testCase i $ prettyBlock n inp @=? out)
+    [
+
+      -- 0) 空 block
+      ("0", 0,
+        Multiple [],
+        unlines ["{", "", "}"]
+      ),
+
+      -- 1) 单条语句
+      ("1", 0,
+        Multiple [Expr (IntConst "1" (mkNumD "1"))],
+        unlines
+          [ "{"
+          , prettyStmt 1 (Just (Expr (IntConst "1" (mkNumD "1"))))
+          , "}"
+          ]
+      ),
+
+      -- 2) 多条语句
+      ("2", 0,
+        Multiple
+          [ Expr (IntConst "1" (mkNumD "1"))
+          , Expr (BoolConst True (mkIdD "true"))
+          ],
+        unlines
+          [ "{"
+          , prettyStmt 1 (Just (Expr (IntConst "1" (mkNumD "1"))))
+            ++ prettyStmt 1 (Just (Expr (BoolConst True (mkIdD "true"))))
+          , "}"
+          ]
+      ),
+
+      -- 3) 非零缩进层级
+      ("3", 2,
+        Multiple [Expr (Variable "x" (mkIdD "x"))],
+        unlines
+          [ "{"
+          , prettyStmt 3 (Just (Expr (Variable "x" (mkIdD "x"))))
+          , "}"
+          ]
+      )
+    ]
+
+
+
 tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
     getErrorProgramTests, toClassTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
-    exprTokTests]
+    exprTokTests,
+    
+    prettyExprTests]

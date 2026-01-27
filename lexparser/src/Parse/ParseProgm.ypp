@@ -72,6 +72,8 @@ import qualified Util.Exception as UE
 #include "Parse/GrammarStmtBlock.inc"
 #include "Parse/GrammarExpr.inc"
 
+ProgramEOF :: { Program } :     StmtSeqOpt EOF { ([], $1) };
+
 {
 -- Happy expects a polymorphic error handler.
 -- We return a sentinel program containing one error expression statement.
