@@ -217,7 +217,8 @@ flattenCase (Just (Default b)) = flattenBlock (Just b)
 data Statement = 
     Expr Expression |
     BlockStmt Block |
-    If Expression (Maybe Block) (Maybe Block) |
+    If Expression (Maybe Block) |
+    Else (Maybe Block) |
     For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
     While Expression (Maybe Block) |
     DoWhile (Maybe Block) Expression |
@@ -238,7 +239,8 @@ flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
 flattenStatement (Just (Expr e)) = [e]
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
-flattenStatement (Just (If e b1 b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (If e b)) = e : flattenBlock b
+flattenStatement (Just (Else b)) = flattenBlock b
 flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
 flattenStatement (Just (While e b)) = e : flattenBlock b
 flattenStatement (Just (DoWhile b e)) = e : flattenBlock b

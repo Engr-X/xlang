@@ -62,11 +62,16 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
     ("0", Nothing, []),
     ("1", Just (Expr (IntConst "1" $ mkNumD "1")), [IntConst "1" $ mkNumD "1"]),
 
-    ("2", Just (If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))),
-        [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
-
-    ("3", Just (If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing),
-        [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"]),
+    ("2", Just (BlockStmt (Multiple [
+            If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])),
+            Else (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))])), [
+                
+            BoolConst True $ mkIdD "true",
+            IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
+            
+    ("3", Just (
+        If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))), [
+        BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"]),
 
     ("4", Just (For (Just (IntConst "1" $ mkNumD "1"), Just (IntConst "2" $ mkNumD "2"), Just (IntConst "3" $ mkNumD "3")) (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")]))),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3", IntConst "4" $ mkNumD "4"]),
@@ -85,7 +90,7 @@ flattenProgramTests = testGroup "Parse.SyntaxTree.flattenProgram" $ map (\(i, in
     ("0", ([], []), []),
     ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), [IntConst "1" $ mkNumD "1"]),
     ("2", ([], [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")]), [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
-    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
+    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
 
 
 getErrorProgramTests :: TestTree
@@ -93,7 +98,7 @@ getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, 
     ("0", ([], []), []),
     ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), []),
     ("2", ([], [Expr (makeError "err")]), [makeError "err"]),
-    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (makeError "err1")])) (Just (Multiple [Expr (makeError "err2")]))]),
+    ("3", ([], [ If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (makeError "err1")])), Else (Just (Multiple [Expr (makeError "err2")]))]),
         [makeError "err1", makeError "err2"])]
     where
         dummyTok :: String -> Token

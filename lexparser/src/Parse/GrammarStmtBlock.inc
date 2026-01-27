@@ -13,16 +13,14 @@ StmtSeq :: { [Statement] }
     | StmtSeq Stmt     { $1 ++ [$2] }
     ;
 
-
-ElseBlock :: { Maybe Block }
-    : {- empty -}                   { Nothing }
-    | KW_ELSE ';'                   { Nothing }
-    | KW_ELSE ':' Stmt              { Just $ stmtToBlock $3 }
+IfStmt :: { Statement }
+    : KW_IF Expr ';'                { If $2 Nothing }
+    | KW_IF Expr ':' Stmt           { If $2 (Just $ stmtToBlock $4) }
     ;
 
-IfStmt :: { Statement }
-    --: KW_IF Expr ';' ElseBlock          { If (Unary BitNot $2 (Lex.Symbol Lex.BitNot defaultPosition)) $4 Nothing }
-    : KW_IF Expr ':' Stmt ElseBlock       { If $2 (Just $ stmtToBlock $4) $5 }
+ElseStmt :: { Statement }
+    : KW_ELSE ';'                   { Else Nothing }
+    | KW_ELSE ':' Stmt              { Else (Just $ stmtToBlock $3) }
     ;
 
 -- while
@@ -36,6 +34,7 @@ Stmt :: { Statement }
     : Expr Sep      { Expr $1 }
     | Block         { BlockStmt $ fromMaybe (Multiple []) $1 }
     | IfStmt        { $1 }
+    | ElseStmt      { $1 }
     | WhileStmt     { $1 }
     ;
 
