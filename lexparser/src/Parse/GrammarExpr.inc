@@ -14,11 +14,14 @@ Atom
     | KW_FALSE  { BoolConst False $1}
 
     -- unary operators
-    | '+' Atom %prec UPLUS   { Unary UnaryPlus $2 $1}
-    | '+' error %prec UPLUS  { Error $1 (expectedExpression 1 "+")}
+    | '!' Atom %prec '!'        { Unary BitNot $2 $1 }
+    | '!' error %prec '!'       { Error $1 (expectedExpression 1 "!") }
 
-    | '-' Atom %prec UMINUS  { Unary UnaryMinus $2 $1}
-    | '-' error %prec UMINUS { Error $1 (expectedExpression 1 "-") }
+    | '+' Atom %prec UPLUS      { Unary UnaryPlus $2 $1}
+    | '+' error %prec UPLUS     { Error $1 (expectedExpression 1 "+")}
+
+    | '-' Atom %prec UMINUS     { Unary UnaryMinus $2 $1}
+    | '-' error %prec UMINUS    { Error $1 (expectedExpression 1 "-") }
 
     -- parenthesized expression
     | '(' Expr ')'           { $2 }

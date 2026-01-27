@@ -159,7 +159,7 @@ tokens :-
 <0> "|"                { eatSymbol BitOr }
 <0> "^"                { eatSymbol BitXor }
 <0> "&"                { eatSymbol BitAnd }
-<0> "!"                { eatSymbol BitReverse }
+<0> "!"                { eatSymbol BitNot }
 
 <0> "+"                { eatSymbol Plus }
 <0> "-"                { eatSymbol Minus }

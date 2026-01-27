@@ -140,7 +140,48 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" [
                     (Variable "q" $ mkId "q" 1 25 1)
                     (mkSym Lex.Plus 1 23 1))
                 (mkSym Lex.Minus 1 18 1))
-            (mkSym Lex.NotEqual 1 9 2))]
+            (mkSym Lex.NotEqual 1 9 2)),
+            
+    testCase "8" $ replLexparseExpr "!a > b" @=? Right
+        (Binary GreaterThan
+            (Unary BitNot
+                (Variable "a" $ mkId "a" 1 2 1)
+                (mkSym Lex.BitNot 1 1 1))
+            (Variable "b" $ mkId "b" 1 6 1)
+            (mkSym Lex.GreaterThan 1 4 1)),
+
+    testCase "9" $ replLexparseExpr "!a == b" @=? Right
+        (Binary Equal
+            (Unary BitNot
+                (Variable "a" $ mkId "a" 1 2 1)
+                (mkSym Lex.BitNot 1 1 1))
+            (Variable "b" $ mkId "b" 1 7 1)
+            (mkSym Lex.Equal 1 4 2)),
+
+    testCase "10" $ replLexparseExpr "!!a != !b" @=? Right
+        (Binary NotEqual
+            (Unary BitNot
+                (Unary BitNot
+                    (Variable "a" $ mkId "a" 1 3 1)
+                    (mkSym Lex.BitNot 1 2 1))
+                (mkSym Lex.BitNot 1 1 1))
+            (Unary BitNot
+                (Variable "b" $ mkId "b" 1 9 1)
+                (mkSym Lex.BitNot 1 8 1))
+            (mkSym Lex.NotEqual 1 5 2)),
+
+    testCase "11" $ replLexparseExpr "!(a < b) == !c" @=? Right
+        (Binary Equal
+            (Unary BitNot
+                (Binary LessThan
+                    (Variable "a" $ mkId "a" 1 3 1)
+                    (Variable "b" $ mkId "b" 1 7 1)
+                    (mkSym Lex.LessThan 1 5 1))
+                (mkSym Lex.BitNot 1 1 1))
+            (Unary BitNot
+                (Variable "c" $ mkId "c" 1 14 1)
+                (mkSym Lex.BitNot 1 13 1))
+            (mkSym Lex.Equal 1 10 2))]
 
 tests :: TestTree
 tests = testGroup "Parse.ParseExpr" [lexparseExprTests]

@@ -67,7 +67,7 @@ whileTests :: TestTree
 whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
     testCase n $ replLexparseStmt src @=? expected) [
         ("0", unlines [
-            "while true {",
+            "while true: {",
             "    x = x + 1",
             "}"],
         
@@ -86,8 +86,8 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
 
         ("1",
             unlines [
-                "while true",
-                "    while false",
+                "while true:",
+                "    while false:",
                 "        aa = aa + 2"
             ],
             Right $ While
@@ -113,7 +113,7 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
         --   x = x + 2
         ("2",
             unlines [
-                "while true",
+                "while true:",
                 "    x = x + 1",
                 "    x = x + 2"
             ],
@@ -125,7 +125,7 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
         -- while x + 2 { a }
         ("3",
             unlines [
-                "while x + 2",
+                "while x + 2:",
                 "{",
                 "    a",
                 "}"

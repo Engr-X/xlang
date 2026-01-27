@@ -51,6 +51,11 @@ makePosition :: Int -> Int -> Int -> Position
 makePosition l c size = Position {line = l, column = c, len = size}
 
 
+-- default position
+defaultPosition :: Position
+defaultPosition = makePosition (-1) (-1) (-1)
+
+
 -- | Convert a 'Position' into a tuple (line, column, len).
 --
 -- Useful for functions that prefer tuple representation.

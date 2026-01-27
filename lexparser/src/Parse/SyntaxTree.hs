@@ -31,7 +31,7 @@ prettyClass Float64T = "double"
 prettyClass Float128T = "float128"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
-prettyClass (Array c l) = "Array<" ++ prettyClass c ++ ">"
+prettyClass (Array c _) = "Array<" ++ prettyClass c ++ ">"
 prettyClass (Class s) = s
 
 
@@ -39,6 +39,14 @@ prettyClass (Class s) = s
 --   Used for statements such as return, break, and continue.
 data Command = Continue | Break | Return (Maybe Expression)
     deriving (Eq, Show)
+
+
+-- pretty toString method for command
+prettyCmd :: Int -> Command -> String
+prettyCmd n Continue = replicate (4 * n) ' ' ++  "continue"
+prettyCmd n Break = replicate (4 * n) ' ' ++ "break"
+prettyCmd n (Return Nothing) = replicate (4 * n) ' ' ++ "return;"
+prettyCmd n (Return e) = replicate (4 * n) ' ' ++ "return " ++ prettyExpr 0 e
 
 
 -- | Operators grouped by precedence level.
@@ -64,7 +72,7 @@ data Operator =
     BitXor | BitXnor | 
     
     -- 6
-    BitAnd | BitReverse | 
+    BitAnd | BitNot | 
 
     -- 7
     Add | Sub | 
@@ -102,7 +110,7 @@ operatorTextMap = Map.fromList [
     
     (BitRShift, ">>"), (BitLShift, "<<"), (BitOr, "|"),
     
-    (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitReverse, "!"),
+    (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNot, "!"),
     
     (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),
     
@@ -145,6 +153,7 @@ data Expression =
 
 -- | toString in human version
 prettyExpr :: Int -> Maybe Expression -> String
+prettyExpr n (Just (Command c _)) = prettyCmd n c
 prettyExpr n me = replicate (4 * n) ' ' ++ prettyExpr' me
     where
         prettyExpr' :: Maybe Expression -> String
@@ -161,6 +170,9 @@ prettyExpr n me = replicate (4 * n) ' ' ++ prettyExpr' me
         prettyExpr' (Just (Variable s _)) = s
         prettyExpr' (Just (Qualified ss _)) = intercalate "." ss
         prettyExpr' (Just (Cast c e _)) = '(': prettyClass c ++ (")(" ++ prettyExpr' (Just e) ++ ")")
+        prettyExpr' (Just (Unary o e _)) = prettyOp o ++ prettyExpr' (Just e)
+        prettyExpr' (Just (Binary o e1 e2 _)) = prettyExpr' (Just e1) ++ prettyOp o ++ prettyExpr' (Just e2)
+        prettyExpr' _ = error "why? baby why?"
 
 
 -- | Check whether an expression represents a syntax or semantic error.
@@ -173,6 +185,10 @@ isErrExpr _ = False
 --  A block may contain a single statement or multiple statements.
 newtype Block = Multiple [Statement]
     deriving (Eq, Show)
+
+-- better toString method for block
+prettyBlock :: Int -> Block -> String
+prettyBlock n (Multiple ss) = "{\n" ++ concatMap (prettyStmt (n + 1) . Just) ss ++ "}\n"
 
 
 -- | Flatten all expressions contained in a block.
@@ -207,6 +223,13 @@ data Statement =
     DoWhile (Maybe Block) Expression |
     Switch Expression [SwitchCase]
     deriving (Eq, Show)
+
+
+-- beter toString for string instance
+prettyStmt :: Int -> Maybe Statement -> String
+prettyStmt a Nothing = "\n"
+prettyStmt a (Just (Expr e)) = prettyExpr a (Just e) ++ "\n"
+prettyStmt a (Just (BlockStmt b)) = prettyBlock a b
 
 
 -- | Flatten all expressions contained in a statement.
@@ -306,10 +329,3 @@ exprTok (Qualified _ ts) = last ts
 exprTok (Cast _ _ t) = t
 exprTok (Unary _ _ t) = t
 exprTok (Binary _ _ _ t) = t
-
-
--- Convert a statement into a block.
--- If it's already a block statement, reuse it; otherwise wrap it.
-stmtToBlock :: Statement -> Block
-stmtToBlock (BlockStmt b) = b
-stmtToBlock s = Multiple [s]

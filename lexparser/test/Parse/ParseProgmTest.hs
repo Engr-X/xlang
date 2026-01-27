@@ -129,9 +129,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                 
                 
         ("4", unlines [
-            "while true",
+            "while true:",
             "   x + a",
-            "   while false",
+            "   while false:",
             "       y + a"],
 
         ([], [
@@ -154,10 +154,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                 ]))
         ])),
 
-
         ("5", unlines [
-            "while true",
-            "while x > 1",
+            "while true:",
+            "while x > 1:",
             "x = x + 1",
             "y = y + 1"],
 
@@ -194,28 +193,27 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
             "while true;"],
 
             ([], [
-                -- 语法：KW_WHILE Expr ';'  => While cond Nothing
                 While
                     (BoolConst True (mkId "true" 1 7 4))
                     Nothing
             ])),
 
         ("6b", unlines [
-            "while true {}"],
+            "while true: {}"],
 
             ([], [
                 While
                     (BoolConst True (mkId "true" 1 7 4))
-                    Nothing
+                    (Just (Multiple []))
             ])),
 
         ("7", unlines [
             "a = a + 1",
-            "while a",
+            "while a:",
             "{",
-            "    while (p)",
+            "    while (p):",
             "        p + I",
-            "    while (l)",
+            "    while (l):",
             "        l + p - I",
             "}"],
 

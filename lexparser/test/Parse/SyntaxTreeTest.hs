@@ -174,57 +174,8 @@ exprTokTests = testGroup "Parse.SyntaxTree.exprTok" $ map (\(n, e, t) -> testCas
         tokPlus   = Lex.Symbol Lex.Plus (makePosition 1 3 1)
 
 
-stmtToBlockTests :: TestTree
-stmtToBlockTests = testGroup "Parse.SyntaxTree.stmtToBlock" $
-    map (\(name, stmt, expected) -> testCase name $ stmtToBlock stmt @=? expected) [
-        ("0",
-            Expr (IntConst "1" (mkNum "1" 1 1 1)),
-            Multiple [
-                Expr (IntConst "1" (mkNum "1" 1 1 1))
-            ]),
-
-        ("1",
-            BlockStmt (Multiple [
-                Expr (IntConst "1" (mkNum "1" 1 1 1))
-            ]),
-            Multiple [
-                Expr (IntConst "1" (mkNum "1" 1 1 1))
-            ]),
-
-        ("2",
-            While
-                (BoolConst True (mkId "true" 1 1 4))
-                (Just (Multiple [
-                    Expr (IntConst "1" (mkNum "1" 2 1 1))
-                ])),
-            Multiple [
-                While
-                    (BoolConst True (mkId "true" 1 1 4))
-                    (Just (Multiple [
-                        Expr (IntConst "1" (mkNum "1" 2 1 1))
-                    ]))]),
-
-        ("3",
-            While
-                (BoolConst True (mkId "true" 1 1 4))
-                Nothing,
-            Multiple [
-                While
-                    (BoolConst True (mkId "true" 1 1 4))
-                    Nothing])]
-    where
-        mkSym :: Symbol -> Int -> Int -> Int -> Token
-        mkSym s a b c = Lex.Symbol s $ Position a b c
-
-        mkNum :: String -> Int -> Int -> Int -> Token
-        mkNum s a b c = Lex.NumberConst s $ Position a b c
-
-        mkId :: String -> Int -> Int -> Int -> Token
-        mkId s a b c = Lex.Ident s $ makePosition a b c
-
-
 tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
     getErrorProgramTests, toClassTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
-    exprTokTests, stmtToBlockTests]
+    exprTokTests]

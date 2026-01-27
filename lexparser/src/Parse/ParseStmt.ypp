@@ -9,7 +9,7 @@ import Lex.Tokenizer (tokenizeWithNL)
 import Parse.SyntaxTree
 import Parse.ParserBasic
 import Util.Exception (ErrorKind, makeError, expectedExpression, assignErrorMsg)
-import Util.Type (Path)
+import Util.Type (Path, defaultPosition)
 
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
@@ -43,6 +43,8 @@ import qualified Util.Exception as UE
     '=='                 { t@(Lex.Symbol Lex.Equal _) }
     '!='                 { t@(Lex.Symbol Lex.NotEqual _) }
 
+    '!'                 { t@(Lex.Symbol Lex.BitNot _) }
+
     '+'                 { t@(Lex.Symbol Lex.Plus _) }
     '-'                 { t@(Lex.Symbol Lex.Minus _) }
     '*'                 { t@(Lex.Symbol Lex.Multiply _) }
@@ -61,7 +63,7 @@ import qualified Util.Exception as UE
 %left '>' '<'
 %left '+' '-'
 %left '*' '/'
-%right UPLUS UMINUS
+%right UPLUS UMINUS '!'
 
 %%
 

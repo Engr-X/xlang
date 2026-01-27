@@ -40,7 +40,7 @@ data Symbol
     | BitXor           -- "^"
     | BitXnor          -- "!^"
     | BitAnd           -- "&"
-    | BitReverse       -- "!"
+    | BitNot           -- "!"
 
     -- Arithmetic operators
     | Plus             -- "+"

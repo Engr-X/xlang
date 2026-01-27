@@ -3,7 +3,7 @@ module Parse.ParserBasic where
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.List (find)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
-import Parse.SyntaxTree (Expression(..))
+import Parse.SyntaxTree
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, makePosition)
@@ -73,3 +73,10 @@ classifyNumber s t = let xs = [(IntConst, isInt),
 toException :: Path -> Expression -> ErrorKind
 toException p (Error t why) = UE.Parsing $ UE.makeError p (tokenPos t) why
 toException _ _  = error "Expected an Error expression."
+
+
+-- Convert a statement into a block.
+-- If it's already a block statement, reuse it; otherwise wrap it.
+stmtToBlock :: Statement -> Block
+stmtToBlock (BlockStmt b) = b
+stmtToBlock s = Multiple [s]

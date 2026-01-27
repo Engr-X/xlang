@@ -23,7 +23,7 @@ banPrevSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.BitOr, Lex.BitXor, Lex.BitXnor, Lex.BitAnd, Lex.BitReverse,
+    Lex.BitRShift, Lex.BitLShift, Lex.BitOr, Lex.BitXor, Lex.BitXnor, Lex.BitAnd, Lex.BitNot,
 
     Lex.Plus, Lex.Minus, Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
@@ -124,6 +124,7 @@ insertNewLine = dedupNL . go 0 Nothing
         -- Ensure there is a statement separator (NL or ';') right before EOF.
         -- This is a post-pass and does NOT change any existing insertion behavior.
         --------------------------------------------------------------------------------
+        {-
         ensureSepAtEOF :: [Token] -> [Token]
         ensureSepAtEOF [] = []
         ensureSepAtEOF ts =
@@ -145,7 +146,7 @@ insertNewLine = dedupNL . go 0 Nothing
                 goSplit _ [] = Nothing
                 goSplit acc (t:ts) = case t of
                     EOF _ -> Just (reverse acc, t)
-                    _ -> goSplit (t:acc) ts
+                    _ -> goSplit (t:acc) ts -}
 
 
         --------------------------------------------------------------------------------
