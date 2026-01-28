@@ -184,6 +184,8 @@ test-suite lexparser-test
         Parse.ParseStmtTest
         Parse.ParseProgmTest
 
+        Sematic.ContextCheck
+
         Util.BasicTest
         Util.ExceptionTest
         Util.FileHelperTest

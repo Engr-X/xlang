@@ -38,7 +38,8 @@ prettyClass (Class ss) = intercalate "." ss
 
 -- | Control-flow commands that can appear as expressions.
 --   Used for statements such as return, break, and continue.
-data Command = Continue | Break | Return (Maybe Expression)
+data Command = Continue | Break | Return (Maybe Expression) |
+    Import [String]
     deriving (Eq, Show)
 
 
@@ -47,7 +48,8 @@ prettyCmd :: Int -> Command -> String
 prettyCmd n Continue = insertTab n ++  "continue"
 prettyCmd n Break = insertTab n ++ "break"
 prettyCmd n (Return Nothing) = insertTab n ++ "return;"
-prettyCmd n (Return e) = insertTab n ++ "return " ++ prettyExpr 0 e
+prettyCmd n (Return e) = concat [insertTab n, "return ", prettyExpr 0 e]
+prettyCmd n (Import dirs) = concat [insertTab n, "import ", intercalate "." dirs]
 
 
 -- | Operators grouped by precedence level.

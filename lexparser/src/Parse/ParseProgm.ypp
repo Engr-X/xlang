@@ -28,6 +28,7 @@ import qualified Util.Exception as UE
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
 
+    KW_IMPORT           { t@(Lex.Ident "import" _) }
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }

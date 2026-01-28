@@ -29,6 +29,7 @@ import qualified Util.Exception as UE
     KW_ELSE             { t@(Lex.Ident "else" _) }
     KW_WHILE            { t@(Lex.Ident "while" _) }
 
+    KW_IMPORT           { t@(Lex.Ident "import" _) }
     KW_BREAK            { t@(Lex.Ident "break" _) }
     KW_CONTINUE         { t@(Lex.Ident "continue" _) }
     KW_RETURN           { t@(Lex.Ident "return" _) }
