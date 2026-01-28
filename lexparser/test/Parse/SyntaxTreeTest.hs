@@ -118,7 +118,7 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
 
     ("5", Just (For (Nothing, Just (IntConst "2" $ mkNumD "2"), Nothing) Nothing), [IntConst "2" $ mkNumD "2"]),
 
-    ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))),
+    ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing),
         [Variable "cond" $ mkIdD "cond", IntConst "1" $ mkNumD "1"]),
 
     ("7", Just (Switch (Variable "x" $ mkIdD "x") [Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "10" $ mkNumD "10")]), Default (Multiple [Expr (IntConst "0" $ mkNumD "0")])]),
@@ -260,7 +260,8 @@ prettyStmtTests = testGroup "Parse.SyntaxTree.prettyStmt" $ map (\(i, n, inp, ou
     ("4 while with block", 0, Just
         (While
             (Variable "a" dummyTok)
-            (Just (Multiple []))),
+            (Just (Multiple []))
+            Nothing),
         "while(a)\n{\n\n}\n\n")]
   where
     dummyTok :: Token
@@ -314,9 +315,11 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
         While (Binary NotEqual (Variable "x" dummyTok) (IntConst "0" dummyTok) dummyTok)
             (Just (Multiple
                 [Expr (Binary Sub (Variable "x" dummyTok) (IntConst "1" dummyTok) dummyTok),
-                    BlockStmt (Multiple [
-                        Expr (Variable "inner" dummyTok),
-                        Expr (Command Continue dummyTok)])]))]),
+            
+            BlockStmt (Multiple [
+                    Expr (Variable "inner" dummyTok),
+                    Expr (Command Continue dummyTok)])]))
+            Nothing]),
         unlines [
             "while(x!=0)",
             "{",
@@ -331,7 +334,7 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
         DoWhile (Just (Multiple [
             Expr (Variable "tick" dummyTok),
             Expr (Command Break dummyTok)]))
-            (Binary LessThan (Variable "t" dummyTok) (IntConst "100" dummyTok) dummyTok)]),
+            (Binary LessThan (Variable "t" dummyTok) (IntConst "100" dummyTok) dummyTok) Nothing]),
         
         unlines [
             "do",

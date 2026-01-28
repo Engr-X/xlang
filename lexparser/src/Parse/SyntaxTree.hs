@@ -256,10 +256,10 @@ flattenCase (Just (Default b)) = flattenBlock (Just b)
 data Statement = 
     Expr Expression |
     BlockStmt Block |
-    If Expression (Maybe Block) (Maybe Block) |
+    If Expression (Maybe Block) (Maybe Block) | -- if else
     For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
-    While Expression (Maybe Block) |
-    DoWhile (Maybe Block) Expression |
+    While Expression (Maybe Block) (Maybe Block) | -- while else
+    DoWhile (Maybe Block) Expression (Maybe Block) |
     Switch Expression [SwitchCase]
     deriving (Eq, Show)
 
@@ -292,15 +292,23 @@ prettyStmt n (Just (For (s1, s2, s3) (Just b))) = let s = intercalate ";" $ map 
     unlines [concat [insertTab n, "for(", s, ")"], prettyBlock n b]
 
 -- while
-prettyStmt n (Just (While e Nothing)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
-prettyStmt n (Just (While e (Just b))) = unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+prettyStmt n (Just (While e Nothing Nothing)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
+prettyStmt n (Just (While e Nothing (Just b))) = let space = insertTab n in
+    unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"], space ++ "else", prettyBlock n b]
+prettyStmt n (Just (While e (Just b) Nothing)) = unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+prettyStmt n (Just (While e (Just b1) (Just b2))) = let space = insertTab n in
+    unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b1, space ++ "else", prettyBlock n b2]
 
 -- dowhile
-prettyStmt n (Just (DoWhile Nothing e)) = let space = insertTab n in
+prettyStmt n (Just (DoWhile Nothing e Nothing)) = let space = insertTab n in
     unlines [space ++ "do", concat [space, "while(", prettyExpr 0 (Just e), ")"]]
-
-prettyStmt n (Just (DoWhile (Just b) e)) = let space = insertTab n in
+prettyStmt n (Just (DoWhile Nothing e (Just b))) = let space = insertTab n in
+    unlines [space ++ "do",  concat [space, prettyBlock n b, "while(", prettyExpr 0 (Just e), ")"], space ++ "else", prettyBlock n b]
+prettyStmt n (Just (DoWhile (Just b) e Nothing)) = let space = insertTab n in
     unlines [space ++ "do",  concat [space, prettyBlock n b, "while(", prettyExpr 0 (Just e), ")"]]
+prettyStmt n (Just (DoWhile (Just b1) e (Just b2))) = let space = insertTab n in
+        unlines [space ++ "do", concat [space, prettyBlock n b1, "while(", prettyExpr 0 (Just e), ")"],
+            space ++ "else", prettyBlock n b2]
 
 
 prettyStmt n (Just (Switch e xs)) = let space = insertTab n in unlines
@@ -318,8 +326,8 @@ flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c)) = e : (flattenBlock b ++ flattenBlock c)
 flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
-flattenStatement (Just (While e b)) = e : flattenBlock b
-flattenStatement (Just (DoWhile b e)) = e : flattenBlock b
+flattenStatement (Just (While e b1 b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (DoWhile b1 e b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
 
 

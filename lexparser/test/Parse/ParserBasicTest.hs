@@ -124,21 +124,25 @@ stmtToBlockTests = testGroup "Parse.ParserBasic.stmtToBlock" $
                 (BoolConst True (mkId "true" 1 1 4))
                 (Just (Multiple [
                     Expr (IntConst "1" (mkNum "1" 2 1 1))
-                ])),
+                ]))
+                Nothing,
             Multiple [
                 While
                     (BoolConst True (mkId "true" 1 1 4))
                     (Just (Multiple [
                         Expr (IntConst "1" (mkNum "1" 2 1 1))
-                    ]))]),
+                    ]))
+                    Nothing]),
 
         ("3",
             While
                 (BoolConst True (mkId "true" 1 1 4))
+                Nothing
                 Nothing,
             Multiple [
                 While
                     (BoolConst True (mkId "true" 1 1 4))
+                    Nothing
                     Nothing])]
     where
         -- mkSym :: Symbol -> Int -> Int -> Int -> Token

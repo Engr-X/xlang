@@ -69,6 +69,9 @@ import qualified Util.Exception as UE
 %left '*' '/'
 %right UPLUS UMINUS '!'
 
+%nonassoc IFX
+%nonassoc KW_ELSE
+
 %%
 
 #include "Parse/GrammarStmtBlock.inc"

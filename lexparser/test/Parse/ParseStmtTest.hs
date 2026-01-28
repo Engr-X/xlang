@@ -82,7 +82,8 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
                                 (IntConst "1" (mkNum "1" 2 13 1))
                                 (mkSym Lex.Plus 2 11 1))
                             (mkSym Lex.Assign 2 7 1))
-                ]))),
+                ]))
+            Nothing),
 
         ("1",
             unlines [
@@ -103,9 +104,10 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
                                         (Variable "aa" (mkId "aa" 3 14 2))
                                         (IntConst "2" (mkNum "2" 3 19 1))
                                         (mkSym Lex.Plus 3 17 1))
-                                    (mkSym Lex.Assign 3 12 1))
-                        ]))
+                                    (mkSym Lex.Assign 3 12 1))]))
+                    Nothing
                 ]))
+            Nothing
         ),
 
         -- while true
@@ -137,7 +139,8 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
                     (mkSym Lex.Plus 1 9 1))
                 (Just (Multiple [
                     Expr (Variable "a" (mkId "a" 3 5 1))
-                ])))]
+                ]))
+                Nothing)]
 
 
 tests :: TestTree

@@ -142,17 +142,17 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         (Variable "x" (mkId "x" 2 4 1))
                         (Variable "a" (mkId "a" 2 8 1))
                         (mkSym Lex.Plus 2 6 1))
-                ])),
+                ])) Nothing,
 
-            While
-                (BoolConst False (mkId "false" 3 10 5))
-                (Just (Multiple [
-                    Expr (Binary Add
-                        (Variable "y" (mkId "y" 4 8 1))
-                        (Variable "a" (mkId "a" 4 12 1))
-                        (mkSym Lex.Plus 4 10 1))
-                ]))
-        ])),
+                While
+                    (BoolConst False (mkId "false" 3 10 5))
+                    (Just (Multiple [
+                        Expr (Binary Add
+                            (Variable "y" (mkId "y" 4 8 1))
+                            (Variable "a" (mkId "a" 4 12 1))
+                            (mkSym Lex.Plus 4 10 1))
+
+                    ])) Nothing])),
 
         ("5", unlines [
             "while true:",
@@ -178,7 +178,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                                         (mkSym Lex.Plus 3 7 1))
                                     (mkSym Lex.Assign 3 3 1))
                             ]))
-                    ])),
+                            Nothing
+                    ]))
+                Nothing,
 
                 Expr (Binary Assign
                     (Variable "y" (mkId "y" 4 1 1))
@@ -196,6 +198,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                 While
                     (BoolConst True (mkId "true" 1 7 4))
                     Nothing
+                    Nothing
             ])),
 
         ("6b", unlines [
@@ -205,17 +208,22 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                 While
                     (BoolConst True (mkId "true" 1 7 4))
                     (Just (Multiple []))
+                    Nothing
             ])),
-
+            
         ("7", unlines [
             "a = a + 1",
             "while a:",
             "{",
-            "    while (p):",
+            "    while p:",
             "        p + I",
-            "    while (l):",
+            "}",
+            "else:",
+            "{",
+            "    while l:",
             "        l + p - I",
-            "}"],
+            "}"
+        ],
 
         ([], [
             -- a = a + 1
@@ -227,33 +235,105 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     (mkSym Lex.Plus 1 7 1))
                 (mkSym Lex.Assign 1 3 1)),
 
-            -- while a { ... }
+            -- while a { ... } else { ... }
             While
                 (Variable "a" (mkId "a" 2 7 1))
                 (Just (Multiple [
                     While
-                        (Variable "p" (mkId "p" 4 12 1))
+                        (Variable "p" (mkId "p" 4 11 1))
                         (Just (Multiple [
                             Expr (Binary Add
                                 (Variable "p" (mkId "p" 5 9 1))
                                 (Variable "I" (mkId "I" 5 13 1))
                                 (mkSym Lex.Plus 5 11 1))
-                        ])),
-
+                        ]))
+                        Nothing
+                ]))
+                (Just (Multiple [
                     While
-                        (Variable "l" (mkId "l" 6 12 1))
+                        (Variable "l" (mkId "l" 9 11 1))
                         (Just (Multiple [
                             Expr (Binary Sub
                                 (Binary Add
-                                    (Variable "l" (mkId "l" 7 9 1))
-                                    (Variable "p" (mkId "p" 7 13 1))
-                                    (mkSym Lex.Plus 7 11 1))
-                                (Variable "I" (mkId "I" 7 17 1))
-                                (mkSym Lex.Minus 7 15 1))
+                                    (Variable "l" (mkId "l" 10 9 1))
+                                    (Variable "p" (mkId "p" 10 13 1))
+                                    (mkSym Lex.Plus 10 11 1))
+                                (Variable "I" (mkId "I" 10 17 1))
+                                (mkSym Lex.Minus 10 15 1))
+                        ]))
+                        Nothing
+                ]))
+        ])),
+        
+        ("8", unlines [
+            "while true:",
+            "    a",
+            "else:",
+            "    while false:",
+            "        println(true)"
+        ],
+
+        ([], [
+            While
+                (BoolConst True (mkId "true" 1 7 4))
+                (Just (Multiple [
+                    Expr (Variable "a" (mkId "a" 2 5 1))
+                ]))
+                (Just (Multiple [
+                    While
+                        (BoolConst False (mkId "false" 4 11 5))
+                        (Just (Multiple [
+                            Expr (Call
+                                ["println"]
+                                [BoolConst True (mkId "true" 5 17 4)]
+                                [mkId "println" 5 9 7]
+                            )
+                        ]))
+                        Nothing
+                ]))
+        ])),
+        
+        ("9", unlines [
+            "while true:",
+            "{",
+            "    a = a + 1",
+            "}",
+            "else:",
+            "    if false: print(a)",
+            "    else: print(b)"
+        ],
+
+        ([], [
+            While
+                (BoolConst True (mkId "true" 1 7 4))
+                (Just (Multiple [
+                    Expr (Binary Assign
+                        (Variable "a" (mkId "a" 3 5 1))
+                        (Binary Add
+                            (Variable "a" (mkId "a" 3 9 1))
+                            (IntConst "1" (mkNum "1" 3 13 1))
+                            (mkSym Lex.Plus 3 11 1))
+                        (mkSym Lex.Assign 3 7 1))
+                ]))
+                (Just (Multiple [
+                    If
+                        (BoolConst False (mkId "false" 6 8 5))
+                        (Just (Multiple [
+                            Expr (Call
+                                ["print"]
+                                [Variable "a" (mkId "a" 6 21 1)]
+                                [mkId "print" 6 15 5]
+                            )
+                        ]))
+                        (Just (Multiple [
+                            Expr (Call
+                                ["print"]
+                                [Variable "b" (mkId "b" 7 17 1)]
+                                [mkId "print" 7 11 5]
+                            )
                         ]))
                 ]))
         ]))]
-
 
 tests :: TestTree
 tests = testGroup "Parse.ParseProgm" [lexparseProgmTests]
