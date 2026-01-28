@@ -1,5 +1,5 @@
 module Parse.SyntaxTree where
-    
+
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe, catMaybes, isNothing)
@@ -44,10 +44,10 @@ data Command = Continue | Break | Return (Maybe Expression)
 
 -- pretty toString method for command
 prettyCmd :: Int -> Command -> String
-prettyCmd n Continue = insertSpace (4 * n) ++  "continue"
-prettyCmd n Break = insertSpace (4 * n) ++ "break"
-prettyCmd n (Return Nothing) = insertSpace (4 * n) ++ "return;"
-prettyCmd n (Return e) = insertSpace (4 * n) ++ "return " ++ prettyExpr 0 e
+prettyCmd n Continue = insertTab n ++  "continue"
+prettyCmd n Break = insertTab n ++ "break"
+prettyCmd n (Return Nothing) = insertTab n ++ "return;"
+prettyCmd n (Return e) = insertTab n ++ "return " ++ prettyExpr 0 e
 
 
 -- | Operators grouped by precedence level.
@@ -155,7 +155,7 @@ data Expression =
 -- | toString in human version
 prettyExpr :: Int -> Maybe Expression -> String
 prettyExpr n (Just (Command c _)) = prettyCmd n c
-prettyExpr n me = insertSpace (4 * n) ++ prettyExpr' me
+prettyExpr n me = insertTab n ++ prettyExpr' me
     where
         prettyExpr' :: Maybe Expression -> String
         prettyExpr' Nothing = ""
@@ -187,9 +187,14 @@ isErrExpr _ = False
 newtype Block = Multiple [Statement]
     deriving (Eq, Show)
 
+
 -- better toString method for block
 prettyBlock :: Int -> Block -> String
-prettyBlock n (Multiple ss) = unlines ["{", concatMap (prettyStmt (n + 1) . Just) ss, "}"]
+prettyBlock n (Multiple ss) = let space = insertTab n in unlines [space ++ "{", concatMap (prettyStmt (n + 1) . Just) ss, space ++ "}"]
+
+-- toString in console
+prettyBlockIO :: Block -> IO String
+prettyBlockIO = pure . prettyBlock 0
 
 
 -- | Flatten all expressions contained in a block.
@@ -213,11 +218,15 @@ prettySwitchCase n (Case e b)
         space ++ "{", prettyBlock (n + 1) (fromMaybe (error "this is impossible") b), space ++ "}"]
     where
         space :: String
-        space = insertSpace n
+        space = insertTab n
 prettySwitchCase n (Default b) = unlines [space ++ "default: ", space ++ "{", prettyBlock (n + 1) b, space ++ "}"]
     where
         space :: String
-        space = insertSpace n
+        space = insertTab n
+
+-- toString in console
+prettySwitchCaseIO :: SwitchCase -> IO String
+prettySwitchCaseIO = pure . prettySwitchCase 0
 
 
 -- | Extract all expressions from a switch case.
@@ -249,42 +258,43 @@ prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
 -- if 
-prettyStmt n (Just (If expr Nothing Nothing)) = concat [insertSpace n, "if (", prettyExpr 0 (Just expr), "); else;\n"]
+prettyStmt n (Just (If expr Nothing Nothing)) = concat [insertTab n, "if (", prettyExpr 0 (Just expr), ");\n"]
 prettyStmt n (Just (If expr (Just b) Nothing)) = let
     body = prettyBlock n b
-    space = insertSpace n in
-    unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body, space ++ "else;"]
-
+    space = insertTab n in
+    unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body]
 prettyStmt n (Just (If expr Nothing (Just b))) = let
     body = prettyBlock n b
-    space = insertSpace n in
-    unlines [concat [insertSpace n, "if (", prettyExpr 0 (Just expr), ");"], space ++ "else", body]
-
+    space = insertTab n in
+    unlines [concat [insertTab n, "if (", prettyExpr 0 (Just expr), ");"], space ++ "else", body]
 prettyStmt n (Just (If expr (Just a) (Just b))) = let
     (body1, body2) = (prettyBlock n a, prettyBlock n b)
-    space = insertSpace n in 
+    space = insertTab n in 
     unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body1, space ++ "else", body2]
 
+-- for loop
 prettyStmt n (Just (For (s1, s2, s3) Nothing)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
-    concat [insertSpace n, "for(", s, ");\n"]
+    concat [insertTab n, "for(", s, ");\n"]
 prettyStmt n (Just (For (s1, s2, s3) (Just b))) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
-    unlines [insertSpace n ++ "for(", s, ");", prettyBlock n b]
+    unlines [concat [insertTab n, "for(", s, ")"], prettyBlock n b]
 
 -- while
-prettyStmt n (Just (While e Nothing)) = concat [insertSpace n, "while(", prettyExpr 0 (Just e), ");\n"]
-prettyStmt n (Just (While e (Just b))) = unlines [concat [insertSpace n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+prettyStmt n (Just (While e Nothing)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
+prettyStmt n (Just (While e (Just b))) = unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
 
 -- dowhile
-prettyStmt n (Just (DoWhile Nothing e)) = let space = insertSpace n in
+prettyStmt n (Just (DoWhile Nothing e)) = let space = insertTab n in
     unlines [space ++ "do", concat [space, "while(", prettyExpr 0 (Just e), ")"]]
 
-prettyStmt n (Just (DoWhile (Just b) e)) = let space = insertSpace n in
-    unlines [space ++ "do",  concat [space, "while(", prettyExpr 0 (Just e), ")", prettyBlock n b]]
+prettyStmt n (Just (DoWhile (Just b) e)) = let space = insertTab n in
+    unlines [space ++ "do",  concat [space, prettyBlock n b, "while(", prettyExpr 0 (Just e), ")"]]
 
 
-prettyStmt n (Just (Switch e xs)) = let space = insertSpace n in unlines
+prettyStmt n (Just (Switch e xs)) = let space = insertTab n in unlines
     [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs,space ++ "}" ]
 
+prettyStmtIO :: Maybe Statement -> IO String
+prettyStmtIO = pure . prettyStmt 0
 
 
 -- | Flatten all expressions contained in a statement.
@@ -306,8 +316,17 @@ type Program = ([String], [Statement])
 
 
 -- better toString value for program
-prettyProgram :: Program -> String
-prettyProgram (_, ss) = concatMap (prettyStmt 0 . Just) ss
+prettyProgram :: Program -> IO String
+prettyProgram = pure . mergeNewlines . concatMap (prettyStmt 0 . Just) . snd
+    where
+        mergeNewlines :: String -> String
+        mergeNewlines = go False
+            where
+                go :: Bool -> String -> String
+                go _ [] = []
+                go prevNL (c:cs)
+                    | c == '\n' = if prevNL then go True cs else '\n' : go True cs
+                    | otherwise = c : go False cs
 
 
 -- | Flatten all programs contained in a statement.

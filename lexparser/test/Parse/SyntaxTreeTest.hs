@@ -199,51 +199,144 @@ prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, ou
 
 
 prettyBlockTests :: TestTree
-prettyBlockTests =
-  testGroup "Parse.SyntaxTree.prettyBlock" $
-    map (\(i, n, inp, out) -> testCase i $ prettyBlock n inp @=? out)
-    [
+prettyBlockTests = testGroup "Parse.SyntaxTree.prettyBlock" $ map (\(i, n, inp, out) ->
+    testCase i $ prettyBlock n inp @=? out) [
+    ("0", 0, Multiple [], "{\n\n}\n"),
+    ("1", 0, Multiple [Expr (Variable "a" dummyTok)], "{\n    a\n\n}\n"),
+    ("2", 0, Multiple [Expr (Variable "a" dummyTok), Expr (IntConst "1" dummyTok)], "{\n    a\n    1\n\n}\n"),
+    ("3", 0, Multiple [BlockStmt
+        (Multiple
+            [Expr (Variable "x" dummyTok)])], "{\n    {\n        x\n\n    }\n\n}\n")]
+    where
+        dummyTok :: Token
+        dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
 
-      -- 0) 空 block
-      ("0", 0,
-        Multiple [],
-        unlines ["{", "", "}"]
-      ),
 
-      -- 1) 单条语句
-      ("1", 0,
-        Multiple [Expr (IntConst "1" (mkNumD "1"))],
-        unlines
-          [ "{"
-          , prettyStmt 1 (Just (Expr (IntConst "1" (mkNumD "1"))))
-          , "}"
-          ]
-      ),
+prettyStmtTests :: TestTree
+prettyStmtTests = testGroup "Parse.SyntaxTree.prettyStmt" $ map (\(i, n, inp, out) ->
+    testCase i $ prettyStmt n inp @=? out) [
+    ("0", 0, Nothing, "\n"),
+    ("1", 0, Just (Expr (Variable "a" dummyTok)), "a\n"),
+    ("2", 0, Just (BlockStmt (Multiple [])), "{\n\n}\n"),
+    ("3", 0, Just (If (Variable "a" dummyTok) Nothing Nothing), "if (a);\n"),
+    ("4 while with block", 0, Just
+        (While
+            (Variable "a" dummyTok)
+            (Just (Multiple []))),
+        "while(a)\n{\n\n}\n\n")]
+  where
+    dummyTok :: Token
+    dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
 
-      -- 2) 多条语句
-      ("2", 0,
-        Multiple
-          [ Expr (IntConst "1" (mkNumD "1"))
-          , Expr (BoolConst True (mkIdD "true"))
-          ],
-        unlines
-          [ "{"
-          , prettyStmt 1 (Just (Expr (IntConst "1" (mkNumD "1"))))
-            ++ prettyStmt 1 (Just (Expr (BoolConst True (mkIdD "true"))))
-          , "}"
-          ]
-      ),
 
-      -- 3) 非零缩进层级
-      ("3", 2,
-        Multiple [Expr (Variable "x" (mkIdD "x"))],
-        unlines
-          [ "{"
-          , prettyStmt 3 (Just (Expr (Variable "x" (mkIdD "x"))))
-          , "}"
-          ]
-      )
-    ]
+prettyProgmTests :: TestTree
+prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out) ->
+    testCase i $ do
+            got <- prettyProgram inp
+            got @=? out) [
+    ("0" , ([], []), ""),
+    ("1", (["java.lang.Math"], [
+        Expr (Variable "a" dummyTok),
+        Expr (Binary Add (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok)]),
+        unlines ["a", "a+1"]),
+        
+    ("2", ([], [
+        BlockStmt (Multiple [
+            Expr (Variable "x" dummyTok),
+            Expr (Binary Mul (Variable "x" dummyTok) (IntConst "2" dummyTok) dummyTok)])]),
+            
+        unlines[
+            "{",
+            "    x",
+            "    x*2",
+            "}"]),
+            
+    ("3", ([], [
+        If (Binary GreaterThan (Variable "a" dummyTok) (IntConst "0" dummyTok) dummyTok)
+            (Just (Multiple [
+                Expr (Variable "pos" dummyTok),
+                Expr (Command (Return (Just (IntConst "1" dummyTok))) dummyTok)]))
+            (Just (Multiple [
+                Expr (Variable "neg" dummyTok),
+                Expr (Command (Return (Just (IntConst "0" dummyTok))) dummyTok)]))]),
+                
+        unlines [
+            "if (a>0)",
+            "{",
+            "    pos",
+            "    return 1",
+            "}",
+            "else",
+            "{",
+            "    neg",
+            "    return 0",
+            "}"]),
+            
+    ("4", ([], [
+        While (Binary NotEqual (Variable "x" dummyTok) (IntConst "0" dummyTok) dummyTok)
+            (Just (Multiple
+                [Expr (Binary Sub (Variable "x" dummyTok) (IntConst "1" dummyTok) dummyTok),
+                    BlockStmt (Multiple [
+                        Expr (Variable "inner" dummyTok),
+                        Expr (Command Continue dummyTok)])]))]),
+        unlines [
+            "while(x!=0)",
+            "{",
+            "    x-1",
+            "    {",
+            "        inner",
+            "        continue",
+            "    }",
+            "}"]),
+            
+    ("5", ([], [
+        DoWhile (Just (Multiple [
+            Expr (Variable "tick" dummyTok),
+            Expr (Command Break dummyTok)]))
+            (Binary LessThan (Variable "t" dummyTok) (IntConst "100" dummyTok) dummyTok)]),
+        
+        unlines [
+            "do",
+            "{",
+            "    tick",
+            "    break",
+            "}",
+            "while(t<100)"]),
+            
+    ("6", ([], [
+        For (Just (Binary Assign (Variable "i" dummyTok) (IntConst "0" dummyTok) dummyTok),
+             Just (Binary LessThan (Variable "i" dummyTok) (IntConst "10" dummyTok) dummyTok),
+             Just (Unary SelfInc (Variable "i" dummyTok) dummyTok))
+                (Just (Multiple [
+                    Expr (Binary Add (Variable "sum" dummyTok) (Variable "i" dummyTok) dummyTok)]))]),
+        
+        unlines [
+            "for(i=0;i<10;++i)",
+            "{",
+            "    sum+i",
+            "}"]),
+            
+
+    ("7", (["a","b","c"], [
+        Expr (Binary Assign (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok),
+            If (Binary Equal (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok)
+                (Just (Multiple [
+                    Expr (Binary Assign (Variable "b" dummyTok) (IntConst "2" dummyTok) dummyTok),
+                    Expr (Binary Add (Variable "a" dummyTok) (Variable "b" dummyTok) dummyTok)]))
+                Nothing,
+                Expr (Command (Return (Just (Variable "a" dummyTok))) dummyTok)]),
+        unlines [
+            "a=1",
+            "if (a==1)",
+            "{",
+            "    b=2",
+            "    a+b",
+            "}",
+            "return a"])]
+    where
+        dummyTok :: Token
+        dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
+
 
 
 
@@ -253,4 +346,4 @@ tests = testGroup "Parse.SyntaxTree" [
     getErrorProgramTests, toClassTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
     exprTokTests,
     
-    prettyExprTests]
+    prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests]

@@ -139,3 +139,12 @@ isLongDouble = match longDoubleLitReg
 --
 insertSpace :: Int -> String
 insertSpace = (`replicate` ' ')
+
+
+-- | Generate a string consisting of a given number of tabs (1 tab = 4 space).
+--
+--   This function takes an integer @n@ and returns a string
+--   containing exactly @n@ space characters.
+--
+insertTab :: Int -> String
+insertTab = insertSpace . (4*)
