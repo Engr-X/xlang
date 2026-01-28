@@ -54,9 +54,11 @@ import qualified Util.Exception as UE
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
-    '.'                 { t@(Lex.Symbol Lex.Dot _) }
+    
     ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
+    ','                 { t@(Lex.Symbol Lex.Comma _) }
     ':'                 { t@(Lex.Symbol Lex.Colon _) }
+    '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 %right '='
 %left '!=' '=='

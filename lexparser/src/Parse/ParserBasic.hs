@@ -16,7 +16,7 @@ import qualified Util.Exception as UE
 -- A single segment is treated as a Variable; otherwise Qualified.
 qnameToExpr :: ([String], [Token]) -> Expression
 qnameToExpr ([x], [t]) = Variable x t
-qnameToExpr (xs, ts) = Qualified xs ts
+qnameToExpr (xs, ts) = Qualified (reverse xs) (reverse ts)
 
 
 --  Choose a token to anchor diagnostics.

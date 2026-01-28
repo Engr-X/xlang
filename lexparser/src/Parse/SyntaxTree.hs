@@ -17,7 +17,7 @@ data Class =
     Float32T | Float64T | Float128T |
     Bool | Char | 
     Array Class Int |
-    Class String
+    Class [String]
     deriving (Eq, Show)
 
 
@@ -33,7 +33,7 @@ prettyClass Float128T = "float128"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
 prettyClass (Array c _) = "Array<" ++ prettyClass c ++ ">"
-prettyClass (Class s) = s
+prettyClass (Class ss) = intercalate "." ss
 
 
 -- | Control-flow commands that can appear as expressions.
@@ -146,20 +146,22 @@ data Expression =
     | Variable String Token
     | Qualified [String] [Token] -- eg: java.lang.math.PI
 
-    | Cast Class Expression Token
+    -- this. expr must be Qualified of Variable
+    | Cast (Class, [Token]) Expression Token
     | Unary Operator Expression Token
     | Binary Operator Expression Expression Token
+    | Call [String] [Expression] [Token]
     deriving (Eq, Show)
 
 
 -- | toString in human version
 prettyExpr :: Int -> Maybe Expression -> String
-prettyExpr n (Just (Command c _)) = prettyCmd n c
 prettyExpr n me = insertTab n ++ prettyExpr' me
     where
         prettyExpr' :: Maybe Expression -> String
         prettyExpr' Nothing = ""
         prettyExpr' (Just (Error t why)) = "error at: " ++ show t ++ " " ++ why
+        prettyExpr' (Just (Command c _)) = prettyCmd 0 c
         prettyExpr' (Just (IntConst s _)) = s
         prettyExpr' (Just (LongConst s _)) = s
         prettyExpr' (Just (FloatConst s _)) = s
@@ -170,10 +172,21 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
         prettyExpr' (Just (BoolConst b _)) = if b then "true" else "false"
         prettyExpr' (Just (Variable s _)) = s
         prettyExpr' (Just (Qualified ss _)) = intercalate "." ss
-        prettyExpr' (Just (Cast c e _)) = '(': prettyClass c ++ (")(" ++ prettyExpr' (Just e) ++ ")")
+        prettyExpr' (Just (Cast (c, _) e _)) = '(': prettyClass c ++ (")(" ++ prettyExpr' (Just e) ++ ")")
         prettyExpr' (Just (Unary o e _)) = prettyOp o ++ prettyExpr' (Just e)
         prettyExpr' (Just (Binary o e1 e2 _)) = prettyExpr' (Just e1) ++ prettyOp o ++ prettyExpr' (Just e2)
-        prettyExpr' _ = error "why? baby why?"
+        prettyExpr' (Just (Call fname exprs _)) = concat [concat fname, "(", intercalate ", " (map (prettyExpr' . Just) exprs), ")"]
+
+
+-- | Flatten all expressions contained in a expr.
+--   Useful for traversal, analysis, or validation passes.
+flattenExpr :: Maybe Expression -> [Expression]
+flattenExpr Nothing = []
+flattenExpr (Just fatherE@(Cast _ e2 _)) = [fatherE, e2]
+flattenExpr (Just fatherE@(Unary _ e _)) = [fatherE, e]
+flattenExpr (Just fatherE@(Binary _ e1 e2 _)) = [fatherE, e1, e2]
+flattenExpr (Just fatherE@(Call _ es _)) = fatherE : concatMap (flattenExpr . Just) es
+flattenExpr (Just e) = [e]
 
 
 -- | Check whether an expression represents a syntax or semantic error.
@@ -301,7 +314,7 @@ prettyStmtIO = pure . prettyStmt 0
 --   Recursively traverses nested blocks and control structures.
 flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
-flattenStatement (Just (Expr e)) = [e]
+flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c)) = e : (flattenBlock b ++ flattenBlock c)
 flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
@@ -356,8 +369,9 @@ getErrorProgram = filter isErrExpr . flattenProgram
 
 -- | Convert a type name into its corresponding Class.
 --   Unknown names are treated as user-defined classes.
-toClass :: String -> Class
-toClass k = fromMaybe (Class k) $ Map.lookup k classesMap
+toClass :: [String] -> Class
+toClass [s] = fromMaybe (Class [s]) $ Map.lookup s classesMap
+toClass ss = Class ss
 
 
 -- Check a expresson is a variable or not
@@ -391,20 +405,21 @@ strVal (Lex.StrConst s _) = s
 strVal _ = error "strVal: expected StrConst token"
 
 
--- Choose an anchor token for diagnostics.
-exprTok :: Expression -> Token
-exprTok (Error t _) = t
-exprTok (Command _ t) = t
-exprTok (IntConst _ t) = t
-exprTok (LongConst _ t) = t
-exprTok (FloatConst _ t) = t
-exprTok (DoubleConst _ t) = t
-exprTok (LongDoubleConst _ t) = t
-exprTok (CharConst _ t) = t
-exprTok (StringConst _ t) = t
-exprTok (BoolConst _ t) = t
-exprTok (Variable _ t) = t
-exprTok (Qualified _ ts) = last ts
-exprTok (Cast _ _ t) = t
-exprTok (Unary _ _ t) = t
-exprTok (Binary _ _ _ t) = t
+{--- Choose an anchor token for diagnostics.
+exprTok :: Expression -> [Token]
+exprTok (Error t _) = [t]
+exprTok (Command _ t) = [t]
+exprTok (IntConst _ t) = [t]
+exprTok (LongConst _ t) = [t]
+exprTok (FloatConst _ t) = [t]
+exprTok (DoubleConst _ t) = [t]
+exprTok (LongDoubleConst _ t) = [t]
+exprTok (CharConst _ t) = [t]
+exprTok (StringConst _ t) = [t]
+exprTok (BoolConst _ t) = [t]
+exprTok (Variable _ t) = [t]
+exprTok (Qualified _ ts) = ts
+exprTok (Cast (_) (_, t)) = [t]
+exprTok (Unary _ _ t) = [t]
+exprTok (Binary _ _ _ t) = [t]
+exprTok (Call _ _ ts) = ts-}

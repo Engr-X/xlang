@@ -16,8 +16,8 @@ qnameToExprTests :: TestTree
 qnameToExprTests = testGroup "Parse.ParserBasic.qnameToExpr" $ map (\(n, xs, ts, e) -> testCase n $ qnameToExpr (xs, ts) @=? e) [
     ("0", ["x"], [tokX], Variable "x" tokX),
     ("1", [""], [tokEmpty], Variable "" tokEmpty),
-    ("2" , ["A", "B"], [tokA, tokB], Qualified ["A", "B"] [tokA, tokB]),
-    ("3 qualified 3", ["A", "B", "C"], [tokA, tokB, tokC], Qualified ["A", "B", "C"] [tokA, tokB, tokC])]
+    ("2" , reverse ["A", "B"], reverse [tokA, tokB], Qualified ["A", "B"] [tokA, tokB]),
+    ("3", reverse ["A", "B", "C"], reverse [tokA, tokB, tokC], Qualified ["A", "B", "C"] [tokA, tokB, tokC])]
     where
         tokX, tokEmpty, tokA, tokB, tokC :: Token
         tokX     = Lex.Ident "x"     (makePosition 1 1 1)
