@@ -120,7 +120,7 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
                 "    x = x + 2"
             ],
             Left [Parsing $ makeError 
-                "stdin" (makePosition 3 5 1) "Parse error near: Ident \"x\" (3,5,1)"
+                "stdin" [makePosition 3 5 1] "invalid syntax: Ident \"x\" (3,5,1)"
             ]),
 
 

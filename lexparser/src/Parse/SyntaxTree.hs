@@ -131,9 +131,7 @@ prettyOp k = fromMaybe (error "cannot find the error") (Map.lookup k operatorTex
 -- | Abstract syntax tree for expressions.
 --   Covers literals, variables, casts, unary/binary operations, and errors.
 data Expression = 
-    Error Token String
-    | Command Command Token
-    
+    Error [Token] String
     | IntConst String Token
     | LongConst String Token
     | FloatConst String Token
@@ -161,7 +159,7 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
         prettyExpr' :: Maybe Expression -> String
         prettyExpr' Nothing = ""
         prettyExpr' (Just (Error t why)) = "error at: " ++ show t ++ " " ++ why
-        prettyExpr' (Just (Command c _)) = prettyCmd 0 c
+       -- prettyExpr' (Just (Command c _)) = prettyCmd 0 c
         prettyExpr' (Just (IntConst s _)) = s
         prettyExpr' (Just (LongConst s _)) = s
         prettyExpr' (Just (FloatConst s _)) = s
@@ -254,6 +252,7 @@ flattenCase (Just (Default b)) = flattenBlock (Just b)
 -- | Abstract syntax tree for statements.
 --   Supports control flow constructs and expression statements.
 data Statement = 
+    Command Command Token |
     Expr Expression |
     BlockStmt Block |
     If Expression (Maybe Block) (Maybe Block) | -- if else
@@ -267,6 +266,7 @@ data Statement =
 -- beter toString for string instance
 prettyStmt :: Int -> Maybe Statement -> String
 prettyStmt _ Nothing = "\n"
+prettyStmt n (Just (Command c _)) = prettyCmd n c
 prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
@@ -322,6 +322,7 @@ prettyStmtIO = pure . prettyStmt 0
 --   Recursively traverses nested blocks and control structures.
 flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
+flattenStatement (Just (Command _ _)) = []
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c)) = e : (flattenBlock b ++ flattenBlock c)

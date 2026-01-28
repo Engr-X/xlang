@@ -18,7 +18,7 @@ import qualified Data.Text.Lazy.Encoding as DTL
 -- This structure records:
 --
 --   * 'filePath'       — the source file where the error occurred
---   * 'startPosition' — the line/column position of the error
+--   * 'positions' — the line/column position of the error
 --   * 'index'         — the absolute character index in the source
 --
 -- It is designed to be embedded inside higher-level error types.
@@ -28,7 +28,7 @@ data BasicError = BasicError {
     filePath :: Path,
 
     -- | Line and column position of the error.
-    startPosition :: Position,
+    positions :: [Position],
  
     -- | What the hell is going on?
     why :: String
@@ -36,8 +36,8 @@ data BasicError = BasicError {
 
 
 -- | Construct a 'BasicError' given the file path, position, and reason.
-makeError :: Path -> Position -> String -> BasicError
-makeError path pos reason = BasicError {filePath = path, startPosition = pos, why = reason}
+makeError :: Path -> [Position] -> String -> BasicError
+makeError path pos reason = BasicError {filePath = path, positions = pos, why = reason}
 
 
 internalErrorMsg :: String
@@ -92,7 +92,7 @@ expectedExpression pos s
 -- This structure records:
 --
 --   * 'filePath'       — the source file where the warning occurred
---   * 'startPosition' — the line/column position of the warning
+--   * 'positions' — the line/column position of the warning
 --   * 'index'         — the absolute character index in the source
 --
 -- It is designed to be embedded inside higher-level error types.

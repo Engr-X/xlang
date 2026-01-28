@@ -7,9 +7,11 @@ import Lex.Token (Token, tokenPos)
 import Parse.ParserBasic
 import Parse.SyntaxTree
 import Util.Type
+import Util.Exception (expectedExpression)
 
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
+import qualified Parse.SyntaxTree as AST
 
 
 qnameToExprTests :: TestTree
@@ -41,19 +43,19 @@ nearestTokTests = testGroup "Parse.ParserBasic.nearestTok" $ map (\(n, ts, e) ->
 
 mkHappyErrorExprTests :: TestTree
 mkHappyErrorExprTests = testGroup "Parse.ParserBasic.mkHappyErrorExpr" $ map (\(n, ts, e) -> testCase n $ mkHappyErrorExpr ts @=? e) [
-    ("0", [], let t = Lex.EOF (makePosition 0 0 0) in Error t ("Parse error near: " ++ show t)),
+    ("0", [], let t = Lex.EOF (makePosition 0 0 0) in Error [t] ("invalid syntax: " ++ show t)),
     ("1", [
-        Lex.Ident "x" (makePosition 1 1 1)], let t = Lex.Ident "x" (makePosition 1 1 1) in Error t ("Parse error near: " ++ show t)),
+        Lex.Ident "x" (makePosition 1 1 1)], let t = Lex.Ident "x" (makePosition 1 1 1) in Error [t] ("invalid syntax: " ++ show t)),
         
     ("2", [
         Lex.Symbol Lex.RBracket (makePosition 2 9 1), Lex.Ident "y" (makePosition 2 10 1)],
-        let t = Lex.Symbol Lex.RBracket (makePosition 2 9 1) in Error t ("Parse error near: " ++ show t)), 
+        let t = Lex.Symbol Lex.RBracket (makePosition 2 9 1) in Error [t] ("invalid syntax: " ++ show t)), 
     
     ("3 head is NL", [
         Lex.NewLine (makePosition 5 3 1)],
         
         let t = Lex.NewLine (makePosition 5 3 1)
-        in Error t ("Parse error near: " ++ show t))]
+        in Error [t] ("invalid syntax: " ++ show t))]
 
 
 checkBracketTests :: TestTree
@@ -80,20 +82,20 @@ toExceptionTests :: TestTree
 toExceptionTests = testGroup "toException" $ map (\(i, expr, expected) ->
     testCase i $ toException "stdin" expr @=? expected) [
     ("0",
-        Error tokBad "boom",
-        UE.Parsing (UE.makeError "stdin" (tokenPos tokBad) "boom")),
+        Error [tokBad] "boom",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokBad] "boom")),
         
     ("1",
-        Error tokPlus "bad plus",
-        UE.Parsing (UE.makeError "stdin" (tokenPos tokPlus) "bad plus")),
+        Error [tokPlus] "bad plus",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokPlus] "bad plus")),
         
     ("2",
-        Error tokNum "bad number",
-        UE.Parsing (UE.makeError "stdin" (tokenPos tokNum) "bad number")),
+        Error [tokNum] "bad number",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokNum] "bad number")),
         
     ("3",
-        Error tokId "bad ident",
-        UE.Parsing (UE.makeError "stdin" (tokenPos tokId) "bad ident"))]
+        Error [tokId] "bad ident",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokId] "bad ident"))]
     where
         tokBad, tokNum, tokId, tokPlus :: Token
         tokBad  = Lex.Symbol Lex.RBrace (makePosition 1 4 1)
@@ -155,6 +157,19 @@ stmtToBlockTests = testGroup "Parse.ParserBasic.stmtToBlock" $
         mkId s a b c = Lex.Ident s $ makePosition a b c
 
 
+stmtToExprTests :: TestTree
+stmtToExprTests = testGroup "Parse.ParserBasic.stmtToExpr" $ map (\(name, _, stmt, expected) ->
+    testCase name $ stmtToExpr tok stmt @=? expected) [
+        ("0", tok, Expr expr, expr),
+        ("1", tok, BlockStmt (Multiple []), Error [tok] (expectedExpression 1 $ show tok)),
+        ("If statement produces error expression", tok, If (BoolConst True tok) Nothing Nothing, Error [tok] (expectedExpression 1 $ show tok)),
+        ("While statement produces error expression", tok, While (BoolConst True tok) Nothing Nothing, Error [tok] (expectedExpression 1 $ show tok))]
+    where
+        tok  = Lex.Ident "x" (makePosition 1 1 1)
+        expr = AST.IntConst "42" tok
+
+
+
 tests :: TestTree
 tests = testGroup "Parse.ParserBasic" [
-    qnameToExprTests, nearestTokTests, mkHappyErrorExprTests, classifyNumberTests, toExceptionTests, stmtToBlockTests]
+    qnameToExprTests, nearestTokTests, mkHappyErrorExprTests, classifyNumberTests, toExceptionTests, stmtToBlockTests, stmtToExprTests]

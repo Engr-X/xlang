@@ -15,13 +15,13 @@ Atom :: { Expression }
 
     -- unary operators
     | '!' Atom %prec '!'        { Unary BitNot $2 $1 }
-    | '!' error %prec '!'       { Error $1 (expectedExpression 1 "!") }
+    | '!' error %prec '!'       { Error [$1] (expectedExpression 1 "!") }
 
     | '+' Atom %prec UPLUS      { Unary UnaryPlus $2 $1}
-    | '+' error %prec UPLUS     { Error $1 (expectedExpression 1 "+")}
+    | '+' error %prec UPLUS     { Error [$1] (expectedExpression 1 "+")}
 
     | '-' Atom %prec UMINUS     { Unary UnaryMinus $2 $1}
-    | '-' error %prec UMINUS    { Error $1 (expectedExpression 1 "-") }
+    | '-' error %prec UMINUS    { Error [$1] (expectedExpression 1 "-") }
 
     -- parenthesized expression
     | '(' Expr ')'              { $2 }
@@ -30,7 +30,7 @@ Atom :: { Expression }
     | QName                     { qnameToExpr $1 }
 
     -- literals
-    | number                    { fromMaybe (Error $1 "classifyNumber failed") (classifyNumber (numText $1) $1) }
+    | number                    { fromMaybe (Error [$1] "classifyNumber failed") (classifyNumber (numText $1) $1) }
     | character                 { CharConst (charVal $1) $1 }
     | string                    { StringConst (strVal $1) $1 }
     ;
@@ -47,42 +47,42 @@ Postfix :: { Expression }
 
     -- cast
     | Postfix KW_AS QName       { Cast (toClass (fst $3), snd $3) $1 $2 }
-    | Postfix KW_AS error       { Error $2 (expectedExpression 0 "as") }
+    | Postfix KW_AS error       { Error [$2] (expectedExpression 0 "as") }
     ;
 
 
 Expr :: { Expression }
-    : LValue '=' Expr           { if isVariable $1 then Binary Assign $1 $3 $2 else Error $2 assignErrorMsg }
-    | LValue '=' error          { Error $2 (expectedExpression 1 "=") }
+    : LValue '=' Expr           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
+    | LValue '=' error          { Error [$2] (expectedExpression 1 "=") }
 
     | QName '(' ')'             { let (ss, ts) = $1 in Call (reverse ss) [] (reverse ts) }
     | QName '(' Arguments ')'   { let (ss, ts) = $1 in Call (reverse ss) $3 (reverse ts) }
 
     -- 
     | Expr '==' Expr            { Binary Equal $1 $3 $2}
-    | Expr '==' error           { Error $2 (expectedExpression 1 "==") }
+    | Expr '==' error           { Error [$2] (expectedExpression 1 "==") }
 
     | Expr '!=' Expr            { Binary NotEqual $1 $3 $2}
-    | Expr '!=' error           { Error $2 (expectedExpression 1 "!=") }
+    | Expr '!=' error           { Error [$2] (expectedExpression 1 "!=") }
 
     | Expr '>' Expr             { Binary GreaterThan $1 $3 $2}
-    | Expr '>' error            { Error $2 (expectedExpression 1 ">") }
+    | Expr '>' error            { Error [$2] (expectedExpression 1 ">") }
 
     | Expr '<' Expr             { Binary LessThan $1 $3 $2}
-    | Expr '<' error            { Error $2 (expectedExpression 1 "<") }
+    | Expr '<' error            { Error [$2] (expectedExpression 1 "<") }
 
     --
     | Expr '+' Expr             { Binary Add $1 $3 $2}
-    | Expr '+' error            { Error $2 (expectedExpression 1 "+") }
+    | Expr '+' error            { Error [$2] (expectedExpression 1 "+") }
 
     | Expr '-' Expr             { Binary Sub $1 $3 $2}
-    | Expr '-' error            { Error $2 (expectedExpression 1 "-") }
+    | Expr '-' error            { Error [$2] (expectedExpression 1 "-") }
 
     | Expr '*' Expr             { Binary Mul $1 $3 $2}
-    | Expr '*' error            { Error $2 (expectedExpression 1 "*") }
+    | Expr '*' error            { Error [$2] (expectedExpression 1 "*") }
 
     | Expr '/' Expr             { Binary Div $1 $3 $2}
-    | Expr '/' error            { Error $2 (expectedExpression 1 "/") }
+    | Expr '/' error            { Error [$2] (expectedExpression 1 "/") }
 
     | Postfix                   { $1 }
     ;

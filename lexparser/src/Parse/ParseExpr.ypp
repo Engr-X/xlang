@@ -23,6 +23,7 @@ import qualified Util.Exception as UE
     EOF                 { t@(Lex.EOF _) }
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
+
     KW_AS               { t@(Lex.Ident "as" _) }
 
     identity            { t@(Lex.Ident _ _) }

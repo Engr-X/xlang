@@ -466,7 +466,7 @@ collectTokens = loop []
 -- | Convert an error token into a structured 'ErrorKind'.
 -- Assumes the token is an 'Error'.
 convertErrToken :: Path -> Token -> ErrorKind
-convertErrToken p (Error why pos) = UE.Lexer $ UE.makeError p pos why
+convertErrToken p (Error why pos) = UE.Lexer $ UE.makeError p [pos] why
 convertErrToken _ _ = error "what the hell is going on???"
 
 

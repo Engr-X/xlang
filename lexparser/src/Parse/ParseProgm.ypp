@@ -24,12 +24,17 @@ import qualified Util.Exception as UE
     -- keywords (Ident)
     EOF                 { t@(Lex.EOF _) }
     NL                  { t@(Lex.NewLine _) }
+    
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
+
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
     KW_WHILE            { t@(Lex.Ident "while" _) }
+    KW_BREAK            { t@(Lex.Ident "break" _) }
+    KW_CONTINUE         { t@(Lex.Ident "continue" _) }
+    KW_RETURN           { t@(Lex.Ident "return" _) }
 
    
     identity            { t@(Lex.Ident _ _) }

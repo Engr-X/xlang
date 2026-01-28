@@ -5,7 +5,7 @@ import Data.List (find)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
 import Parse.SyntaxTree
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
-import Util.Exception (ErrorKind)
+import Util.Exception (ErrorKind, expectedExpression)
 import Util.Type (Path, makePosition)
 
 import qualified Lex.Token as Lex
@@ -26,7 +26,7 @@ nearestTok = fromMaybe (Lex.EOF (makePosition 0 0 0)) . listToMaybe
 
 -- Canonical fatal parse error expression.
 mkHappyErrorExpr :: [Token] -> Expression
-mkHappyErrorExpr ts = let t = nearestTok ts in Error t ("Parse error near: " ++ show t)
+mkHappyErrorExpr ts = let t = nearestTok ts in Error [t] ("invalid syntax: " ++ show t)
 
 
 -- | Check for mismatched or unbalanced brackets in the token stream.
@@ -70,8 +70,9 @@ classifyNumber s t = let xs = [(IntConst, isInt),
                     in (\(ctor, _) -> ctor s t) <$> find (\(_, p) -> p s) xs
 
 
+-- error from parser to a real catchable error
 toException :: Path -> Expression -> ErrorKind
-toException p (Error t why) = UE.Parsing $ UE.makeError p (tokenPos t) why
+toException p (Error ts why) = UE.Parsing $ UE.makeError p (map tokenPos ts) why
 toException _ _  = error "Expected an Error expression."
 
 
@@ -80,3 +81,9 @@ toException _ _  = error "Expected an Error expression."
 stmtToBlock :: Statement -> Block
 stmtToBlock (BlockStmt b) = b
 stmtToBlock s = Multiple [s]
+
+
+-- Convert a statement into a expression.
+stmtToExpr :: Token -> Statement -> Expression
+stmtToExpr _ (Expr e) = e
+stmtToExpr t _ = Error [t] (expectedExpression 1 $ show t)

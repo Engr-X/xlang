@@ -147,7 +147,7 @@ getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, 
         dummyTok str = Lex.Ident str (makePosition 1 1 (length str))
 
         makeError :: String -> Expression
-        makeError s = Error (dummyTok s) "why?"
+        makeError s = Error [dummyTok s] "why?"
 
 
 toClassTests :: TestTree
@@ -294,10 +294,10 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
         If (Binary GreaterThan (Variable "a" dummyTok) (IntConst "0" dummyTok) dummyTok)
             (Just (Multiple [
                 Expr (Variable "pos" dummyTok),
-                Expr (Command (Return (Just (IntConst "1" dummyTok))) dummyTok)]))
+                Command (Return (Just (IntConst "1" dummyTok))) dummyTok]))
             (Just (Multiple [
                 Expr (Variable "neg" dummyTok),
-                Expr (Command (Return (Just (IntConst "0" dummyTok))) dummyTok)]))]),
+                Command (Return (Just (IntConst "0" dummyTok))) dummyTok]))]),
                 
         unlines [
             "if (a>0)",
@@ -318,7 +318,7 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
             
             BlockStmt (Multiple [
                     Expr (Variable "inner" dummyTok),
-                    Expr (Command Continue dummyTok)])]))
+                    Command Continue dummyTok])]))
             Nothing]),
         unlines [
             "while(x!=0)",
@@ -333,7 +333,7 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
     ("5", ([], [
         DoWhile (Just (Multiple [
             Expr (Variable "tick" dummyTok),
-            Expr (Command Break dummyTok)]))
+            Command Break dummyTok]))
             (Binary LessThan (Variable "t" dummyTok) (IntConst "100" dummyTok) dummyTok) Nothing]),
         
         unlines [
@@ -365,8 +365,8 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
                     Expr (Binary Assign (Variable "b" dummyTok) (IntConst "2" dummyTok) dummyTok),
                     Expr (Binary Add (Variable "a" dummyTok) (Variable "b" dummyTok) dummyTok)]))
                 Nothing,
-                Expr (Command (Return (Just (Variable "a" dummyTok))) dummyTok)]),
-        unlines [
+                Command (Return (Just (Variable "a" dummyTok))) dummyTok]),
+        init $ unlines [
             "a=1",
             "if (a==1)",
             "{",

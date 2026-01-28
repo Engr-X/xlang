@@ -98,7 +98,7 @@ makeStr :: String -> Int -> Int -> Int -> Token
 makeStr str a b c = StrConst str $ makePosition a b c
 
 makeLexErr :: String -> Int -> Int -> Int -> ErrorKind
-makeLexErr why a b c = UE.Lexer $ UE.makeError path (makePosition a b c) why
+makeLexErr why a b c = UE.Lexer $ UE.makeError path [makePosition a b c] why
 
 makeEOF :: Int -> Int -> Int -> Token
 makeEOF a b c = EOF $ makePosition a b c
