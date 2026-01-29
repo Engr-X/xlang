@@ -379,6 +379,14 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
         dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
 
 
+prettyDeclarationTests :: TestTree
+prettyDeclarationTests = testGroup "Parse.SyntaxTree.prettyDeclaration" $
+    map (\(i, inp, out) -> testCase i $ prettyDeclaration inp @=? out) [
+        ("0", Package [] [], "package "),
+        ("1", Package ["a"] [], "package a"),
+        ("2", Import [] [], "Import "),
+        ("3", Import ["a","b","c"] [], "Import a.b.c")]
+
 
 
 tests :: TestTree
@@ -386,4 +394,4 @@ tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
     getErrorProgramTests, toClassTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
     
-    prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests]
+    prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests]

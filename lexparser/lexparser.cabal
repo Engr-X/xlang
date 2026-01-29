@@ -66,6 +66,7 @@ custom-setup
 extra-source-files:
         src/Parse/GrammarExpr.inc,
         src/Parse/GrammarStmtBlock.inc
+        src/Parse/GrammarDecl.inc
         src/Parse/ParseExpr.ypp,
         src/Parse/ParseStmt.ypp,
         src/Parse/ParseBlock.ypp,
@@ -184,7 +185,8 @@ test-suite lexparser-test
         Parse.ParseStmtTest
         Parse.ParseProgmTest
 
-        Sematic.ContextCheck
+        Semantic.Environment
+        Semantic.ContextCheck
 
         Util.BasicTest
         Util.ExceptionTest

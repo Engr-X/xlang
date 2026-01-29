@@ -1,23 +1,18 @@
-QName2 :: { ([String], [Token]) }
-    : identity              { ([identText $1], [$1]) }
-    | QName2 '.' identity    { let (xs, ts) = $1 in (identText $3 : xs, $3 : ts) }
-    ;
-
 Sep :: { () }
     : ';' { () }
     | NL  { () }
     ;
 
 
-StmtSeqOpt :: { [Statement] }
-    : {- empty -} { [] }
-    | StmtSeq     { $1 }
-    ;
-
-
 StmtSeq :: { [Statement] }
     : Stmt             { [$1] }
     | StmtSeq Stmt     { $1 ++ [$2] }
+    ;
+
+
+StmtSeqOpt :: { [Statement] }
+    : {- empty -} { [] }
+    | StmtSeq     { $1 }
     ;
 
 
@@ -46,8 +41,7 @@ WhileStmt :: { Statement }
 
 -- assembled statement
 Stmt :: { Statement }
-    : KW_IMPORT QName2      { Command (Import $ fst $2) $1 }
-    | KW_CONTINUE           { Command Continue $1 }
+    : KW_CONTINUE           { Command Continue $1 }
     | KW_BREAK              { Command Break $1 }
     | KW_RETURN ';'         { Command (Return Nothing) $1 }
     | KW_RETURN Stmt        { Command (Return (Just $ stmtToExpr $1 $2)) $1 }

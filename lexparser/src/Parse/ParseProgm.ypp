@@ -28,7 +28,9 @@ import qualified Util.Exception as UE
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
 
+    KW_PACKAGE          { t@(Lex.Ident "import" _) }
     KW_IMPORT           { t@(Lex.Ident "import" _) }
+
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
@@ -82,8 +84,12 @@ import qualified Util.Exception as UE
 
 #include "Parse/GrammarStmtBlock.inc"
 #include "Parse/GrammarExpr.inc"
+#include "Parse/GrammarDecl.inc"
 
-ProgramEOF :: { Program } :     StmtSeqOpt EOF { ([], $1) };
+
+ProgramEOF :: { Program }
+    : DeclSeqOpt StmtSeqOpt EOF { ($1, $2) }
+
 
 {
 -- Happy expects a polymorphic error handler.

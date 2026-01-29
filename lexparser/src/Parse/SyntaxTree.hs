@@ -21,7 +21,7 @@ data Class =
     deriving (Eq, Show)
 
 
--- better toString of class instance
+-- Better toString of class instance
 prettyClass :: Class -> String
 prettyClass Int8T = "byte"
 prettyClass Int16T = "short"
@@ -38,8 +38,7 @@ prettyClass (Class ss) = intercalate "." ss
 
 -- | Control-flow commands that can appear as expressions.
 --   Used for statements such as return, break, and continue.
-data Command = Continue | Break | Return (Maybe Expression) |
-    Import [String]
+data Command = Continue | Break | Return (Maybe Expression)
     deriving (Eq, Show)
 
 
@@ -49,7 +48,6 @@ prettyCmd n Continue = insertTab n ++  "continue"
 prettyCmd n Break = insertTab n ++ "break"
 prettyCmd n (Return Nothing) = insertTab n ++ "return;"
 prettyCmd n (Return e) = concat [insertTab n, "return ", prettyExpr 0 e]
-prettyCmd n (Import dirs) = concat [insertTab n, "import ", intercalate "." dirs]
 
 
 -- | Operators grouped by precedence level.
@@ -125,7 +123,7 @@ operatorTextMap = Map.fromList [
     (AddrOf, "&"), (DeRef, "*")]
 
 
--- better toString for op
+-- Better toString for op
 prettyOp :: Operator -> String
 prettyOp k = fromMaybe (error "cannot find the error") (Map.lookup k operatorTextMap)
 
@@ -201,7 +199,7 @@ newtype Block = Multiple [Statement]
     deriving (Eq, Show)
 
 
--- better toString method for block
+-- Better toString method for block
 prettyBlock :: Int -> Block -> String
 prettyBlock n (Multiple ss) = let space = insertTab n in unlines [space ++ "{", concatMap (prettyStmt (n + 1) . Just) ss, space ++ "}"]
 
@@ -334,14 +332,28 @@ flattenStatement (Just (DoWhile b1 e b2)) = e : (flattenBlock b1 ++ flattenBlock
 flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
 
 
+-- | The declaration of a program, especially import and module
+data Declaration = 
+    Package [String] [Token] |
+    Import [String] [Token]
+
+
+-- | Better toString method for declearation
+prettyDeclaration :: Declaration -> String
+prettyDeclaration (Package ss _) = "package " ++ (intercalate "." ss)
+prettyDeclaration (Import ss _) = "Import " ++ (intercalate "." ss)
+
+
 -- | Program representation.
 --   Consists of imported modules and a list of top-level statements.
-type Program = ([String], [Statement])
+type Program = ([Declaration], [Statement])
 
 
--- better toString value for program
+-- | Better toString value for program
 prettyProgram :: Program -> IO String
-prettyProgram = pure . mergeNewlines . concatMap (prettyStmt 0 . Just) . snd
+prettyProgram (header, body) = case map prettyDeclaration header of
+    [] -> (pure . mergeNewlines . concatMap (prettyStmt 0 . Just)) body
+    ss -> pure (unlines ss ++ (mergeNewlines . concatMap (prettyStmt 0 . Just)) body)
     where
         mergeNewlines :: String -> String
         mergeNewlines = go False
