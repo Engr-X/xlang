@@ -15,9 +15,9 @@ import qualified Lex.Token as Lex
 data Class = 
     Int8T | Int16T | Int32T | Int64T |
     Float32T | Float64T | Float128T |
-    Bool | Char | 
+    Bool | Char | Void |
     Array Class Int |
-    Class [String]
+    Class [String] [Class]
     deriving (Eq, Show)
 
 
@@ -30,10 +30,15 @@ prettyClass Int64T = "long"
 prettyClass Float32T = "float"
 prettyClass Float64T = "double"
 prettyClass Float128T = "float128"
+prettyClass Void = "void"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
 prettyClass (Array c _) = "Array<" ++ prettyClass c ++ ">"
-prettyClass (Class ss) = intercalate "." ss
+prettyClass (Class ss args) =
+    let base = intercalate "." ss
+    in case args of
+        [] -> base
+        _  -> concat [base, "<", intercalate ", " (map prettyClass args), ">"]
 
 
 -- | Control-flow commands that can appear as expressions.
@@ -148,7 +153,7 @@ data Expression =
     | Cast (Class, [Token]) Expression Token
     | Unary Operator Expression Token
     | Binary Operator Expression Expression Token
-    | Call [String] [Expression] [Token]
+    | Call Expression (Maybe [(Class, [Token])]) [Expression]
     deriving (Eq, Show)
 
 
@@ -173,7 +178,15 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
         prettyExpr' (Just (Cast (c, _) e _)) = '(': prettyClass c ++ (")(" ++ prettyExpr' (Just e) ++ ")")
         prettyExpr' (Just (Unary o e _)) = prettyOp o ++ prettyExpr' (Just e)
         prettyExpr' (Just (Binary o e1 e2 _)) = prettyExpr' (Just e1) ++ prettyOp o ++ prettyExpr' (Just e2)
-        prettyExpr' (Just (Call fname exprs _)) = concat [concat fname, "(", intercalate ", " (map (prettyExpr' . Just) exprs), ")"]
+        prettyExpr' (Just (Call callee mTypeArgs args)) =
+            let calleeS = prettyExpr' (Just callee)
+                typeArgsS = case mTypeArgs of
+                    Nothing -> ""
+                    Just ts ->
+                        "<" ++ intercalate ", " (map (prettyClass . fst) ts) ++ ">"
+                argsS = intercalate ", " (map (prettyExpr' . Just) args)
+            in calleeS ++ typeArgsS ++ "(" ++ argsS ++ ")"
+
 
 
 -- | Flatten all expressions contained in a expr.
@@ -183,7 +196,7 @@ flattenExpr Nothing = []
 flattenExpr (Just fatherE@(Cast _ e2 _)) = [fatherE, e2]
 flattenExpr (Just fatherE@(Unary _ e _)) = [fatherE, e]
 flattenExpr (Just fatherE@(Binary _ e1 e2 _)) = [fatherE, e1, e2]
-flattenExpr (Just fatherE@(Call _ es _)) = fatherE : concatMap (flattenExpr . Just) es
+flattenExpr (Just fatherE@(Call callee _ args)) = fatherE : flattenExpr (Just callee) ++ concatMap (flattenExpr . Just) args
 flattenExpr (Just e) = [e]
 
 
@@ -259,7 +272,9 @@ data Statement =
     For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
     While Expression (Maybe Block) (Maybe Block) | -- while else
     DoWhile (Maybe Block) Expression (Maybe Block) |
-    Switch Expression [SwitchCase]
+    Switch Expression [SwitchCase] |
+    Function (Class, [Token]) Expression (Maybe [(Class, [Token])]) [(Class, String, [Token])] Block
+    -- function: return_type + pos, name, template params + position, params + position, body
     deriving (Eq, Show)
 
 
@@ -310,9 +325,31 @@ prettyStmt n (Just (DoWhile (Just b1) e (Just b2))) = let space = insertTab n in
         unlines [space ++ "do", concat [space, prettyBlock n b1, "while(", prettyExpr 0 (Just e), ")"],
             space ++ "else", prettyBlock n b2]
 
-
 prettyStmt n (Just (Switch e xs)) = let space = insertTab n in unlines
     [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs,space ++ "}" ]
+
+
+prettyStmt n (Just (Function (retC, _) functionName mGenParams params b)) =
+    let space = insertTab n
+        prettyGen :: Maybe [(Class, [Token])] -> String
+        prettyGen Nothing = ""
+        prettyGen (Just xs) = "<" ++ intercalate ", " (map (prettyClass . fst) xs) ++ ">"
+
+        prettyOneParam :: (Class, String, [Token]) -> String
+        prettyOneParam (c, name, _) = prettyClass c ++ " " ++ name
+
+    in unlines [
+        concat [
+            space,
+            prettyClass retC,
+            " ",
+            prettyExpr 0 (Just functionName),
+            prettyGen mGenParams,
+            "(",
+            intercalate ", " (map prettyOneParam params),
+            ")"],
+        prettyBlock n b]
+
 
 prettyStmtIO :: Maybe Statement -> IO String
 prettyStmtIO = pure . prettyStmt 0
@@ -330,18 +367,25 @@ flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flatten
 flattenStatement (Just (While e b1 b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (DoWhile b1 e b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
+flattenStatement (Just (Function _ _ _ params b)) = concatMap one params ++ flattenBlock (Just b)
+    where
+        one :: (Class, String, [Token]) -> [Expression]
+        one (_, name, toks) = case toks of
+            [] -> []
+            (t:_) -> [Variable name t]
 
 
 -- | The declaration of a program, especially import and module
 data Declaration = 
     Package [String] [Token] |
     Import [String] [Token]
+    deriving (Eq, Show)
 
 
 -- | Better toString method for declearation
 prettyDeclaration :: Declaration -> String
-prettyDeclaration (Package ss _) = "package " ++ (intercalate "." ss)
-prettyDeclaration (Import ss _) = "Import " ++ (intercalate "." ss)
+prettyDeclaration (Package ss _) = "package " ++ intercalate "." ss
+prettyDeclaration (Import ss _) = "Import " ++ intercalate "." ss
 
 
 -- | Program representation.
@@ -381,7 +425,10 @@ classesMap = Map.fromList [
     
     ("float", Float32T), ("float32", Float32T),
     ("double", Float64T), ("float64", Float64T),
-    ("float128", Float128T)]
+    ("float128", Float128T),
+    
+    ("char", Char),
+    ("void", Void)]
 
 
 -- | Extract all error expressions from a program.
@@ -392,9 +439,9 @@ getErrorProgram = filter isErrExpr . flattenProgram
 
 -- | Convert a type name into its corresponding Class.
 --   Unknown names are treated as user-defined classes.
-toClass :: [String] -> Class
+{-toClass :: [String] -> Class
 toClass [s] = fromMaybe (Class [s]) $ Map.lookup s classesMap
-toClass ss = Class ss
+toClass ss = Class ss-}
 
 
 -- Check a expresson is a variable or not

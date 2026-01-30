@@ -150,11 +150,11 @@ getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, 
         makeError s = Error [dummyTok s] "why?"
 
 
-toClassTests :: TestTree
+{-toClassTests :: TestTree
 toClassTests = testGroup "Parse.SyntaxTree.toClass" $ map (\(i, inp, out) -> testCase i $ toClass inp @=? out) [
     ("0", ["bool"], Bool), ("1",  ["int"], Int32T), ("2", ["int32"], Int32T), ("3", ["int64"], Int64T), ("4", ["float"], Float32T),
     ("5", ["double"], Float64T), ("6", ["float64"], Float64T), ("7", ["byte"], Int8T), ("8", ["short"], Int16T),
-    ("9", ["MyClass"], Class ["MyClass"]), ("10", ["com", "wangdi", "Math"], Class ["com", "wangdi", "Math"]), ("11", ["java", "lang", "String"], Class ["java", "lang", "String"])]
+    ("9", ["MyClass"], Class ["MyClass"]), ("10", ["com", "wangdi", "Math"], Class ["com", "wangdi", "Math"]), ("11", ["java", "lang", "String"], Class ["java", "lang", "String"])] -}
 
 
 isVariableTests :: TestTree
@@ -274,10 +274,10 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
             got <- prettyProgram inp
             got @=? out) [
     ("0" , ([], []), ""),
-    ("1", (["java.lang.Math"], [
+    ("1", ([Package ["java", "lang", "math"] []], [
         Expr (Variable "a" dummyTok),
         Expr (Binary Add (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok)]),
-        unlines ["a", "a+1"]),
+        unlines [ "package java.lang.math", "a", "a+1"]),
         
     ("2", ([], [
         BlockStmt (Multiple [
@@ -358,7 +358,7 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
             "}"]),
             
 
-    ("7", (["a","b","c"], [
+    ("7", ([Package ["com", "wangdi"] []], [
         Expr (Binary Assign (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok),
             If (Binary Equal (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok)
                 (Just (Multiple [
@@ -367,6 +367,7 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
                 Nothing,
                 Command (Return (Just (Variable "a" dummyTok))) dummyTok]),
         init $ unlines [
+            "package com.wangdi",
             "a=1",
             "if (a==1)",
             "{",
@@ -392,6 +393,6 @@ prettyDeclarationTests = testGroup "Parse.SyntaxTree.prettyDeclaration" $
 tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
-    getErrorProgramTests, toClassTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
+    getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests]

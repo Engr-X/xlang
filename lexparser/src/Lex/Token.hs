@@ -69,6 +69,7 @@ data Symbol
     | Comma            -- ","
     | Question         -- "?"
     | Colon            -- ":"
+    | DoubleColon      -- "::" 
     | Arrow            -- "->"
     | FatArrow         -- "\=>"
     | QuestionArrow    -- "?->"

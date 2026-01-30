@@ -4,6 +4,19 @@ QName :: { ([String], [Token]) }
     | QName '.' identity    { let (xs, ts) = $1 in (identText $3 : xs, $3 : ts) }
     ;
 
+-- this Clazzs is reversed
+ClazzList :: { [(Class, [Token])] }
+    : {- empty -}           { [] }
+    | ClazzList ',' Clazz      { $3 : $1 }
+    ;
+
+Clazz :: { (Class, [Token]) }
+    : QName                             { (Class (reverse (fst $1)) [] , snd $1) }
+    | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in
+        (Class (reverse (fst $1)) (map fst reversed),
+        concat [snd $1, [$2, $3], concatMap snd reversed, [$5]]) }
+    ;
+
 
 LValue :: { Expression }
     : QName                 { qnameToExpr $1 };
@@ -40,23 +53,31 @@ Atom :: { Expression }
 Arguments :: { [Expression] }
     : Expr                      { [$1] }
     | Arguments ',' Expr        { $3 : $1 }
+    ;
+
+ArgumentsOpt :: { [Expression] }
+    : '(' ')'                   { [] }
+    | '(' Arguments ')'         { $2 }
+    ;
+
+GenericParamList :: { Maybe [(Class, [Token])] }
+    : {- empty -}                   { Nothing }
+    --| '::' '<' '>'                  { Just [] }
+    | '::' '<' ClazzList '>'        { Just (reverse $3) }
+    ;
 
 
 Postfix :: { Expression }
     : Atom                      { $1 }
-
-    -- cast
-    | Postfix KW_AS QName       { Cast (toClass (fst $3), snd $3) $1 $2 }
+    | Postfix KW_AS Clazz       { Cast $3 $1 $2 }
     | Postfix KW_AS error       { Error [$2] (expectedExpression 0 "as") }
     ;
 
 
 Expr :: { Expression }
-    : LValue '=' Expr           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
+    : QName GenericParamList ArgumentsOpt { Call (qnameToExpr $1) $2 $3 }
+    | LValue '=' Expr           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
     | LValue '=' error          { Error [$2] (expectedExpression 1 "=") }
-
-    | QName '(' ')'             { let (ss, ts) = $1 in Call (reverse ss) [] (reverse ts) }
-    | QName '(' Arguments ')'   { let (ss, ts) = $1 in Call (reverse ss) $3 (reverse ts) }
 
     -- 
     | Expr '==' Expr            { Binary Equal $1 $3 $2}

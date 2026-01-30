@@ -92,6 +92,8 @@ library
                 Parse.ParseStmt     
                 Parse.ParseBlock
                 Parse.ParseProgm
+                Semantic.Environment
+                Semantic.ContextCheck
     
                 Util.Basic
                 Util.Type
@@ -185,8 +187,7 @@ test-suite lexparser-test
         Parse.ParseStmtTest
         Parse.ParseProgmTest
 
-        Semantic.Environment
-        Semantic.ContextCheck
+        Semantic.EnvironmentTest
 
         Util.BasicTest
         Util.ExceptionTest
@@ -200,6 +201,7 @@ test-suite lexparser-test
         aeson,
         text,
         bytestring,
+        containers,
 
         lexparser,
         tasty,

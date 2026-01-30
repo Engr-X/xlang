@@ -180,6 +180,7 @@ tokens :-
 <0> ","                { eatSymbol Comma }
 <0> "?"                { eatSymbol Question }
 <0> ":"                { eatSymbol Colon }
+<0> "::"               { eatSymbol DoubleColon }
 <0> "."                { eatSymbol Dot }
 <0> "\\"               { eatSymbol Backslash }
 

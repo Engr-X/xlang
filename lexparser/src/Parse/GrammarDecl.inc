@@ -6,11 +6,11 @@ Decl :: { Declaration }
 
 DeclSeq :: { [Declaration] }
     : Decl             { [$1] }
-    | DeclSeq Decl     { $1 ++ [$2] }
+    | DeclSeq Decl     { $2 : $1 }
     ;
 
 
 DeclSeqOpt :: { [Declaration] }
     : {- empty -}     { [] }
-    | DeclSeq         { $1 }
+    | DeclSeq         { reverse $1 }
     ;

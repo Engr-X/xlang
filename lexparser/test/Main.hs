@@ -11,6 +11,8 @@ import Parse.ParseBlockTest
 import Parse.ParseStmtTest
 import Parse.ParseProgmTest
 
+import Semantic.EnvironmentTest
+
 import Util.BasicTest
 import Util.ExceptionTest
 import Util.FileHelperTest
@@ -20,9 +22,11 @@ import Test.Tasty
 
 
 main :: IO ()
-main = defaultMain $ testGroup "All tests" [
+main = defaultMain $ testGroup "xlang test" [
     Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.FileHelperTest.tests,
     Lex.TokenTest.tests, Lex.TokenizerTest.tests, Lex.NewLineTest.tests,
     
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,
-    Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests]
+    Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,
+    
+    Semantic.EnvironmentTest.tests]

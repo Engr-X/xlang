@@ -3,21 +3,22 @@ Sep :: { () }
     | NL  { () }
     ;
 
-
+-- this one is reversed
 StmtSeq :: { [Statement] }
     : Stmt             { [$1] }
-    | StmtSeq Stmt     { $1 ++ [$2] }
+    | StmtSeq Stmt     { $2 : $1 }
     ;
 
 
 StmtSeqOpt :: { [Statement] }
     : {- empty -} { [] }
-    | StmtSeq     { $1 }
+    | StmtSeq     { reverse $1 }
     ;
 
 
 ElseBlock :: { Maybe Block }
     : KW_ELSE ';'                       { Nothing }
+    | KW_ELSE Stmt                      { Just $ stmtToBlock $2 }
     | KW_ELSE ':' Stmt                  { Just $ stmtToBlock $3 }
     ;
 
@@ -37,6 +38,27 @@ WhileStmt :: { Statement }
     | KW_WHILE Expr ':' Stmt              %prec IFX { While $2 (Just $ stmtToBlock $4) Nothing }
     | KW_WHILE Expr ':' Stmt ElseBlock              { While $2 (Just $ stmtToBlock $4) $5 }
     ;
+    
+
+-- this argument is reversed
+TypedArgs :: { [(Class, String, [Token])] }
+    : Clazz identity                        { [(fst $1, identText $2, $2 : snd $1)] }
+    | TypedArgs ',' Clazz identity          { (fst $3, identText $4, $4 : snd $3) : $1 }
+    ;
+
+FunctionArgs :: { [(Class, String, [Token])] }
+    : '(' ')'                   { [] }
+    | '(' TypedArgs ')'         { reverse $2 }
+    ;
+
+FunctionBlock :: { Block }
+    : Stmt                      { Multiple [$1] }
+    | ':' Stmt                  { Multiple [$2] }
+    ;
+
+FunctionStmt :: { Statement }
+    : Clazz QName GenericParamList FunctionArgs FunctionBlock   { Function $1 (qnameToExpr $2) $3 $4 $5 }
+    ;
 
 
 -- assembled statement
@@ -50,6 +72,7 @@ Stmt :: { Statement }
     | Block                 { BlockStmt $ fromMaybe (Multiple []) $1 }
     | IfStmt                { $1 }
     | WhileStmt             { $1 }
+    | FunctionStmt          { $1 }
     ;
 
 

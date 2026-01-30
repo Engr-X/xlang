@@ -12,21 +12,40 @@ type FunId = Int
 type ScopeId = Int
 
 
-data Scope = Scope
-{
+data Scope = Scope {
     scopeId   :: ScopeId,
     parent    :: Maybe ScopeId,
     
-    variables :: Map String (VarId, Position),
-    functions :: Map String (FunId, Position)
+    sVars :: Map String (VarId, Position),
+    sFuncs :: Map String (FunId, Position)
 }
-deriving (Eq, Show)
+    deriving (Eq, Show)
 
 
-data ImportEnv = IEnv 
-{
-    file      :: Path,
-    variables :: Map String (VarId, Position),
-    functions :: Map String (FunId, Position)
+data ImportEnv = IEnv  {
+    file :: Path,
+    iVars :: Map String (VarId, Position),
+    iFuncs :: Map String (FunId, Position)
 }
-deriving (Eq, Show)
+    deriving (Eq, Show)
+
+
+-- loadImport :: String -> ImportEnv
+-- TODO2
+
+
+-- | Check whether a variable is defined.
+-- A variable is considered defined if:
+--   1. It exists in the current scope, or
+--   2. It exists in any imported environment.
+isVarDefine :: String -> Scope -> [ImportEnv] -> Bool
+isVarDefine name scope envs = Map.member name (sVars scope) || any (Map.member name . iVars) envs
+
+
+-- | Check whether a function is defined.
+-- A function is considered defined if:
+--   1. It exists in the current scope, or
+--   2. It exists in any imported environment.
+isFuncDefine :: String -> Scope -> [ImportEnv] -> Bool
+isFuncDefine name scope envs = Map.member name (sFuncs scope) || any (Map.member name . iFuncs) envs
+

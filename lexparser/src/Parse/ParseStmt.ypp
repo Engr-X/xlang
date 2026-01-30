@@ -33,6 +33,8 @@ import qualified Util.Exception as UE
     KW_CONTINUE         { t@(Lex.Ident "continue" _) }
     KW_RETURN           { t@(Lex.Ident "return" _) }
 
+    --KW_FUNC           { t@(Lex.Ident "fun" _) }
+
 
     -- literals / identifiers
     identity            { t@(Lex.Ident _ _) }
@@ -45,8 +47,8 @@ import qualified Util.Exception as UE
 
     '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
     '<'                 { t@(Lex.Symbol Lex.LessThan _) }
-    '=='                 { t@(Lex.Symbol Lex.Equal _) }
-    '!='                 { t@(Lex.Symbol Lex.NotEqual _) }
+    '=='                { t@(Lex.Symbol Lex.Equal _) }
+    '!='                { t@(Lex.Symbol Lex.NotEqual _) }
 
     '!'                 { t@(Lex.Symbol Lex.BitNot _) }
 
@@ -63,6 +65,8 @@ import qualified Util.Exception as UE
     ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
     ','                 { t@(Lex.Symbol Lex.Comma _) }
     ':'                 { t@(Lex.Symbol Lex.Colon _) }
+    '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
+    --'=>'                { t@(Lex.Symbol Lex.FatArrow _) }
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 %right '='

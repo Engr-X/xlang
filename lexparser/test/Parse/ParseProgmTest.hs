@@ -334,6 +334,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         ]))
                 ]))
         ]))]
+        
 
 tests :: TestTree
 tests = testGroup "Parse.ParseProgm" [lexparseProgmTests]
