@@ -6,7 +6,7 @@ QName :: { ([String], [Token]) }
 
 -- this Clazzs is reversed
 ClazzList :: { [(Class, [Token])] }
-    : {- empty -}           { [] }
+    : Clazz                    { [$1] }
     | ClazzList ',' Clazz      { $3 : $1 }
     ;
 
@@ -57,12 +57,12 @@ Arguments :: { [Expression] }
 
 ArgumentsOpt :: { [Expression] }
     : '(' ')'                   { [] }
-    | '(' Arguments ')'         { $2 }
+    | '(' Arguments ')'         { reverse $2 }
     ;
 
 GenericParamList :: { Maybe [(Class, [Token])] }
     : {- empty -}                   { Nothing }
-    --| '::' '<' '>'                  { Just [] }
+    | '::' '<' '>'                  { Just [] }
     | '::' '<' ClazzList '>'        { Just (reverse $3) }
     ;
 
@@ -75,9 +75,9 @@ Postfix :: { Expression }
 
 
 Expr :: { Expression }
-    : QName GenericParamList ArgumentsOpt { Call (qnameToExpr $1) $2 $3 }
-    | LValue '=' Expr           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
-    | LValue '=' error          { Error [$2] (expectedExpression 1 "=") }
+    : QName GenericParamList ArgumentsOpt       { Call (qnameToExpr $1) $2 $3 }
+    | LValue '=' Expr                           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
+    | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
 
     -- 
     | Expr '==' Expr            { Binary Equal $1 $3 $2}

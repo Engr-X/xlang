@@ -29,7 +29,7 @@ Parser 决定哪些 `NL`：
 
 ## 2. Newline 模块的职责（做什么）
 
-### 2.1 `insertNewLine` 的职责
+### 2.1 `insertTokenPass ` 的职责
 
 - 根据 token 的 `Position.line` 变化，推断源码中原本存在的换行
 - 在合适位置插入 `NL` token
@@ -46,7 +46,7 @@ Parser 决定哪些 `NL`：
 
 ## 3. Newline 模块明确 *不做* 的事情
 
-### 3.1 `insertNewLine` 不负责任何语法决策，包括但不限于：
+### 3.1 `insertTokenPass ` 不负责任何语法决策，包括但不限于：
 
 - 不判断 `NL` 是否等价于 `;`
 - 不判断 `if / else` 是否应当绑定

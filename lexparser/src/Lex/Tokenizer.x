@@ -4,7 +4,7 @@ module Lex.Tokenizer where
 import Data.List (partition)
 import Numeric (readHex, readOct)
 import Lex.Token
-import Lex.NewLine (insertNewLine)
+import Lex.TokenPass
 import Util.Exception (ErrorKind, internalErrorMsg, unclosedStrLiteralMsg, unclosedCharLiteralMsg, invalidCharLiteralMsg, invalidNumericLiteralMsg)
 import Util.Type (Position, Path)
 
@@ -148,41 +148,41 @@ tokens :-
 
 <0> "->"                { eatSymbol Arrow }
 <0> "=>"                { eatSymbol FatArrow }
+<0> "::"                { eatSymbol DoubleColon }
 
 
 -- symbol 1 (28)
-<0> "="                { eatSymbol Assign }
+<0> "="                 { eatSymbol Assign }
 
-<0> ">"                { eatSymbol GreaterThan }
-<0> "<"                { eatSymbol LessThan }
+<0> ">"                 { eatSymbol GreaterThan }
+<0> "<"                 { eatSymbol LessThan }
 
-<0> "|"                { eatSymbol BitOr }
-<0> "^"                { eatSymbol BitXor }
-<0> "&"                { eatSymbol BitAnd }
-<0> "!"                { eatSymbol BitNot }
+<0> "|"                 { eatSymbol BitOr }
+<0> "^"                 { eatSymbol BitXor }
+<0> "&"                 { eatSymbol BitAnd }
+<0> "!"                 { eatSymbol BitNot }
 
-<0> "+"                { eatSymbol Plus }
-<0> "-"                { eatSymbol Minus }
-<0> "*"                { eatSymbol Multiply }
-<0> "/"                { eatSymbol Divide }
-<0> "%"                { eatSymbol Modulo }
+<0> "+"                 { eatSymbol Plus }
+<0> "-"                 { eatSymbol Minus }
+<0> "*"                 { eatSymbol Multiply }
+<0> "/"                 { eatSymbol Divide }
+<0> "%"                 { eatSymbol Modulo }
 
-<0> "@"                { eatSymbol At }
-<0> "$"                { eatSymbol Dollar }
-<0> "("                { eatSymbol LParen }
-<0> ")"                { eatSymbol RParen }
-<0> "["                { eatSymbol LBracket }
-<0> "]"                { eatSymbol RBracket }
-<0> "{"                { eatSymbol LBrace }
-<0> "}"                { eatSymbol RBrace }
+<0> "@"                 { eatSymbol At }
+<0> "$"                 { eatSymbol Dollar }
+<0> "("                 { eatSymbol LParen }
+<0> ")"                 { eatSymbol RParen }
+<0> "["                 { eatSymbol LBracket }
+<0> "]"                 { eatSymbol RBracket }
+<0> "{"                 { eatSymbol LBrace }
+<0> "}"                 { eatSymbol RBrace }
 
-<0> ";"                { eatSymbol Semicolon }
-<0> ","                { eatSymbol Comma }
-<0> "?"                { eatSymbol Question }
-<0> ":"                { eatSymbol Colon }
-<0> "::"               { eatSymbol DoubleColon }
-<0> "."                { eatSymbol Dot }
-<0> "\\"               { eatSymbol Backslash }
+<0> ";"                 { eatSymbol Semicolon }
+<0> ","                 { eatSymbol Comma }
+<0> "?"                 { eatSymbol Question }
+<0> ":"                 { eatSymbol Colon }
+<0> "."                 { eatSymbol Dot }
+<0> "\\"                { eatSymbol Backslash }
 
 -- other char will throw a error
 <0> .                   { lexError }
@@ -478,12 +478,12 @@ tokenize p str =
     case alexScanTokens str of
         Left _ -> ([UE.Unkown p], [])
         Right tokens -> let (errs, correct) = partition isErrToken tokens
-            in (map (convertErrToken p) errs, correct)
+            in (map (convertErrToken p) errs, splitShiftInGenerics correct)
 
 
 -- | tokenize and automatically add NL 
 tokenizeWithNL :: Path -> String -> ([ErrorKind], [Token])
-tokenizeWithNL p str = let (errs, toks) = tokenize p str in (errs, insertNewLine toks)
+tokenizeWithNL p str = let (errs, toks) = tokenize p str in (errs, insertTokenPass  toks)
 
 
 -- | used for debug

@@ -23,7 +23,7 @@ import qualified Util.Exception as UE
 %token
     -- keywords (Ident)
     EOF                 { t@(Lex.EOF _) }
-    NL                  { t@(Lex.NewLine _) }
+    NL                  { t@(Lex.TokenPass  _) }
     
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }

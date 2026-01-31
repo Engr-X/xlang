@@ -284,10 +284,11 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         (BoolConst False (mkId "false" 4 11 5))
                         (Just (Multiple [
                             Expr (Call
-                                ["println"]
+                                (Variable "println" (mkId "println" 5 9 7))
+                                Nothing
                                 [BoolConst True (mkId "true" 5 17 4)]
-                                [mkId "println" 5 9 7]
                             )
+
                         ]))
                         Nothing
                 ]))
@@ -320,19 +321,53 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         (BoolConst False (mkId "false" 6 8 5))
                         (Just (Multiple [
                             Expr (Call
-                                ["print"]
+                                (Variable "print" (mkId "print" 6 15 5))
+                                Nothing
                                 [Variable "a" (mkId "a" 6 21 1)]
-                                [mkId "print" 6 15 5]
                             )
                         ]))
                         (Just (Multiple [
                             Expr (Call
-                                ["print"]
+                                (Variable "print" (mkId "print" 7 11 5))
+                                Nothing
                                 [Variable "b" (mkId "b" 7 17 1)]
-                                [mkId "print" 7 11 5]
                             )
                         ]))
                 ]))
+        ])),
+        
+        ("10", unlines [
+        "void addToMap::<T>(map::<T> m, T item) {",
+        "    m.add(item)",
+        "}"],
+        ([], [
+            Function
+                (Class ["void"] [], [mkId "void" 1 1 4])
+                (Variable "addToMap" (mkId "addToMap" 1 6 8))
+                (Just [ (Class ["T"] [], [mkId "T" 1 17 1])]) [
+                    (Class ["map"] [Class ["T"] []],
+                        "m", [
+                            mkId "m" 1 29 1,
+                            mkId "map" 1 20 3,
+                            mkSym Lex.DoubleColon 1 23 2,
+                            mkSym Lex.LessThan 1 25 1,
+                            mkId "T" 1 26 1,
+                            mkSym Lex.GreaterThan 1 27 1])
+                ,
+                    ( Class ["T"] []
+                    , "item"
+                    , [mkId "item" 1 34 4, mkId "T" 1 32 1]
+                    )
+                ]
+                (Multiple [
+                    BlockStmt (Multiple [
+                        Expr (Call
+                            (Qualified ["m","add"] [mkId "m" 2 5 1, mkId "add" 2 7 3])
+                            Nothing
+                            [Variable "item" (mkId "item" 2 11 4)]
+                        )
+                    ])
+                ])
         ]))]
         
 

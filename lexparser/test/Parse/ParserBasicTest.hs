@@ -37,8 +37,8 @@ nearestTokTests = testGroup "Parse.ParserBasic.nearestTok" $ map (\(n, ts, e) ->
         Lex.Symbol Lex.RParen (makePosition 3 7 1), Lex.Ident "y" (makePosition 3 8 1)],
         Lex.Symbol Lex.RParen (makePosition 3 7 1)),
     ("3", [
-        Lex.NewLine (makePosition 10 5 1), Lex.Ident "z" (makePosition 11 1 1)],
-        Lex.NewLine (makePosition 10 5 1))]
+        Lex.TokenPass  (makePosition 10 5 1), Lex.Ident "z" (makePosition 11 1 1)],
+        Lex.TokenPass  (makePosition 10 5 1))]
 
 
 mkHappyErrorExprTests :: TestTree
@@ -52,9 +52,9 @@ mkHappyErrorExprTests = testGroup "Parse.ParserBasic.mkHappyErrorExpr" $ map (\(
         let t = Lex.Symbol Lex.RBracket (makePosition 2 9 1) in Error [t] ("invalid syntax: " ++ show t)), 
     
     ("3 head is NL", [
-        Lex.NewLine (makePosition 5 3 1)],
+        Lex.TokenPass  (makePosition 5 3 1)],
         
-        let t = Lex.NewLine (makePosition 5 3 1)
+        let t = Lex.TokenPass  (makePosition 5 3 1)
         in Error [t] ("invalid syntax: " ++ show t))]
 
 

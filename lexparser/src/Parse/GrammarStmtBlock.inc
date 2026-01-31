@@ -41,14 +41,14 @@ WhileStmt :: { Statement }
     
 
 -- this argument is reversed
-TypedArgs :: { [(Class, String, [Token])] }
+TypedParams :: { [(Class, String, [Token])] }
     : Clazz identity                        { [(fst $1, identText $2, $2 : snd $1)] }
-    | TypedArgs ',' Clazz identity          { (fst $3, identText $4, $4 : snd $3) : $1 }
+    | TypedParams ',' Clazz identity          { (fst $3, identText $4, $4 : snd $3) : $1 }
     ;
 
-FunctionArgs :: { [(Class, String, [Token])] }
+FunctionParams :: { [(Class, String, [Token])] }
     : '(' ')'                   { [] }
-    | '(' TypedArgs ')'         { reverse $2 }
+    | '(' TypedParams ')'         { reverse $2 }
     ;
 
 FunctionBlock :: { Block }
@@ -57,7 +57,7 @@ FunctionBlock :: { Block }
     ;
 
 FunctionStmt :: { Statement }
-    : Clazz QName GenericParamList FunctionArgs FunctionBlock   { Function $1 (qnameToExpr $2) $3 $4 $5 }
+    : Clazz QName GenericParamList FunctionParams FunctionBlock   { Function $1 (qnameToExpr $2) $3 $4 $5 }
     ;
 
 
@@ -69,7 +69,7 @@ Stmt :: { Statement }
     | KW_RETURN Stmt        { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
 
     | Expr Sep              { Expr $1 }
-    | Block                 { BlockStmt $ fromMaybe (Multiple []) $1 }
+    | Block Sep             { BlockStmt $ fromMaybe (Multiple []) $1 }
     | IfStmt                { $1 }
     | WhileStmt             { $1 }
     | FunctionStmt          { $1 }
@@ -78,6 +78,6 @@ Stmt :: { Statement }
 
 -- block
 Block :: { Maybe Block }
-    : '{' StmtSeqOpt '}' Sep    { Just $ Multiple $2 }
-    | '{' Sep '}' Sep           { Nothing }
+    : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
+    | '{' Sep '}'               { Nothing }
     ;

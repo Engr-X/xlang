@@ -22,7 +22,7 @@ import qualified Util.Exception as UE
 %token
     -- keywords
     EOF                 { t@(Lex.EOF _) }
-    NL                  { t@(Lex.NewLine _) }
+    NL                  { t@(Lex.TokenPass  _) }
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
     
@@ -86,7 +86,10 @@ import qualified Util.Exception as UE
 #include "Parse/GrammarStmtBlock.inc"
 #include "Parse/GrammarExpr.inc"
 
-BlockEOF :: { Block } :         Block EOF { fromMaybe (Multiple []) $1 };
+BlockEOF :: { Block }
+    : Block EOF         { fromMaybe (Multiple []) $1 }
+    | Block Sep EOF     { fromMaybe (Multiple []) $1 }
+    ;
 
 {
 -- Happy 2.0 expects a polymorphic error handler.

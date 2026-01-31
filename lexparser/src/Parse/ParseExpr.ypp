@@ -5,7 +5,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Lex.Token (Token, tokenPos)
-import Lex.Tokenizer (tokenizeWithNL)
+import Lex.Tokenizer (tokenize)
 import Parse.SyntaxTree
 import Parse.ParserBasic
 import Util.Exception (ErrorKind, makeError, expectedExpression, assignErrorMsg)
@@ -102,7 +102,7 @@ parseExprError toks = unsafeCoerce (mkHappyErrorExpr toks)
 --   * lexing errors (returned directly)
 --   * parsing errors (embedded in AST, then extracted)
 lexparseExpr :: Path -> String -> Either [ErrorKind] Expression
-lexparseExpr p str = let (errs, tokens) = tokenizeWithNL p str in case errs of
+lexparseExpr p str = let (errs, tokens) = tokenize p str in case errs of
     [] -> let expr = parseExpr tokens in case getErrorProgram ([], [Expr expr]) of
         [] -> Right expr
         errs -> Left $ map (toException p) errs

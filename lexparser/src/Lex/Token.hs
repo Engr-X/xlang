@@ -87,7 +87,7 @@ instance Hashable Symbol
 data Token = 
       Error String Position
     | EOF Position
-    | NewLine Position
+    | TokenPass  Position
     | Ident String Position
     | Symbol Symbol Position
     | NumberConst String Position
@@ -100,7 +100,7 @@ data Token =
 -- | 'Show' instance for 'Token' provides a human-readable representation
 -- of each token, including its value (if applicable) and its source position.
 prettyToken :: Token -> String
-prettyToken (NewLine pos) = "nl@" ++ show pos
+prettyToken (TokenPass  pos) = "nl@" ++ show pos
 prettyToken (Ident name pos) = "Ident@" ++ name ++ " " ++ show pos
 prettyToken (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
 prettyToken (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
@@ -142,7 +142,7 @@ isBracketToken t = isLBracketToken t || isRBracketToken t
 tokenPos :: Token -> Position
 tokenPos (EOF p) = p
 tokenPos (Error _ p) = p
-tokenPos (NewLine p) = p
+tokenPos (TokenPass  p) = p
 tokenPos (Ident _ p) = p
 tokenPos (Symbol _ p) = p
 tokenPos (NumberConst _ p) = p

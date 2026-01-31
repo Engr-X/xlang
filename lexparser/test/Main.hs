@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Lex.NewLineTest
+import Lex.TokenPassTest
 import Lex.TokenTest
 import Lex.TokenizerTest
 
@@ -24,7 +24,7 @@ import Test.Tasty
 main :: IO ()
 main = defaultMain $ testGroup "xlang test" [
     Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.FileHelperTest.tests,
-    Lex.TokenTest.tests, Lex.TokenizerTest.tests, Lex.NewLineTest.tests,
+    Lex.TokenTest.tests, Lex.TokenizerTest.tests, Lex.TokenPassTest.tests,
     
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,
     Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,

@@ -33,22 +33,37 @@ flattenExprTests = testGroup "Parse.SyntaxTree.flattenExpr" $ map (\(i, inp, out
                 (IntConst "2" (mkNumD "2"))
                 (IntConst "3" (mkNumD "3"))
                 (mkSymD Lex.Multiply), IntConst "2" (mkNumD "2"), IntConst "3" (mkNumD "3")]),
-
-        ("3", Just (Call ["f"] [IntConst "1" (mkNumD "1"), Call ["g"]
-                    [IntConst "2" (mkNumD "2")]
-                    [mkSymD Lex.LParen, mkSymD Lex.RParen]]
-                [mkSymD Lex.LParen, mkSymD Lex.Comma, mkSymD Lex.RParen]), [
-                
-                Call ["f"] [IntConst "1" (mkNumD "1"),
-                    Call ["g"]
+        
+        ("3",
+            Just (Call
+                (Qualified ["f"] [])
+                Nothing [
+                    IntConst "1" (mkNumD "1"),
+                    Call
+                        (Qualified ["g"] [])
+                        Nothing
                         [IntConst "2" (mkNumD "2")]
-                        [mkSymD Lex.LParen, mkSymD Lex.RParen]]
-                [mkSymD Lex.LParen, mkSymD Lex.Comma, mkSymD Lex.RParen],
+                ]), [
+                Call
+                    (Qualified ["f"] [])
+                    Nothing [
+                        IntConst "1" (mkNumD "1"),
+                        Call
+                            (Qualified ["g"] [])
+                            Nothing
+                            [IntConst "2" (mkNumD "2")]
+                    ],
+                Qualified ["f"] [],
                 IntConst "1" (mkNumD "1"),
-                Call ["g"]
-                    [IntConst "2" (mkNumD "2") ]
-                    [mkSymD Lex.LParen, mkSymD Lex.RParen],
-                    IntConst "2" (mkNumD "2")])]
+                Call
+                    (Qualified ["g"] [])
+                    Nothing
+                    [IntConst "2" (mkNumD "2")],
+                Qualified ["g"] [],
+                IntConst "2" (mkNumD "2")
+            ]
+        )
+    ]
 
 
 flattenBlockTests :: TestTree
@@ -229,7 +244,7 @@ prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, ou
     ("3", 1, Just (BoolConst False (mkIdD "false")), insertSpace 4 ++ "false"),
     ("4", 0, Just (Variable "x" (mkIdD "x")), "x"),
     ("5", 0, Just (Qualified ["a","b","c"] [mkIdD "a"]), "a.b.c"),
-    ("6", 0, Just (Cast (Class ["Int"], [mkIdD "Int"]) (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(Int)(1)"),
+    ("6", 0, Just (Cast (Class ["Int"] [], [mkIdD "Int"]) (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(Int)(1)"),
     ("7", 0, Just (Binary Add
         (Unary Sub (Variable "x" (mkIdD "x")) (mkIdD "-"))
         (IntConst "2" (mkNumD "2"))

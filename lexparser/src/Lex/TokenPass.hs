@@ -1,4 +1,4 @@
-module Lex.NewLine where
+module Lex.TokenPass where
 
 import Data.HashSet (HashSet)
 import Lex.Token
@@ -9,12 +9,10 @@ import qualified Lex.Token as Lex
 
 
 --------------------------------------------------------------------------------
--- English comment:
 -- Precomputed ban-sets for fast membership checks.
 -- banPrev prevTok == True means: do NOT insert NL after prevTok.
 -- banNext cursor  == True means: do NOT insert NL before cursor.
 --------------------------------------------------------------------------------
-
 banPrevSet :: HashSet Lex.Symbol
 banPrevSet = HashSet.fromList [
     Lex.Assign, Lex.BitLShiftAssign, Lex.BitRShiftAssign, Lex.BitOrAssign, Lex.BitXorAssign,
@@ -76,43 +74,37 @@ banNext _ = False
 -- but skip if there is already a separator (NL or ';') adjacent.
 --------------------------------------------------------------------------------
 
-insertNewLine :: [Token] -> [Token]
-insertNewLine = dedupNL . go 0 Nothing
+insertTokenPass  :: [Token] -> [Token]
+insertTokenPass  = dedupNL . go 0 Nothing
     where
-        --------------------------------------------------------------------------------
-        -- Collapse multiple consecutive NL into a single NL.
-        --------------------------------------------------------------------------------
         dedupNL :: [Token] -> [Token]
-        dedupNL = loop False
+        dedupNL = subGo False
             where
-                loop :: Bool -> [Token] -> [Token]
-                loop _ [] = []
-                loop prevWasNL (t:ts) = case t of
-                    NewLine _ -> if prevWasNL then loop True ts else t : loop True ts
-                    _ -> t : loop False ts
+                subGo _ [] = []
+                subGo seenNL (t:ts)
+                    | isNL t = if seenNL then subGo True ts else t : subGo True ts
+                    | otherwise = t : subGo False ts
 
-
-        --------------------------------------------------------------------------------
-        -- Main pass. parenDepth tracks only () and [] nesting.
-        -- Braces {} are handled via takeBlock recursion.
-        --------------------------------------------------------------------------------
         go :: Int -> Maybe Token -> [Token] -> [Token]
         go _ _ [] = []
         go parenDepth prev (cursor:rest)
+            | isEOF cursor = case prev of
+                Just prevTok
+                    | isSep prevTok -> [cursor]
+                    | otherwise     -> [mkNLAtEOF cursor, cursor]
+                Nothing -> [mkNLAtEOF cursor, cursor]
+
             | isLBrace cursor =
                 let (inner, rbrace, rest') = takeBlock rest
-                    inner' = insertNewLine inner
+                    inner' = insertTokenPass  inner
                                     -- Prefer an NL right before '}' unless the inner already ends with NL or ';'.
                     inner'' = ensureSepAtEnd rbrace inner'
 
                     -- Prefer an NL right after '}' unless the next token is already NL or ';'.
                     after   = ensureSepAfter rbrace rest'
 
-                    out = maybeInsertNL parenDepth prev cursor
-                            ++ [cursor]
-                            ++ inner''
-                            ++ [rbrace]
-                            ++ after
+                    out = concat [maybeInsertNL parenDepth prev cursor,
+                            [cursor], inner'', [rbrace], after]
                 in out ++ go parenDepth (Just (lastAnchor rbrace after)) rest'
 
             | otherwise =
@@ -120,42 +112,12 @@ insertNewLine = dedupNL . go 0 Nothing
                     parenDepth' = updateParenDepth parenDepth cursor
                 in out ++ go parenDepth' (Just cursor) rest
 
-       
-        -- Ensure there is a statement separator (NL or ';') right before EOF.
-        -- This is a post-pass and does NOT change any existing insertion behavior.
-        --------------------------------------------------------------------------------
-        {-
-        ensureSepAtEOF :: [Token] -> [Token]
-        ensureSepAtEOF [] = []
-        ensureSepAtEOF ts =
-            case splitEOF ts of
-                Nothing -> ts
-                Just (prefix, eofTok) ->
-                    case reverse prefix of
-                        (t:_) | isSep t -> prefix ++ [eofTok]
-                        [] -> [mkNL eofTok, eofTok]
-                        _ -> prefix ++ [mkNL eofTok, eofTok]
-
-
-        -- Split tokens into (tokens before EOF, EOF token).
-        -- Return Nothing if EOF is absent.
-        splitEOF :: [Token] -> Maybe ([Token], Token)
-        splitEOF = goSplit []
             where
-                goSplit :: [Token] -> [Token] -> Maybe ([Token], Token)
-                goSplit _ [] = Nothing
-                goSplit acc (t:ts) = case t of
-                    EOF _ -> Just (reverse acc, t)
-                    _ -> goSplit (t:acc) ts -}
+                isEOF :: Token -> Bool
+                isEOF (EOF _) = True
+                isEOF _       = False
 
-
-        --------------------------------------------------------------------------------
-        -- Insert one inferred NL between prev and cursor iff:
-        --   * line(cursor) > line(prev)
-        --   * parenDepth == 0 (not inside () or [])
-        --   * prev is NOT banned
-        --   * cursor is NOT banned
-        --------------------------------------------------------------------------------
+       
         maybeInsertNL :: Int -> Maybe Token -> Token -> [Token]
         maybeInsertNL _ Nothing _ = []
         maybeInsertNL parenDepth (Just prevTok) cursor =
@@ -168,66 +130,58 @@ insertNewLine = dedupNL . go 0 Nothing
             in [mkNL cursor | okLine && okDepth && okPrev && okNext]
 
 
-        --------------------------------------------------------------------------------
-        -- Construct a NL token anchored at the cursor's line (col=0, len=0).
-        --------------------------------------------------------------------------------
         mkNL :: Token -> Token
         mkNL cursor = let l = line (tokenPos cursor)
-                          pos = makePosition l 0 0 in NewLine pos
+                          pos = makePosition l 0 0 in TokenPass  pos
+
+        mkNLAtEOF :: Token -> Token
+        mkNLAtEOF eofTok = TokenPass  (tokenPos eofTok)
 
 
-        --------------------------------------------------------------------------------
-        -- Separator checks (used for "prefer NL around '}'" logic).
-        --------------------------------------------------------------------------------
         isNL :: Token -> Bool
-        isNL (NewLine _) = True
+        isNL (TokenPass  _) = True
         isNL _ = False
+
 
         isSemi :: Token -> Bool
         isSemi (Symbol Lex.Semicolon _) = True
         isSemi _ = False
 
+
         isSep :: Token -> Bool
         isSep t = isNL t || isSemi t
 
 
-        -- Ensure the token list ends with a separator; if already ends with NL or ';', do nothing.
-        -- Otherwise, append a NL anchored at 'anchor'.
         ensureSepAtEnd :: Token -> [Token] -> [Token]
         ensureSepAtEnd anchor ts = case reverse ts of
             (t:_) | isSep t -> ts
             _               -> ts ++ [mkNL anchor]
 
-        -- English comment:
-        -- Ensure a separator right after '}' unless the next token is already NL or ';'.
-        -- Return either [] or [NL].
+       
         ensureSepAfter :: Token -> [Token] -> [Token]
         ensureSepAfter anchor next = case next of
             (t:_) | isSep t -> []
             _  -> [mkNL anchor]
 
-        -- English comment:
-        -- Decide what to use as "prev token" after emitting after-separator.
+
         lastAnchor :: Token -> [Token] -> Token
         lastAnchor rbrace after = case after of
             (t:_) -> t
             _  -> rbrace
 
 
-        --------------------------------------------------------------------------------
-        -- English comment:
-        -- Paren depth tracking for () and [] only.
-        --------------------------------------------------------------------------------
         updateParenDepth :: Int -> Token -> Int
         updateParenDepth d tok
             | isLParenLike tok = d + 1
             | isRParenLike tok = d - 1
             | otherwise        = d
 
+
         isLParenLike :: Token -> Bool
         isLParenLike (Symbol Lex.LParen _)   = True
         isLParenLike (Symbol Lex.LBracket _) = True
         isLParenLike _ = False
+
 
         isRParenLike :: Token -> Bool
         isRParenLike (Symbol Lex.RParen _)   = True
@@ -235,10 +189,6 @@ insertNewLine = dedupNL . go 0 Nothing
         isRParenLike _ = False
 
 
-        --------------------------------------------------------------------------------
-        -- English comment:
-        -- Block handling (supports nested blocks).
-        --------------------------------------------------------------------------------
         takeBlock :: [Token] -> ([Token], Token, [Token])
         takeBlock = loop 1 []
             where
@@ -258,3 +208,54 @@ insertNewLine = dedupNL . go 0 Nothing
         isRBrace :: Token -> Bool
         isRBrace (Symbol Lex.RBrace _) = True
         isRBrace _ = False
+
+
+-- English comment:
+-- Split '>>' into '>' '>' only inside generic-arg context: started by '::' '<' and ended by matching '>' depth.
+splitShiftInGenerics :: [Token] -> [Token]
+splitShiftInGenerics = go 0
+    where
+        go :: Int -> [Token] -> [Token]
+        go _ [] = []
+        go depth (t1:t2:ts)
+            -- Enter or nest generic: '::' '<'
+            | isDoubleColon t1 && isLessThan t2 = t1 : t2 : go (depth + 1) ts
+
+                -- Inside generic: split '>>' into '>' '>'
+            | depth > 0 && isBitRShift t1 =
+                let p   = tokenPos t1
+                    gt1 = Symbol Lex.GreaterThan (withLen 1 p)
+                    gt2 = Symbol Lex.GreaterThan (withLen 1 (shiftCol 1 p))
+                in gt1 : gt2 : go depth (t2:ts)
+
+            -- Inside generic: close '>'
+            | depth > 0 && isGreaterThan t1 = t1 : go (depth - 1) (t2:ts)
+            | otherwise = t1 : go depth (t2:ts)
+
+        go depth [t]
+            | depth > 0 && isBitRShift t = let p = tokenPos t
+                in [
+                    Symbol Lex.GreaterThan (withLen 1 p),
+                    Symbol Lex.GreaterThan (withLen 1 (shiftCol 1 p))]
+            | otherwise = [t]
+
+        isDoubleColon (Symbol Lex.DoubleColon _) = True
+        isDoubleColon _ = False
+
+        isLessThan (Symbol Lex.LessThan _) = True
+        isLessThan _ = False
+
+        isGreaterThan (Symbol Lex.GreaterThan _) = True
+        isGreaterThan _ = False
+
+        isBitRShift (Symbol Lex.BitRShift _) = True
+        isBitRShift _ = False
+
+        -- English comment: adjust only column; len is handled by withLen.
+        shiftCol :: Int -> Position -> Position
+        shiftCol k pos = pos { column = column pos + k }
+
+        -- English comment: force token length.
+        withLen :: Int -> Position -> Position
+        withLen n pos = pos { len = n }
+

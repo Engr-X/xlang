@@ -82,7 +82,7 @@ library
     exposed-modules:  
                 Lexparser
 
-                Lex.NewLine
+                Lex.TokenPass 
                 Lex.Token
                 Lex.Tokenizer
 
@@ -176,7 +176,7 @@ test-suite lexparser-test
 
 
     other-modules:  
-        Lex.NewLineTest
+        Lex.TokenPassTest
         Lex.TokenTest
         Lex.TokenizerTest
 
