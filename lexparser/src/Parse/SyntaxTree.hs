@@ -388,6 +388,24 @@ prettyDeclaration (Package ss _) = "package " ++ intercalate "." ss
 prettyDeclaration (Import ss _) = "Import " ++ intercalate "." ss
 
 
+-- | Extract the path segments from a declaration.
+declPath :: Declaration -> [String]
+declPath (Package segs _) = segs
+declPath (Import  segs _) = segs 
+
+
+-- | Check whether a declaration is a package declaration.
+isPackageDecl :: Declaration -> Bool
+isPackageDecl (Package _ _) = True
+isPackageDecl _ = False
+
+
+-- | Check whether a declaration is an import declaration.
+isImportDecl :: Declaration -> Bool
+isImportDecl (Import _ _) = True
+isImportDecl _ = False
+
+
 -- | Program representation.
 --   Consists of imported modules and a list of top-level statements.
 type Program = ([Declaration], [Statement])

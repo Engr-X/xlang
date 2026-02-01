@@ -10,6 +10,9 @@ import Lex.Token (Token, Symbol)
 import qualified Lex.Token as Lex
 
 
+pos :: Position
+pos = makePosition 0 0 0
+
 mkNumD :: String -> Token
 mkNumD s = Lex.NumberConst s $ makePosition 0 0 0
 
@@ -138,6 +141,39 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
 
     ("7", Just (Switch (Variable "x" $ mkIdD "x") [Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "10" $ mkNumD "10")]), Default (Multiple [Expr (IntConst "0" $ mkNumD "0")])]),
         [Variable "x" $ mkIdD "x", IntConst "1" $ mkNumD "1", IntConst "10" $ mkNumD "10", IntConst "0" $ mkNumD "0"])]
+
+
+-- Dummy tokens for declarations. Predicates only check constructors.
+dummyToks :: [Token]
+dummyToks = []
+
+
+isPackageDeclTests :: TestTree
+isPackageDeclTests = testGroup "Parse.SyntaxTree.isPackageDecl" $
+    map (\(i, decl, out) -> testCase i $ isPackageDecl decl @=? out) [
+        ("0", Package ["a"] dummyToks, True),
+        ("1", Package ["com","wangdi"] dummyToks, True),
+        ("2", Import ["a"] dummyToks, False),
+        ("3", Import ["x","y"] dummyToks, False)
+    ]
+
+
+isImportDeclTests :: TestTree
+isImportDeclTests = testGroup "Parse.SyntaxTree.isImportDecl" $ map (\(i, decl, out) ->
+    testCase i $ isImportDecl decl @=? out) [
+        ("0", Import ["a"] dummyToks, True),
+        ("1", Import ["com","wangdi","IO"] dummyToks, True),
+        ("2", Package ["a"] dummyToks, False),
+        ("3", Package ["x","y"] dummyToks, False)]
+
+
+declPathTests :: TestTree
+declPathTests = testGroup "Parse.SyntaxTree.declPath" $
+    map (\(i, decl, out) -> testCase i $ declPath decl @=? out) [
+        ("0", Package ["a"] [], ["a"]),
+        ("1", Package ["java", "lang", "util"] [], ["java", "lang", "util"]),
+        ("2", Import ["math"] [], ["math"]),
+        ("3", Import ["java", "util", "List"] [], ["java", "util", "List"])]
 
 
 flattenProgramTests :: TestTree
@@ -410,4 +446,6 @@ tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
     getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
     
-    prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests]
+    prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
+    
+    isPackageDeclTests, isImportDeclTests, declPathTests]

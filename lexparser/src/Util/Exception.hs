@@ -40,8 +40,19 @@ makeError :: Path -> [Position] -> String -> BasicError
 makeError path pos reason = BasicError {filePath = path, positions = pos, why = reason}
 
 
+-- General internal error message
 internalErrorMsg :: String
 internalErrorMsg = "internal error"
+
+
+-- Error message for an undefined variable
+undefinedVariable :: String -> String
+undefinedVariable varName = "undefined variable: " ++ varName
+
+
+-- Error message for multiple package declarations
+multiplePackageMsg :: String
+multiplePackageMsg = "multiple package declarations" 
 
 
 -- Error message for an invalid string literal

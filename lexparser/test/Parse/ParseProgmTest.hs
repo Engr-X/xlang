@@ -368,6 +368,84 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         )
                     ])
                 ])
+        ])),
+        
+        ("11", unlines [
+        "void pushAll::<T>(stack::<T> s, list::<T> items) {",
+        "    s.push(items)",
+        "}"], ([], [
+            Function
+                (Class ["void"] [], [mkId "void" 1 1 4])
+                (Variable "pushAll" (mkId "pushAll" 1 6 7))
+                (Just [ (Class ["T"] [], [mkId "T" 1 16 1]) ]) [
+                    (Class ["stack"] [Class ["T"] []],
+                        "s", [
+                            mkId "s" 1 30 1,
+                            mkId "stack" 1 19 5,
+                            mkSym Lex.DoubleColon 1 24 2,
+                            mkSym Lex.LessThan 1 26 1,
+                            mkId "T" 1 27 1,
+                            mkSym Lex.GreaterThan 1 28 1]),
+                    (Class ["list"] [Class ["T"] []],
+                    "items", [
+                        mkId "items" 1 43 5,
+                        mkId "list" 1 33 4,
+                        mkSym Lex.DoubleColon 1 37 2,
+                        mkSym Lex.LessThan 1 39 1,
+                        mkId "T" 1 40 1,
+                        mkSym Lex.GreaterThan 1 41 1]
+                    )
+                ]
+                (Multiple [
+                    BlockStmt (Multiple [
+                        Expr (Call
+                            (Qualified ["s","push"] [mkId "s" 2 5 1, mkId "push" 2 7 4])
+                            Nothing
+                            [Variable "items" (mkId "items" 2 12 5)]
+                        )
+                    ])
+                ])
+        ])),
+
+        ("12", unlines [
+        "void flatten::<T>(list::<list::<T>> ll, list::<T> out) {",
+        "    out.addAll(ll)",
+        "}"],
+        ([], [
+            Function
+                (Class ["void"] [], [mkId "void" 1 1 4])
+                (Variable "flatten" (mkId "flatten" 1 6 7))
+                (Just [ (Class ["T"] [], [mkId "T" 1 16 1]) ]) [
+                    (Class ["list"] [Class ["list"] [Class ["T"] []]],
+                        "ll", [
+                            mkId "ll" 1 37 2,
+                            mkId "list" 1 19 4,
+                            mkSym Lex.DoubleColon 1 23 2,
+                            mkSym Lex.LessThan 1 25 1,
+                            mkId "list" 1 26 4,
+                            mkSym Lex.DoubleColon 1 30 2,
+                            mkSym Lex.LessThan 1 32 1,
+                            mkId "T" 1 33 1,
+                            mkSym Lex.GreaterThan 1 34 1,
+                            mkSym Lex.GreaterThan 1 35 1]),
+                    (Class ["list"] [Class ["T"] []], "out", [
+                        mkId "out" 1 51 3,
+                        mkId "list" 1 41 4,
+                        mkSym Lex.DoubleColon 1 45 2,
+                        mkSym Lex.LessThan 1 47 1,
+                        mkId "T" 1 48 1,
+                        mkSym Lex.GreaterThan 1 49 1]
+                    )
+                ]
+                (Multiple [
+                    BlockStmt (Multiple [
+                        Expr (Call
+                            (Qualified ["out","addAll"] [mkId "out" 2 5 3, mkId "addAll" 2 9 6])
+                            Nothing
+                            [Variable "ll" (mkId "ll" 2 16 2)]
+                        )
+                    ])
+                ])
         ]))]
         
 

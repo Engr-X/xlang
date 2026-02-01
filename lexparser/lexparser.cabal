@@ -124,6 +124,7 @@ library
                 aeson,
                 aeson-pretty,
                 bytestring,
+                mtl,
 
                 regex-base,
                 regex-tdfa

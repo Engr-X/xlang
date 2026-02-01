@@ -1,10 +1,14 @@
 module Semantic.Environment where
 
 import Data.Map.Strict (Map)
-import Lex.Token (Token)
+import Parse.SyntaxTree (Declaration, declPath)
+import Lex.Token (Token, tokenPos)
+import Util.Exception (ErrorKind, multiplePackageMsg)
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
+import qualified Parse.SyntaxTree as AST
+import qualified Util.Exception as UE
 
 
 type VarId = Int
@@ -12,9 +16,32 @@ type FunId = Int
 type ScopeId = Int
 
 
+type QName = [String]
+
+
+data CtrlState
+    = InFunction
+    | InLoop
+    | InSwitch
+    | InCase
+    | InIf
+    | InElse
+    deriving (Eq, Show)
+
+
+data CheckState = CheckState {
+    depth :: Int,
+    ctrlStack :: [CtrlState],
+    scope :: [Scope],
+    iEnv :: ImportEnv,
+    counter :: Int
+}
+    deriving (Eq, Show)
+
+
 data Scope = Scope {
-    scopeId   :: ScopeId,
-    parent    :: Maybe ScopeId,
+    scopeId :: ScopeId,
+    parent :: Maybe ScopeId,
     
     sVars :: Map String (VarId, Position),
     sFuncs :: Map String (FunId, Position)
@@ -24,8 +51,8 @@ data Scope = Scope {
 
 data ImportEnv = IEnv  {
     file :: Path,
-    iVars :: Map String (VarId, Position),
-    iFuncs :: Map String (FunId, Position)
+    iVars :: Map QName (VarId, Position),
+    iFuncs :: Map QName (FunId, Position)
 }
     deriving (Eq, Show)
 
@@ -34,18 +61,26 @@ data ImportEnv = IEnv  {
 -- TODO2
 
 
--- | Check whether a variable is defined.
--- A variable is considered defined if:
---   1. It exists in the current scope, or
---   2. It exists in any imported environment.
-isVarDefine :: String -> Scope -> [ImportEnv] -> Bool
-isVarDefine name scope envs = Map.member name (sVars scope) || any (Map.member name . iVars) envs
+-- English comment:
+-- If QName is a single segment, it's a short name: look in local scope only.
+-- Otherwise treat it as qualified and look in imported environments.
+isVarDefine :: QName -> Scope -> [ImportEnv] -> Bool
+isVarDefine [name] s _ = Map.member name (sVars s)
+isVarDefine qname _ envs = any (Map.member qname . iVars) envs
 
 
--- | Check whether a function is defined.
--- A function is considered defined if:
---   1. It exists in the current scope, or
---   2. It exists in any imported environment.
-isFuncDefine :: String -> Scope -> [ImportEnv] -> Bool
-isFuncDefine name scope envs = Map.member name (sFuncs scope) || any (Map.member name . iFuncs) envs
+isFuncDefine :: QName -> Scope -> [ImportEnv] -> Bool
+isFuncDefine [name] s _ = Map.member name (sFuncs s)
+isFuncDefine qname _ envs = any (Map.member qname . iFuncs) envs
 
+
+-- get package of this program
+getPackageName :: Path -> [Declaration] -> Either [ErrorKind] [String]
+getPackageName p ds = case filter AST.isPackageDecl ds of
+    [] -> Right []
+    [decl] -> Right $ declPath decl
+    (_:r) -> Left $ map (\x -> UE.Syntax $ UE.makeError p (map tokenPos $ declPos x) multiplePackageMsg) r
+    where
+        declPos :: Declaration -> [Token]
+        declPos (AST.Package _ tokens) = tokens
+        declPos (AST.Import _ tokens) = tokens 
