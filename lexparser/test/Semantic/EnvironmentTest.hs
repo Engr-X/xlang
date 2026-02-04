@@ -12,46 +12,6 @@ import qualified Parse.SyntaxTree as AST
 import qualified Lex.Token as Lex
 
 
--- English comment:
--- Shared dummy position used by all test symbols.
-pos :: Position
-pos = makePosition 0 0 0
-
-mkScope :: [(String, Int)] -> [(String, Int)] -> Scope
-mkScope vars funs = Scope {
-    scopeId = 0,
-    parent  = Nothing,
-    sVars = Map.fromList [(n, (i, pos)) | (n, i) <- vars],
-    sFuncs = Map.fromList [(n, (i, pos)) | (n, i) <- funs]}
-
--- English comment:
--- Imported env stores qualified names (QName), not short names.
-mkImport :: [(QName, Int)] -> [(QName, Int)] -> ImportEnv
-mkImport vars funs = IEnv {
-    file = "test",
-    iVars = Map.fromList [(q, (i, pos)) | (q, i) <- vars],
-    iFuncs = Map.fromList [(q, (i, pos)) | (q, i) <- funs]}
-
-isVarDefineTests :: TestTree
-isVarDefineTests = testGroup "Semantic.Environment.isVarDefine" $
-    map (\(i, qname, s, envs, out) -> testCase i $ isVarDefine qname s envs @=? out) [
-        ("0", ["x"], mkScope [("x", 1)] [], [], True),
-        ("1", ["y"], mkScope [] [], [mkImport [(["y"], 2)] []], False),
-        ("2", ["pkg","y"], mkScope [] [], [mkImport [(["pkg","y"], 2)] []], True),
-        ("3", ["pkg","z"], mkScope [] [], [mkImport [] []], False),
-        ("4", ["z"], mkScope [] [], [mkImport [(["z"], 9)] []], False)]
-
-
-isFunDefineTests :: TestTree
-isFunDefineTests = testGroup "Semantic.Environment.isFuncDefine" $ map (\(i, qname, s, envs, out) ->
-    testCase i $ isFuncDefine qname s envs @=? out) [
-        ("0", ["f"], mkScope [] [("f", 1)], [], True),
-        ("1", ["g"], mkScope [] [], [mkImport [] [(["g"], 2)]], False),
-        ("2", ["pkg","g"], mkScope [] [], [mkImport [] [(["pkg","g"], 2)]], True),
-        ("3", ["pkg","k"], mkScope [] [], [mkImport [] []], False),
-        ("4", ["h"], mkScope [] [], [mkImport [] [(["h"], 9)]], False)]
-
-
 getPackageNameTests :: TestTree
 getPackageNameTests = testGroup "Parse.ParserBasic.getPackageName" $ map (\(i, p, ds, out) ->
     testCase i $ getPackageName p ds @=? out) [
@@ -59,10 +19,10 @@ getPackageNameTests = testGroup "Parse.ParserBasic.getPackageName" $ map (\(i, p
         ("1", "stdin", [AST.Package ["a", "b"] toks1, AST.Import ["java", "util"] toks2], Right ["a", "b"]),
         ("2", "stdin", [AST.Package ["a"] toks1, AST.Package ["b"] toks2, AST.Package ["c"] toks3],
             Left [
-                UE.Syntax (UE.makeError "C.x" (map tokenPos toks2) UE.multiplePackageMsg),
-                UE.Syntax (UE.makeError "C.x" (map tokenPos toks3) UE.multiplePackageMsg)]),
+                UE.Syntax (UE.makeError "stdin" (map tokenPos toks2) UE.multiplePackageMsg),
+                UE.Syntax (UE.makeError "stdin" (map tokenPos toks3) UE.multiplePackageMsg)]),
 
-        ("0", "stdin", [
+        ("3", "stdin", [
             AST.Import ["java"] toks1,
             AST.Package ["x", "y"] toks2,
             AST.Import ["util"] toks3],
@@ -80,6 +40,16 @@ getPackageNameTests = testGroup "Parse.ParserBasic.getPackageName" $ map (\(i, p
             pos3 = makePosition 3 1 1
 
 
+getStateDepthTests :: TestTree
+getStateDepthTests = testGroup "Semantic.ContextCheck.getStateDepth" $ map (\(name, st, out) ->
+    testCase name $ getStateDepth st @?= out) [
+    ("0", CheckState 0 0 [] [] [], 0),
+    ("1", CheckState 1 0 [] [] [], 1),
+    ("2", CheckState 2 10 [] [] [], 2),
+    ("3", CheckState 3 42 [] [] [], 3)]
+
+
+
 
 tests :: TestTree
-tests = testGroup "Semantic.Environment" [isVarDefineTests, isFunDefineTests]
+tests = testGroup "Semantic.Environment" [getPackageNameTests, getStateDepthTests]

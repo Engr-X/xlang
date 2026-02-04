@@ -80,31 +80,33 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  
-                Lexparser
+            Lexparser
 
-                Lex.TokenPass 
-                Lex.Token
-                Lex.Tokenizer
+            Lex.TokenPass 
+            Lex.Token
+            Lex.Tokenizer
 
-                Parse.SyntaxTree
-                Parse.ParserBasic
-                Parse.ParseExpr
-                Parse.ParseStmt     
-                Parse.ParseBlock
-                Parse.ParseProgm
-                Semantic.Environment
-                Semantic.ContextCheck
+            Parse.SyntaxTree
+            Parse.ParserBasic
+            Parse.ParseExpr
+            Parse.ParseStmt     
+            Parse.ParseBlock
+            Parse.ParseProgm
+                
+            Semantic.Environment
+            Semantic.ContextCheck
+            Semantic.ImportLoader
     
-                Util.Basic
-                Util.Type
-                Util.FileHelper
-                Util.Exception
+            Util.Basic
+            Util.Type
+            Util.FileHelper
+            Util.Exception
 
     autogen-modules:
-                Parse.ParseExpr
-                Parse.ParseStmt
-                Parse.ParseBlock
-                Parse.ParseProgm
+            Parse.ParseExpr
+            Parse.ParseStmt
+            Parse.ParseBlock
+            Parse.ParseProgm
 
 
     -- Modules included in this library but not exported.

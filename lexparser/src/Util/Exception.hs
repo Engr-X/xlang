@@ -40,57 +40,67 @@ makeError :: Path -> [Position] -> String -> BasicError
 makeError path pos reason = BasicError {filePath = path, positions = pos, why = reason}
 
 
--- General internal error message
+-- | General internal error message
 internalErrorMsg :: String
 internalErrorMsg = "internal error"
 
 
--- Error message for an undefined variable
+-- | Error message for an undefined variable
 undefinedVariable :: String -> String
 undefinedVariable varName = "undefined variable: " ++ varName
 
 
--- Error message for multiple package declarations
+-- | Error message for multiple package declarations
 multiplePackageMsg :: String
 multiplePackageMsg = "multiple package declarations" 
 
 
--- Error message for an invalid string literal
+-- | Error message for multiple import statements
+multipleVariableDefMsg :: String -> String
+multipleVariableDefMsg varName = "multiple definitions of variable: " ++ varName
+
+
+-- | Error message for multiple function definitions
+multipleFunctionDefMsg :: String -> String
+multipleFunctionDefMsg funcName = "multiple definitions of function: " ++ funcName
+
+
+-- | Error message for an invalid string literal
 unclosedStrLiteralMsg :: String
 unclosedStrLiteralMsg = "unterminated string literal"
 
 
--- Error message for an invalid char literal
+-- | Error message for an invalid char literal
 unclosedCharLiteralMsg :: String
 unclosedCharLiteralMsg = "unterminated character literal"
 
 
--- invalid number formate, usually a number started identity
+-- | invalid number formate, usually a number started identity
 invalidNumericLiteralMsg :: String
 invalidNumericLiteralMsg = "invalid numeric literal"
 
 
--- Error message for an invalid character literal
+-- | Error message for an invalid character literal
 invalidCharLiteralMsg :: String
 invalidCharLiteralMsg = "invalid character literal"
 
 
--- Error message for a comment that was not properly closed
+-- | Error message for a comment that was not properly closed
 unclosedCommentMsg :: String
 unclosedCommentMsg = "unterminated comment"
 
 
--- Error message for a mismatched bracket
+-- | Error message for a mismatched bracket
 mismatchedBracketMsg :: String
 mismatchedBracketMsg = "mismatched bracket"
 
 
--- assign error like this: 10 = a;
+-- | assign error like this: 10 = a;
 assignErrorMsg :: String
 assignErrorMsg = "The left-hand side of an assignment must be a variable"
 
 
--- Expected expression
+-- |  Expected expression
 expectedExpression :: Int -> String -> String
 expectedExpression pos s
     | pos == 0 = "expected an expression before: '" ++ s ++ "'"
@@ -182,7 +192,7 @@ getErrorMessage :: ErrorKind -> Value
 getErrorMessage (Unkown path) = String ("Unknown error occur at: " <> DText.pack path)
 getErrorMessage None = String ""
 getErrorMessage (Reading path) = String $ "Cannot open file: " <> DText.pack path
-getErrorMessage (Lexer be)  = toJSON be
+getErrorMessage (Lexer be) = toJSON be
 getErrorMessage (Syntax be) = toJSON be
 getErrorMessage (Parsing be) = toJSON be
 
