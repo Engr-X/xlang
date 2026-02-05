@@ -110,6 +110,21 @@ expectedExpression :: Int -> String -> String
 expectedExpression pos s
     | pos == 0 = "expected an expression before: '" ++ s ++ "'"
     | otherwise = "expected an expression after: '" ++ s ++ "'"
+
+
+-- | invalid position for continue control flow
+continueCtrlErrorMsg :: String
+continueCtrlErrorMsg = "`continue` can only be used inside a loop"
+
+
+-- | invalid position for break control flow
+breakCtrlErrorMsg :: String
+breakCtrlErrorMsg = "`break` can only be used inside a loop or a case"
+
+
+-- | invalid position for return control flow
+returnCtrlErrorMsg :: String
+returnCtrlErrorMsg = "`return` can only be used inside a function"
     
 
 

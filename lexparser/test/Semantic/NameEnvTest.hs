@@ -1,9 +1,9 @@
-module Semantic.EnvironmentTest where
+module Semantic.NameEnvTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import Lex.Token (Token, tokenPos)
-import Semantic.Environment
+import Semantic.NameEnv
 import Util.Type (Position, makePosition)
 
 import qualified Util.Exception as UE 
@@ -52,4 +52,4 @@ getStateDepthTests = testGroup "Semantic.ContextCheck.getStateDepth" $ map (\(na
 
 
 tests :: TestTree
-tests = testGroup "Semantic.Environment" [getPackageNameTests, getStateDepthTests]
+tests = testGroup "Semantic.NameEnv" [getPackageNameTests, getStateDepthTests]

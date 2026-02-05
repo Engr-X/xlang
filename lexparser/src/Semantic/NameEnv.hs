@@ -1,8 +1,7 @@
-module Semantic.Environment where
+module Semantic.NameEnv where
 
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe)
-import Parse.SyntaxTree (Program, Expression, Declaration, declPath)
+import Parse.SyntaxTree (Expression, Statement, Declaration, declPath)
 import Lex.Token (Token, tokenPos)
 import Util.Exception (ErrorKind, multiplePackageMsg, assignErrorMsg, unsupportedErrorMsg)
 import Util.Type (Path, Position)
@@ -30,6 +29,7 @@ data CtrlState
     | InCase
     | InIf
     | InElse
+    | InClass
     deriving (Eq, Show)
 
 
@@ -38,7 +38,7 @@ data CtrlState
 data Scope = Scope {
     scopeId :: ScopeId,
     sVars :: Map String (VarId, Position),
-    sFuncs :: Map [QName] (FunId, Position)
+    sFuncs :: Map QName [Position]
 }
     deriving (Eq, Show)
 
@@ -55,7 +55,7 @@ data CheckState = CheckState {
     deriving (Eq, Show)
 
 
--- | Import environment for a single file.
+-- | Import NameEnv for a single file.
 --   Separate from lexical scopes to keep import rules isolated.
 data ImportEnv = IEnv  {
     file :: Path,                                -- ^ File path being checked.
@@ -69,19 +69,46 @@ data ImportEnv = IEnv  {
 -- Define a local variable when we see a top-level assignment like: x = expr.
 -- This only treats "Variable" as a definable l-value for now.
 defineLocalVar :: Path -> Expression -> CheckState -> Either ErrorKind CheckState
-defineLocalVar p (AST.Binary AST.Assign lhs _ assignTok) st = case lhs of
+defineLocalVar p (AST.Binary AST.Assign lhs _ _) st = case lhs of
     AST.Variable name nameTok ->
         case scope st of
-            [] -> error "internal error: there is no scope to define !!!"
+            [] -> error "internal error: there is no scope to define !!! while define variable"
             (sc:rest) ->
                 if Map.member name (sVars sc) then Right st
                 else 
                     let vid = counter st
                         sc' = sc { sVars = Map.insert name (vid, tokenPos nameTok) (sVars sc) }
-                    in Right $ st { counter = vid + 1, scope = sc' : rest}
-    AST.Qualified ss tokens -> Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+                    in Right $ st { counter = succ vid, scope = sc' : rest}
+    AST.Qualified _ tokens -> Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) assignErrorMsg)
     _ -> error "internal error this error should be catched in process of parser"
 defineLocalVar _ _ st = Right st
+
+
+defineFunc :: Path -> Statement -> CheckState -> Either ErrorKind CheckState
+defineFunc p (AST.Function _ (AST.Variable name token) _ _ _) st = case scope st of
+    [] -> error "internal error: there is no scope to define !!! while define function"
+    (sc:rest) -> 
+        if Map.member [name] (sFuncs sc) then Right st
+        else let sc' = sc { sFuncs = Map.insert [name] [tokenPos token] (sFuncs sc) } 
+             in Right $ st { scope = sc' : rest}
+defineFunc p (AST.Function _ (AST.Qualified name tokens) _ _ _) st = Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+
+
+
+isVarDefine :: String -> CheckState -> Bool
+isVarDefine varName = any (Map.member varName . sVars) . scope
+
+
+isVarImport :: QName -> [ImportEnv] -> Bool
+isVarImport varName = any (Map.member varName . iVars)
+
+
+isFuncDefine :: QName -> CheckState -> Bool
+isFuncDefine funName = any (Map.member funName . sFuncs) . scope
+
+isFunImport :: QName -> [ImportEnv] -> Bool
+isFunImport funName = any (Map.member funName . iFuncs)
+
 
 
 

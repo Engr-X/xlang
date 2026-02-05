@@ -94,7 +94,7 @@ library
             Parse.ParseBlock
             Parse.ParseProgm
                 
-            Semantic.Environment
+            Semantic.NameEnv
             Semantic.ContextCheck
             Semantic.ImportLoader
     
@@ -191,7 +191,7 @@ test-suite lexparser-test
         Parse.ParseStmtTest
         Parse.ParseProgmTest
 
-        Semantic.EnvironmentTest
+        Semantic.NameEnvTest
 
         Util.BasicTest
         Util.ExceptionTest

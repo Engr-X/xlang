@@ -1,7 +1,7 @@
 module Semantic.ImportLoader where
 
 import Parse.SyntaxTree (Statement, Program, isVariable)
-import Semantic.Environment
+import Semantic.NameEnv
 import Lex.Token (tokenPos)
 import Util.Exception (ErrorKind, multipleVariableDefMsg, unsupportedErrorMsg, assignErrorMsg, unsupportedErrorMsg)
 import Util.Type (Position, Path)
