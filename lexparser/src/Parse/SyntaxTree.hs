@@ -188,6 +188,27 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
             in calleeS ++ typeArgsS ++ "(" ++ argsS ++ ")"
 
 
+-- | Choose an anchor token for diagnostics.
+exprTokens :: Expression -> [Token]
+exprTokens (Error ts _) = ts
+exprTokens (IntConst _ t) = [t]
+exprTokens (LongConst _ t) = [t]
+exprTokens (FloatConst _ t) = [t]
+exprTokens (DoubleConst _ t) = [t]
+exprTokens (LongDoubleConst _ t) = [t]
+exprTokens (CharConst _ t) = [t]
+exprTokens (StringConst _ t) = [t]
+exprTokens (BoolConst _ t) = [t]
+exprTokens (Variable _ t) = [t]
+exprTokens (Qualified _ ts) = ts
+exprTokens (Cast (_, toks) e t) = exprTokens e ++ (t : toks)
+exprTokens (Unary _ e t) = t : exprTokens e
+exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
+exprTokens (Call e1 Nothing es) = concatMap exprTokens (e1 : es)
+exprTokens (Call e1 (Just cts) es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
+
+
+
 
 -- | Flatten all expressions contained in a expr.
 --   Useful for traversal, analysis, or validation passes.
@@ -491,23 +512,3 @@ charVal _ = error "charVal: expected CharConst token"
 strVal :: Token -> String
 strVal (Lex.StrConst s _) = s
 strVal _ = error "strVal: expected StrConst token"
-
-
-{--- Choose an anchor token for diagnostics.
-exprTok :: Expression -> [Token]
-exprTok (Error t _) = [t]
-exprTok (Command _ t) = [t]
-exprTok (IntConst _ t) = [t]
-exprTok (LongConst _ t) = [t]
-exprTok (FloatConst _ t) = [t]
-exprTok (DoubleConst _ t) = [t]
-exprTok (LongDoubleConst _ t) = [t]
-exprTok (CharConst _ t) = [t]
-exprTok (StringConst _ t) = [t]
-exprTok (BoolConst _ t) = [t]
-exprTok (Variable _ t) = [t]
-exprTok (Qualified _ ts) = ts
-exprTok (Cast (_) (_, t)) = [t]
-exprTok (Unary _ _ t) = [t]
-exprTok (Binary _ _ _ t) = [t]
-exprTok (Call _ _ ts) = ts-}

@@ -21,5 +21,17 @@ positionToTupleTests = testGroup "Util.Type.positionToTuple" [
     testCase "1" $ positionToTuple (makePosition 7 4 4) @?= (7, 4, 4)]
 
 
+sortPositionsTests :: TestTree
+sortPositionsTests = testGroup "Util.Type.sortPositions" $ map (\(n, input, out) -> testCase n $ sortPositions input @=? out) [
+    ("0", [], []),
+    ("1", [p 1 1 9, p 1 2 9, p 2 1 9], [p 1 1 9, p 1 2 9, p 2 1 9]),
+    ("2", [p 2 3 9, p 1 10 9, p 1 2 9, p 2 1 9], [p 1 2 9, p 1 10 9, p 2 1 9, p 2 3 9]),
+    ("3", [p 1 1 3, p 1 1 1, p 1 0 9, p 1 1 2], [p 1 0 9, p 1 1 3, p 1 1 1, p 1 1 2])]
+    where
+        p :: Int -> Int -> Int -> Position
+        p = makePosition
+
+
+
 tests :: TestTree
 tests = testGroup "Util.Type" [makePositionTests, positionToTupleTests]

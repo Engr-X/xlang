@@ -1,10 +1,10 @@
 module Semantic.Environment where
 
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Maybe (listToMaybe)
 import Parse.SyntaxTree (Program, Expression, Declaration, declPath)
 import Lex.Token (Token, tokenPos)
-import Util.Exception (ErrorKind, multiplePackageMsg)
+import Util.Exception (ErrorKind, multiplePackageMsg, assignErrorMsg, unsupportedErrorMsg)
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
@@ -38,7 +38,7 @@ data CtrlState
 data Scope = Scope {
     scopeId :: ScopeId,
     sVars :: Map String (VarId, Position),
-    sFuncs :: Map (String, [QName]) (FunId, Position)
+    sFuncs :: Map [QName] (FunId, Position)
 }
     deriving (Eq, Show)
 
@@ -60,24 +60,28 @@ data CheckState = CheckState {
 data ImportEnv = IEnv  {
     file :: Path,                                -- ^ File path being checked.
     iVars :: Map QName [Position],               -- ^ Imported vars by qname.
-    iFuncs :: Map (QName, [QName]) [Position]    -- ^ Imported funcs by qname + arg types.
+    iFuncs :: Map QName [Position]                -- ^ Imported funcs by qname + arg types.
 }
     deriving (Eq, Show)
 
 
--- | Check whether a variable name is defined in any visible scope.
-isVarDefine :: QName -> CheckState -> Bool
-isVarDefine [] _ = error "input of variable is empty!"
-isVarDefine [varName] cs = any (Map.member varName . sVars) (scope cs)
-isVarDefine ("this" : [varName]) cs =
-    case listToMaybe (classScope cs) of
-        Just sj -> Map.member varName (sVars sj)
-        Nothing -> False
-isVarDefine _ _ = True
-
-
-isVarImported :: QName -> QName -> [ImportEnv] -> Bool
-isVarImported package name = let varName = package ++ name in any (Map.member varName . iVars)
+-- English comment:
+-- Define a local variable when we see a top-level assignment like: x = expr.
+-- This only treats "Variable" as a definable l-value for now.
+defineLocalVar :: Path -> Expression -> CheckState -> Either ErrorKind CheckState
+defineLocalVar p (AST.Binary AST.Assign lhs _ assignTok) st = case lhs of
+    AST.Variable name nameTok ->
+        case scope st of
+            [] -> error "internal error: there is no scope to define !!!"
+            (sc:rest) ->
+                if Map.member name (sVars sc) then Right st
+                else 
+                    let vid = counter st
+                        sc' = sc { sVars = Map.insert name (vid, tokenPos nameTok) (sVars sc) }
+                    in Right $ st { counter = vid + 1, scope = sc' : rest}
+    AST.Qualified ss tokens -> Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+    _ -> error "internal error this error should be catched in process of parser"
+defineLocalVar _ _ st = Right st
 
 
 

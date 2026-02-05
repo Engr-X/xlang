@@ -251,12 +251,16 @@ strValTests = testGroup "Parse.ParserBasic.strVal" $ map (\(i, inp, out) -> test
     ("3", Lex.StrConst "a+b*c" (makePosition 1 1 5), "a+b*c")]
 
 
-{-exprTokTests :: TestTree
-exprTokTests = testGroup "Parse.SyntaxTree.exprTok" $ map (\(n, e, t) -> testCase n $ exprTok e @=? t) [
+exprTokensTests :: TestTree
+exprTokensTests = testGroup "Parse.SyntaxTree.exprTokens" $ map (\(n, e, ts) -> testCase n $ exprTokens e @=? ts) [
     ("0", Variable "x" tokX, [tokX]),
     ("1", Qualified ["java","lang","String"] [tokJava, tokLang, tokString], [tokJava, tokLang, tokString]),
-    ("2", Unary UnaryMinus (IntConst "1" tok1) tokMinus, [tokMinus]),
-    ("3", Binary Add (Variable "a" tokA) (Variable "b" tokB) tokPlus, [tokPlus])]
+    ("2", Unary UnaryMinus (IntConst "1" tok1) tokMinus, [tokMinus, tok1]),
+    ("3", Binary Add (Variable "a" tokA) (Variable "b" tokB) tokPlus, [tokPlus, tokA, tokB]),
+    ("4", Error [tokErr1, tokErr2] "bad", [tokErr1, tokErr2]),
+    ("5", Cast ((Int32T, [tokCastTy])) (Variable "x" tokX) tokCast, [tokX, tokCast, tokCastTy]),
+    ("6", Call (Variable "f" tokF) Nothing [Variable "x" tokX, IntConst "1" tok1], [tokF, tokX, tok1]),
+    ("7", Call (Variable "id" tokId) (Just [(Int32T, [tokTA1]), (Bool, [tokTA2])]) [Variable "x" tokX], [tokTA1, tokTA2, tokId, tokX])]
     where
         tokX, tokJava, tokLang, tokString, tok1, tokMinus, tokA, tokB, tokPlus :: Token
         tokX      = Lex.Ident "x"      (makePosition 1 1 1)
@@ -269,7 +273,24 @@ exprTokTests = testGroup "Parse.SyntaxTree.exprTok" $ map (\(n, e, t) -> testCas
 
         tokA      = Lex.Ident "a" (makePosition 1 1 1)
         tokB      = Lex.Ident "b" (makePosition 1 5 1)
-        tokPlus   = Lex.Symbol Lex.Plus (makePosition 1 3 1)-}
+        tokPlus   = Lex.Symbol Lex.Plus (makePosition 1 3 1)
+
+        tokErr1, tokErr2 :: Token
+        tokErr1 = Lex.Ident "bad" (makePosition 2 1 3)
+        tokErr2 = Lex.Symbol Lex.Assign (makePosition 2 5 1)
+
+        tokCast, tokCastTy :: Token
+        tokCast   = Lex.Symbol Lex.LParen (makePosition 3 1 1)
+        tokCastTy = Lex.Ident "int" (makePosition 3 2 3)
+
+        tokF, tokId :: Token
+        tokF  = Lex.Ident "f"  (makePosition 4 1 1)
+        tokId = Lex.Ident "id" (makePosition 5 1 2)
+
+        tokTA1, tokTA2 :: Token
+        tokTA1 = Lex.Ident "int"  (makePosition 5 4 3)
+        tokTA2 = Lex.Ident "bool" (makePosition 5 9 4)
+
 
 
 prettyExprTests :: TestTree
@@ -443,8 +464,9 @@ prettyDeclarationTests = testGroup "Parse.SyntaxTree.prettyDeclaration" $
 
 tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
-    flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests, 
-    getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests,
+    flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests,
+
+    getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
     

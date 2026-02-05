@@ -45,6 +45,11 @@ internalErrorMsg :: String
 internalErrorMsg = "internal error"
 
 
+-- | this error refer to some sytax is not supported in current version, but it will support in latter version.
+unsupportedErrorMsg :: String
+unsupportedErrorMsg = "syntax unsopported"
+
+
 -- | Error message for an undefined variable
 undefinedVariable :: String -> String
 undefinedVariable varName = "undefined variable: " ++ varName

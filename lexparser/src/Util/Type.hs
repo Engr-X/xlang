@@ -2,6 +2,8 @@
 module Util.Type where
 
 import Data.Aeson
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import GHC.Generics (Generic)
 
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -61,6 +63,12 @@ defaultPosition = makePosition (-1) (-1) (-1)
 -- Useful for functions that prefer tuple representation.
 positionToTuple :: Position -> (Int, Int, Int)
 positionToTuple pos = (line pos, column pos, len pos)
+
+
+-- | Stable sort positions by (line, column), ascending.
+-- First compare line number, then column number.
+sortPositions :: [Position] -> [Position]
+sortPositions = sortBy (comparing line <> comparing column)
 
 
 -- | A simple range represented as a tuple of start and end indices.

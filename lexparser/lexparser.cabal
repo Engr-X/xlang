@@ -44,6 +44,17 @@ maintainer:         dw725@ic.ac.uk
 -- copyright:
 build-type:         Custom
 
+
+extra-source-files:
+        src/Parse/GrammarExpr.inc,
+        src/Parse/GrammarStmtBlock.inc,
+        src/Parse/GrammarDecl.inc,
+        src/Parse/ParseExpr.ypp,
+        src/Parse/ParseStmt.ypp,
+        src/Parse/ParseBlock.ypp,
+        src/Parse/ParseProgm.ypp
+
+
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
 extra-doc-files:    CHANGELOG.md
 
@@ -61,16 +72,6 @@ custom-setup
         filepath,
         process,
         containers
-
-
-extra-source-files:
-        src/Parse/GrammarExpr.inc,
-        src/Parse/GrammarStmtBlock.inc
-        src/Parse/GrammarDecl.inc
-        src/Parse/ParseExpr.ypp,
-        src/Parse/ParseStmt.ypp,
-        src/Parse/ParseBlock.ypp,
-        src/Parse/ParseProgm.ypp
 
 
 library
