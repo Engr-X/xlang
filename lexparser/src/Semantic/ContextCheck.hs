@@ -1,11 +1,12 @@
 module Semantic.ContextCheck where
 
 import Semantic.NameEnv
-import Data.Maybe (listToMaybe)
+import Control.Monad (when)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Control.Monad.State.Strict (State, get, put, modify, evalState, execState, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path)
-import Util.Exception (ErrorKind, undefinedVariable, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg)
+import Util.Exception (ErrorKind, undefinedVariable, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, unsupportedErrorMsg, illegalStatementMsg)
 import Parse.SyntaxTree (Expression, Statement)
 
 import qualified Data.Map.Strict as Map
@@ -128,3 +129,45 @@ checkStmt p package envs (AST.Command cmd token) = do
         AST.Return mExpr ->
             if isReturnValid ctrls then let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] returnCtrlErrorMsg
+checkStmt p package envs (AST.Expr e) = checkExpr p package envs e
+checkStmt p package envs (AST.BlockStmt (AST.Multiple ss)) = do
+    c <- get
+    let cState = st c
+    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    when (forbiddenFor parentCtrl InBlock) $ addErr $ UE.Syntax $ UE.makeError p [] (illegalStatementMsg (prettyCtrlState InBlock) (prettyCtrlState parentCtrl))
+    let depth0 = depth cState
+    let newScope = Scope { scopeId = scopeCounter cState, sVars = Map.empty, sFuncs = Map.empty }
+    let depthNow = succ depth0
+    let cState' = cState {
+        depth = depthNow,
+        scopeCounter = succ $ scopeCounter cState,
+        ctrlStack = InBlock : ctrlStack cState,
+        scope = newScope : scope cState}
+    put $ c { st = cState' }
+    checkStmts p package envs ss
+    c2 <- get
+
+    let cState2 = st c2
+    let scope' = tail $ scope cState2
+    let ctrls' = tail $ ctrlStack cState2
+    let depth' = depth0
+    put $ c2 { st = cState2 { depth = depth', scope = scope', ctrlStack = ctrls' } }
+
+
+checkStmts :: Path -> QName -> [ImportEnv] -> [Statement] -> CheckM()
+checkStmts p package envs stmts = do
+    let funDefs = filter isFunc stmts
+    mapM_ defineOne funDefs
+    mapM_ (checkStmt p package envs) stmts
+    where
+        isFunc :: Statement -> Bool
+        isFunc AST.Function {} = True
+        isFunc _ = False
+
+        defineOne :: Statement -> CheckM ()
+        defineOne stmt = do
+            c <- get
+            let cState = st c
+            case defineFunc p stmt cState of
+                Left err -> addErr err
+                Right cState' -> put $ c { st = cState' }

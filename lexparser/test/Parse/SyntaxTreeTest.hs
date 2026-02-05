@@ -95,23 +95,27 @@ flattenBlockTests = testGroup "Parse.SyntaxTree.flattenBlock" $ map (\(i, inp, o
 flattenCaseTests :: TestTree
 flattenCaseTests = testGroup "Parse.SyntaxTree.flattenCase" $ map (\(i, inp, out) -> testCase i $ flattenCase inp @=? out) [
     ("0", Nothing, []),
-    ("1", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "2" $ mkNumD "2")])),
+    ("1", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "2" $ mkNumD "2")]) dummyTok),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2"]),
 
-    ("2", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "2" $ mkNumD "2"), Expr (IntConst "3" $ mkNumD "3")])),
+    ("2", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "2" $ mkNumD "2"), Expr (IntConst "3" $ mkNumD "3")]) dummyTok),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3"]),
 
-    ("3", Just (Case (Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus)) (Just $ Multiple [Expr (IntConst "3" $ mkNumD "3")])),
+    ("3", Just (Case (Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus)) (Just $ Multiple [Expr (IntConst "3" $ mkNumD "3")]) dummyTok),
         [Binary Add (IntConst "1" $ mkNumD "1") (IntConst "2" $ mkNumD "2") (mkSymD Lex.Plus), IntConst "3" $ mkNumD "3"]),
 
-    ("4", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1")])), [IntConst "1" $ mkNumD "1"]),
+    ("4", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1")]) dummyTok), [IntConst "1" $ mkNumD "1"]),
 
-    ("5", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")])),
+    ("5", Just (Default (Multiple [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")]) dummyTok),
         [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
 
-    ("6", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [])), [IntConst "1" $ mkNumD "1"]),
+    ("6", Just (Case (IntConst "1" $ mkNumD "1") (Just $ Multiple []) dummyTok), [IntConst "1" $ mkNumD "1"]),
 
-    ("7", Just (Default (Multiple [])), [])]
+    ("7", Just (Default (Multiple []) dummyTok), [])]
+    where
+        dummyTok :: Token
+        dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
+
 
 
 flattenStatementTests :: TestTree
@@ -119,28 +123,32 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
     ("0", Nothing, []),
     ("1", Just (Expr (IntConst "1" $ mkNumD "1")), [IntConst "1" $ mkNumD "1"]),
 
-    ("2", Just (BlockStmt (Multiple
-            [
-                If (BoolConst True $ mkIdD "true")
-                (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))
-                (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))
-            ])), [
-        BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
+    ("2", Just (BlockStmt (Multiple [
+        If (BoolConst True $ mkIdD "true")
+        (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")]))
+        (Just (Multiple [Expr (IntConst "0" $ mkNumD "0")]))
+        (dummyTok, Just dummyTok)
+        ])), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1", IntConst "0" $ mkNumD "0"]),
             
     ("3", Just (
-        If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing), [
+        If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing (dummyTok, Nothing)), [
         BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"]),
 
-    ("4", Just (For (Just (IntConst "1" $ mkNumD "1"), Just (IntConst "2" $ mkNumD "2"), Just (IntConst "3" $ mkNumD "3")) (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")]))),
+    ("4", Just (For (Just (IntConst "1" $ mkNumD "1"), Just (IntConst "2" $ mkNumD "2"), Just (IntConst "3" $ mkNumD "3")) (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")])) dummyTok),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3", IntConst "4" $ mkNumD "4"]),
 
-    ("5", Just (For (Nothing, Just (IntConst "2" $ mkNumD "2"), Nothing) Nothing), [IntConst "2" $ mkNumD "2"]),
+    ("5", Just (For (Nothing, Just (IntConst "2" $ mkNumD "2"), Nothing) Nothing dummyTok), [IntConst "2" $ mkNumD "2"]),
 
-    ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing),
+    ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing (dummyTok, Nothing)),
         [Variable "cond" $ mkIdD "cond", IntConst "1" $ mkNumD "1"]),
 
-    ("7", Just (Switch (Variable "x" $ mkIdD "x") [Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "10" $ mkNumD "10")]), Default (Multiple [Expr (IntConst "0" $ mkNumD "0")])]),
+    ("7", Just (Switch (Variable "x" $ mkIdD "x") [
+        Case (IntConst "1" $ mkNumD "1") (Just $ Multiple [Expr (IntConst "10" $ mkNumD "10")]) dummyTok,
+        Default (Multiple [Expr (IntConst "0" $ mkNumD "0")]) dummyTok] dummyTok),
         [Variable "x" $ mkIdD "x", IntConst "1" $ mkNumD "1", IntConst "10" $ mkNumD "10", IntConst "0" $ mkNumD "0"])]
+    where
+        dummyTok :: Token
+        dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
 
 
 -- Dummy tokens for declarations. Predicates only check constructors.
@@ -181,7 +189,10 @@ flattenProgramTests = testGroup "Parse.SyntaxTree.flattenProgram" $ map (\(i, in
     ("0", ([], []), []),
     ("1", ([], [Expr (IntConst "1" $ mkNumD "1")]), [IntConst "1" $ mkNumD "1"]),
     ("2", ([], [Expr (IntConst "1" $ mkNumD "1"), Expr (BoolConst True $ mkIdD "true")]), [IntConst "1" $ mkNumD "1", BoolConst True $ mkIdD "true"]),
-    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
+    ("3", ([], [If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing (dummyTok, Nothing)]), [BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"])]
+    where
+        dummyTok :: Token
+        dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
 
 
 getErrorProgramTests :: TestTree
@@ -191,7 +202,8 @@ getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, 
     ("2", ([], [Expr (makeError "err")]), [makeError "err"]),
     ("3", ([], [ If (BoolConst True $ mkIdD "true")
         (Just (Multiple [Expr (makeError "err1")]))
-        (Just (Multiple [Expr (makeError "err2")]))]),
+        (Just (Multiple [Expr (makeError "err2")]))
+        (dummyTok "if", Just (dummyTok "else"))]),
         [ makeError "err1", makeError "err2"])]
     where
         dummyTok :: String -> Token
@@ -328,12 +340,13 @@ prettyStmtTests = testGroup "Parse.SyntaxTree.prettyStmt" $ map (\(i, n, inp, ou
     ("0", 0, Nothing, "\n"),
     ("1", 0, Just (Expr (Variable "a" dummyTok)), "a\n"),
     ("2", 0, Just (BlockStmt (Multiple [])), "{\n\n}\n"),
-    ("3", 0, Just (If (Variable "a" dummyTok) Nothing Nothing), "if (a);\n"),
+    ("3", 0, Just (If (Variable "a" dummyTok) Nothing Nothing (dummyTok, Nothing)), "if (a);\n"),
     ("4 while with block", 0, Just
         (While
             (Variable "a" dummyTok)
             (Just (Multiple []))
-            Nothing),
+            Nothing
+            (dummyTok, Nothing)),
         "while(a)\n{\n\n}\n\n")]
   where
     dummyTok :: Token
@@ -369,7 +382,8 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
                 Command (Return (Just (IntConst "1" dummyTok))) dummyTok]))
             (Just (Multiple [
                 Expr (Variable "neg" dummyTok),
-                Command (Return (Just (IntConst "0" dummyTok))) dummyTok]))]),
+                Command (Return (Just (IntConst "0" dummyTok))) dummyTok]))
+            (dummyTok, Just dummyTok)]),
                 
         unlines [
             "if (a>0)",
@@ -391,7 +405,8 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
             BlockStmt (Multiple [
                     Expr (Variable "inner" dummyTok),
                     Command Continue dummyTok])]))
-            Nothing]),
+            Nothing
+            (dummyTok, Nothing)]),
         unlines [
             "while(x!=0)",
             "{",
@@ -406,7 +421,7 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
         DoWhile (Just (Multiple [
             Expr (Variable "tick" dummyTok),
             Command Break dummyTok]))
-            (Binary LessThan (Variable "t" dummyTok) (IntConst "100" dummyTok) dummyTok) Nothing]),
+            (Binary LessThan (Variable "t" dummyTok) (IntConst "100" dummyTok) dummyTok) Nothing (dummyTok, dummyTok, Nothing)]),
         
         unlines [
             "do",
@@ -421,7 +436,8 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
              Just (Binary LessThan (Variable "i" dummyTok) (IntConst "10" dummyTok) dummyTok),
              Just (Unary SelfInc (Variable "i" dummyTok) dummyTok))
                 (Just (Multiple [
-                    Expr (Binary Add (Variable "sum" dummyTok) (Variable "i" dummyTok) dummyTok)]))]),
+                    Expr (Binary Add (Variable "sum" dummyTok) (Variable "i" dummyTok) dummyTok)]))
+                dummyTok]),
         
         unlines [
             "for(i=0;i<10;++i)",
@@ -436,7 +452,8 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
                 (Just (Multiple [
                     Expr (Binary Assign (Variable "b" dummyTok) (IntConst "2" dummyTok) dummyTok),
                     Expr (Binary Add (Variable "a" dummyTok) (Variable "b" dummyTok) dummyTok)]))
-                Nothing,
+                Nothing
+                (dummyTok, Nothing),
                 Command (Return (Just (Variable "a" dummyTok))) dummyTok]),
         init $ unlines [
             "package com.wangdi",

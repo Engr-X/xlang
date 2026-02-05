@@ -1,12 +1,20 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
+
 module Semantic.NameEnv where
 
+import Data.Hashable (Hashable)
+import Data.HashSet (HashSet)
 import Data.Map.Strict (Map)
+import GHC.Generics (Generic)
 import Parse.SyntaxTree (Expression, Statement, Declaration, declPath)
 import Lex.Token (Token, tokenPos)
 import Util.Exception (ErrorKind, multiplePackageMsg, assignErrorMsg, unsupportedErrorMsg)
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
+import qualified Data.HashSet as HashSet
 import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
 
@@ -23,14 +31,45 @@ type QName = [String]
 
 -- | Control-flow context stack markers used for legality checks.
 data CtrlState
-    = InFunction
+    = InBlock
+    | InFunction
     | InLoop
     | InSwitch
     | InCase
     | InIf
     | InElse
     | InClass
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show, Generic, Hashable)
+
+
+prettyCtrlState :: CtrlState -> String 
+prettyCtrlState InBlock = "block"
+prettyCtrlState InFunction = "function"
+prettyCtrlState InLoop = "loop"
+prettyCtrlState InSwitch = "switch"
+prettyCtrlState InCase = "case"
+prettyCtrlState InIf = "if"
+prettyCtrlState InElse = "else"
+prettyCtrlState InClass = "class"
+
+
+-- | Forbidden inner control states for a given outer state.
+--   read as if key is parrent, value cannot be it children
+forbiddenMap :: Map CtrlState (HashSet CtrlState)
+forbiddenMap = Map.fromList [
+    (InBlock, HashSet.fromList [InClass]),
+    (InFunction, HashSet.fromList [InClass]),
+    (InLoop, HashSet.fromList [InClass]),
+    (InSwitch, HashSet.fromList [InBlock, InFunction, InLoop, InSwitch, InIf, InElse, InClass]),
+    (InCase, HashSet.fromList [InClass]),
+    (InIf, HashSet.fromList [InClass]),
+    (InElse, HashSet.fromList [InClass]),
+    (InClass, HashSet.fromList [InBlock, InLoop, InSwitch, InCase, InIf, InElse])]
+
+
+-- | Check whether a parent control state forbids a child control state.
+forbiddenFor :: CtrlState -> CtrlState -> Bool
+forbiddenFor parent current = HashSet.member current (Map.findWithDefault HashSet.empty parent forbiddenMap)
 
 
 -- | A single lexical scope (no parent pointer; use the scope stack).
@@ -47,7 +86,8 @@ data Scope = Scope {
 --   Keep this as a grow-only record to preserve long-term compatibility.
 data CheckState = CheckState {
     depth :: Int,             -- ^ Current lexical depth (scopes nesting).
-    counter :: Int,           -- ^ Unique id generator for vars/funcs/scopes.
+    varCounter :: Int,        -- ^ Unique id generator for vars.
+    scopeCounter :: Int,      -- ^ Unique id generator for scopes.
     ctrlStack :: [CtrlState], -- ^ Control-flow context stack.
     scope :: [Scope],         -- ^ Lexical scope stack (top = current).
     classScope :: [Scope]     -- ^ Class/trait scope stack (top = current).
@@ -76,22 +116,23 @@ defineLocalVar p (AST.Binary AST.Assign lhs _ _) st = case lhs of
             (sc:rest) ->
                 if Map.member name (sVars sc) then Right st
                 else 
-                    let vid = counter st
+                    let vid = varCounter st
                         sc' = sc { sVars = Map.insert name (vid, tokenPos nameTok) (sVars sc) }
-                    in Right $ st { counter = succ vid, scope = sc' : rest}
+                    in Right $ st { varCounter = succ vid, scope = sc' : rest}
     AST.Qualified _ tokens -> Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) assignErrorMsg)
     _ -> error "internal error this error should be catched in process of parser"
 defineLocalVar _ _ st = Right st
 
 
 defineFunc :: Path -> Statement -> CheckState -> Either ErrorKind CheckState
-defineFunc p (AST.Function _ (AST.Variable name token) _ _ _) st = case scope st of
+defineFunc _ (AST.Function _ (AST.Variable name token) _ _ _) st = case scope st of
     [] -> error "internal error: there is no scope to define !!! while define function"
     (sc:rest) -> 
         if Map.member [name] (sFuncs sc) then Right st
         else let sc' = sc { sFuncs = Map.insert [name] [tokenPos token] (sFuncs sc) } 
              in Right $ st { scope = sc' : rest}
-defineFunc p (AST.Function _ (AST.Qualified name tokens) _ _ _) st = Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+defineFunc p (AST.Function _ (AST.Qualified _ tokens) _ _ _) _ = Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+defineFunc _ _ st = Right st
 
 
 

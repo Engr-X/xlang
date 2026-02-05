@@ -43,10 +43,10 @@ getPackageNameTests = testGroup "Parse.ParserBasic.getPackageName" $ map (\(i, p
 getStateDepthTests :: TestTree
 getStateDepthTests = testGroup "Semantic.ContextCheck.getStateDepth" $ map (\(name, st, out) ->
     testCase name $ getStateDepth st @?= out) [
-    ("0", CheckState 0 0 [] [] [], 0),
-    ("1", CheckState 1 0 [] [] [], 1),
-    ("2", CheckState 2 10 [] [] [], 2),
-    ("3", CheckState 3 42 [] [] [], 3)]
+    ("0", CheckState 0 0 0 [] [] [], 0),
+    ("1", CheckState 1 0 0 [] [] [], 1),
+    ("2", CheckState 2 10 0 [] [] [], 2),
+    ("3", CheckState 3 42 0 [] [] [], 3)]
 
 
 

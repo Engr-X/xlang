@@ -142,7 +142,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         (Variable "x" (mkId "x" 2 4 1))
                         (Variable "a" (mkId "a" 2 8 1))
                         (mkSym Lex.Plus 2 6 1))
-                ])) Nothing,
+                ]))
+                Nothing
+                (mkId "while" 1 1 5, Nothing),
 
                 While
                     (BoolConst False (mkId "false" 3 10 5))
@@ -152,7 +154,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                             (Variable "a" (mkId "a" 4 12 1))
                             (mkSym Lex.Plus 4 10 1))
 
-                    ])) Nothing])),
+                    ]))
+                    Nothing
+                    (mkId "while" 3 4 5, Nothing)])),
 
         ("5", unlines [
             "while true:",
@@ -179,8 +183,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                                     (mkSym Lex.Assign 3 3 1))
                             ]))
                             Nothing
+                            (mkId "while" 2 1 5, Nothing)
                     ]))
-                Nothing,
+                Nothing
+                (mkId "while" 1 1 5, Nothing),
 
                 Expr (Binary Assign
                     (Variable "y" (mkId "y" 4 1 1))
@@ -199,6 +205,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     (BoolConst True (mkId "true" 1 7 4))
                     Nothing
                     Nothing
+                    (mkId "while" 1 1 5, Nothing)
             ])),
 
         ("6b", unlines [
@@ -209,6 +216,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     (BoolConst True (mkId "true" 1 7 4))
                     (Just (Multiple []))
                     Nothing
+                    (mkId "while" 1 1 5, Nothing)
             ])),
             
         ("7", unlines [
@@ -248,6 +256,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                                 (mkSym Lex.Plus 5 11 1))
                         ]))
                         Nothing
+                        (mkId "while" 4 5 5, Nothing)
                 ]))
                 (Just (Multiple [
                     While
@@ -262,7 +271,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                                 (mkSym Lex.Minus 10 15 1))
                         ]))
                         Nothing
+                        (mkId "while" 9 5 5, Nothing)
                 ]))
+                (mkId "while" 2 1 5, Just (mkId "else" 7 1 4))
         ])),
         
         ("8", unlines [
@@ -291,7 +302,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
 
                         ]))
                         Nothing
+                        (mkId "while" 4 5 5, Nothing)
                 ]))
+                (mkId "while" 1 1 5, Just (mkId "else" 3 1 4))
         ])),
         
         ("9", unlines [
@@ -333,7 +346,9 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                                 [Variable "b" (mkId "b" 7 17 1)]
                             )
                         ]))
+                        (mkId "if" 6 5 2, Just (mkId "else" 7 5 4))
                 ]))
+                (mkId "while" 1 1 5, Just (mkId "else" 5 1 4))
         ])),
         
         ("10", unlines [

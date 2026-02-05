@@ -125,6 +125,12 @@ breakCtrlErrorMsg = "`break` can only be used inside a loop or a case"
 -- | invalid position for return control flow
 returnCtrlErrorMsg :: String
 returnCtrlErrorMsg = "`return` can only be used inside a function"
+
+
+-- | Illegal statement means that this one cannot 
+illegalStatementMsg :: String -> String -> String
+illegalStatementMsg child parrent = concat ["Illegal statement ", child, " in ", parrent," body"]
+
     
 
 

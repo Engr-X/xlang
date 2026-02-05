@@ -16,27 +16,27 @@ StmtSeqOpt :: { [Statement] }
     ;
 
 
-ElseBlock :: { Maybe Block }
-    : KW_ELSE ';'                       { Nothing }
-    | KW_ELSE Stmt                      { Just $ stmtToBlock $2 }
-    | KW_ELSE ':' Stmt                  { Just $ stmtToBlock $3 }
+ElseBlock :: { (Maybe Block, Token) }
+    : KW_ELSE ';'                       { (Nothing, $1) }
+    | KW_ELSE Stmt                      { (Just $ stmtToBlock $2, $1) }
+    | KW_ELSE ':' Stmt                  { (Just $ stmtToBlock $3, $1) }
     ;
 
 
 IfStmt :: { Statement }
-    : KW_IF Expr ';'                      %prec IFX { If $2 Nothing Nothing }
-    | KW_IF Expr ';' ElseBlock                      { If $2 Nothing $4 }
-    | KW_IF Expr ':' Stmt                 %prec IFX { If $2 (Just $ stmtToBlock $4) Nothing }
-    | KW_IF Expr ':' Stmt ElseBlock                 { If $2 (Just $ stmtToBlock $4) $5 }
+    : KW_IF Expr ';'                      %prec IFX { If $2 Nothing Nothing ($1, Nothing) }
+    | KW_IF Expr ';' ElseBlock                      { If $2 Nothing (fst $4) ($1, Just $ snd $4) }
+    | KW_IF Expr ':' Stmt                 %prec IFX { If $2 (Just $ stmtToBlock $4) Nothing ($1, Nothing) }
+    | KW_IF Expr ':' Stmt ElseBlock                 { If $2 (Just $ stmtToBlock $4) (fst $5) ($1, Just $ snd $5) }
     ;
 
 
 -- while
 WhileStmt :: { Statement }
-    : KW_WHILE Expr ';'                   %prec IFX { While $2 Nothing Nothing }
-    | KW_WHILE Expr ';' ElseBlock                   { While $2 Nothing $4 }
-    | KW_WHILE Expr ':' Stmt              %prec IFX { While $2 (Just $ stmtToBlock $4) Nothing }
-    | KW_WHILE Expr ':' Stmt ElseBlock              { While $2 (Just $ stmtToBlock $4) $5 }
+    : KW_WHILE Expr ';'                   %prec IFX { While $2 Nothing Nothing ($1, Nothing) }
+    | KW_WHILE Expr ';' ElseBlock                   { While $2 Nothing (fst $4) ($1, Just $ snd $4) }
+    | KW_WHILE Expr ':' Stmt              %prec IFX { While $2 (Just $ stmtToBlock $4) Nothing ($1, Nothing) }
+    | KW_WHILE Expr ':' Stmt ElseBlock              { While $2 (Just $ stmtToBlock $4) (fst $5) ($1, Just $ snd $5) }
     ;
     
 

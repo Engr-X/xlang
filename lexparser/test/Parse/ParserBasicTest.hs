@@ -69,10 +69,10 @@ checkBracketTests = testGroup "Parse.ParserBasic.checkBracket" $ map (\(n, s, e)
 
 classifyNumberTests :: TestTree
 classifyNumberTests = testGroup "Parse.ParserBasic.classifyNumber" $ map (\(i, s, e) -> testCase i $ classifyNumber s (mkTok s) @=? e) [
-    ("int", "0", Just (IntConst "0" (mkTok "0"))),
-    ("double", "123.4", Just (DoubleConst "123.4" (mkTok "123.4"))),
-    ("longdouble", "1e9l", Just (LongDoubleConst "1e9l" (mkTok "1e9l"))),
-    ("invalid", "0x", Nothing)]
+    ("0", "0", Just (IntConst "0" (mkTok "0"))),
+    ("1", "123.4", Just (DoubleConst "123.4" (mkTok "123.4"))),
+    ("2", "1e9l", Just (LongDoubleConst "1e9l" (mkTok "1e9l"))),
+    ("3", "0x", Nothing)]
     where
         mkTok :: String -> Token
         mkTok s = Lex.NumberConst s $ makePosition 1 1 (length s)
@@ -127,25 +127,29 @@ stmtToBlockTests = testGroup "Parse.ParserBasic.stmtToBlock" $
                 (Just (Multiple [
                     Expr (IntConst "1" (mkNum "1" 2 1 1))
                 ]))
-                Nothing,
+                Nothing
+                (mkId "while" 1 1 5, Nothing),
             Multiple [
                 While
                     (BoolConst True (mkId "true" 1 1 4))
                     (Just (Multiple [
                         Expr (IntConst "1" (mkNum "1" 2 1 1))
                     ]))
-                    Nothing]),
+                    Nothing
+                    (mkId "while" 1 1 5, Nothing)]),
 
         ("3",
             While
                 (BoolConst True (mkId "true" 1 1 4))
                 Nothing
-                Nothing,
+                Nothing
+                (mkId "while" 1 1 5, Nothing),
             Multiple [
                 While
                     (BoolConst True (mkId "true" 1 1 4))
                     Nothing
-                    Nothing])]
+                    Nothing
+                    (mkId "while" 1 1 5, Nothing)])]
     where
         -- mkSym :: Symbol -> Int -> Int -> Int -> Token
         -- mkSym s a b c = Lex.Symbol s $ Position a b c
@@ -162,8 +166,8 @@ stmtToExprTests = testGroup "Parse.ParserBasic.stmtToExpr" $ map (\(name, _, stm
     testCase name $ stmtToExpr tok stmt @=? expected) [
         ("0", tok, Expr expr, expr),
         ("1", tok, BlockStmt (Multiple []), Error [tok] (expectedExpression 1 $ show tok)),
-        ("If statement produces error expression", tok, If (BoolConst True tok) Nothing Nothing, Error [tok] (expectedExpression 1 $ show tok)),
-        ("While statement produces error expression", tok, While (BoolConst True tok) Nothing Nothing, Error [tok] (expectedExpression 1 $ show tok))]
+        ("2", tok, If (BoolConst True tok) Nothing Nothing (tok, Nothing), Error [tok] (expectedExpression 1 $ show tok)),
+        ("3", tok, While (BoolConst True tok) Nothing Nothing (tok, Nothing), Error [tok] (expectedExpression 1 $ show tok))]
     where
         tok  = Lex.Ident "x" (makePosition 1 1 1)
         expr = AST.IntConst "42" tok

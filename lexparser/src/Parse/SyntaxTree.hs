@@ -242,6 +242,14 @@ prettyBlockIO :: Block -> IO String
 prettyBlockIO = pure . prettyBlock 0
 
 
+-- | Collect all tokens contained in a block (recursively).
+--   This traverses each statement in the block and aggregates
+--   the tokens found in nested statements/expressions.
+blockTokens :: Maybe Block -> [Token]
+blockTokens Nothing = []
+blockTokens (Just (Multiple ss)) = concatMap stmtTokens ss
+
+
 -- | Flatten all expressions contained in a block.
 --   Useful for traversal, analysis, or validation passes.
 flattenBlock :: Maybe Block -> [Expression]
@@ -251,20 +259,22 @@ flattenBlock (Just (Multiple ss)) = concatMap (flattenStatement . Just) ss
 
 -- | Switch-case representation.
 --   A case may have an expression or be a default case.
-data SwitchCase = Case Expression (Maybe Block) | Default Block
+data SwitchCase =
+    Case Expression (Maybe Block) Token | -- case keyword
+    Default Block Token -- default keyword
     deriving (Eq, Show)
 
 
 -- | pretty toString version for switch case
 prettySwitchCase :: Int -> SwitchCase -> String
-prettySwitchCase n (Case e b)
+prettySwitchCase n (Case e b _)
     | isNothing b = concat [space, "case: ", prettyExpr 0 (Just e), ":\n"]
     | otherwise = unlines [concat ["case ", prettyExpr 0 (Just e), ":"],
         space ++ "{", prettyBlock (n + 1) (fromMaybe (error "this is impossible") b), space ++ "}"]
     where
         space :: String
         space = insertTab n
-prettySwitchCase n (Default b) = unlines [space ++ "default: ", space ++ "{", prettyBlock (n + 1) b, space ++ "}"]
+prettySwitchCase n (Default b _) = unlines [space ++ "default: ", space ++ "{", prettyBlock (n + 1) b, space ++ "}"]
     where
         space :: String
         space = insertTab n
@@ -274,13 +284,21 @@ prettySwitchCaseIO :: SwitchCase -> IO String
 prettySwitchCaseIO = pure . prettySwitchCase 0
 
 
+-- | Collect all tokens contained in a switch case (recursively).
+--   Includes the case expression (if any) and tokens from the case block.
+--   For 'Default', only the block tokens are returned.
+switchCaseTokens :: SwitchCase -> [Token]
+switchCaseTokens (Case e mb _) = exprTokens e ++ blockTokens mb
+switchCaseTokens (Default b _) = blockTokens (Just b)
+
+
 -- | Extract all expressions from a switch case.
 --   Includes the case condition and expressions in its block.
 flattenCase :: Maybe SwitchCase -> [Expression]
 flattenCase Nothing = []
-flattenCase (Just (Case e Nothing)) = [e]
-flattenCase (Just (Case e b)) = e : flattenBlock b
-flattenCase (Just (Default b)) = flattenBlock (Just b)
+flattenCase (Just (Case e Nothing _)) = [e]
+flattenCase (Just (Case e b _)) = e : flattenBlock b
+flattenCase (Just (Default b _)) = flattenBlock (Just b)
 
 
 -- | Abstract syntax tree for statements.
@@ -289,11 +307,11 @@ data Statement =
     Command Command Token |
     Expr Expression |
     BlockStmt Block |
-    If Expression (Maybe Block) (Maybe Block) | -- if else
-    For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) |
-    While Expression (Maybe Block) (Maybe Block) | -- while else
-    DoWhile (Maybe Block) Expression (Maybe Block) |
-    Switch Expression [SwitchCase] |
+    If Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (if keyword - maybe else)
+    For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) Token | -- (for keyword)
+    While Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- while else -- (while keyword - maybe else keyword)
+    DoWhile (Maybe Block) Expression (Maybe Block) (Token, Token, Maybe Token) | -- (do keyword, while keyword, maybe else keyword)
+    Switch Expression [SwitchCase] Token | -- (switch keyword)
     Function (Class, [Token]) Expression (Maybe [(Class, [Token])]) [(Class, String, [Token])] Block
     -- function: return_type + pos, name, template params + position, params + position, body
     deriving (Eq, Show)
@@ -307,46 +325,46 @@ prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
 -- if 
-prettyStmt n (Just (If expr Nothing Nothing)) = concat [insertTab n, "if (", prettyExpr 0 (Just expr), ");\n"]
-prettyStmt n (Just (If expr (Just b) Nothing)) = let
+prettyStmt n (Just (If expr Nothing Nothing _)) = concat [insertTab n, "if (", prettyExpr 0 (Just expr), ");\n"]
+prettyStmt n (Just (If expr (Just b) Nothing _)) = let
     body = prettyBlock n b
     space = insertTab n in
     unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body]
-prettyStmt n (Just (If expr Nothing (Just b))) = let
+prettyStmt n (Just (If expr Nothing (Just b) _)) = let
     body = prettyBlock n b
     space = insertTab n in
     unlines [concat [insertTab n, "if (", prettyExpr 0 (Just expr), ");"], space ++ "else", body]
-prettyStmt n (Just (If expr (Just a) (Just b))) = let
+prettyStmt n (Just (If expr (Just a) (Just b) _)) = let
     (body1, body2) = (prettyBlock n a, prettyBlock n b)
     space = insertTab n in 
     unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body1, space ++ "else", body2]
 
 -- for loop
-prettyStmt n (Just (For (s1, s2, s3) Nothing)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
+prettyStmt n (Just (For (s1, s2, s3) Nothing _)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
     concat [insertTab n, "for(", s, ");\n"]
-prettyStmt n (Just (For (s1, s2, s3) (Just b))) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
+prettyStmt n (Just (For (s1, s2, s3) (Just b) _)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
     unlines [concat [insertTab n, "for(", s, ")"], prettyBlock n b]
 
 -- while
-prettyStmt n (Just (While e Nothing Nothing)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
-prettyStmt n (Just (While e Nothing (Just b))) = let space = insertTab n in
+prettyStmt n (Just (While e Nothing Nothing _)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
+prettyStmt n (Just (While e Nothing (Just b) _)) = let space = insertTab n in
     unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"], space ++ "else", prettyBlock n b]
-prettyStmt n (Just (While e (Just b) Nothing)) = unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
-prettyStmt n (Just (While e (Just b1) (Just b2))) = let space = insertTab n in
+prettyStmt n (Just (While e (Just b) Nothing _)) = unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+prettyStmt n (Just (While e (Just b1) (Just b2) _)) = let space = insertTab n in
     unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b1, space ++ "else", prettyBlock n b2]
 
 -- dowhile
-prettyStmt n (Just (DoWhile Nothing e Nothing)) = let space = insertTab n in
+prettyStmt n (Just (DoWhile Nothing e Nothing _)) = let space = insertTab n in
     unlines [space ++ "do", concat [space, "while(", prettyExpr 0 (Just e), ")"]]
-prettyStmt n (Just (DoWhile Nothing e (Just b))) = let space = insertTab n in
+prettyStmt n (Just (DoWhile Nothing e (Just b) _)) = let space = insertTab n in
     unlines [space ++ "do",  concat [space, prettyBlock n b, "while(", prettyExpr 0 (Just e), ")"], space ++ "else", prettyBlock n b]
-prettyStmt n (Just (DoWhile (Just b) e Nothing)) = let space = insertTab n in
+prettyStmt n (Just (DoWhile (Just b) e Nothing _)) = let space = insertTab n in
     unlines [space ++ "do",  concat [space, prettyBlock n b, "while(", prettyExpr 0 (Just e), ")"]]
-prettyStmt n (Just (DoWhile (Just b1) e (Just b2))) = let space = insertTab n in
+prettyStmt n (Just (DoWhile (Just b1) e (Just b2) _)) = let space = insertTab n in
         unlines [space ++ "do", concat [space, prettyBlock n b1, "while(", prettyExpr 0 (Just e), ")"],
             space ++ "else", prettyBlock n b2]
 
-prettyStmt n (Just (Switch e xs)) = let space = insertTab n in unlines
+prettyStmt n (Just (Switch e xs _)) = let space = insertTab n in unlines
     [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs,space ++ "}" ]
 
 
@@ -371,9 +389,38 @@ prettyStmt n (Just (Function (retC, _) functionName mGenParams params b)) =
             ")"],
         prettyBlock n b]
 
-
+-- | pretty statement in IO version
 prettyStmtIO :: Maybe Statement -> IO String
 prettyStmtIO = pure . prettyStmt 0
+
+
+-- | Collect all tokens contained in a statement (recursively).
+--   This includes tokens from nested expressions and blocks.
+stmtTokens :: Statement -> [Token]
+stmtTokens (Command _ t) = [t]
+stmtTokens (Expr e) = exprTokens e
+stmtTokens (BlockStmt b) = blockTokens (Just b)
+
+stmtTokens (If e b1 b2 (ifTok, elseTok)) = concat [
+    [ifTok], exprTokens e, blockTokens b1, maybe [] pure elseTok, blockTokens b2]
+
+stmtTokens (For (e1, e2, e3) b forTok) = concat [
+    [forTok], concatMap exprTokens (catMaybes [e1, e2, e3]), blockTokens b]
+
+stmtTokens (While e b1 b2 (whileTok, elseTok)) = concat [
+    [whileTok], exprTokens e, blockTokens b1,
+    maybe [] pure elseTok, blockTokens b2]
+
+stmtTokens (DoWhile b1 e b2 (doTok, whileTok, elseTok)) = concat [
+    [doTok], blockTokens b1, 
+    [whileTok], exprTokens e,
+    maybe [] pure elseTok, blockTokens b2]
+
+stmtTokens (Switch e scs switchTok) = concat [[switchTok], exprTokens e, concatMap switchCaseTokens scs]
+
+stmtTokens (Function (_, retToks) name mGenParams params b) = concat [
+    retToks, exprTokens name, maybe [] (concatMap snd) mGenParams,
+    concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
 
 
 -- | Flatten all expressions contained in a statement.
@@ -383,11 +430,11 @@ flattenStatement Nothing = []
 flattenStatement (Just (Command _ _)) = []
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
-flattenStatement (Just (If e b c)) = e : (flattenBlock b ++ flattenBlock c)
-flattenStatement (Just (For (e1, e2, e3) b)) = catMaybes [e1, e2, e3] ++ flattenBlock b
-flattenStatement (Just (While e b1 b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
-flattenStatement (Just (DoWhile b1 e b2)) = e : (flattenBlock b1 ++ flattenBlock b2)
-flattenStatement (Just (Switch e scs)) = e : concatMap (flattenCase . Just) scs
+flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)
+flattenStatement (Just (For (e1, e2, e3) b _)) = catMaybes [e1, e2, e3] ++ flattenBlock b
+flattenStatement (Just (While e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (DoWhile b1 e b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (Switch e scs _)) = e : concatMap (flattenCase . Just) scs
 flattenStatement (Just (Function _ _ _ params b)) = concatMap one params ++ flattenBlock (Just b)
     where
         one :: (Class, String, [Token]) -> [Expression]
