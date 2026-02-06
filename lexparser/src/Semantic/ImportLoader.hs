@@ -12,6 +12,9 @@ import qualified Data.Map.Strict as Map
 import qualified Parse.SyntaxTree as AST
 
 
+-- | Load import environment from a source program.
+--   Collects top-level variable assignments and function declarations
+--   under the package name, or returns accumulated errors.
 loadSrcI :: Path -> Program -> Either [ErrorKind] ImportEnv
 loadSrcI p (dcls, stmts) = case getPackageName p dcls of
     Left errs -> Left errs

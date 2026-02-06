@@ -304,6 +304,52 @@ exprTokensTests = testGroup "Parse.SyntaxTree.exprTokens" $ map (\(n, e, ts) -> 
         tokTA2 = Lex.Ident "bool" (makePosition 5 9 4)
 
 
+stmtTokensTests :: TestTree
+stmtTokensTests = testGroup "Parse.SyntaxTree.stmtTokens" $ map (\(n, s, ts) -> testCase n $ stmtTokens s @=? ts) [
+    ("0 Command", Command Continue tokCmd, [tokCmd]),
+    ("1 If", If (Variable "x" tokX)
+        (Just (Multiple [Expr (Variable "a" tokA)]))
+        (Just (Multiple [Expr (Variable "b" tokB)]))
+        (tokIf, Just tokElse),
+        [tokIf, tokX, tokA, tokElse, tokB]),
+    ("2 Switch", Switch (Variable "x" tokX) [
+        Case (IntConst "1" tok1) (Just $ Multiple [Expr (Variable "y" tokY)]) tokCase,
+        Default (Multiple [Expr (Variable "z" tokZ)]) tokDefault
+        ] tokSwitch,
+        [tokSwitch, tokX, tok1, tokY, tokZ]),
+    ("3 Function", Function (Int32T, [tokRet]) (Variable "f" tokF)
+        (Just [(Int32T, [tokTA1]), (Bool, [tokTA2])])
+        [(Int32T, "x", [tokPx]), (Bool, "y", [tokPy])]
+        (Multiple [Expr (Variable "body" tokBody)]),
+        [tokRet, tokF, tokTA1, tokTA2, tokPx, tokPy, tokBody])
+    ]
+    where
+        tokCmd, tokIf, tokElse, tokX, tokA, tokB :: Token
+        tokCmd  = Lex.Ident "cmd"  (makePosition 1 1 1)
+        tokIf   = Lex.Ident "if"   (makePosition 1 3 2)
+        tokElse = Lex.Ident "else" (makePosition 1 6 4)
+        tokX    = Lex.Ident "x"    (makePosition 1 11 1)
+        tokA    = Lex.Ident "a"    (makePosition 2 1 1)
+        tokB    = Lex.Ident "b"    (makePosition 3 1 1)
+
+        tokSwitch, tok1, tokY, tokZ, tokCase, tokDefault :: Token
+        tokSwitch  = Lex.Ident "switch" (makePosition 4 1 6)
+        tok1       = Lex.NumberConst "1" (makePosition 4 8 1)
+        tokY       = Lex.Ident "y" (makePosition 4 10 1)
+        tokZ       = Lex.Ident "z" (makePosition 4 12 1)
+        tokCase    = Lex.Ident "case" (makePosition 4 14 4)
+        tokDefault = Lex.Ident "default" (makePosition 4 19 7)
+
+        tokRet, tokF, tokTA1, tokTA2, tokPx, tokPy, tokBody :: Token
+        tokRet  = Lex.Ident "int"  (makePosition 5 1 3)
+        tokF    = Lex.Ident "f"    (makePosition 5 5 1)
+        tokTA1  = Lex.Ident "int"  (makePosition 5 7 3)
+        tokTA2  = Lex.Ident "bool" (makePosition 5 11 4)
+        tokPx   = Lex.Ident "x"    (makePosition 5 16 1)
+        tokPy   = Lex.Ident "y"    (makePosition 5 18 1)
+        tokBody = Lex.Ident "body" (makePosition 6 1 4)
+
+
 
 prettyExprTests :: TestTree
 prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, out) -> testCase i $ prettyExpr n inp @=? out) [
@@ -483,7 +529,7 @@ tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests,
 
-    getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests,
+    getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
     

@@ -192,6 +192,7 @@ test-suite lexparser-test
         Parse.ParseProgmTest
 
         Semantic.NameEnvTest
+        Semantic.ImportLoaderTest
 
         Util.BasicTest
         Util.ExceptionTest

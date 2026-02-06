@@ -42,6 +42,7 @@ data CtrlState
     deriving (Eq, Ord, Show, Generic, Hashable)
 
 
+-- | better to String function for state
 prettyCtrlState :: CtrlState -> String 
 prettyCtrlState InBlock = "block"
 prettyCtrlState InFunction = "function"
@@ -105,7 +106,6 @@ data ImportEnv = IEnv  {
     deriving (Eq, Show)
 
 
--- English comment:
 -- Define a local variable when we see a top-level assignment like: x = expr.
 -- This only treats "Variable" as a definable l-value for now.
 defineLocalVar :: Path -> Expression -> CheckState -> Either ErrorKind CheckState
@@ -124,6 +124,9 @@ defineLocalVar p (AST.Binary AST.Assign lhs _ _) st = case lhs of
 defineLocalVar _ _ st = Right st
 
 
+-- | Define a function name in the current scope.
+--   For qualified names, report unsupported syntax.
+--   Non-function statements are ignored.
 defineFunc :: Path -> Statement -> CheckState -> Either ErrorKind CheckState
 defineFunc _ (AST.Function _ (AST.Variable name token) _ _ _) st = case scope st of
     [] -> error "internal error: there is no scope to define !!! while define function"
@@ -136,17 +139,21 @@ defineFunc _ _ st = Right st
 
 
 
+-- | Check whether a variable name is defined in any active lexical scope.
 isVarDefine :: String -> CheckState -> Bool
 isVarDefine varName = any (Map.member varName . sVars) . scope
 
 
+-- | Check whether a variable name is imported in any import environment.
 isVarImport :: QName -> [ImportEnv] -> Bool
 isVarImport varName = any (Map.member varName . iVars)
 
 
+-- | Check whether a function name is defined in any active lexical scope.
 isFuncDefine :: QName -> CheckState -> Bool
 isFuncDefine funName = any (Map.member funName . sFuncs) . scope
 
+-- | Check whether a function name is imported in any import environment.
 isFunImport :: QName -> [ImportEnv] -> Bool
 isFunImport funName = any (Map.member funName . iFuncs)
 
