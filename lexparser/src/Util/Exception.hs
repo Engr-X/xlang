@@ -55,6 +55,11 @@ undefinedVariable :: String -> String
 undefinedVariable varName = "undefined variable: " ++ varName
 
 
+-- | Error message for an undefined function
+undefinedFunction :: String -> String
+undefinedFunction funName = "undefined function: " ++ funName
+
+
 -- | Error message for multiple package declarations
 multiplePackageMsg :: String
 multiplePackageMsg = "multiple package declarations" 

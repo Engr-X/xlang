@@ -7,7 +7,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify)
 import Lex.Token (tokenPos)
 import Util.Type (Path)
-import Util.Exception (ErrorKind, undefinedVariable, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg)
+import Util.Exception (ErrorKind, undefinedVariable, undefinedFunction, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -26,14 +26,52 @@ type CheckM a = State Ctx a
 --contextCheck :: Path -> AST.Program -> Either [ErrorKind] ImportEnv
 
 
+-- | Append a new error to the context (keeps existing errors).
 addErr :: ErrorKind -> CheckM ()
 addErr e = modify $ \c -> c { errs = e : errs c }
 
+-- | Read the current checking state.
 getState :: CheckM CheckState
 getState = st <$> get
 
+-- | Replace the current checking state.
 putState :: CheckState -> CheckM ()
 putState s = modify $ \c -> c { st = s }
+
+-- | Push a control-flow context for the duration of an action, then pop it.
+withCtrl :: CtrlState -> CheckM a -> CheckM a
+withCtrl ctrl action = do
+    c <- get
+    let cState = st c
+    put $ c { st = cState { ctrlStack = ctrl : ctrlStack cState } }
+    res <- action
+    c2 <- get
+    let cState2 = st c2
+    put $ c2 { st = cState2 { ctrlStack = tail $ ctrlStack cState2 } }
+    pure res
+
+-- | Create a new lexical scope for the duration of an action, then restore depth/scope.
+withScope :: CheckM a -> CheckM a
+withScope action = do
+    c <- get
+    let cState = st c
+    let depth0 = depth cState
+    let newScope = Scope { scopeId = scopeCounter cState, sVars = Map.empty, sFuncs = Map.empty }
+    let cState' = cState {
+        depth = succ depth0,
+        scopeCounter = succ $ scopeCounter cState,
+        scope = newScope : scope cState}
+    put $ c { st = cState' }
+    res <- action
+    c2 <- get
+    let cState2 = st c2
+    let scope' = tail $ scope cState2
+    put $ c2 { st = cState2 { depth = depth0, scope = scope' } }
+    pure res
+
+-- | Convenience wrapper to push both a control context and a new scope.
+withCtrlScope :: CtrlState -> CheckM a -> CheckM a
+withCtrlScope ctrl action = withCtrl ctrl (withScope action)
 
 
 -- English comment: minimal expression traversal; no name/type rules yet.
@@ -65,13 +103,11 @@ checkExpr p packages envs expr = case expr of
             ("this":field:_) -> case classScope cState of
                 [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedVariable field)
 
-                (clsTop:_) ->
-                    if Map.member field (sVars clsTop) then pure ()
+                (clsTop:_) -> if Map.member field (sVars clsTop) then pure ()
                     else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedVariable field)
 
             -- non-this qualified name is resolved only through imports.
-            _ ->
-                if isVarImport names envs
+            _ -> if isVarImport names envs
                     then pure ()
                     else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens)
                             (undefinedVariable (last names))
@@ -94,8 +130,20 @@ checkExpr p packages envs expr = case expr of
         checkExpr p packages envs e1
         checkExpr p packages envs e2
 
-    AST.Call callee _mTypeArgs args -> do
-        checkExpr p packages envs callee
+    AST.Call callee _ args -> do
+        case callee of
+            AST.Variable name tok -> do
+                c <- get
+                let cState = st c
+                if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs then pure ()
+                else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedFunction name)
+
+            AST.Qualified names tokens ->
+                if isFunImport names envs then pure ()
+                else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedFunction (last names))
+
+            _ -> addErr
+
         mapM_ (checkExpr p packages envs) args
 
 
@@ -139,23 +187,7 @@ checkStmt p package envs stmt@(AST.BlockStmt block) = do
     let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
     when (forbiddenFor parentCtrl InBlock) $ addErr $
         UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) (illegalStatementMsg (prettyCtrlState InBlock) (prettyCtrlState parentCtrl))
-    let depth0 = depth cState
-    let newScope = Scope { scopeId = scopeCounter cState, sVars = Map.empty, sFuncs = Map.empty }
-    let depthNow = succ depth0
-    let cState' = cState {
-        depth = depthNow,
-        scopeCounter = succ $ scopeCounter cState,
-        ctrlStack = InBlock : ctrlStack cState,
-        scope = newScope : scope cState}
-    put $ c { st = cState' }
-    checkBlock p package envs block
-    c2 <- get
-
-    let cState2 = st c2
-    let scope' = tail $ scope cState2
-    let ctrls' = tail $ ctrlStack cState2
-    let depth' = depth0
-    put $ c2 { st = cState2 { depth = depth', scope = scope', ctrlStack = ctrls' } }
+    withCtrlScope InBlock $ checkBlock p package envs block
 
 -- if-else
 checkStmt p package envs stmt@(AST.If e ifBlock elseBlock _) = do
@@ -166,8 +198,22 @@ checkStmt p package envs stmt@(AST.If e ifBlock elseBlock _) = do
         UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) (illegalStatementMsg (prettyCtrlState InIf) (prettyCtrlState parentCtrl))
 
     checkExpr p package envs e
-    for_ ifBlock (checkBlock p package envs)
-    for_ elseBlock (checkBlock p package envs)
+    for_ ifBlock (withCtrlScope InIf . checkBlock p package envs)
+    for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
+
+-- for
+checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
+    c <- get
+    let cState = st c
+    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
+
+    withScope $ do
+        for_ e1 (checkExpr p package envs)
+        for_ e2 (checkExpr p package envs)
+        for_ e3 (checkExpr p package envs)
+        for_ forBlock (withCtrlScope InLoop . checkBlock p package envs)
 
 -- while
 checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
@@ -178,8 +224,8 @@ checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
 
     checkExpr p package envs e
-    for_ whileBlock (checkBlock p package envs)
-    for_ elseBlock (checkBlock p package envs)
+    for_ whileBlock (withCtrlScope InLoop . checkBlock p package envs)
+    for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
 -- do while
 checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
@@ -189,9 +235,9 @@ checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
 
-    for_ whileBlock (checkBlock p package envs)
+    for_ whileBlock (withCtrlScope InLoop . checkBlock p package envs)
     checkExpr p package envs e
-    for_ elseBlock (checkBlock p package envs)
+    for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
 -- switch
 checkStmt p package envs stmt@(AST.Switch e scs _) = do
@@ -202,14 +248,14 @@ checkStmt p package envs stmt@(AST.Switch e scs _) = do
         (illegalStatementMsg (prettyCtrlState InSwitch) (prettyCtrlState parentCtrl))
 
     checkExpr p package envs e
-    for_ scs (checkSwitchCase p package envs)
+    withCtrl InSwitch $ for_ scs (checkSwitchCase p package envs)
     where
         checkSwitchCase :: Path -> QName -> [ImportEnv] -> SwitchCase -> CheckM()
         checkSwitchCase p q envs (AST.Case e mb _) = do
             checkExpr p q envs e
-            for_ mb (checkBlock p q envs)
+            for_ mb (withCtrlScope InCase . checkBlock p q envs)
         checkSwitchCase p q envs (AST.Default b _) =
-            checkBlock p q envs b
+            withCtrlScope InCase (checkBlock p q envs b)
 
 
 -- function
