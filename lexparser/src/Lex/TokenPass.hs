@@ -46,7 +46,7 @@ banNextSet = HashSet.fromList [
 
     Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
-    Lex.LParen, Lex.LBracket, Lex.LBrace, Lex.RBrace,
+    Lex.LParen, Lex.LBracket, Lex.RBrace,
 
     Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.FatArrow,
     Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot

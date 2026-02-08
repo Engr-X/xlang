@@ -92,23 +92,23 @@ checkProgmFromSrc src = case replLexparseProgm src of
     Left errors -> Left errors
     Right prog -> checkProgm "stdin" prog []
 
-firstWhy :: [UE.ErrorKind] -> Maybe String
-firstWhy errs = case errs of
-    (UE.Syntax (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
-    (UE.Parsing (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
-    (UE.Lexer (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
-    _ -> Nothing
-
 assertCheckProgm :: Either [UE.ErrorKind] CheckState -> Maybe String -> Assertion
 assertCheckProgm res expected = case expected of
     Nothing -> case res of
         Right _ -> pure ()
-        Left errs -> assertFailure $ "unexpected errors: " ++ show errs
+        Left errors -> assertFailure $ "unexpected errors: " ++ show errors
     Just msg -> case res of
-        Left errs -> case firstWhy errs of
+        Left errors -> case firstWhy errors of
             Just whyMsg -> whyMsg @?= msg
-            Nothing -> assertFailure $ "unexpected errors: " ++ show errs
+            Nothing -> assertFailure $ "unexpected errors: " ++ show errors
         Right _ -> assertFailure "expected errors but got success"
+    where
+        firstWhy :: [UE.ErrorKind] -> Maybe String
+        firstWhy errors = case errors of
+            (UE.Syntax (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+            (UE.Parsing (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+            (UE.Lexer (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+            _ -> Nothing
 
 importVars :: [QName] -> ImportEnv
 importVars names = IEnv {
@@ -569,7 +569,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
         ], Just (UE.undefinedVariable "x")),
         ("7", unlines [
             "int main() {",
-            "    a = 1;",
+            "    a = 1",
             "    {",
                 "        b = a + 1",
                 "        c = b + 1",
@@ -581,21 +581,21 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "q = p + 1",
             "r = q + 1"
         ], Nothing),
-        ("function/0_call_before_def", unlines [
+        ("8", unlines [
             "a = f()",
             "b = a + 1",
             "c = b + 1",
             "d = c + 1",
             "int f() { }"
         ], Nothing),
-        ("function/1_undef_func", unlines [
+        ("9", unlines [
             "int f() { }",
             "a = f()",
             "b = g(1)",
             "c = b + 1",
             "d = c + 1"
         ], Just (UE.undefinedFunction "g")),
-        ("function/2_nested_ok", unlines [
+        ("10", unlines [
             "int outer() {",
             "    int inner() { }",
             "    a = inner()",
@@ -606,7 +606,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "e = d + 1",
             "f = e + 1"
         ], Nothing),
-        ("function/3_nested_scope_err", unlines [
+        ("11", unlines [
             "int outer() {",
             "    int inner() { }",
             "    a = inner()",
@@ -617,7 +617,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "y = x + 1",
             "z = y + 1"
         ], Just (UE.undefinedFunction "inner")),
-        ("if_else/0_ok", unlines [
+        ("12", unlines [
             "int main() {",
             "    a = 0",
             "    if true:",
@@ -631,7 +631,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "e = d + 1",
             "f = e + 1"
         ], Nothing),
-        ("if_else/1_scope_err", unlines [
+        ("13", unlines [
             "int main() {",
             "    if true:",
             "        a = 1",
@@ -644,7 +644,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "e = d + 1",
             "f = e + 1"
         ], Just (UE.undefinedVariable "a")),
-        ("while_else/0_ok", unlines [
+        ("14", unlines [
             "int main() {",
             "    i = 0",
             "    while true:",
@@ -658,7 +658,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "b = a + 1",
             "c = b + 1"
         ], Nothing),
-        ("while_else/1_scope_err", unlines [
+        ("15", unlines [
             "int main() {",
             "    while true:",
             "        i = 1",
@@ -670,9 +670,9 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "a = 1",
             "b = a + 1",
             "c = b + 1"
-        ], Just (UE.undefinedVariable "i"))
-    ] ++
-    [ testCase "do_while/0_ok" $ do
+        ], Just (UE.undefinedVariable "i"))] ++ [
+        
+        testCase "do_while/0_ok" $ do
         eInit <- parseExprOrFail "i = 0"
         eInc <- parseExprOrFail "i = i + 1"
         eCond <- parseExprOrFail "i < 10"

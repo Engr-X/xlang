@@ -97,6 +97,10 @@ library
             Semantic.NameEnv
             Semantic.ContextCheck
             Semantic.ImportLoader
+
+            Semantic.TypeEnv
+            Semantic.TypeCheck
+            Semantic.OpInfer
     
             Util.Basic
             Util.Type

@@ -17,8 +17,8 @@ data Class =
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
     Array Class Int |
-    Class [String] [Class]
-    deriving (Eq, Show)
+    Class [String] [Class] -- name + general
+    deriving (Eq, Ord, Show)
 
 
 -- Better toString of class instance
