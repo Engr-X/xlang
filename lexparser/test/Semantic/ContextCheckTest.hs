@@ -1,0 +1,487 @@
+{-# LANGUAGE TupleSections #-}
+
+module Semantic.ContextCheckTest where
+
+import Control.Monad.State.Strict (runState, execState)
+import Test.Tasty
+import Test.Tasty.HUnit
+import Util.Type (Position, makePosition)
+import Parse.ParseExpr (replLexparseExpr)
+import Parse.ParseStmt (replLexparseStmt)
+import Semantic.ContextCheck
+import Semantic.NameEnv (CheckState(..), Scope(..), CtrlState(..), ImportEnv(..), QName)
+
+import qualified Data.Map.Strict as Map
+import qualified Lex.Token as Lex
+import qualified Parse.SyntaxTree as AST
+import qualified Util.Exception as UE
+
+
+pos1, pos2, pos3, pos4 :: Position
+pos1 = makePosition 1 1 1
+pos2 = makePosition 2 1 1
+pos3 = makePosition 3 1 1
+pos4 = makePosition 4 1 1
+
+emptyScope :: Scope
+emptyScope = Scope { scopeId = 0, sVars = Map.empty, sFuncs = Map.empty }
+
+stEmpty :: CheckState
+stEmpty = CheckState 0 0 0 [] [emptyScope] []
+
+stFuncNoCtrl :: CheckState
+stFuncNoCtrl = CheckState 1 2 3 [InFunction] [emptyScope] []
+
+errE1, errE2, errE3, errE4 :: UE.ErrorKind
+errE1 = mkSyntaxErr pos1 "e1"
+errE2 = mkSyntaxErr pos2 "e2"
+errE3 = mkSyntaxErr pos3 "e3"
+errE4 = mkSyntaxErr pos4 "e4"
+
+ctxNoErr0, ctxNoErr1, ctxNoErr2, ctxNoErr3 :: Ctx
+ctxNoErr0 = mkCtx stEmpty []
+ctxNoErr1 = ctxNoErr0
+ctxNoErr2 = mkCtx stFuncNoCtrl []
+ctxNoErr3 = ctxNoErr2
+
+ctxErr0, ctxErr1, ctxErr2, ctxErr3 :: Ctx
+ctxErr0 = mkCtx stEmpty []
+ctxErr1 = mkCtx stEmpty [errE1]
+ctxErr2 = mkCtx stFuncNoCtrl [errE1, errE2]
+ctxErr3 = mkCtx stFuncNoCtrl []
+
+noExtra :: Ctx -> Assertion
+noExtra _ = pure ()
+
+mkCtx :: CheckState -> [UE.ErrorKind] -> Ctx
+mkCtx state errors = Ctx { st = state, errs = errors }
+
+mkSyntaxErr :: Position -> String -> UE.ErrorKind
+mkSyntaxErr pos msg = UE.Syntax $ UE.makeError "stdin" [pos] msg
+
+assertErrs :: Maybe String -> Ctx -> Assertion
+assertErrs Nothing ctx = errs ctx @?= []
+assertErrs (Just msg) ctx = case errs ctx of
+    [UE.Syntax (UE.BasicError { UE.why = whyMsg })] -> whyMsg @?= msg
+    other -> assertFailure $ "unexpected errors: " ++ show other
+
+assertState :: CheckState -> Ctx -> Assertion
+assertState expected ctx = st ctx @?= expected
+
+assertVarDefined :: String -> Ctx -> Assertion
+assertVarDefined name ctx =
+    Map.member name (sVars (head (scope (st ctx)))) @?= True
+
+assertFuncDefined :: String -> Ctx -> Assertion
+assertFuncDefined name ctx =
+    Map.member [name] (sFuncs (head (scope (st ctx)))) @?= True
+
+parseExprOrFail :: String -> IO AST.Expression
+parseExprOrFail src = case replLexparseExpr src of
+    Left errors -> assertFailure ("parse failed: " ++ show errors)
+    Right expr -> pure expr
+
+parseStmtOrFail :: String -> IO AST.Statement
+parseStmtOrFail src = case replLexparseStmt src of
+    Left errors -> assertFailure ("parse failed: " ++ show errors)
+    Right stmt -> pure stmt
+
+importVars :: [QName] -> ImportEnv
+importVars names = IEnv {
+    file = "stdin",
+    iVars = Map.fromList $ map (, [pos1]) names,
+    iFuncs = Map.empty
+}
+
+stWithVars :: [String] -> CheckState
+stWithVars names = stEmpty {
+    scope = [emptyScope { sVars = Map.fromList (map (, (0, pos1)) names) }]
+}
+
+stWithVarsFuncs :: [String] -> [String] -> CheckState
+stWithVarsFuncs varNames funNames = stEmpty {
+    scope = [emptyScope {
+        sVars = Map.fromList (map (, (0, pos1)) varNames),
+        sFuncs = Map.fromList (map (\n -> ([n], [pos1])) funNames)
+    }]
+}
+
+stInBlock :: CheckState
+stInBlock = CheckState 0 0 0 [InBlock] [emptyScope] []
+
+stInBlockWithSum :: CheckState
+stInBlockWithSum = stInBlock {
+    scope = [emptyScope { sVars = Map.insert "sum" (0, pos1) Map.empty }]
+}
+
+stPut2, stPut3 :: CheckState
+stPut2 = CheckState 2 5 6 [] [emptyScope] []
+stPut3 = CheckState 0 0 1 [] [emptyScope { scopeId = 9 }] []
+
+
+concatQTests :: TestTree
+concatQTests = testGroup "Semantic.ContextCheck.concatQ" $ map (\(name, input, out) ->
+    testCase name $ concatQ input @?= out) [
+        ("0", [], ""),
+        ("1", ["a"], "a"),
+        ("2", ["a", "b"], "a.b"),
+        ("3", ["a", "b", "c"], "a.b.c")]
+
+
+addErrTests :: TestTree
+addErrTests = testGroup "Semantic.ContextCheck.addErr" $ map (\(name, err, ctx, out) ->
+    testCase name $ execState (addErr err) ctx @?= out) [
+        ("0", errE1, ctxErr0, ctxErr0 { errs = [errE1] }),
+        ("1", errE2, ctxErr1, ctxErr1 { errs = [errE2, errE1] }),
+        ("2", errE3, ctxErr2, ctxErr2 { errs = [errE3, errE1, errE2] }),
+        ("3", errE4, ctxErr3, ctxErr3 { errs = [errE4] })]
+
+
+getStateTests :: TestTree
+getStateTests = testGroup "Semantic.ContextCheck.getState" $ map (\(name, ctx, out) ->
+    testCase name $ runState getState ctx @?= (out, ctx)) [
+        ("0", ctxErr0, stEmpty),
+        ("1", ctxErr1, stEmpty),
+        ("2", ctxErr2, stFuncNoCtrl),
+        ("3", ctxErr3, stFuncNoCtrl)]
+
+
+putStateTests :: TestTree
+putStateTests = testGroup "Semantic.ContextCheck.putState" $ map (\(name, newSt, ctx, out) ->
+    testCase name $ execState (putState newSt) ctx @?= out) [
+        ("0", stFuncNoCtrl, ctxErr0, ctxErr0 { st = stFuncNoCtrl }),
+        ("1", stPut2, ctxErr1, ctxErr1 { st = stPut2 }),
+        ("2", stEmpty, ctxErr2, ctxErr2 { st = stEmpty }),
+        ("3", stPut3, ctxErr3, ctxErr3 { st = stPut3 })]
+
+
+isFunctionTests :: TestTree
+isFunctionTests = testGroup "Semantic.ContextCheck.isFunction" $ map (\(name, stmt, out) ->
+    testCase name $ isFunction stmt @?= out) [
+        ("0", stmtFun, True),
+        ("1", stmtExpr, False),
+        ("2", stmtCmd, False),
+        ("3", stmtBlock, False)]
+    where
+        tokF, tokNum, tokCmd :: Lex.Token
+        tokF = Lex.Ident "f" pos1
+        tokNum = Lex.NumberConst "1" pos2
+        tokCmd = Lex.Ident "break" pos3
+
+        stmtFun, stmtExpr, stmtCmd, stmtBlock :: AST.Statement
+        stmtFun = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+        stmtExpr = AST.Expr (AST.IntConst "1" tokNum)
+        stmtCmd = AST.Command AST.Break tokCmd
+        stmtBlock = AST.BlockStmt (AST.Multiple [])
+
+
+withCtrlTests :: TestTree
+withCtrlTests = testGroup "Semantic.ContextCheck.withCtrl" $ map (\(name, ctrl, ctx) ->
+    testCase name $ do
+        let (res, finalCtx) = runState (withCtrl ctrl getState) ctx
+        ctrlStack res @?= ctrl : ctrlStack (st ctx)
+        ctrlStack (st finalCtx) @?= ctrlStack (st ctx)) [
+        ("0", InLoop, ctxNoErr0),
+        ("1", InIf, ctxNoErr2),
+        ("2", InSwitch, ctxNoErr1),
+        ("3", InFunction, ctxNoErr3)]
+
+
+withScopeTests :: TestTree
+withScopeTests = testGroup "Semantic.ContextCheck.withScope" $ map (\(name, ctx) ->
+    testCase name $ do
+        let stBefore = st ctx
+            (res, finalCtx) = runState (withScope getState) ctx
+            stAfter = st finalCtx
+        depth res @?= depth stBefore + 1
+        length (scope res) @?= length (scope stBefore) + 1
+        scopeId (head (scope res)) @?= scopeCounter stBefore
+        scopeCounter res @?= scopeCounter stBefore + 1
+        depth stAfter @?= depth stBefore
+        length (scope stAfter) @?= length (scope stBefore)
+        scopeCounter stAfter @?= scopeCounter stBefore + 1) [
+        ("0", ctxNoErr0),
+        ("1", ctxNoErr1),
+        ("2", ctxNoErr2),
+        ("3", ctxNoErr3)]
+
+
+withCtrlScopeTests :: TestTree
+withCtrlScopeTests = testGroup "Semantic.ContextCheck.withCtrlScope" $ map (\(name, ctrl, ctx) ->
+    testCase name $ do
+        let stBefore = st ctx
+            (res, finalCtx) = runState (withCtrlScope ctrl getState) ctx
+            stAfter = st finalCtx
+        ctrlStack res @?= ctrl : ctrlStack stBefore
+        depth res @?= depth stBefore + 1
+        length (scope res) @?= length (scope stBefore) + 1
+        scopeCounter res @?= scopeCounter stBefore + 1
+        ctrlStack stAfter @?= ctrlStack stBefore
+        depth stAfter @?= depth stBefore
+        length (scope stAfter) @?= length (scope stBefore)
+        scopeCounter stAfter @?= scopeCounter stBefore + 1) [
+        ("0", InLoop, ctxNoErr0),
+        ("1", InIf, ctxNoErr2),
+        ("2", InSwitch, ctxNoErr1),
+        ("3", InFunction, ctxNoErr3)]
+
+
+checkExprTests :: TestTree
+checkExprTests = testGroup "Semantic.ContextCheck.checkExpr" $ map (\(name, src, state, envs, expected, extra) ->
+    testCase name $ do
+        expr <- parseExprOrFail src
+        let ctx0 = Ctx { st = state, errs = [] }
+            (_, ctx1) = runState (checkExpr "stdin" [] envs expr) ctx0
+        assertErrs expected ctx1
+        extra ctx1) [
+        ("0", "x + 1 * 2", stWithVars ["x"], [], Nothing, noExtra),
+        ("1", "x + y + 1", stWithVars ["x"], [], Just (UE.undefinedVariable "y"), noExtra),
+        ("2", "a.b.c + x * (2 + 3)", stWithVars ["x"], [importVars [["a", "b", "c"]]], Nothing, noExtra),
+        ("3", "x + y * (z + 2)", stWithVars ["x", "y"], [], Just (UE.undefinedVariable "z"), noExtra),
+        ("4", "x = x + 1", stWithVars ["x"], [], Nothing, assertVarDefined "x"),
+        ("5", "a.b = x + 1", stWithVars ["x"], [], Just UE.assignErrorMsg, noExtra),
+        ("6", "y = x + z * f(2)", stWithVarsFuncs ["x", "z"] ["f"], [], Nothing, assertVarDefined "y"),
+        ("7", "g(x + 1, 2 * 3)", stWithVars ["x"], [], Just (UE.undefinedFunction "g"), noExtra)]
+
+
+isContinueValidTests :: TestTree
+isContinueValidTests = testGroup "Semantic.ContextCheck.isContinueValid" $ map (\(name, ctrls, out) ->
+    testCase name $ isContinueValid ctrls @?= out) [
+        ("0", [InLoop], True),
+        ("1", [InFunction, InLoop], True),
+        ("2", [InSwitch, InCase], False),
+        ("3", [], False)]
+
+
+isBreakValidTests :: TestTree
+isBreakValidTests = testGroup "Semantic.ContextCheck.isBreakValid" $ map (\(name, ctrls, out) ->
+    testCase name $ isBreakValid ctrls @?= out) [
+        ("0", [InLoop], True),
+        ("1", [InCase], True),
+        ("2", [InFunction], False),
+        ("3", [], False)]
+
+
+isReturnValidTests :: TestTree
+isReturnValidTests = testGroup "Semantic.ContextCheck.isReturnValid" $ map (\(name, ctrls, out) ->
+    testCase name $ isReturnValid ctrls @?= out) [
+        ("0", [InFunction], True),
+        ("1", [InFunction, InLoop], True),
+        ("2", [InLoop, InCase], False),
+        ("3", [], False)]
+
+
+checkStmtTests :: TestTree
+checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmtOrSrc, initSt) ->
+    testCase name $ do
+        stmt <- case stmtOrSrc of
+            Left src -> parseStmtOrFail src
+            Right stmt -> pure stmt
+        let ctx0 = Ctx { st = initSt, errs = [] }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
+        errs ctx1 @?= []) [
+        ("0_block", Left $ unlines [
+            "{",
+            "    x = 1",
+            "    y = 2",
+            "}"
+        ], stInBlock),
+        ("1_while_else", Left $ unlines [
+            "while true:",
+            "    x = 1",
+            "else:",
+            "    y = 2"
+        ], stInBlock),
+        ("2_if_else", Left $ unlines [
+            "if true:",
+            "    x = 1",
+            "else:",
+            "    y = 2"
+        ], stInBlock),
+        ("3_do_while_else", Right doWhileStmt, stInBlock),
+        ("4_for_loop", Right forStmt, stInBlockWithSum)]
+    where
+        tokDo, tokWhile, tokElse, tokTrue, tokFor :: Lex.Token
+        tokDo = Lex.Ident "do" pos1
+        tokWhile = Lex.Ident "while" pos2
+        tokElse = Lex.Ident "else" pos3
+        tokTrue = Lex.Ident "true" pos4
+        tokFor = Lex.Ident "for" pos1
+
+        tokX, tokY, tokI, tokSum, tokAssign, tokPlusAssign, tokInc, tokLt, tokNum0, tokNum1, tokNum2, tokNum10 :: Lex.Token
+        tokX = Lex.Ident "x" pos1
+        tokY = Lex.Ident "y" pos2
+        tokI = Lex.Ident "i" pos1
+        tokSum = Lex.Ident "sum" pos2
+        tokAssign = Lex.Symbol Lex.Assign pos3
+        tokPlusAssign = Lex.Symbol Lex.PlusAssign pos3
+        tokInc = Lex.Symbol Lex.PlusPlus pos4
+        tokLt = Lex.Symbol Lex.LessThan pos2
+        tokNum0 = Lex.NumberConst "0" pos1
+        tokNum1 = Lex.NumberConst "1" pos3
+        tokNum2 = Lex.NumberConst "2" pos4
+        tokNum10 = Lex.NumberConst "10" pos2
+
+        assignX :: AST.Statement
+        assignX = AST.Expr (AST.Binary AST.Assign (AST.Variable "x" tokX) (AST.IntConst "1" tokNum1) tokAssign)
+
+        assignY :: AST.Statement
+        assignY = AST.Expr (AST.Binary AST.Assign (AST.Variable "y" tokY) (AST.IntConst "2" tokNum2) tokAssign)
+
+        doWhileStmt :: AST.Statement
+        doWhileStmt =
+            AST.DoWhile
+                (Just (AST.Multiple [assignX]))
+                (AST.BoolConst True tokTrue)
+                (Just (AST.Multiple [assignY]))
+                (tokDo, tokWhile, Just tokElse)
+
+        forStmt :: AST.Statement
+        forStmt =
+            AST.For
+                ( Just (AST.Binary AST.Assign (AST.Variable "i" tokI) (AST.IntConst "0" tokNum0) tokAssign)
+                , Just (AST.Binary AST.LessThan (AST.Variable "i" tokI) (AST.IntConst "10" tokNum10) tokLt)
+                , Just (AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc)
+                )
+                ( Just (AST.Multiple [
+                    AST.Expr (AST.Binary AST.PlusAssign (AST.Variable "sum" tokSum) (AST.Variable "i" tokI) tokPlusAssign)
+                ]))
+                tokFor
+
+checkSwitchCaseTests :: TestTree
+checkSwitchCaseTests = testGroup "Semantic.ContextCheck.checkSwitchCase" $ map (\(name, sc, initSt, expected, extra) ->
+    testCase name $ do
+        let ctx0 = Ctx { st = initSt, errs = [] }
+            (_, ctx1) = runState (checkSwitchCase "stdin" [] [] sc) ctx0
+        assertErrs expected ctx1
+        extra ctx1) [
+        ("0", scCaseX, stWithX, Nothing, assertState stWithX),
+        ("1", scCaseY, stEmpty, Just (UE.undefinedVariable "y"), noExtra),
+        ("2", scCaseContinue, stEmpty, Just UE.continueCtrlErrorMsg, noExtra),
+        ("3", scDefaultBreak, stEmpty, Nothing, noExtra)]
+    where
+        tokX, tokY, tokTrue, tokContinue, tokBreak, tokCase, tokDefault :: Lex.Token
+        tokX = Lex.Ident "x" pos1
+        tokY = Lex.Ident "y" pos1
+        tokTrue = Lex.Ident "true" pos1
+        tokContinue = Lex.Ident "continue" pos1
+        tokBreak = Lex.Ident "break" pos1
+        tokCase = Lex.Ident "case" pos1
+        tokDefault = Lex.Ident "default" pos1
+
+        exprX :: AST.Expression
+        exprX = AST.Variable "x" tokX
+
+        exprY :: AST.Expression
+        exprY = AST.Variable "y" tokY
+
+        exprTrue :: AST.Expression
+        exprTrue = AST.BoolConst True tokTrue
+
+        blockContinue :: AST.Block
+        blockContinue = AST.Multiple [AST.Command AST.Continue tokContinue]
+
+        blockBreak :: AST.Block
+        blockBreak = AST.Multiple [AST.Command AST.Break tokBreak]
+
+        scCaseX, scCaseY, scCaseContinue :: AST.SwitchCase
+        scCaseX = AST.Case exprX Nothing tokCase
+        scCaseY = AST.Case exprY Nothing tokCase
+        scCaseContinue = AST.Case exprTrue (Just blockContinue) tokCase
+
+        scDefaultBreak :: AST.SwitchCase
+        scDefaultBreak = AST.Default blockBreak tokDefault
+
+        stWithX :: CheckState
+        stWithX = stEmpty {
+            scope = [emptyScope { sVars = Map.fromList [("x", (0, pos1))] }]
+        }
+
+
+checkBlockTests :: TestTree
+checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, block, initSt, expected, extra) ->
+    testCase name $ do
+        let ctx0 = Ctx { st = initSt, errs = [] }
+            (_, ctx1) = runState (checkBlock "stdin" [] [] block) ctx0
+        assertErrs expected ctx1
+        extra ctx1) [
+        ("0", blockDefineUse, stEmpty, Nothing, assertVarDefined "x"),
+        ("1", blockUndefinedVar, stEmpty, Just (UE.undefinedVariable "y"), noExtra),
+        ("2", blockBreak, stEmpty, Just UE.breakCtrlErrorMsg, noExtra),
+        ("3", blockCallBeforeDef, stEmpty, Nothing, assertFuncDefined "f")]
+    where
+        tokX, tokY, tokF, tokAssign, tokPlus, tokNum1, tokBreak :: Lex.Token
+        tokX = Lex.Ident "x" pos1
+        tokY = Lex.Ident "y" pos1
+        tokF = Lex.Ident "f" pos1
+        tokAssign = Lex.Symbol Lex.Assign pos1
+        tokPlus = Lex.Symbol Lex.Plus pos1
+        tokNum1 = Lex.NumberConst "1" pos1
+        tokBreak = Lex.Ident "break" pos1
+
+        assignX :: AST.Statement
+        assignX = AST.Expr (AST.Binary AST.Assign (AST.Variable "x" tokX) (AST.IntConst "1" tokNum1) tokAssign)
+
+        useX :: AST.Statement
+        useX = AST.Expr (AST.Binary AST.Add (AST.Variable "x" tokX) (AST.IntConst "1" tokNum1) tokPlus)
+
+        useY :: AST.Statement
+        useY = AST.Expr (AST.Binary AST.Add (AST.Variable "y" tokY) (AST.IntConst "1" tokNum1) tokPlus)
+
+        callF :: AST.Statement
+        callF = AST.Expr (AST.Call (AST.Variable "f" tokF) Nothing [])
+
+        funDefF :: AST.Statement
+        funDefF = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+
+        blockDefineUse :: AST.Block
+        blockDefineUse = AST.Multiple [assignX, useX]
+
+        blockUndefinedVar :: AST.Block
+        blockUndefinedVar = AST.Multiple [useY]
+
+        blockBreak :: AST.Block
+        blockBreak = AST.Multiple [AST.Command AST.Break tokBreak]
+
+        blockCallBeforeDef :: AST.Block
+        blockCallBeforeDef = AST.Multiple [callF, funDefF]
+
+
+checkStmtsTests :: TestTree
+checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, stmts, initSt, expected, extra) ->
+    testCase name $ do
+        let ctx0 = Ctx { st = initSt, errs = [] }
+            (_, ctx1) = runState (checkStmts "stdin" [] [] stmts) ctx0
+        assertErrs expected ctx1
+        extra ctx1) [
+        ("0", [], stEmpty, Nothing, assertState stEmpty),
+        ("1", [callF, funDefF], stEmpty, Nothing, assertFuncDefined "f"),
+        ("2", [callG], stEmpty, Just (UE.undefinedFunction "g"), noExtra),
+        ("3", [funDefQualified], stEmpty, Just UE.unsupportedErrorMsg, noExtra)]
+    where
+        tokF, tokG, tokA :: Lex.Token
+        tokF = Lex.Ident "f" pos1
+        tokG = Lex.Ident "g" pos1
+        tokA = Lex.Ident "A" pos1
+
+        callF :: AST.Statement
+        callF = AST.Expr (AST.Call (AST.Variable "f" tokF) Nothing [])
+
+        callG :: AST.Statement
+        callG = AST.Expr (AST.Call (AST.Variable "g" tokG) Nothing [])
+
+        funDefF :: AST.Statement
+        funDefF = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+
+        funDefQualified :: AST.Statement
+        funDefQualified =
+            AST.Function (AST.Int32T, []) (AST.Qualified ["A", "f"] [tokA, tokF]) Nothing [] (AST.Multiple [])
+
+
+tests :: TestTree
+tests = testGroup "Semantic.ContextCheck" [
+    concatQTests, addErrTests, getStateTests, putStateTests, isFunctionTests,
+    withCtrlTests, withScopeTests, withCtrlScopeTests,
+    isContinueValidTests, isBreakValidTests, isReturnValidTests,
+    
+    checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests]

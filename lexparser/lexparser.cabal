@@ -193,6 +193,7 @@ test-suite lexparser-test
 
         Semantic.NameEnvTest
         Semantic.ImportLoaderTest
+        Semantic.ContextCheckTest
 
         Util.BasicTest
         Util.ExceptionTest
@@ -207,6 +208,7 @@ test-suite lexparser-test
         text,
         bytestring,
         containers,
+        mtl,
 
         lexparser,
         tasty,

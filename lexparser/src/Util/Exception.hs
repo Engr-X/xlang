@@ -60,6 +60,11 @@ undefinedFunction :: String -> String
 undefinedFunction funName = "undefined function: " ++ funName
 
 
+-- | Error message for unsupported function name
+invalidFunctionName :: String 
+invalidFunctionName = "invalid function name"
+
+
 -- | Error message for multiple package declarations
 multiplePackageMsg :: String
 multiplePackageMsg = "multiple package declarations" 

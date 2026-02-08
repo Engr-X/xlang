@@ -13,6 +13,7 @@ import Parse.ParseProgmTest
 
 import Semantic.NameEnvTest
 import Semantic.ImportLoaderTest
+import Semantic.ContextCheckTest
 
 import Util.BasicTest
 import Util.ExceptionTest
@@ -30,4 +31,4 @@ main = defaultMain $ testGroup "xlang test" [
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,
     Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,
     
-    Semantic.NameEnvTest.tests, Semantic.ImportLoaderTest.tests]
+    Semantic.NameEnvTest.tests, Semantic.ImportLoaderTest.tests, Semantic.ContextCheckTest.tests]
