@@ -8,6 +8,7 @@ import Test.Tasty.HUnit
 import Util.Type (Position, makePosition)
 import Parse.ParseExpr (replLexparseExpr)
 import Parse.ParseStmt (replLexparseStmt)
+import Parse.ParseProgm (replLexparseProgm)
 import Semantic.ContextCheck
 import Semantic.NameEnv (CheckState(..), Scope(..), CtrlState(..), ImportEnv(..), QName)
 
@@ -85,6 +86,29 @@ parseStmtOrFail :: String -> IO AST.Statement
 parseStmtOrFail src = case replLexparseStmt src of
     Left errors -> assertFailure ("parse failed: " ++ show errors)
     Right stmt -> pure stmt
+
+checkProgmFromSrc :: String -> Either [UE.ErrorKind] CheckState
+checkProgmFromSrc src = case replLexparseProgm src of
+    Left errors -> Left errors
+    Right prog -> checkProgm "stdin" prog []
+
+firstWhy :: [UE.ErrorKind] -> Maybe String
+firstWhy errs = case errs of
+    (UE.Syntax (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+    (UE.Parsing (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+    (UE.Lexer (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+    _ -> Nothing
+
+assertCheckProgm :: Either [UE.ErrorKind] CheckState -> Maybe String -> Assertion
+assertCheckProgm res expected = case expected of
+    Nothing -> case res of
+        Right _ -> pure ()
+        Left errs -> assertFailure $ "unexpected errors: " ++ show errs
+    Just msg -> case res of
+        Left errs -> case firstWhy errs of
+            Just whyMsg -> whyMsg @?= msg
+            Nothing -> assertFailure $ "unexpected errors: " ++ show errs
+        Right _ -> assertFailure "expected errors but got success"
 
 importVars :: [QName] -> ImportEnv
 importVars names = IEnv {
@@ -478,10 +502,225 @@ checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, st
             AST.Function (AST.Int32T, []) (AST.Qualified ["A", "f"] [tokA, tokF]) Nothing [] (AST.Multiple [])
 
 
+checkProgmTests :: TestTree
+checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
+    map mkCase [
+        ("0", unlines [
+            "int f() { }",
+            "int g(int x) { }",
+            "a = f()",
+            "b = g(1)",
+            "c = a + b",
+            "d = c + 2"
+        ], Nothing),
+        ("1", unlines [
+            "a = 1",
+            "b = a + 2",
+            "c = b + 3",
+            "d = c + e"
+        ], Just (UE.undefinedVariable "e")),
+        ("2", unlines [
+            "a = f()",
+            "b = a + 1",
+            "c = b + 2",
+            "d = c + g(1)"
+        ], Just (UE.undefinedFunction "f")),
+        ("3", unlines [
+            "int f() { }",
+            "int g(int x) { }",
+            "a = f() + g(1)",
+            "b = a + c",
+            "d = b + 1",
+            "e = d + 2"
+        ], Just (UE.undefinedVariable "c")),
+        ("4", unlines [
+            "{",
+            "    a = 1",
+            "    b = 2;",
+            "}",
+            "c = 3",
+            "d = 4"
+        ], Just (UE.illegalStatementMsg "block" "class")),
+        ("5", unlines [
+            "int main() {",
+            "    {",
+            "        x = 1",
+            "        y = x + 1;",
+            "    }",
+            "    z = 2",
+            "    w = z + 1",
+            "}",
+            "p = 1",
+            "q = p + 1",
+            "r = q + 1"
+        ], Nothing),
+        ("6", unlines [
+            "int main() {",
+            "    {",
+            "        x = 1;",
+            "        y = x + 1;",
+            "    }",
+            "    z = x + 2",
+            "    w = z + 1",
+            "}",
+            "p = 1",
+            "q = p + 1",
+            "r = q + 1"
+        ], Just (UE.undefinedVariable "x")),
+        ("7", unlines [
+            "int main() {",
+            "    a = 1;",
+            "    {",
+                "        b = a + 1",
+                "        c = b + 1",
+            "    }",
+            "    d = a + 2",
+            "    e = d + 1",
+            "}",
+            "p = 1",
+            "q = p + 1",
+            "r = q + 1"
+        ], Nothing),
+        ("function/0_call_before_def", unlines [
+            "a = f()",
+            "b = a + 1",
+            "c = b + 1",
+            "d = c + 1",
+            "int f() { }"
+        ], Nothing),
+        ("function/1_undef_func", unlines [
+            "int f() { }",
+            "a = f()",
+            "b = g(1)",
+            "c = b + 1",
+            "d = c + 1"
+        ], Just (UE.undefinedFunction "g")),
+        ("function/2_nested_ok", unlines [
+            "int outer() {",
+            "    int inner() { }",
+            "    a = inner()",
+            "    b = a + 1",
+            "    c = b + 1",
+            "}",
+            "d = 1",
+            "e = d + 1",
+            "f = e + 1"
+        ], Nothing),
+        ("function/3_nested_scope_err", unlines [
+            "int outer() {",
+            "    int inner() { }",
+            "    a = inner()",
+            "    b = a + 1",
+            "    c = b + 1",
+            "}",
+            "x = inner()",
+            "y = x + 1",
+            "z = y + 1"
+        ], Just (UE.undefinedFunction "inner")),
+        ("if_else/0_ok", unlines [
+            "int main() {",
+            "    a = 0",
+            "    if true:",
+            "        a = 1",
+            "    else:",
+            "        a = 2",
+            "    b = a + 1",
+            "    c = b + 1",
+            "}",
+            "d = 1",
+            "e = d + 1",
+            "f = e + 1"
+        ], Nothing),
+        ("if_else/1_scope_err", unlines [
+            "int main() {",
+            "    if true:",
+            "        a = 1",
+            "    else:",
+            "        a = 2",
+            "    b = a + 1",
+            "    c = b + 1",
+            "}",
+            "d = 1",
+            "e = d + 1",
+            "f = e + 1"
+        ], Just (UE.undefinedVariable "a")),
+        ("while_else/0_ok", unlines [
+            "int main() {",
+            "    i = 0",
+            "    while true:",
+            "        i = i + 1",
+            "    else:",
+            "        i = i + 2",
+            "    j = i + 1",
+            "    k = j + 1",
+            "}",
+            "a = 1",
+            "b = a + 1",
+            "c = b + 1"
+        ], Nothing),
+        ("while_else/1_scope_err", unlines [
+            "int main() {",
+            "    while true:",
+            "        i = 1",
+            "    else:",
+            "        i = 2",
+            "    j = i + 1",
+            "    k = j + 1",
+            "}",
+            "a = 1",
+            "b = a + 1",
+            "c = b + 1"
+        ], Just (UE.undefinedVariable "i"))
+    ] ++
+    [ testCase "do_while/0_ok" $ do
+        eInit <- parseExprOrFail "i = 0"
+        eInc <- parseExprOrFail "i = i + 1"
+        eCond <- parseExprOrFail "i < 10"
+        eElse <- parseExprOrFail "i = i + 2"
+        eJ <- parseExprOrFail "j = i + 1"
+        eK <- parseExprOrFail "k = j + 1"
+        let tokDo = Lex.Ident "do" pos1
+            tokWhile = Lex.Ident "while" pos2
+            tokElse = Lex.Ident "else" pos3
+            tokMain = Lex.Ident "main" pos1
+            doStmt = AST.DoWhile
+                (Just (AST.Multiple [AST.Expr eInc]))
+                eCond
+                (Just (AST.Multiple [AST.Expr eElse]))
+                (tokDo, tokWhile, Just tokElse)
+            body = AST.Multiple [AST.Expr eInit, doStmt, AST.Expr eJ, AST.Expr eK]
+            fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) Nothing [] body
+            prog = ([], [fun])
+        assertCheckProgm (checkProgm "stdin" prog []) Nothing
+    , testCase "do_while/1_scope_err" $ do
+        eInit <- parseExprOrFail "i = 0"
+        eCond <- parseExprOrFail "i < 10"
+        eElse <- parseExprOrFail "i = i + 2"
+        eA <- parseExprOrFail "a = 1"
+        eB <- parseExprOrFail "b = a + 1"
+        eC <- parseExprOrFail "c = b + 1"
+        let tokDo = Lex.Ident "do" pos1
+            tokWhile = Lex.Ident "while" pos2
+            tokElse = Lex.Ident "else" pos3
+            tokMain = Lex.Ident "main" pos1
+            doStmt = AST.DoWhile
+                (Just (AST.Multiple [AST.Expr eInit]))
+                eCond
+                (Just (AST.Multiple [AST.Expr eElse]))
+                (tokDo, tokWhile, Just tokElse)
+            body = AST.Multiple [doStmt, AST.Expr eA, AST.Expr eB, AST.Expr eC]
+            fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) Nothing [] body
+            prog = ([], [fun])
+        assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.undefinedVariable "i"))
+    ])
+    where
+        mkCase (name, src, expected) =
+            testCase name $ assertCheckProgm (checkProgmFromSrc src) expected
+
 tests :: TestTree
 tests = testGroup "Semantic.ContextCheck" [
     concatQTests, addErrTests, getStateTests, putStateTests, isFunctionTests,
     withCtrlTests, withScopeTests, withCtrlScopeTests,
     isContinueValidTests, isBreakValidTests, isReturnValidTests,
     
-    checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests]
+    checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests, checkProgmTests]
