@@ -114,9 +114,9 @@ operatorTextMap = Map.fromList [
     
     (GreaterThan, ">"), (LessThan, "<"), (GreaterEqual, ">="), (LessEqual, "<="),
     
-    (BitRShift, ">>"), (BitLShift, "<<"), (BitOr, "|"),
+    (BitRShift, ">>"), (BitLShift, "<<"),
     
-    (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNot, "!"),
+    (BitOr, "|"), (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNot, "!"),
     
     (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),
     
