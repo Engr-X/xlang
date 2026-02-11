@@ -4,9 +4,12 @@ module Semantic.OpInfer where
 
 import Control.Applicative (liftA3)
 import Data.Map.Strict (Map)
-import Parse.SyntaxTree (Class(..), Operator(..))
+import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
+import Util.Exception (Warning(..))
+import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
+import qualified Util.Exception as UE
 
 
 -- | Conversion rank for basic types (smaller -> narrower).
@@ -16,6 +19,21 @@ basicTypeRank :: Map Class Int
 basicTypeRank = Map.fromList [
     (Bool, 0), (Char, 1), (Int8T, 2), (Int16T, 3), (Int32T, 4),
     (Int64T, 5), (Float32T, 6), (Float64T, 7), (Float128T, 8),(Void, -1)]
+
+
+-- | Project-defined numeric range rank (smaller -> narrower).
+--   Note: this ordering treats Float32 as narrower than Int64.
+numericRangeRank :: Map Class Int
+numericRangeRank = Map.fromList [
+    (Bool, 0),
+    (Char, 1), (Int8T, 1),
+    (Int16T, 2),
+    (Int32T, 3),
+    (Float32T, 4),
+    (Int64T, 5),
+    (Float64T, 6),
+    (Float128T, 7),
+    (Void, -1)]
 
 
 -- | Reverse lookup for basic type ranks.
@@ -30,6 +48,34 @@ basicTypeRankRev = Map.fromList $ map (\(k, v) -> (v, k)) (Map.toList basicTypeR
 --   Useful for guarding numeric-only rules.
 isBasicType :: Class -> Bool
 isBasicType c = Map.member c basicTypeRank
+
+
+-- | Check whether a class is an integer-like type (excluding float).
+isIntegerType :: Class -> Bool
+isIntegerType c = c `elem` [Bool, Char, Int8T, Int16T, Int32T, Int64T]
+
+
+-- | Check whether a class is a floating-point type.
+isFloatType :: Class -> Bool
+isFloatType c = c `elem` [Float32T, Float64T, Float128T]
+
+
+-- | Build implicit-cast related warnings for a type conversion.
+--   If types are equal, returns [].
+--   If types differ, returns an ImplicitCast warning.
+--   If narrowing (e.g. int -> short), also returns an OverflowWarning.
+iCast :: Path -> [Position] -> Class -> Class -> [Warning]
+iCast p pos fromT toT
+    | fromT == toT = []
+    | otherwise = implicitW : overflowW
+    where
+        fromS = prettyClass fromT
+        toS = prettyClass toT
+        implicitW = ImplicitCast (UE.makeError p pos (UE.implicitCastMsg fromS toS))
+        overflowW = case (Map.lookup fromT numericRangeRank, Map.lookup toT numericRangeRank) of
+            (Just rf, Just rt) | rf > rt ->
+                [OverflowWarning (UE.makeError p pos (UE.overflowCastMsg fromS toS))]
+            _ -> []
 
 
 -- | Promote two basic types to a common result type (at least Int32).

@@ -112,14 +112,34 @@ mismatchedBracketMsg = "mismatched bracket"
 
 -- | assign error like this: 10 = a;
 assignErrorMsg :: String
-assignErrorMsg = "The left-hand side of an assignment must be a variable"
+assignErrorMsg = "the left-hand side of an assignment must be a variable"
+
+
+-- | cannot assign for non-lvalue left-hand side
+cannotAssignMsg :: String -> String
+cannotAssignMsg s = concat ["\"", s, "\" cannot be assigned"]
+
+
+-- | implicit cast warning message
+implicitCastMsg :: String -> String -> String
+implicitCastMsg fromT toT = concat ["implicit cast: ", fromT, " to ", toT]
+
+
+-- | type mismatch error message
+typeMismatchMsg :: String -> String -> String
+typeMismatchMsg expected actual = concat["type mismatch: expected ", expected, ", got ", actual]
+
+
+-- | possible overflow warning message for casts
+overflowCastMsg :: String -> String -> String
+overflowCastMsg fromT toT = "possible overflow: " ++ fromT ++ " -> " ++ toT
 
 
 -- |  Expected expression
 expectedExpression :: Int -> String -> String
 expectedExpression pos s
-    | pos == 0 = "expected an expression before: '" ++ s ++ "'"
-    | otherwise = "expected an expression after: '" ++ s ++ "'"
+    | pos == 0 = concat ["expected an expression before: '", s, "'"]
+    | otherwise = concat ["expected an expression after: '", s, "'"]
 
 
 -- | invalid position for continue control flow
@@ -190,9 +210,10 @@ data ErrorKind = None
 --
 -- Each warning variant carries the minimum information required for reporting.
 data Warning = Null
-             | OverflowWarning BasicWarning
-             | UnderflowWarning BasicWarning
-             deriving (Show)
+    | ImplicitCast BasicWarning
+    | OverflowWarning BasicWarning
+    | UnderflowWarning BasicWarning
+    deriving (Show)
 
 
 -- | Convert an 'ErrorKind' to a numeric error code.

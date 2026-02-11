@@ -8,7 +8,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path)
-import Util.Exception (ErrorKind, undefinedVariable, undefinedFunction, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg)
+import Util.Exception (ErrorKind, undefinedVariable, undefinedFunction, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -134,12 +134,22 @@ checkExpr p packages envs expr = case expr of
     AST.Binary AST.Assign e1 e2 tok -> do
         checkExpr p packages envs e2
 
-        c <- get
-        let cState = st c
+        case e1 of
+            AST.Variable {} -> do
+                c <- get
+                let cState = st c
+                case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
+                    Left err -> addErr err
+                    Right cState' -> put $ c { st = cState' }
 
-        case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
-            Left err -> addErr err
-            Right cState' -> put $ c { st = cState' }
+            AST.Qualified {} -> do
+                c <- get
+                let cState = st c
+                case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
+                    Left err -> addErr err
+                    Right cState' -> put $ c { st = cState' }
+
+            _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e1) (cannotAssignMsg (AST.prettyExpr 0 (Just e1)))
 
     AST.Binary _ e1 e2 _ -> do
         checkExpr p packages envs e1
