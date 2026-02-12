@@ -3,11 +3,12 @@ module Semantic.ContextCheck where
 import Semantic.NameEnv
 import Control.Monad (when)
 import Data.List (intercalate)
+import Data.Map.Strict (Map)
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
-import Util.Type (Path)
+import Util.Type (Path, Position)
 import Util.Exception (ErrorKind, undefinedVariable, undefinedFunction, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
@@ -18,7 +19,8 @@ import qualified Util.Exception as UE
 
 data Ctx = Ctx {
     st :: CheckState,
-    errs :: [ErrorKind]
+    errs :: [ErrorKind],
+    varUses :: Map Position VarId
 }
     deriving (Eq, Show)
 
@@ -106,7 +108,12 @@ checkExpr p packages envs expr = case expr of
         c <- get
         let cState = st c
         if isVarDefine name cState || isVarImport (packages ++ [name]) envs
-            then pure ()
+            then do
+                case lookupVarId name cState of
+                    Just (vid, _) -> do
+                        let uses' = Map.insert (tokenPos tok) vid (varUses c)
+                        put $ c { varUses = uses' }
+                    Nothing -> pure ()
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedVariable name)
 
     AST.Qualified names tokens -> do
@@ -140,7 +147,15 @@ checkExpr p packages envs expr = case expr of
                 let cState = st c
                 case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
                     Left err -> addErr err
-                    Right cState' -> put $ c { st = cState' }
+                    Right cState' -> do
+                        case e1 of
+                            AST.Variable name nameTok ->
+                                case lookupVarId name cState' of
+                                    Just (vid, _) -> do
+                                        let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
+                                        put $ c { st = cState', varUses = uses' }
+                                    Nothing -> put $ c { st = cState' }
+                            _ -> put $ c { st = cState' }
 
             AST.Qualified {} -> do
                 c <- get
@@ -354,9 +369,9 @@ checkStmts path package envs' stmts = do
                             
                             
 -- | Run context checking for a whole program.
---   Returns the final state on success, or a list of errors otherwise.
-checkProgm :: Path -> Program -> [ImportEnv] -> Either [ErrorKind] CheckState
-checkProgm p (decls, stmts) envs = case getPackageName p decls of
+--   Returns the final state + use map on success, or a list of errors otherwise.
+checkProgmWithUses :: Path -> Program -> [ImportEnv] -> Either [ErrorKind] (CheckState, Map Position VarId)
+checkProgmWithUses p (decls, stmts) envs = case getPackageName p decls of
     Left errors -> Left errors
     Right packageName ->
         let initState = CheckState {
@@ -368,7 +383,13 @@ checkProgm p (decls, stmts) envs = case getPackageName p decls of
                 classScope = []
             }
 
-            initCtx = Ctx { st = initState, errs = [] }
+            initCtx = Ctx { st = initState, errs = [], varUses = Map.empty }
             (_, finalCtx) = runState (checkStmts p packageName envs stmts) initCtx
             finalErrs = reverse (errs finalCtx)
-        in if null finalErrs then Right (st finalCtx) else Left finalErrs
+        in if null finalErrs then Right (st finalCtx, varUses finalCtx) else Left finalErrs
+
+
+-- | Run context checking for a whole program.
+--   Returns the final state on success, or a list of errors otherwise.
+checkProgm :: Path -> Program -> [ImportEnv] -> Either [ErrorKind] CheckState
+checkProgm p prog envs = fmap fst (checkProgmWithUses p prog envs)

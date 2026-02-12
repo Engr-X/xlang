@@ -7,6 +7,7 @@ module Semantic.NameEnv where
 import Data.Hashable (Hashable)
 import Data.HashSet (HashSet)
 import Data.Map.Strict (Map)
+import Data.Maybe (listToMaybe, mapMaybe)
 import GHC.Generics (Generic)
 import Parse.SyntaxTree (Expression, Statement, Declaration, declPath)
 import Lex.Token (Token, tokenPos)
@@ -94,6 +95,12 @@ data CheckState = CheckState {
     classScope :: [Scope]     -- ^ Class/trait scope stack (top = current).
 }
     deriving (Eq, Show)
+
+
+-- | Lookup a variable id (and its def position) from the current scope stack.
+--   The nearest scope wins.
+lookupVarId :: String -> CheckState -> Maybe (VarId, Position)
+lookupVarId name st = listToMaybe $ mapMaybe (Map.lookup name . sVars) (scope st)
 
 
 -- | Import NameEnv for a single file.

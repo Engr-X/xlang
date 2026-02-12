@@ -38,7 +38,7 @@ data Position = Position {
     line :: Int,
     column :: Int,
     len :: Int
-} deriving (Eq, Generic)
+} deriving (Eq, Ord, Generic)
 
 instance Show Position where
     show = show . positionToTuple

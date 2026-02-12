@@ -55,7 +55,7 @@ noExtra :: Ctx -> Assertion
 noExtra _ = pure ()
 
 mkCtx :: CheckState -> [UE.ErrorKind] -> Ctx
-mkCtx state errors = Ctx { st = state, errs = errors }
+mkCtx state errors = Ctx { st = state, errs = errors, varUses = Map.empty }
 
 mkSyntaxErr :: Position -> String -> UE.ErrorKind
 mkSyntaxErr pos msg = UE.Syntax $ UE.makeError "stdin" [pos] msg
@@ -254,7 +254,7 @@ checkExprTests :: TestTree
 checkExprTests = testGroup "Semantic.ContextCheck.checkExpr" $ map (\(name, src, state, envs, expected, extra) ->
     testCase name $ do
         expr <- parseExprOrFail src
-        let ctx0 = Ctx { st = state, errs = [] }
+        let ctx0 = Ctx { st = state, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkExpr "stdin" [] envs expr) ctx0
         assertErrs expected ctx1
         extra ctx1) [
@@ -301,7 +301,7 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
         stmt <- case stmtOrSrc of
             Left src -> parseStmtOrFail src
             Right stmt -> pure stmt
-        let ctx0 = Ctx { st = initSt, errs = [] }
+        let ctx0 = Ctx { st = initSt, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
         errs ctx1 @?= []) [
         ("0_block", Left $ unlines [
@@ -375,7 +375,7 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
 checkSwitchCaseTests :: TestTree
 checkSwitchCaseTests = testGroup "Semantic.ContextCheck.checkSwitchCase" $ map (\(name, sc, initSt, expected, extra) ->
     testCase name $ do
-        let ctx0 = Ctx { st = initSt, errs = [] }
+        let ctx0 = Ctx { st = initSt, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkSwitchCase "stdin" [] [] sc) ctx0
         assertErrs expected ctx1
         extra ctx1) [
@@ -425,7 +425,7 @@ checkSwitchCaseTests = testGroup "Semantic.ContextCheck.checkSwitchCase" $ map (
 checkBlockTests :: TestTree
 checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, block, initSt, expected, extra) ->
     testCase name $ do
-        let ctx0 = Ctx { st = initSt, errs = [] }
+        let ctx0 = Ctx { st = initSt, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkBlock "stdin" [] [] block) ctx0
         assertErrs expected ctx1
         extra ctx1) [
@@ -474,7 +474,7 @@ checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, bl
 checkStmtsTests :: TestTree
 checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, stmts, initSt, expected, extra) ->
     testCase name $ do
-        let ctx0 = Ctx { st = initSt, errs = [] }
+        let ctx0 = Ctx { st = initSt, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkStmts "stdin" [] [] stmts) ctx0
         assertErrs expected ctx1
         extra ctx1) [

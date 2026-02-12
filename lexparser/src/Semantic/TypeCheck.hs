@@ -7,6 +7,7 @@ import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..),
     Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
 import Semantic.NameEnv (CheckState(..), QName, Scope(..), VarId, defineLocalVar, getPackageName)
+import qualified Semantic.ContextCheck as CC
 import Semantic.OpInfer (binOpInfer, iCast, isBasicType)
 import Semantic.TypeEnv (FunTable, TypedImportEnv(..), VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..))
@@ -17,14 +18,14 @@ import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
 
 
--- | Type checking context (state + type tables + diagnostics).
---   st: name/scope state managed locally in TypeCheck.
+-- | Type checking context (context state + type tables + diagnostics).
+--   ctx: ContextCheck state + use map for resolving VarId by position.
 --   varTypes: mapping from VarId to inferred/declared types + def positions.
 --   funTypes: mapping from function name to overload set.
 --   currentReturn: expected return type of the current function.
 --   errors/warnings: accumulated diagnostics.
 data TypeCtx = TypeCtx {
-    st :: CheckState,
+    ctx :: CC.Ctx,
     varTypes :: VarTable,
     funTypes :: FunTable,
     currentReturn :: Maybe Class,
@@ -51,7 +52,8 @@ addWarn w = modify $ \c -> c { warnings = w : warnings c }
 withScope :: TypeM a -> TypeM a
 withScope action = do
     c <- get
-    let cState = st c
+    let cctx = ctx c
+        cState = CC.st cctx
         depth0 = depth cState
         newScope = Scope { scopeId = scopeCounter cState, sVars = Map.empty, sFuncs = Map.empty }
         cState' = cState {
@@ -59,12 +61,13 @@ withScope action = do
             scopeCounter = succ $ scopeCounter cState,
             scope = newScope : scope cState
         }
-    put $ c { st = cState' }
+    put $ c { ctx = cctx { CC.st = cState' } }
     res <- action
     c2 <- get
-    let cState2 = st c2
+    let cctx2 = ctx c2
+        cState2 = CC.st cctx2
         scope' = tail $ scope cState2
-    put $ c2 { st = cState2 { depth = depth0, scope = scope' } }
+    put $ c2 { ctx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope' } } }
     pure res
 
 
@@ -123,18 +126,19 @@ inferLiteral p mExpected e = case e of
             Nothing -> pure litT
             Just t -> checkExpect p e t litT
 
-        -- | Check whether an expression is a literal.
-        isLiteral :: Expression -> Bool
-        isLiteral e = case e of
-            IntConst {} -> True
-            LongConst {} -> True
-            FloatConst {} -> True
-            DoubleConst {} -> True
-            LongDoubleConst {} -> True
-            CharConst {} -> True
-            BoolConst {} -> True
-            StringConst {} -> True
-            _ -> False
+
+-- | Check whether an expression is a literal.
+isLiteral :: Expression -> Bool
+isLiteral e = case e of
+    IntConst {} -> True
+    LongConst {} -> True
+    FloatConst {} -> True
+    DoubleConst {} -> True
+    LongDoubleConst {} -> True
+    CharConst {} -> True
+    BoolConst {} -> True
+    StringConst {} -> True
+    _ -> False
 
 
 -- | Lookup a variable id (and its position) from the current scope stack.
