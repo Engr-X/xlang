@@ -17,12 +17,14 @@ data Class =
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
     Array Class Int |
-    Class [String] [Class] -- name + general
+    Class [String] [Class] | -- name + general
+    ErrorClass
     deriving (Eq, Ord, Show)
 
 
 -- Better toString of class instance
 prettyClass :: Class -> String
+prettyClass ErrorClass = "error"
 prettyClass Int8T = "byte"
 prettyClass Int16T = "short"
 prettyClass Int32T = "int"

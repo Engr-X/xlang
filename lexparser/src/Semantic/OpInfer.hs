@@ -2,7 +2,7 @@
 
 module Semantic.OpInfer where
 
-import Control.Applicative (liftA3)
+import Control.Applicative (liftA2, liftA3)
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
 import Util.Exception (Warning(..))
@@ -88,6 +88,22 @@ promoteBasicType a b =
         rInt = Map.findWithDefault (-2) Int32T basicTypeRank
         r = max rInt (max ra rb)
     in Map.findWithDefault (error "cannot find the type") r basicTypeRankRev
+
+
+unaryOpInfer :: Map (Operator, Class) Class
+unaryOpInfer = foldr Map.union Map.empty []
+    where
+        types :: [Class]
+        types = [Bool, Char, Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T]
+
+
+        unaryArithmetic :: Map (Operator, Class) Class
+        unaryArithmetic =
+            let op = [Add, Sub]
+            let res = liftA2 op types
+
+        incType :: Class -> Class
+        incType cls = let ordC = 
 
 
 -- | Inference table for binary operators over basic types.

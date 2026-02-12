@@ -161,7 +161,10 @@ returnCtrlErrorMsg = "`return` can only be used inside a function"
 illegalStatementMsg :: String -> String -> String
 illegalStatementMsg child parrent = concat ["Illegal statement ", child, " in ", parrent," body"]
 
-    
+
+-- | error message for illegal cast between basic and class types
+staticCastError :: String -> String -> String
+staticCastError fromT toT = concat ["cannot cast between basic type and class type: ", fromT, " to ", toT]
 
 
 -- | Basic warning information shared by lexer and parser warnings.

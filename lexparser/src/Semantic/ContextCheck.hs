@@ -155,7 +155,6 @@ checkExpr p packages envs expr = case expr of
                                         let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
                                         put $ c { st = cState', varUses = uses' }
                                     Nothing -> put $ c { st = cState' }
-                            _ -> put $ c { st = cState' }
 
             AST.Qualified {} -> do
                 c <- get
