@@ -91,19 +91,31 @@ promoteBasicType a b =
 
 
 unaryOpInfer :: Map (Operator, Class) Class
-unaryOpInfer = foldr Map.union Map.empty []
+unaryOpInfer = foldr Map.union Map.empty [unaryArithmetic, unaryIncDec, unaryBitNot]
     where
         types :: [Class]
         types = [Bool, Char, Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T]
 
-
         unaryArithmetic :: Map (Operator, Class) Class
         unaryArithmetic =
-            let op = [Add, Sub]
-            let res = liftA2 op types
+            let op = [UnaryPlus, UnaryMinus]
+                res = liftA2 (,) op types
+            in Map.fromList $ map (\x@(_, t) -> (x, incType t)) res
+
+        unaryIncDec :: Map (Operator, Class) Class
+        unaryIncDec =
+            let op = [IncSelf, DecSelf, SelfInc, SelfDec]
+                res = liftA2 (,) op types
+            in Map.fromList $ map (\x@(_, t) -> (x, t)) res
+
+        unaryBitNot :: Map (Operator, Class) Class
+        unaryBitNot = Map.fromList $ map (\t -> ((BitNot, t), if t == Bool then Bool else incType t)) types
 
         incType :: Class -> Class
-        incType cls = let ordC = 
+        incType cls =
+            case (Map.lookup cls basicTypeRank, Map.lookup Int32T basicTypeRank) of
+                (Just rCls, Just rInt) | rCls < rInt -> Int32T
+                _ -> cls
 
 
 -- | Inference table for binary operators over basic types.

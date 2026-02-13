@@ -1,12 +1,11 @@
 module Semantic.TypeCheck where
 
 import Control.Monad.State.Strict (State, get, modify, put)
-import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..),
-    Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass)
+import Data.Maybe (listToMaybe, mapMaybe)
+import Parse.SyntaxTree (Class(..), Expression(..), exprTokens, prettyClass)
 import Semantic.NameEnv (CheckState(..), QName, Scope(..), VarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (binOpInfer, iCast, isBasicType)
+import Semantic.OpInfer (binOpInfer, iCast, isBasicType, unaryOpInfer)
 import Semantic.TypeEnv (FunTable, TypedImportEnv(..), VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -98,42 +97,34 @@ checkExpect p expr expected actual = do
 --   p: file path for diagnostics.
 --   pkg: current package name.
 --   envs: typed import environments (can be empty in v1).
---   mExpected: optional expected type for contextual checking.
 --   expr: expression to infer.
-inferExpr :: Path -> QName -> [TypedImportEnv] -> Maybe Class -> Expression -> TypeM Class
-inferExpr _ _ _ _ (Error _ _) = error "this error should be catched in parser state"
-inferExpr p _ _ mExpected e
-    | isLiteral e = inferLiteral p mExpected e
+inferExpr :: Path -> QName -> [TypedImportEnv] -> Expression -> TypeM Class
+inferExpr _ _ _ (Error _ _) = error "this error should be catched in parser state"
+inferExpr p _ _ e
+    | isLiteral e = inferLiteral p e
 
-inferExpr path packages envs mExpected e@(Variable str tok) = do
+inferExpr _ packages envs (Variable str tok) = do
     c <- get
     let pos = Lex.tokenPos tok
-
     -- first try local variable via VarId (recorded by ContextCheck).
     case getVarId pos (ctx c) of
         Just vid ->
             case Map.lookup vid (varTypes c) of
-                Just (t, _) -> case mExpected of
-                        Nothing -> pure $ normalizeClass t
-                        Just expT -> checkExpect path e expT t
-
-                -- English comment: should not happen if passes are consistent; treat as internal error.
+                Just (t, _) -> pure $ normalizeClass t
                 Nothing -> error "what? find this variable in ContextCheck but not in typeCheck"
 
         Nothing -> do
-            -- English comment: not a local var; try imported typed environments using qualified name.
             let qn = packages ++ [str]
 
+            -- find in package
             case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
-                Just (t, _) -> case mExpected of
-                    Nothing -> pure $ normalizeClass t
-                    Just expT -> checkExpect path (Variable str tok) expT t
+                Just (t, _) -> pure $ normalizeClass t
 
                 Nothing -> error "should already be caught in ContextCheck (undefined variable)."
 
-inferExpr path packages envs mExpected e@(Qualified names toks) = do
+inferExpr path _ envs (Qualified names toks) = do
     c <- get
-    let posAll   = map Lex.tokenPos toks
+    let posAll = map Lex.tokenPos toks
     let posHead  = head posAll
     let headName = head names
 
@@ -145,9 +136,8 @@ inferExpr path packages envs mExpected e@(Qualified names toks) = do
         -- 2) search as package/import qualified name first
         case getImportedVarType names envs of
             Just t -> do
-                let actual = normalizeClass t in case mExpected of
-                    Nothing -> pure actual
-                    Just expT -> checkExpect path e expT actual
+                let actual = normalizeClass t
+                pure actual
 
             -- 3) search head as variable
             Nothing -> do
@@ -165,16 +155,16 @@ inferExpr path packages envs mExpected e@(Qualified names toks) = do
                                 -- "x.y.z" where x is a variable; member access is TODO.
                                 error "TODO: resolve member/field access on variable-qualified name"
 
-inferExpr path packages envs mExpected e@(Cast (cls, _) innerE _) = do
+inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
     -- recursively infer inner expression
-    fromT0 <- inferExpr path packages envs Nothing innerE
+    fromT0 <- inferExpr path packages envs innerE
 
     let fromT = normalizeClass fromT0
         toT = normalizeClass cls
         pos = map Lex.tokenPos (exprTokens e)
 
     -- one is basic, the other is not
-    if isBasicType fromT /= isBasicType toT then do
+    if isBasicType fromT && isBasicType toT then do
         addErr $ UE.Syntax $ UE.makeError path pos $ staticCastError (prettyClass fromT) (prettyClass toT)
 
     -- both are non-basic (class / array / user type)
@@ -182,35 +172,48 @@ inferExpr path packages envs mExpected e@(Cast (cls, _) innerE _) = do
         error "TODO: class cast is not supported yet: "
 
     -- result type of cast is always target type
-    case mExpected of
-        Nothing -> pure toT
-        (Just clazz) -> checkExpect path e clazz toT
+    pure toT
 
-inferExpr path packages envs mExpected e@(Unary _ innerE _) = do
-    -- unary result type is the same as inner expression type
-    t0 <- inferExpr path packages envs mExpected innerE
-    pure (normalizeClass t0)
+inferExpr path packages envs e@(Unary op innerE _) = do
+    t0 <- inferExpr path packages envs innerE
+    let pos = map Lex.tokenPos (exprTokens e)
+    if isBasicType t0 then
+        case Map.lookup (op, t0) unaryOpInfer of
+            Just resT -> do
+                mapM_ addWarn (iCast path pos t0 resT)
+                pure resT
+            Nothing -> error "TODO: unary operator not supported for this type"
+    else error "TODO: unary on non-basic type"
 
 
+inferExpr path packages envs e@(Binary op e1 e2 _) = do
+    t1 <- inferExpr path packages envs e1
+    t2 <- inferExpr path packages envs e2
+    let pos = map Lex.tokenPos (exprTokens e)
+    if isBasicType t1 && isBasicType t2 then
+        case Map.lookup (op, t1, t2) binOpInfer of
+            Just resT -> do
+                mapM_ addWarn (iCast path pos t1 resT)
+                mapM_ addWarn (iCast path pos t2 resT)
+                pure resT
+            Nothing -> error "TODO: binary operator not supported for this type"
+    else error "TODO: binary on non-basic type"
+
+inferExpr path packages envs ()
 
 
--- | Infer literal types with optional expected type checking.
-inferLiteral :: Path -> Maybe Class -> Expression -> TypeM Class
-inferLiteral p mExpected e = case e of
-    IntConst _ _ -> checkOrPure Int32T
-    LongConst _ _ -> checkOrPure Int64T
-    FloatConst _ _ -> checkOrPure Float32T
-    DoubleConst _ _ -> checkOrPure Float64T
-    LongDoubleConst _ _ -> checkOrPure Float128T
-    CharConst _ _ -> checkOrPure Char
-    BoolConst _ _ -> checkOrPure Bool
+-- | Infer literal types.
+inferLiteral :: Path -> Expression -> TypeM Class
+inferLiteral _ e = case e of
+    IntConst _ _ -> pure Int32T
+    LongConst _ _ -> pure Int64T
+    FloatConst _ _ -> pure Float32T
+    DoubleConst _ _ -> pure Float64T
+    LongDoubleConst _ _ -> pure Float128T
+    CharConst _ _ -> pure Char
+    BoolConst _ _ -> pure Bool
     StringConst _ _ -> error "string type is not supported"
     _ -> error "inferLiteral: non-literal expression"
-    where
-        checkOrPure :: Class -> TypeM Class
-        checkOrPure litT = case mExpected of
-            Nothing -> pure litT
-            Just t -> checkExpect p e t litT
 
 
 -- | Check whether an expression is a literal.
@@ -230,8 +233,8 @@ isLiteral e = case e of
 -- | Lookup a variable id (and its position) from the current scope stack.
 --   The nearest scope wins.
 getVarId :: Position -> Ctx -> Maybe VarId
-getVarId pos ctx = Map.lookup pos (CC.varUses ctx)
+getVarId pos context = Map.lookup pos (CC.varUses context)
 
 
 getImportedVarType :: QName -> [TypedImportEnv] -> Maybe Class
-getImportedVarType qname = fmap fst . listToMaybe . catMaybes . map (Map.lookup qname . tVars)
+getImportedVarType qname = fmap fst . listToMaybe . mapMaybe (Map.lookup qname . tVars)
