@@ -9,7 +9,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedVariable, undefinedFunction, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -107,14 +107,18 @@ checkExpr p packages envs expr = case expr of
     AST.Variable name tok -> do
         c <- get
         let cState = st c
-        if isVarDefine name cState || isVarImport (packages ++ [name]) envs
-            then do
-                case lookupVarId name cState of
-                    Just (vid, _) -> do
-                        let uses' = Map.insert (tokenPos tok) vid (varUses c)
-                        put $ c { varUses = uses' }
-                    Nothing -> pure ()
-            else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedVariable name)
+        if name == "this"
+            then
+                when (null (classScope cState)) $ addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+            else
+                if isVarDefine name cState || isVarImport (packages ++ [name]) envs
+                    then do
+                        case lookupVarId name cState of
+                            Just (vid, _) -> do
+                                let uses' = Map.insert (tokenPos tok) vid (varUses c)
+                                put $ c { varUses = uses' }
+                            Nothing -> pure ()
+                    else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
     AST.Qualified names tokens -> do
         c <- get
@@ -123,15 +127,15 @@ checkExpr p packages envs expr = case expr of
         case names of
             -- this.a / this.a.b ... => check 'a' exists in nearest class scope only.
             ("this":field:_) -> case classScope cState of
-                [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedVariable field)
+                [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                 (clsTop:_) -> if Map.member field (sVars clsTop) then pure ()
-                    else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedVariable field)
+                    else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
             -- non-this qualified name is resolved only through imports.
             _ -> if isVarImport names envs
                     then pure ()
-                    else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedVariable $ concatQ names)
+                    else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
                     
 
     -- recurse into children.
@@ -175,7 +179,7 @@ checkExpr p packages envs expr = case expr of
                 c <- get
                 let cState = st c
                 if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs then pure ()
-                else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedFunction name)
+                else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
             AST.Qualified names tokens -> do
                 c <- get
@@ -184,14 +188,14 @@ checkExpr p packages envs expr = case expr of
                 case names of
                     -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
                     ("this":field:_) -> case classScope cState of
-                        [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedFunction field)
+                        [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                         (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
-                            else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedFunction field)
+                            else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                     -- non-this qualified name is resolved only through imports.
                     _ -> if isFunImport names envs then pure ()
-                         else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedFunction $ concatQ names)
+                         else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
 
             other -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens other) invalidFunctionName
 

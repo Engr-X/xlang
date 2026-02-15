@@ -3,7 +3,6 @@ module Semantic.TypeEnv where
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Class(..))
 import Semantic.NameEnv (QName, VarId)
-import Semantic.OpInfer (basicTypeRank, isBasicType)
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map

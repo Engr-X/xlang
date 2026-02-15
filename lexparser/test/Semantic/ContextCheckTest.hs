@@ -259,13 +259,13 @@ checkExprTests = testGroup "Semantic.ContextCheck.checkExpr" $ map (\(name, src,
         assertErrs expected ctx1
         extra ctx1) [
         ("0", "x + 1 * 2", stWithVars ["x"], [], Nothing, noExtra),
-        ("1", "x + y + 1", stWithVars ["x"], [], Just (UE.undefinedVariable "y"), noExtra),
+        ("1", "x + y + 1", stWithVars ["x"], [], Just (UE.undefinedIdentity "y"), noExtra),
         ("2", "a.b.c + x * (2 + 3)", stWithVars ["x"], [importVars [["a", "b", "c"]]], Nothing, noExtra),
-        ("3", "x + y * (z + 2)", stWithVars ["x", "y"], [], Just (UE.undefinedVariable "z"), noExtra),
+        ("3", "x + y * (z + 2)", stWithVars ["x", "y"], [], Just (UE.undefinedIdentity "z"), noExtra),
         ("4", "x = x + 1", stWithVars ["x"], [], Nothing, assertVarDefined "x"),
         ("5", "a.b = x + 1", stWithVars ["x"], [], Just UE.assignErrorMsg, noExtra),
         ("6", "y = x + z * f(2)", stWithVarsFuncs ["x", "z"] ["f"], [], Nothing, assertVarDefined "y"),
-        ("7", "g(x + 1, 2 * 3)", stWithVars ["x"], [], Just (UE.undefinedFunction "g"), noExtra)]
+        ("7", "g(x + 1, 2 * 3)", stWithVars ["x"], [], Just (UE.undefinedIdentity "g"), noExtra)]
 
 
 isContinueValidTests :: TestTree
@@ -380,7 +380,7 @@ checkSwitchCaseTests = testGroup "Semantic.ContextCheck.checkSwitchCase" $ map (
         assertErrs expected ctx1
         extra ctx1) [
         ("0", scCaseX, stWithX, Nothing, assertState stWithX),
-        ("1", scCaseY, stEmpty, Just (UE.undefinedVariable "y"), noExtra),
+        ("1", scCaseY, stEmpty, Just (UE.undefinedIdentity "y"), noExtra),
         ("2", scCaseContinue, stEmpty, Just UE.continueCtrlErrorMsg, noExtra),
         ("3", scDefaultBreak, stEmpty, Nothing, noExtra)]
     where
@@ -430,7 +430,7 @@ checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, bl
         assertErrs expected ctx1
         extra ctx1) [
         ("0", blockDefineUse, stEmpty, Nothing, assertVarDefined "x"),
-        ("1", blockUndefinedVar, stEmpty, Just (UE.undefinedVariable "y"), noExtra),
+        ("1", blockUndefinedVar, stEmpty, Just (UE.undefinedIdentity "y"), noExtra),
         ("2", blockBreak, stEmpty, Just UE.breakCtrlErrorMsg, noExtra),
         ("3", blockCallBeforeDef, stEmpty, Nothing, assertFuncDefined "f")]
     where
@@ -480,7 +480,7 @@ checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, st
         extra ctx1) [
         ("0", [], stEmpty, Nothing, assertState stEmpty),
         ("1", [callF, funDefF], stEmpty, Nothing, assertFuncDefined "f"),
-        ("2", [callG], stEmpty, Just (UE.undefinedFunction "g"), noExtra),
+        ("2", [callG], stEmpty, Just (UE.undefinedIdentity "g"), noExtra),
         ("3", [funDefQualified], stEmpty, Just UE.unsupportedErrorMsg, noExtra)]
     where
         tokF, tokG, tokA :: Lex.Token
@@ -518,13 +518,13 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "b = a + 2",
             "c = b + 3",
             "d = c + e"
-        ], Just (UE.undefinedVariable "e")),
+        ], Just (UE.undefinedIdentity "e")),
         ("2", unlines [
             "a = f()",
             "b = a + 1",
             "c = b + 2",
             "d = c + g(1)"
-        ], Just (UE.undefinedFunction "f")),
+        ], Just (UE.undefinedIdentity "f")),
         ("3", unlines [
             "int f() { }",
             "int g(int x) { }",
@@ -532,7 +532,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "b = a + c",
             "d = b + 1",
             "e = d + 2"
-        ], Just (UE.undefinedVariable "c")),
+        ], Just (UE.undefinedIdentity "c")),
         ("4", unlines [
             "{",
             "    a = 1",
@@ -566,7 +566,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "p = 1",
             "q = p + 1",
             "r = q + 1"
-        ], Just (UE.undefinedVariable "x")),
+        ], Just (UE.undefinedIdentity "x")),
         ("7", unlines [
             "int main() {",
             "    a = 1",
@@ -594,7 +594,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "b = g(1)",
             "c = b + 1",
             "d = c + 1"
-        ], Just (UE.undefinedFunction "g")),
+        ], Just (UE.undefinedIdentity "g")),
         ("10", unlines [
             "int outer() {",
             "    int inner() { }",
@@ -616,7 +616,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "x = inner()",
             "y = x + 1",
             "z = y + 1"
-        ], Just (UE.undefinedFunction "inner")),
+        ], Just (UE.undefinedIdentity "inner")),
         ("12", unlines [
             "int main() {",
             "    a = 0",
@@ -643,7 +643,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "d = 1",
             "e = d + 1",
             "f = e + 1"
-        ], Just (UE.undefinedVariable "a")),
+        ], Just (UE.undefinedIdentity "a")),
         ("14", unlines [
             "int main() {",
             "    i = 0",
@@ -670,7 +670,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "a = 1",
             "b = a + 1",
             "c = b + 1"
-        ], Just (UE.undefinedVariable "i"))] ++ [
+        ], Just (UE.undefinedIdentity "i"))] ++ [
         
         testCase "do_while/0_ok" $ do
         eInit <- parseExprOrFail "i = 0"
@@ -711,7 +711,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             body = AST.Multiple [doStmt, AST.Expr eA, AST.Expr eB, AST.Expr eC]
             fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) Nothing [] body
             prog = ([], [fun])
-        assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.undefinedVariable "i"))
+        assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.undefinedIdentity "i"))
     ])
     where
         mkCase (name, src, expected) =

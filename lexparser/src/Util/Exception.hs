@@ -44,20 +44,19 @@ makeError path pos reason = BasicError {filePath = path, positions = pos, why = 
 internalErrorMsg :: String
 internalErrorMsg = "internal error"
 
+-- | Internal error: class scope exists but class type stack is empty
+missingClassTypeMsg :: String
+missingClassTypeMsg = "class scope exists but class type stack is empty"
+
 
 -- | this error refer to some sytax is not supported in current version, but it will support in latter version.
 unsupportedErrorMsg :: String
 unsupportedErrorMsg = "syntax unsopported"
 
 
--- | Error message for an undefined variable
-undefinedVariable :: String -> String
-undefinedVariable varName = "undefined variable: " ++ varName
-
-
--- | Error message for an undefined function
-undefinedFunction :: String -> String
-undefinedFunction funName = "undefined function: " ++ funName
+-- | Error message for an undefined
+undefinedIdentity :: String -> String
+undefinedIdentity name = concat ["'", name, "' is not defined in this context."]
 
 
 -- | Error message for unsupported function name

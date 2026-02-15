@@ -3,9 +3,12 @@
 module Semantic.OpInfer where
 
 import Control.Applicative (liftA2, liftA3)
+import Data.List (elemIndex, findIndex, intercalate)
 import Data.Map.Strict (Map)
+import Data.Maybe (mapMaybe)
 import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
-import Util.Exception (Warning(..))
+import Semantic.TypeEnv (FunSig(..))
+import Util.Exception (ErrorKind, Warning(..))
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
@@ -34,6 +37,73 @@ numericRangeRank = Map.fromList [
     (Float64T, 6),
     (Float128T, 7),
     (Void, -1)]
+
+
+widenedClass :: Class -> [Class]
+widenedClass Bool = [Bool]
+widenedClass Char = [Char, Int8T, Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
+widenedClass Int8T = [Int8T, Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
+widenedClass Int16T = [Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
+widenedClass Int32T = [Int32T, Float32T, Int64T, Float64T, Float128T]
+widenedClass Int64T = [Int64T, Float64T, Float128T]
+widenedClass Float32T = [Float32T, Float64T, Float128T]
+widenedClass Float64T = [Float64T, Float128T]
+widenedClass Float128T = [Float128T]
+widenedClass Void = [Void]
+widenedClass (Array c n)
+    | isBasicType c = [Array c n]
+    | otherwise = map (`Array` n) (widenedClass c)
+widenedClass (Class _ _) = error "TODO: class widen is not supported yet"
+widenedClass ErrorClass = error "ErrorClass cannot be widened"
+
+
+widenedArgs :: [Class] -> [FunSig] -> Either ErrorKind (FunSig, [Warning])
+widenedArgs args sigs =
+    let argTs = args
+        dist argT paramT = elemIndex paramT (widenedClass argT)
+
+        buildCandidate sig =
+            let ps = funParams sig
+            in if length ps /= length argTs then Nothing
+               else case traverse (uncurry dist) (zip argTs ps) of
+                    Nothing -> Nothing
+                    Just dists ->
+                        let warns = concat [ mkWarnings a p
+                                           | ((a, p), d) <- zip (zip argTs ps) dists
+                                           , d > 0
+                                           ]
+                        in Just (sig, dists, warns)
+
+        candidates = mapMaybe buildCandidate sigs
+
+        dominates (_, d1, _) (_, d2, _) =
+            and (zipWith (<=) d1 d2) && or (zipWith (<) d1 d2)
+
+        best = [c | c <- candidates, not (any (`dominates` c) candidates)]
+
+        expectedS = intercalate " | " [
+                "(" ++ intercalate ", " (map prettyClass (funParams s)) ++ ")"
+                | s <- sigs
+            ]
+        actualS = "(" ++ intercalate ", " (map prettyClass argTs) ++ ")"
+
+    in case candidates of
+        [] -> Left $ UE.Syntax $ UE.makeError "" [] (UE.typeMismatchMsg expectedS actualS)
+        _ -> case best of
+            [(sig, _, warns)] -> Right (sig, warns)
+            _ -> Left $ UE.Syntax $ UE.makeError "" [] "ambiguous call"
+    where
+        -- | Build implicit-cast related warnings without a specific source position.
+        mkWarnings :: Class -> Class -> [Warning]
+        mkWarnings fromT toT
+            | fromT == toT = []
+            | otherwise =
+                let implicitW = ImplicitCast (UE.makeError "" [] (UE.implicitCastMsg (prettyClass fromT) (prettyClass toT)))
+                    overflowW = case (Map.lookup fromT numericRangeRank, Map.lookup toT numericRangeRank) of
+                        (Just rf, Just rt) | rf > rt ->
+                            [OverflowWarning (UE.makeError "" [] (UE.overflowCastMsg (prettyClass fromT) (prettyClass toT)))]
+                        _ -> []
+                in implicitW : overflowW
 
 
 -- | Reverse lookup for basic type ranks.
