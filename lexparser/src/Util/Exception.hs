@@ -82,6 +82,10 @@ multipleVariableDefMsg varName = "multiple definitions of variable: " ++ varName
 multipleFunctionDefMsg :: String -> String
 multipleFunctionDefMsg funcName = "multiple definitions of function: " ++ funcName
 
+-- | Error message for duplicate method signature.
+duplicateMethodMsg :: String -> String
+duplicateMethodMsg sig = "duplicate method: " ++ sig
+
 
 -- | Error message for an invalid string literal
 unclosedStrLiteralMsg :: String

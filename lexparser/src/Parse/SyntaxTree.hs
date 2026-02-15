@@ -399,15 +399,8 @@ prettyStmt n (Just (FunctionT (retC, _) functionName genParams params b)) =
         prettyOneParam :: (Class, String, [Token]) -> String
         prettyOneParam (c, name, _) = concat [prettyClass c, " ", name]
     in unlines [
-        concat [
-            space,
-            prettyClass retC,
-            " ",
-            prettyExpr 0 (Just functionName),
-            prettyGen,
-            "(",
-            intercalate ", " (map prettyOneParam params),
-            ")"],
+        concat [space, prettyClass retC, " ", prettyExpr 0 (Just functionName),
+            prettyGen, "(", intercalate ", " (map prettyOneParam params),")"],
         prettyBlock n b]
 
 -- | pretty statement in IO version
@@ -460,15 +453,22 @@ flattenStatement (Just (While e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock
 flattenStatement (Just (DoWhile b1 e b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (Switch e scs _)) = e : concatMap (flattenCase . Just) scs
 flattenStatement (Just (Function _ _ params b)) = paramExprs params ++ flattenBlock (Just b)
-flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flattenBlock (Just b)
-
-paramExprs :: [(Class, String, [Token])] -> [Expression]
-paramExprs params = concatMap one params
     where
-        one :: (Class, String, [Token]) -> [Expression]
-        one (_, name, toks) = case toks of
-            [] -> []
-            (t:_) -> [Variable name t]
+        paramExprs :: [(Class, String, [Token])] -> [Expression]
+        paramExprs = concatMap one
+            where
+                one :: (Class, String, [Token]) -> [Expression]
+                one (_, _, []) = []
+                one (_, name, t:_)  = [Variable name t]
+
+flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flattenBlock (Just b)
+    where
+        paramExprs :: [(Class, String, [Token])] -> [Expression]
+        paramExprs = concatMap one
+            where
+                one :: (Class, String, [Token]) -> [Expression]
+                one (_, _, [])  = []
+                one (_, name, t:_)  = [Variable name t]
 
 
 -- | The declaration of a program, especially import and module

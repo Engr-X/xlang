@@ -2,14 +2,15 @@
 
 module Semantic.TypeCheck where
 
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Control.Monad.State.Strict (State, get, modify, put)
 import Data.List (intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing)
-import Parse.SyntaxTree (Class(..), Expression(..), exprTokens, prettyClass)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), SwitchCase(..), exprTokens, prettyClass)
 import Semantic.NameEnv (CheckState(..), QName, Scope(..), VarId)
 import Semantic.ContextCheck (Ctx)
 import Semantic.OpInfer (binOpInfer, iCast, isBasicType, unaryOpInfer, widenedArgs)
+import Semantic.ImportLoader (loadSrcTypedI)
 import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -33,22 +34,22 @@ defToClass package def = Class (package ++ [className def]) []
 
 
 -- | Type checking context (context state + type tables + diagnostics).
---   ctx: ContextCheck state + use map for resolving VarId by position.
---   varTypes: mapping from VarId to inferred/declared types + def positions.
---   funTypes: mapping from function name to overload set.
---   classStack: current class definitions (top = nearest).
---   classTypeStack: current class types (top = nearest).
---   currentReturn: expected return type of the current function.
---   errors/warnings: accumulated diagnostics.
+--   tcCtx: ContextCheck state + use map for resolving VarId by position.
+--   tcVarTypes: mapping from VarId to inferred/declared types + def positions.
+--   tcFunTypes: mapping from function name to overload set.
+--   tcClassStack: current class definitions (top = nearest).
+--   tcClassTypeStack: current class types (top = nearest).
+--   tcCurrentReturn: expected return type of the current function.
+--   tcErrors/tcWarnings: accumulated diagnostics.
 data TypeCtx = TypeCtx {
-    ctx :: CC.Ctx,
-    varTypes :: VarTable,
-    funTypes :: FunTable,
-    classStack :: [ClassDef],
-    classTypeStack :: [Class],
-    currentReturn :: Maybe Class,
-    errors :: [ErrorKind],
-    warnings :: [Warning]
+    tcCtx :: CC.Ctx,
+    tcVarTypes :: VarTable,
+    tcFunTypes :: FunTable,
+    tcClassStack :: [ClassDef],
+    tcClassTypeStack :: [Class],
+    tcCurrentReturn :: Maybe Class,
+    tcErrors :: [ErrorKind],
+    tcWarnings :: [Warning]
 } deriving (Show)
 
 
@@ -58,7 +59,7 @@ type TypeM a = State TypeCtx a
 
 -- | Append a type error to the current context.
 addErr :: ErrorKind -> TypeM ()
-addErr e = modify $ \c -> c { errors = e : errors c }
+addErr e = modify $ \c -> c { tcErrors = e : tcErrors c }
 
 -- | Append a type error and return ErrorClass.
 errClass :: ErrorKind -> TypeM Class
@@ -67,14 +68,14 @@ errClass e = addErr e >> pure ErrorClass
 
 -- | Append a warning to the current context.
 addWarn :: Warning -> TypeM ()
-addWarn w = modify $ \c -> c { warnings = w : warnings c }
+addWarn w = modify $ \c -> c { tcWarnings = w : tcWarnings c }
 
 
 -- | Create a new lexical scope for the duration of an action, then restore depth/scope.
 withScope :: TypeM a -> TypeM a
 withScope action = do
     c <- get
-    let cctx = ctx c
+    let cctx = tcCtx c
         cState = CC.st cctx
         depth0 = depth cState
         newScope = Scope { scopeId = scopeCounter cState, sVars = Map.empty, sFuncs = Map.empty }
@@ -83,13 +84,13 @@ withScope action = do
             scopeCounter = succ $ scopeCounter cState,
             scope = newScope : scope cState
         }
-    put $ c { ctx = cctx { CC.st = cState' } }
+    put $ c { tcCtx = cctx { CC.st = cState' } }
     res <- action
     c2 <- get
-    let cctx2 = ctx c2
+    let cctx2 = tcCtx c2
         cState2 = CC.st cctx2
         scope' = tail $ scope cState2
-    put $ c2 { ctx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope' } } }
+    put $ c2 { tcCtx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope' } } }
     pure res
 
 
@@ -97,8 +98,8 @@ withScope action = do
 inferThis :: Path -> Position -> TypeM Class
 inferThis path pos = do
     c <- get
-    case classTypeStack c of
-        (cls:_) -> pure $ normalizeClass cls
+    case tcClassTypeStack c of
+        (cls:_) -> pure cls
         [] -> errClass $ UE.Syntax $ UE.makeError path [pos] (UE.undefinedIdentity "this")
                 
 
@@ -106,8 +107,8 @@ inferThis path pos = do
 inferThisField :: Path -> [Position] -> String -> TypeM Class
 inferThisField path pos field = do
     c <- get
-    let cState = CC.st (ctx c)
-    case classStack c of
+    let cState = CC.st (tcCtx c)
+    case tcClassStack c of
         [] -> errClass $ UE.Syntax $ UE.makeError path pos (UE.undefinedIdentity "this")
         (ClassDef _ classVars _ : _) ->
             case classScope cState of
@@ -116,7 +117,7 @@ inferThisField path pos field = do
                     let mType = Map.lookup field (sVars clsTop) >>= (\(vid, _) -> Map.lookup vid classVars) in do
                         when (isNothing mType) $
                             addErr $ UE.Syntax $ UE.makeError path pos (UE.undefinedIdentity field)
-                        pure $ maybe ErrorClass (normalizeClass . fst) mType
+                        pure $ maybe ErrorClass fst mType
 
 -- | Infer the type of an expression.
 --   p: file path for diagnostics.
@@ -137,13 +138,13 @@ inferExpr p _ _ e@(StringConst _ _) = inferLiteral p e
 inferExpr path packages envs (Variable str tok) = do
     c <- get
     let pos = Lex.tokenPos tok
-    let TypeCtx {varTypes = vts} = c
+    let TypeCtx {tcVarTypes = vts} = c
 
     -- 变量为 this 时，解析为当前类实例。
     if str == "this" then inferThis path pos
     else do
     -- 优先通过 ContextCheck 记录的 VarId 查找本地变量。
-        case getVarId pos (ctx c) of
+        case getVarId pos (tcCtx c) of
             Just vid ->
                 -- 中文: 根据 VarId 在类型表中查找类型。
                 case Map.lookup vid vts of
@@ -166,7 +167,7 @@ inferExpr path _ envs (Qualified names toks) = do
     c <- get
     let posAll = map Lex.tokenPos toks
     let posHead = head posAll
-    let TypeCtx{varTypes = vts} = c
+    let TypeCtx{tcVarTypes = vts} = c
     case names of
         -- 只有 `this` -> 解析为当前类的类型。
         ["this"] -> inferThis path posHead
@@ -183,7 +184,7 @@ inferExpr path _ envs (Qualified names toks) = do
             -- 2) 否则把头部当变量，再处理成员访问。
             Nothing -> do
                 let headName = head names
-                case getVarId posHead (ctx c) of
+                case getVarId posHead (tcCtx c) of
                     -- 头部变量不存在 -> 未定义。
                     Nothing -> errClass $ UE.Syntax $ UE.makeError path posAll (UE.undefinedIdentity headName)
 
@@ -242,23 +243,12 @@ inferExpr path packages envs e@(Binary op e1 e2 _) = do
 
 inferExpr path packages envs e@(Call callee args) = do
     c <- get
-    let TypeCtx{funTypes = fts} = c
+    let TypeCtx{tcFunTypes = fts} = c
     let callPos = map Lex.tokenPos (exprTokens e)
 
     -- 推导实参类型与位置。
     argTs0 <- mapM (inferExpr path packages envs) args
-    let argInfos = zip (map normalizeClass argTs0) (map (map Lex.tokenPos . exprTokens) args)
-
-    -- 统一处理匹配与报错逻辑（使用 widenedArgs）。
-    let applyMatches funName sigs =
-            if null sigs then
-                errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
-            else
-                case widenedArgs path callPos argInfos sigs of
-                    Left err -> errClass err
-                    Right (sig, warns) -> do
-                        mapM_ addWarn warns
-                        pure $ normalizeClass (funReturn sig)
+    let argInfos = zip argTs0 (map (map Lex.tokenPos . exprTokens) args)
 
     case callee of
         -- 直接调用函数名 f(...)
@@ -267,26 +257,39 @@ inferExpr path packages envs e@(Call callee args) = do
             let qImport = packages ++ [name]
             let localSigs = Map.findWithDefault [] qLocal fts
             let importSigs = concatMap (maybe [] fst . Map.lookup qImport . tFuncs) envs
-            applyMatches name (localSigs ++ importSigs)
+            applyMatches callPos argInfos name (localSigs ++ importSigs)
 
         -- 调用限定名（可能是 this.xxx 或导入函数）。
         Qualified names _ -> case names of
             -- this.xxx(...) -> 从当前类方法表查找。
-            ("this":fname:_) -> case classStack c of
+            ("this":fname:_) -> case tcClassStack c of
                 [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity "this")
                 (ClassDef _ _ classFuns : _) -> do
-                    let sigs = Map.findWithDefault [] [fname] classFuns
-                    applyMatches fname sigs
+                    let sigs = Map.findWithDefault (error "this error should be catched in COntextCheck") [fname] classFuns
+                    applyMatches callPos argInfos fname sigs
 
             -- 其他限定名 -> 只从导入/包中查找。
             _ -> do
                 let sigs = concatMap (maybe [] fst . Map.lookup names . tFuncs) envs
-                applyMatches (intercalate "." names) sigs
+                applyMatches callPos argInfos (intercalate "." names) sigs
 
         -- 其他表达式作为函数名 -> 非法调用。
         _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
+    where
+        -- 统一处理匹配与报错逻辑（使用 widenedArgs）。
+        applyMatches :: [Position] -> [(Class, [Position])] -> String -> [FunSig] -> TypeM Class
+        applyMatches callPos _ funName [] =
+            errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
+        applyMatches callPos argInfos _ sigs@(_ : _) =
+            case widenedArgs path callPos argInfos sigs of
+                Left err -> errClass err
+                Right (sig, warns) -> do
+                    addWarns warns
+                    pure $ funReturn sig
 
-inferExpr path _ _ e@(CallT _ _ _) =
+        addWarns = mapM_ addWarn
+
+inferExpr path _ _ e@(CallT {}) =
     errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens e)) UE.unsupportedErrorMsg
 
 
@@ -312,3 +315,42 @@ getVarId pos context = Map.lookup pos (CC.varUses context)
 
 getImportedVarType :: QName -> [TypedImportEnv] -> Maybe Class
 getImportedVarType qname = fmap fst . listToMaybe . mapMaybe (Map.lookup qname . tVars)
+
+
+-- | Infer types in a statement.
+inferStmt :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
+inferStmt _ _ _ (Command Continue _) = pure ()
+inferStmt _ _ _ (Command Break _) = pure ()
+inferStmt _ _ _ (Command (Return Nothing) _) = pure ()
+inferStmt path packages envs (Command (Return (Just e)) _) = void (inferExpr path packages envs e)
+
+inferStmt path packages envs (Expr e) = void (inferExpr path packages envs e)
+inferStmt path packages envs (BlockStmt block) =
+    withScope (inferBlock path packages envs block)
+inferStmt path packages envs (If e ifBlock elseBlock _) = do
+    void (inferExpr path packages envs e)
+    case ifBlock of
+        Nothing -> pure ()
+        Just b -> withScope (inferBlock path packages envs b)
+    case elseBlock of
+        Nothing -> pure ()
+        Just b -> withScope (inferBlock path packages envs b)
+
+-- | Infer types in a block (preload function signatures first).
+inferBlock :: Path -> QName -> [TypedImportEnv] -> Block -> TypeM ()
+inferBlock path packages envs (Multiple stmts) = do
+    c0 <- get
+    let oldFts = tcFunTypes c0
+    
+    case loadSrcTypedI path ([], stmts) of
+        Left errs -> mapM_ addErr errs
+        Right tenv -> do
+            let newFuns = Map.map fst (tFuncs tenv)
+                fts' = Map.unionWith (++) oldFts newFuns
+            put $ c0 { tcFunTypes = fts' }
+
+    mapM_ (inferStmt path packages envs) stmts
+
+    c1 <- get
+    put $ c1 { tcFunTypes = oldFts }
+
