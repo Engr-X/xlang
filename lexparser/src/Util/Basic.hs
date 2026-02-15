@@ -97,7 +97,7 @@ longReg = makeRegex $ full $ longLitPat ++ ('|' : hexLongLitPat)
 --
 -- Used to ensure a string is fully matched by a pattern.
 full :: String -> String
-full s = "^(" ++ s ++ ")$"
+full s = concat ["^(", s, ")$"]
 
 
 -- | Check whether a regex matches a string (partial match allowed).

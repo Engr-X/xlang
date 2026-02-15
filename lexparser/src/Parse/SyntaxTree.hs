@@ -35,7 +35,7 @@ prettyClass Float128T = "float128"
 prettyClass Void = "void"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
-prettyClass (Array c _) = "Array<" ++ prettyClass c ++ ">"
+prettyClass (Array c _) = concat ["Array<", prettyClass c, ">"]
 prettyClass (Class ss args) =
     let base = intercalate "." ss
     in case args of
@@ -51,7 +51,7 @@ data Command = Continue | Break | Return (Maybe Expression)
 
 -- pretty toString method for command
 prettyCmd :: Int -> Command -> String
-prettyCmd n Continue = insertTab n ++  "continue"
+prettyCmd n Continue = insertTab n ++ "continue"
 prettyCmd n Break = insertTab n ++ "break"
 prettyCmd n (Return Nothing) = insertTab n ++ "return;"
 prettyCmd n (Return e) = concat [insertTab n, "return ", prettyExpr 0 e]
@@ -155,7 +155,8 @@ data Expression =
     | Cast (Class, [Token]) Expression Token
     | Unary Operator Expression Token
     | Binary Operator Expression Expression Token
-    | Call Expression (Maybe [(Class, [Token])]) [Expression]
+    | Call Expression [Expression]
+    | CallT Expression [(Class, [Token])] [Expression]
     deriving (Eq, Show)
 
 
@@ -165,7 +166,7 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
     where
         prettyExpr' :: Maybe Expression -> String
         prettyExpr' Nothing = ""
-        prettyExpr' (Just (Error t why)) = "error at: " ++ show t ++ " " ++ why
+        prettyExpr' (Just (Error t why)) = concat ["error at: ", show t, " ", why]
        -- prettyExpr' (Just (Command c _)) = prettyCmd 0 c
         prettyExpr' (Just (IntConst s _)) = s
         prettyExpr' (Just (LongConst s _)) = s
@@ -177,17 +178,18 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
         prettyExpr' (Just (BoolConst b _)) = if b then "true" else "false"
         prettyExpr' (Just (Variable s _)) = s
         prettyExpr' (Just (Qualified ss _)) = intercalate "." ss
-        prettyExpr' (Just (Cast (c, _) e _)) = '(': prettyClass c ++ (")(" ++ prettyExpr' (Just e) ++ ")")
+        prettyExpr' (Just (Cast (c, _) e _)) = concat ["(", prettyClass c, ")(", prettyExpr' (Just e), ")"]
         prettyExpr' (Just (Unary o e _)) = prettyOp o ++ prettyExpr' (Just e)
-        prettyExpr' (Just (Binary o e1 e2 _)) = prettyExpr' (Just e1) ++ prettyOp o ++ prettyExpr' (Just e2)
-        prettyExpr' (Just (Call callee mTypeArgs args)) =
+        prettyExpr' (Just (Binary o e1 e2 _)) = concat [prettyExpr' (Just e1), prettyOp o, prettyExpr' (Just e2)]
+        prettyExpr' (Just (Call callee args)) =
             let calleeS = prettyExpr' (Just callee)
-                typeArgsS = case mTypeArgs of
-                    Nothing -> ""
-                    Just ts ->
-                        "<" ++ intercalate ", " (map (prettyClass . fst) ts) ++ ">"
                 argsS = intercalate ", " (map (prettyExpr' . Just) args)
-            in calleeS ++ typeArgsS ++ "(" ++ argsS ++ ")"
+            in concat [calleeS, "(", argsS, ")"]
+        prettyExpr' (Just (CallT callee ts args)) =
+            let calleeS = prettyExpr' (Just callee)
+                typeArgsS = concat ["<", intercalate ", " (map (prettyClass . fst) ts), ">"]
+                argsS = intercalate ", " (map (prettyExpr' . Just) args)
+            in concat [calleeS, typeArgsS, "(", argsS, ")"]
 
 
 -- | Choose an anchor token for diagnostics.
@@ -206,8 +208,8 @@ exprTokens (Qualified _ ts) = ts
 exprTokens (Cast (_, toks) e t) = exprTokens e ++ (t : toks)
 exprTokens (Unary _ e t) = t : exprTokens e
 exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
-exprTokens (Call e1 Nothing es) = concatMap exprTokens (e1 : es)
-exprTokens (Call e1 (Just cts) es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
+exprTokens (Call e1 es) = concatMap exprTokens (e1 : es)
+exprTokens (CallT e1 cts es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
 
 
 
@@ -219,7 +221,10 @@ flattenExpr Nothing = []
 flattenExpr (Just fatherE@(Cast _ e2 _)) = [fatherE, e2]
 flattenExpr (Just fatherE@(Unary _ e _)) = [fatherE, e]
 flattenExpr (Just fatherE@(Binary _ e1 e2 _)) = [fatherE, e1, e2]
-flattenExpr (Just fatherE@(Call callee _ args)) = fatherE : flattenExpr (Just callee) ++ concatMap (flattenExpr . Just) args
+flattenExpr (Just fatherE@(Call callee args)) =
+    concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
+flattenExpr (Just fatherE@(CallT callee _ args)) =
+    concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just e) = [e]
 
 
@@ -237,7 +242,9 @@ newtype Block = Multiple [Statement]
 
 -- Better toString method for block
 prettyBlock :: Int -> Block -> String
-prettyBlock n (Multiple ss) = let space = insertTab n in unlines [space ++ "{", concatMap (prettyStmt (n + 1) . Just) ss, space ++ "}"]
+prettyBlock n (Multiple ss) =
+    let space = insertTab n
+    in unlines [space ++ "{", concatMap (prettyStmt (n + 1) . Just) ss, space ++ "}"]
 
 -- toString in console
 prettyBlockIO :: Block -> IO String
@@ -314,8 +321,10 @@ data Statement =
     While Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- while else -- (while keyword - maybe else keyword)
     DoWhile (Maybe Block) Expression (Maybe Block) (Token, Token, Maybe Token) | -- (do keyword, while keyword, maybe else keyword)
     Switch Expression [SwitchCase] Token | -- (switch keyword)
-    Function (Class, [Token]) Expression (Maybe [(Class, [Token])]) [(Class, String, [Token])] Block
-    -- function: return_type + pos, name, template params + position, params + position, body
+    Function (Class, [Token]) Expression [(Class, String, [Token])] Block |
+    -- function: return_type + pos, name, params + position, body
+    FunctionT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
+    -- template function: return_type + pos, name, template params + position, params + position, body
     deriving (Eq, Show)
 
 
@@ -367,25 +376,35 @@ prettyStmt n (Just (DoWhile (Just b1) e (Just b2) _)) = let space = insertTab n 
             space ++ "else", prettyBlock n b2]
 
 prettyStmt n (Just (Switch e xs _)) = let space = insertTab n in unlines
-    [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs,space ++ "}" ]
+    [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs, space ++ "}" ]
 
 
-prettyStmt n (Just (Function (retC, _) functionName mGenParams params b)) =
+prettyStmt n (Just (Function (retC, _) functionName params b)) =
     let space = insertTab n
-        prettyGen :: Maybe [(Class, [Token])] -> String
-        prettyGen Nothing = ""
-        prettyGen (Just xs) = "<" ++ intercalate ", " (map (prettyClass . fst) xs) ++ ">"
-
         prettyOneParam :: (Class, String, [Token]) -> String
-        prettyOneParam (c, name, _) = prettyClass c ++ " " ++ name
-
+        prettyOneParam (c, name, _) = concat [prettyClass c, " ", name]
     in unlines [
         concat [
             space,
             prettyClass retC,
             " ",
             prettyExpr 0 (Just functionName),
-            prettyGen mGenParams,
+            "(",
+            intercalate ", " (map prettyOneParam params),
+            ")"],
+        prettyBlock n b]
+prettyStmt n (Just (FunctionT (retC, _) functionName genParams params b)) =
+    let space = insertTab n
+        prettyGen = concat ["<", intercalate ", " (map (prettyClass . fst) genParams), ">"]
+        prettyOneParam :: (Class, String, [Token]) -> String
+        prettyOneParam (c, name, _) = concat [prettyClass c, " ", name]
+    in unlines [
+        concat [
+            space,
+            prettyClass retC,
+            " ",
+            prettyExpr 0 (Just functionName),
+            prettyGen,
             "(",
             intercalate ", " (map prettyOneParam params),
             ")"],
@@ -420,8 +439,11 @@ stmtTokens (DoWhile b1 e b2 (doTok, whileTok, elseTok)) = concat [
 
 stmtTokens (Switch e scs switchTok) = concat [[switchTok], exprTokens e, concatMap switchCaseTokens scs]
 
-stmtTokens (Function (_, retToks) name mGenParams params b) = concat [
-    retToks, exprTokens name, maybe [] (concatMap snd) mGenParams,
+stmtTokens (Function (_, retToks) name params b) = concat [
+    retToks, exprTokens name,
+    concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
+stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
+    retToks, exprTokens name, concatMap snd genParams,
     concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
 
 
@@ -437,7 +459,11 @@ flattenStatement (Just (For (e1, e2, e3) b _)) = catMaybes [e1, e2, e3] ++ flatt
 flattenStatement (Just (While e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (DoWhile b1 e b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (Switch e scs _)) = e : concatMap (flattenCase . Just) scs
-flattenStatement (Just (Function _ _ _ params b)) = concatMap one params ++ flattenBlock (Just b)
+flattenStatement (Just (Function _ _ params b)) = paramExprs params ++ flattenBlock (Just b)
+flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flattenBlock (Just b)
+
+paramExprs :: [(Class, String, [Token])] -> [Expression]
+paramExprs params = concatMap one params
     where
         one :: (Class, String, [Token]) -> [Expression]
         one (_, name, toks) = case toks of

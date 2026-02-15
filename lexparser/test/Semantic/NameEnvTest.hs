@@ -106,11 +106,11 @@ defineFuncTests = testGroup "Semantic.NameEnv.defineFunc" $ map (\(name, stmt, s
         stExisting = CheckState 0 0 0 [] [emptyScope { sFuncs = Map.insert ["x"] [pos1] Map.empty }] []
 
         funStmtX :: AST.Statement
-        funStmtX = AST.Function (AST.Int32T, []) (AST.Variable "x" tokX) Nothing [] (AST.Multiple [])
+        funStmtX = AST.Function (AST.Int32T, []) (AST.Variable "x" tokX) [] (AST.Multiple [])
 
         funStmtQualified :: AST.Statement
         funStmtQualified =
-            AST.Function (AST.Int32T, []) (AST.Qualified ["a", "b"] [tokA, tokB]) Nothing [] (AST.Multiple [])
+            AST.Function (AST.Int32T, []) (AST.Qualified ["a", "b"] [tokA, tokB]) [] (AST.Multiple [])
 
         nonFuncStmt :: AST.Statement
         nonFuncStmt = AST.Expr (AST.IntConst "1" tokNum)

@@ -40,27 +40,24 @@ flattenExprTests = testGroup "Parse.SyntaxTree.flattenExpr" $ map (\(i, inp, out
         ("3",
             Just (Call
                 (Qualified ["f"] [])
-                Nothing [
+                [
                     IntConst "1" (mkNumD "1"),
                     Call
                         (Qualified ["g"] [])
-                        Nothing
                         [IntConst "2" (mkNumD "2")]
                 ]), [
                 Call
                     (Qualified ["f"] [])
-                    Nothing [
+                    [
                         IntConst "1" (mkNumD "1"),
                         Call
                             (Qualified ["g"] [])
-                            Nothing
                             [IntConst "2" (mkNumD "2")]
                     ],
                 Qualified ["f"] [],
                 IntConst "1" (mkNumD "1"),
                 Call
                     (Qualified ["g"] [])
-                    Nothing
                     [IntConst "2" (mkNumD "2")],
                 Qualified ["g"] [],
                 IntConst "2" (mkNumD "2")
@@ -271,8 +268,8 @@ exprTokensTests = testGroup "Parse.SyntaxTree.exprTokens" $ map (\(n, e, ts) -> 
     ("3", Binary Add (Variable "a" tokA) (Variable "b" tokB) tokPlus, [tokPlus, tokA, tokB]),
     ("4", Error [tokErr1, tokErr2] "bad", [tokErr1, tokErr2]),
     ("5", Cast ((Int32T, [tokCastTy])) (Variable "x" tokX) tokCast, [tokX, tokCast, tokCastTy]),
-    ("6", Call (Variable "f" tokF) Nothing [Variable "x" tokX, IntConst "1" tok1], [tokF, tokX, tok1]),
-    ("7", Call (Variable "id" tokId) (Just [(Int32T, [tokTA1]), (Bool, [tokTA2])]) [Variable "x" tokX], [tokTA1, tokTA2, tokId, tokX])]
+    ("6", Call (Variable "f" tokF) [Variable "x" tokX, IntConst "1" tok1], [tokF, tokX, tok1]),
+    ("7", CallT (Variable "id" tokId) [(Int32T, [tokTA1]), (Bool, [tokTA2])] [Variable "x" tokX], [tokTA1, tokTA2, tokId, tokX])]
     where
         tokX, tokJava, tokLang, tokString, tok1, tokMinus, tokA, tokB, tokPlus :: Token
         tokX      = Lex.Ident "x"      (makePosition 1 1 1)
@@ -317,8 +314,8 @@ stmtTokensTests = testGroup "Parse.SyntaxTree.stmtTokens" $ map (\(n, s, ts) -> 
         Default (Multiple [Expr (Variable "z" tokZ)]) tokDefault
         ] tokSwitch,
         [tokSwitch, tokX, tok1, tokY, tokZ]),
-    ("3 Function", Function (Int32T, [tokRet]) (Variable "f" tokF)
-        (Just [(Int32T, [tokTA1]), (Bool, [tokTA2])])
+    ("3 Function", FunctionT (Int32T, [tokRet]) (Variable "f" tokF)
+        [(Int32T, [tokTA1]), (Bool, [tokTA2])]
         [(Int32T, "x", [tokPx]), (Bool, "y", [tokPy])]
         (Multiple [Expr (Variable "body" tokBody)]),
         [tokRet, tokF, tokTA1, tokTA2, tokPx, tokPy, tokBody])

@@ -135,13 +135,25 @@ defineLocalVar _ _ st = Right st
 --   For qualified names, report unsupported syntax.
 --   Non-function statements are ignored.
 defineFunc :: Path -> Statement -> CheckState -> Either ErrorKind CheckState
-defineFunc _ (AST.Function _ (AST.Variable name token) _ _ _) st = case scope st of
+defineFunc _ (AST.Function _ (AST.Variable name token) _ _) st = case scope st of
     [] -> error "internal error: there is no scope to define !!! while define function"
     (sc:rest) -> 
         if Map.member [name] (sFuncs sc) then Right st
         else let sc' = sc { sFuncs = Map.insert [name] [tokenPos token] (sFuncs sc) } 
              in Right $ st { scope = sc' : rest}
-defineFunc p (AST.Function _ (AST.Qualified _ tokens) _ _ _) _ = Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+defineFunc p (AST.Function _ (AST.Qualified _ tokens) _ _) _ = Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
+-- | 模板函数定义：函数名是普通标识符（只记录名字，不区分模板参数）。
+defineFunc _ (AST.FunctionT _ (AST.Variable name token) _ _ _) st = case scope st of
+    -- 没有任何作用域时属于内部状态错误。
+    [] -> error "internal error: there is no scope to define !!! while define function"
+    -- 只在当前作用域登记函数名，已存在则不重复插入。
+    (sc:rest) ->
+        if Map.member [name] (sFuncs sc) then Right st
+        else let sc' = sc { sFuncs = Map.insert [name] [tokenPos token] (sFuncs sc) }
+             in Right $ st { scope = sc' : rest}
+-- | 模板函数定义：函数名是限定名（a.b.f），当前版本不支持。
+defineFunc p (AST.FunctionT _ (AST.Qualified _ tokens) _ _ _) _ =
+    Left $ UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg)
 defineFunc _ _ st = Right st
 
 

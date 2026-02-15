@@ -4,12 +4,12 @@ module Semantic.TypeCheck where
 
 import Control.Monad (when)
 import Control.Monad.State.Strict (State, get, modify, put)
-import Data.List (foldl', intercalate)
+import Data.List (intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing)
 import Parse.SyntaxTree (Class(..), Expression(..), exprTokens, prettyClass)
 import Semantic.NameEnv (CheckState(..), QName, Scope(..), VarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (binOpInfer, iCast, isBasicType, unaryOpInfer)
+import Semantic.OpInfer (binOpInfer, iCast, isBasicType, unaryOpInfer, widenedArgs)
 import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -240,70 +240,25 @@ inferExpr path packages envs e@(Binary op e1 e2 _) = do
             Nothing -> error "TODO: binary operator not supported for this type"
     else error "TODO: binary on non-basic type"
 
-inferExpr path packages envs e@(Call callee mTypeArgs args) = do
+inferExpr path packages envs e@(Call callee args) = do
     c <- get
     let TypeCtx{funTypes = fts} = c
-    let posAll = map Lex.tokenPos (exprTokens e)
+    let callPos = map Lex.tokenPos (exprTokens e)
 
-    -- 先推导每个实参的类型。
-    argTs <- mapM (inferExpr path packages envs) args
-    let argPos = map (map Lex.tokenPos . exprTokens) args
+    -- 推导实参类型与位置。
+    argTs0 <- mapM (inferExpr path packages envs) args
+    let argInfos = zip (map normalizeClass argTs0) (map (map Lex.tokenPos . exprTokens) args)
 
-    -- 若显式提供模板实参，先归一化。
-    let callTmpl = fmap (map (normalizeClass . fst)) mTypeArgs
-
-    -- 匹配模板实参（当前仅检查数量，类型推导后续再做）。
-    let matchTemplate tmpl = case (callTmpl, tmpl) of
-        -- 调用没有模板参数 -> 接受任何模板声明（可后续推导）。
-            (Nothing, _) -> True
-        -- 调用提供模板参数，但函数不是模板 -> 不匹配。
-            (Just _, Nothing) -> False
-        -- 调用与函数模板数量一致 -> 匹配。
-            (Just ts, Just ps) -> length ts == length ps
-
-    -- 匹配一个函数签名，返回返回类型与需要的隐式转换。
-    let matchSig sig =
-            let FunSig { funParams = ps0, funTemplate = tmpl, funReturn = ret0 } = sig
-                ps = map normalizeClass ps0
-                ret = normalizeClass ret0
-            in if not (matchTemplate tmpl) || length ps /= length argTs
-                then Nothing
-                else
-                    let step (ok, castsAcc) (p, a, pos)
-                            | not ok = (False, castsAcc)
-                            | p == a = (True, castsAcc)
-                            | isBasicType p && isBasicType a = (True, (a, p, pos) : castsAcc)
-                            | otherwise = (False, castsAcc)
-                        (okAll, castsRes) = foldl' step (True, []) (zip3 ps argTs argPos)
-                    in if okAll then Just (sig, ret, castsRes) else Nothing
-
-
-    -- 在多个匹配中选择“隐式转换最少”的那个。
-    let chooseBest ms = case ms of
-            [] -> Nothing
-            (m:rest) -> Just $ foldl' pick m rest
-            where
-                pick best@(_, _, castsB) cur@(_, _, castsC) =
-                    if length castsC < length castsB then cur else best
-
-    -- 统一处理匹配结果与报错逻辑。
+    -- 统一处理匹配与报错逻辑（使用 widenedArgs）。
     let applyMatches funName sigs =
-            let matches = mapMaybe matchSig sigs
-            in case chooseBest matches of
-                -- 没有任何匹配签名。
-                Nothing ->
-                    if null sigs
-                        then errClass $ UE.Syntax $ UE.makeError path posAll (UE.undefinedIdentity funName)
-                        else do
-                            let expected = intercalate " | " [
-                                    "(" ++ intercalate ", " (map (prettyClass . normalizeClass) (funParams s)) ++ ")"
-                                    | s <- sigs]
-                            let actual = "(" ++ intercalate ", " (map prettyClass argTs) ++ ")"
-                            errClass $ UE.Syntax $ UE.makeError path posAll (UE.typeMismatchMsg expected actual)
-                -- 找到最佳匹配，必要时产生隐式转换警告。
-                Just (_, ret, casts) -> do
-                    mapM_ (\(fromT, toT, pos) -> mapM_ addWarn (iCast path pos fromT toT)) casts
-                    pure ret
+            if null sigs then
+                errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
+            else
+                case widenedArgs path callPos argInfos sigs of
+                    Left err -> errClass err
+                    Right (sig, warns) -> do
+                        mapM_ addWarn warns
+                        pure $ normalizeClass (funReturn sig)
 
     case callee of
         -- 直接调用函数名 f(...)
@@ -318,7 +273,7 @@ inferExpr path packages envs e@(Call callee mTypeArgs args) = do
         Qualified names _ -> case names of
             -- this.xxx(...) -> 从当前类方法表查找。
             ("this":fname:_) -> case classStack c of
-                [] -> errClass $ UE.Syntax $ UE.makeError path posAll (UE.undefinedIdentity "this")
+                [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity "this")
                 (ClassDef _ _ classFuns : _) -> do
                     let sigs = Map.findWithDefault [] [fname] classFuns
                     applyMatches fname sigs
@@ -329,7 +284,10 @@ inferExpr path packages envs e@(Call callee mTypeArgs args) = do
                 applyMatches (intercalate "." names) sigs
 
         -- 其他表达式作为函数名 -> 非法调用。
-        _ -> errClass $ UE.Syntax $ UE.makeError path posAll UE.invalidFunctionName
+        _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
+
+inferExpr path _ _ e@(CallT _ _ _) =
+    errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens e)) UE.unsupportedErrorMsg
 
 
 -- | Infer literal types.

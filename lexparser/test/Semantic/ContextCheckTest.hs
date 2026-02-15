@@ -193,7 +193,7 @@ isFunctionTests = testGroup "Semantic.ContextCheck.isFunction" $ map (\(name, st
         tokCmd = Lex.Ident "break" pos3
 
         stmtFun, stmtExpr, stmtCmd, stmtBlock :: AST.Statement
-        stmtFun = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+        stmtFun = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) [] (AST.Multiple [])
         stmtExpr = AST.Expr (AST.IntConst "1" tokNum)
         stmtCmd = AST.Command AST.Break tokCmd
         stmtBlock = AST.BlockStmt (AST.Multiple [])
@@ -453,10 +453,10 @@ checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, bl
         useY = AST.Expr (AST.Binary AST.Add (AST.Variable "y" tokY) (AST.IntConst "1" tokNum1) tokPlus)
 
         callF :: AST.Statement
-        callF = AST.Expr (AST.Call (AST.Variable "f" tokF) Nothing [])
+        callF = AST.Expr (AST.Call (AST.Variable "f" tokF) [])
 
         funDefF :: AST.Statement
-        funDefF = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+        funDefF = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) [] (AST.Multiple [])
 
         blockDefineUse :: AST.Block
         blockDefineUse = AST.Multiple [assignX, useX]
@@ -489,17 +489,17 @@ checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, st
         tokA = Lex.Ident "A" pos1
 
         callF :: AST.Statement
-        callF = AST.Expr (AST.Call (AST.Variable "f" tokF) Nothing [])
+        callF = AST.Expr (AST.Call (AST.Variable "f" tokF) [])
 
         callG :: AST.Statement
-        callG = AST.Expr (AST.Call (AST.Variable "g" tokG) Nothing [])
+        callG = AST.Expr (AST.Call (AST.Variable "g" tokG) [])
 
         funDefF :: AST.Statement
-        funDefF = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+        funDefF = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) [] (AST.Multiple [])
 
         funDefQualified :: AST.Statement
         funDefQualified =
-            AST.Function (AST.Int32T, []) (AST.Qualified ["A", "f"] [tokA, tokF]) Nothing [] (AST.Multiple [])
+            AST.Function (AST.Int32T, []) (AST.Qualified ["A", "f"] [tokA, tokF]) [] (AST.Multiple [])
 
 
 checkProgmTests :: TestTree
@@ -689,7 +689,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
                 (Just (AST.Multiple [AST.Expr eElse]))
                 (tokDo, tokWhile, Just tokElse)
             body = AST.Multiple [AST.Expr eInit, doStmt, AST.Expr eJ, AST.Expr eK]
-            fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) Nothing [] body
+            fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) [] body
             prog = ([], [fun])
         assertCheckProgm (checkProgm "stdin" prog []) Nothing
     , testCase "do_while/1_scope_err" $ do
@@ -709,7 +709,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
                 (Just (AST.Multiple [AST.Expr eElse]))
                 (tokDo, tokWhile, Just tokElse)
             body = AST.Multiple [doStmt, AST.Expr eA, AST.Expr eB, AST.Expr eC]
-            fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) Nothing [] body
+            fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) [] body
             prog = ([], [fun])
         assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.undefinedIdentity "i"))
     ])

@@ -42,13 +42,13 @@ WhileStmt :: { Statement }
 
 -- this argument is reversed
 TypedParams :: { [(Class, String, [Token])] }
-    : Clazz identity                        { [(fst $1, identText $2, $2 : snd $1)] }
-    | TypedParams ',' Clazz identity          { (fst $3, identText $4, $4 : snd $3) : $1 }
+    : Clazz identity                            { [(fst $1, identText $2, $2 : snd $1)] }
+    | TypedParams ',' Clazz identity            { (fst $3, identText $4, $4 : snd $3) : $1 }
     ;
 
 FunctionParams :: { [(Class, String, [Token])] }
-    : '(' ')'                   { [] }
-    | '(' TypedParams ')'         { reverse $2 }
+    : '(' ')'                       { [] }
+    | '(' TypedParams ')'           { reverse $2 }
     ;
 
 FunctionBlock :: { Block }
@@ -57,7 +57,8 @@ FunctionBlock :: { Block }
     ;
 
 FunctionStmt :: { Statement }
-    : Clazz QName GenericParamList FunctionParams FunctionBlock   { Function $1 (qnameToExpr $2) $3 $4 $5 }
+    : Clazz QName FunctionParams FunctionBlock                      { Function $1 (qnameToExpr $2) $3 $4 }
+    | Clazz QName GenericParamList FunctionParams FunctionBlock     { FunctionT $1 (qnameToExpr $2) $3 $4 $5 }
     ;
 
 

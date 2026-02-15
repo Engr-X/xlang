@@ -63,6 +63,10 @@ undefinedIdentity name = concat ["'", name, "' is not defined in this context."]
 invalidFunctionName :: String 
 invalidFunctionName = "invalid function name"
 
+-- | Error message for ambiguous overload resolution
+ambiguousCallMsg :: String
+ambiguousCallMsg = "ambiguous call"
+
 
 -- | Error message for multiple package declarations
 multiplePackageMsg :: String
@@ -131,7 +135,7 @@ typeMismatchMsg expected actual = concat["type mismatch: expected ", expected, "
 
 -- | possible overflow warning message for casts
 overflowCastMsg :: String -> String -> String
-overflowCastMsg fromT toT = "possible overflow: " ++ fromT ++ " -> " ++ toT
+overflowCastMsg fromT toT = concat ["possible overflow: ", fromT, " -> ", toT]
 
 
 -- |  Expected expression

@@ -33,7 +33,11 @@ loadSrcI p (dcls, stmts) = case getPackageName p dcls of
                 _ -> error "internal error this error should be catched in process of parser"
 
 
-            AST.Function _ e _ _ _ -> case e of
+            AST.Function _ e _ _ -> case e of
+                AST.Variable s token -> let fullName = packageName ++ [s] in (vars, Map.insert fullName [tokenPos token] funs, errs)
+                AST.Qualified _ tokens -> (vars, funs, UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg) : errs)
+                _ -> (vars, funs, errs)
+            AST.FunctionT _ e _ _ _ -> case e of
                 AST.Variable s token -> let fullName = packageName ++ [s] in (vars, Map.insert fullName [tokenPos token] funs, errs)
                 AST.Qualified _ tokens -> (vars, funs, UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg) : errs)
                 _ -> (vars, funs, errs)

@@ -60,10 +60,9 @@ ArgumentsOpt :: { [Expression] }
     | '(' Arguments ')'         { reverse $2 }
     ;
 
-GenericParamList :: { Maybe [(Class, [Token])] }
-    : {- empty -}                   { Nothing }
-    | '::' '<' '>'                  { Just [] }
-    | '::' '<' ClazzList '>'        { Just (reverse $3) }
+GenericParamList :: { [(Class, [Token])] }
+    : '::' '<' '>'            { [] }
+    | '::' '<' ClazzList '>'  { reverse $3 }
     ;
 
 
@@ -75,7 +74,8 @@ Postfix :: { Expression }
 
 
 Expr :: { Expression }
-    : QName GenericParamList ArgumentsOpt       { Call (qnameToExpr $1) $2 $3 }
+    : QName ArgumentsOpt                        { Call (qnameToExpr $1) $2 }
+    | QName GenericParamList ArgumentsOpt       { CallT (qnameToExpr $1) $2 $3 }
     | LValue '=' Expr                           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
     | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
 

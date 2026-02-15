@@ -101,12 +101,12 @@ data Token =
 -- of each token, including its value (if applicable) and its source position.
 prettyToken :: Token -> String
 prettyToken (TokenPass  pos) = "nl@" ++ show pos
-prettyToken (Ident name pos) = "Ident@" ++ name ++ " " ++ show pos
-prettyToken (Symbol sym pos) = "Symbol@" ++ show sym ++ " " ++ show pos
-prettyToken (NumberConst s pos) = "Number@" ++ s ++ " " ++ show pos
-prettyToken (CharConst c pos) = "Char@'" ++ [c] ++ "' " ++ show pos
-prettyToken (StrConst s pos) = "String@\"" ++ s ++ "\"  " ++ show pos
-prettyToken (Error e pos) = "Error at: " ++ show pos ++ e
+prettyToken (Ident name pos) = concat ["Ident@", name, " ", show pos]
+prettyToken (Symbol sym pos) = concat ["Symbol@", show sym, " ", show pos]
+prettyToken (NumberConst s pos) = concat ["Number@", s, " ", show pos]
+prettyToken (CharConst c pos) = concat ["Char@'", [c], "' ", show pos]
+prettyToken (StrConst s pos) = concat ["String@\"", s, "\"  ", show pos]
+prettyToken (Error e pos) = concat ["Error at: ", show pos, e]
 prettyToken (EOF pos) = "eof@" ++ show pos
 
 

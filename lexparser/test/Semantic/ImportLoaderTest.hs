@@ -50,9 +50,9 @@ loadSrcITests = testGroup "Semantic.ImportLoader.loadSrcI" [
             AST.Expr (AST.Binary AST.Assign (AST.Qualified ["a", "b"] [tokA, tokB]) rhsConst tokAssign)
 
         funStmt, funQualified :: AST.Statement
-        funStmt = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) Nothing [] (AST.Multiple [])
+        funStmt = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) [] (AST.Multiple [])
         funQualified =
-            AST.Function (AST.Int32T, []) (AST.Qualified ["a", "b"] [tokA, tokB]) Nothing [] (AST.Multiple [])
+            AST.Function (AST.Int32T, []) (AST.Qualified ["a", "b"] [tokA, tokB]) [] (AST.Multiple [])
 
         program0, program1, program2, program3 :: AST.Program
         program0 = ([AST.Package ["pkg"] [tokPkg]], [assignX1, funStmt])

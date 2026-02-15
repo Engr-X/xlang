@@ -3,7 +3,7 @@
 module Semantic.OpInfer where
 
 import Control.Applicative (liftA2, liftA3)
-import Data.List (elemIndex, findIndex, intercalate)
+import Data.List (elemIndex, intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (mapMaybe)
 import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
@@ -57,9 +57,9 @@ widenedClass (Class _ _) = error "TODO: class widen is not supported yet"
 widenedClass ErrorClass = error "ErrorClass cannot be widened"
 
 
-widenedArgs :: [Class] -> [FunSig] -> Either ErrorKind (FunSig, [Warning])
-widenedArgs args sigs =
-    let argTs = args
+widenedArgs :: Path -> [Position] -> [(Class, [Position])] -> [FunSig] -> Either ErrorKind (FunSig, [Warning])
+widenedArgs path callPos argInfos sigs =
+    let (argTs, argPos) = unzip argInfos
         dist argT paramT = elemIndex paramT (widenedClass argT)
 
         buildCandidate sig =
@@ -68,10 +68,9 @@ widenedArgs args sigs =
                else case traverse (uncurry dist) (zip argTs ps) of
                     Nothing -> Nothing
                     Just dists ->
-                        let warns = concat [ mkWarnings a p
-                                           | ((a, p), d) <- zip (zip argTs ps) dists
-                                           , d > 0
-                                           ]
+                        let warns = concat [mkWarnings a p pos
+                                           | ((a, p), pos, d) <- zip3 (zip argTs ps) argPos dists,
+                                           d > 0]
                         in Just (sig, dists, warns)
 
         candidates = mapMaybe buildCandidate sigs
@@ -82,28 +81,19 @@ widenedArgs args sigs =
         best = [c | c <- candidates, not (any (`dominates` c) candidates)]
 
         expectedS = intercalate " | " [
-                "(" ++ intercalate ", " (map prettyClass (funParams s)) ++ ")"
-                | s <- sigs
-            ]
-        actualS = "(" ++ intercalate ", " (map prettyClass argTs) ++ ")"
+                concat ["(", intercalate ", " (map prettyClass (funParams s)), ")"]
+                | s <- sigs]
+        actualS = concat ["(", intercalate ", " (map prettyClass argTs), ")"]
 
     in case candidates of
-        [] -> Left $ UE.Syntax $ UE.makeError "" [] (UE.typeMismatchMsg expectedS actualS)
+        [] -> Left $ UE.Syntax $ UE.makeError path callPos (UE.typeMismatchMsg expectedS actualS)
         _ -> case best of
             [(sig, _, warns)] -> Right (sig, warns)
-            _ -> Left $ UE.Syntax $ UE.makeError "" [] "ambiguous call"
+            _ -> Left $ UE.Syntax $ UE.makeError path callPos UE.ambiguousCallMsg
     where
-        -- | Build implicit-cast related warnings without a specific source position.
-        mkWarnings :: Class -> Class -> [Warning]
-        mkWarnings fromT toT
-            | fromT == toT = []
-            | otherwise =
-                let implicitW = ImplicitCast (UE.makeError "" [] (UE.implicitCastMsg (prettyClass fromT) (prettyClass toT)))
-                    overflowW = case (Map.lookup fromT numericRangeRank, Map.lookup toT numericRangeRank) of
-                        (Just rf, Just rt) | rf > rt ->
-                            [OverflowWarning (UE.makeError "" [] (UE.overflowCastMsg (prettyClass fromT) (prettyClass toT)))]
-                        _ -> []
-                in implicitW : overflowW
+        -- | Build implicit-cast related warnings with source positions.
+        mkWarnings :: Class -> Class -> [Position] -> [Warning]
+        mkWarnings fromT toT pos = iCast path pos fromT toT
 
 
 -- | Reverse lookup for basic type ranks.

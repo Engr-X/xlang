@@ -50,6 +50,7 @@ putState s = modify $ \c -> c { st = s }
 -- | Predicate: is this statement a function definition?
 isFunction :: Statement -> Bool
 isFunction AST.Function {} = True
+isFunction AST.FunctionT {} = True
 isFunction _ = False
 
 
@@ -173,33 +174,38 @@ checkExpr p packages envs expr = case expr of
         checkExpr p packages envs e1
         checkExpr p packages envs e2
 
-    AST.Call callee _ args -> do
-        case callee of
-            AST.Variable name tok -> do
-                c <- get
-                let cState = st c
-                if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs then pure ()
-                else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+    -- 调用检查不区分是否为模板调用（CallT 只忽略模板实参）。
+    AST.Call callee args -> checkCall callee args
+    AST.CallT callee _ args -> checkCall callee args
+    where
+        checkCall :: Expression -> [Expression] -> CheckM ()
+        checkCall callee args = do
+            case callee of
+                AST.Variable name tok -> do
+                    c <- get
+                    let cState = st c
+                    if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs then pure ()
+                    else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
-            AST.Qualified names tokens -> do
-                c <- get
-                let cState = st c
+                AST.Qualified names tokens -> do
+                    c <- get
+                    let cState = st c
 
-                case names of
-                    -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
-                    ("this":field:_) -> case classScope cState of
-                        [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                    case names of
+                        -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
+                        ("this":field:_) -> case classScope cState of
+                            [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                        (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
-                            else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                            (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
+                                else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                    -- non-this qualified name is resolved only through imports.
-                    _ -> if isFunImport names envs then pure ()
-                         else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                        -- non-this qualified name is resolved only through imports.
+                        _ -> if isFunImport names envs then pure ()
+                             else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
 
-            other -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens other) invalidFunctionName
+                other -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens other) invalidFunctionName
 
-        mapM_ (checkExpr p packages envs) args
+            mapM_ (checkExpr p packages envs) args
 
 
 
@@ -311,35 +317,42 @@ checkStmt p package envs stmt@(AST.Switch e scs _) = do
 
 
 -- function
-checkStmt p package envs stmt@(AST.Function _ _ _ params body) = do
-    c <- get
-    let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
-    when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
-        (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState parentCtrl))
+checkStmt p package envs stmt
+    | AST.Function _ _ params body <- stmt =
+        checkFunctionStmt stmt params body
+    | AST.FunctionT _ _ _ params body <- stmt =
+        checkFunctionStmt stmt params body
+    where
+        -- | Common handler for function-like statements (Function / FunctionT).
+        checkFunctionStmt stmt' params body = do
+            c <- get
+            let cState = st c
+            let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+            when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt')
+                (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState parentCtrl))
 
-    let depth0 = depth cState
-    let (varCounter', paramVars) = foldl addParam (varCounter cState, Map.empty) params
-        addParam (vc, m) (_, name, toks) = case toks of
-            [] -> (vc, m)
-            (t:_) -> (succ vc, Map.insert name (vc, tokenPos t) m)
+            let depth0 = depth cState
+            let (varCounter', paramVars) = foldl addParam (varCounter cState, Map.empty) params
+                addParam (vc, m) (_, name, toks) = case toks of
+                    [] -> (vc, m)
+                    (t:_) -> (succ vc, Map.insert name (vc, tokenPos t) m)
 
-    let newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
-    let cState' = cState {
-        depth = succ depth0,
-        varCounter = varCounter',
-        scopeCounter = succ $ scopeCounter cState,
-        ctrlStack = InFunction : ctrlStack cState,
-        scope = newScope : scope cState}
-    put $ c { st = cState' }
+            let newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
+            let cState' = cState {
+                depth = succ depth0,
+                varCounter = varCounter',
+                scopeCounter = succ $ scopeCounter cState,
+                ctrlStack = InFunction : ctrlStack cState,
+                scope = newScope : scope cState}
+            put $ c { st = cState' }
 
-    checkBlock p package envs body
+            checkBlock p package envs body
 
-    c2 <- get
-    let cState2 = st c2
-    let scope' = tail $ scope cState2
-    let ctrls' = tail $ ctrlStack cState2
-    put $ c2 { st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } }
+            c2 <- get
+            let cState2 = st c2
+            let scope' = tail $ scope cState2
+            let ctrls' = tail $ ctrlStack cState2
+            put $ c2 { st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } }
 
 
 -- | Check a single switch case (case/default).

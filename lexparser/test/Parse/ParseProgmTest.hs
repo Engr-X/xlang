@@ -296,7 +296,6 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         (Just (Multiple [
                             Expr (Call
                                 (Variable "println" (mkId "println" 5 9 7))
-                                Nothing
                                 [BoolConst True (mkId "true" 5 17 4)]
                             )
 
@@ -335,14 +334,12 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                         (Just (Multiple [
                             Expr (Call
                                 (Variable "print" (mkId "print" 6 15 5))
-                                Nothing
                                 [Variable "a" (mkId "a" 6 21 1)]
                             )
                         ]))
                         (Just (Multiple [
                             Expr (Call
                                 (Variable "print" (mkId "print" 7 11 5))
-                                Nothing
                                 [Variable "b" (mkId "b" 7 17 1)]
                             )
                         ]))
@@ -356,10 +353,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         "    m.add(item)",
         "}"],
         ([], [
-            Function
+            FunctionT
                 (Class ["void"] [], [mkId "void" 1 1 4])
                 (Variable "addToMap" (mkId "addToMap" 1 6 8))
-                (Just [ (Class ["T"] [], [mkId "T" 1 17 1])]) [
+                [ (Class ["T"] [], [mkId "T" 1 17 1]) ] [
                     (Class ["map"] [Class ["T"] []],
                         "m", [
                             mkId "m" 1 29 1,
@@ -378,7 +375,6 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     BlockStmt (Multiple [
                         Expr (Call
                             (Qualified ["m","add"] [mkId "m" 2 5 1, mkId "add" 2 7 3])
-                            Nothing
                             [Variable "item" (mkId "item" 2 11 4)]
                         )
                     ])
@@ -389,10 +385,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         "void pushAll::<T>(stack::<T> s, list::<T> items) {",
         "    s.push(items)",
         "}"], ([], [
-            Function
+            FunctionT
                 (Class ["void"] [], [mkId "void" 1 1 4])
                 (Variable "pushAll" (mkId "pushAll" 1 6 7))
-                (Just [ (Class ["T"] [], [mkId "T" 1 16 1]) ]) [
+                [ (Class ["T"] [], [mkId "T" 1 16 1]) ] [
                     (Class ["stack"] [Class ["T"] []],
                         "s", [
                             mkId "s" 1 30 1,
@@ -415,7 +411,6 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     BlockStmt (Multiple [
                         Expr (Call
                             (Qualified ["s","push"] [mkId "s" 2 5 1, mkId "push" 2 7 4])
-                            Nothing
                             [Variable "items" (mkId "items" 2 12 5)]
                         )
                     ])
@@ -427,10 +422,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         "    out.addAll(ll)",
         "}"],
         ([], [
-            Function
+            FunctionT
                 (Class ["void"] [], [mkId "void" 1 1 4])
                 (Variable "flatten" (mkId "flatten" 1 6 7))
-                (Just [ (Class ["T"] [], [mkId "T" 1 16 1]) ]) [
+                [ (Class ["T"] [], [mkId "T" 1 16 1]) ] [
                     (Class ["list"] [Class ["list"] [Class ["T"] []]],
                         "ll", [
                             mkId "ll" 1 37 2,
@@ -456,7 +451,6 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     BlockStmt (Multiple [
                         Expr (Call
                             (Qualified ["out","addAll"] [mkId "out" 2 5 3, mkId "addAll" 2 9 6])
-                            Nothing
                             [Variable "ll" (mkId "ll" 2 16 2)]
                         )
                     ])
