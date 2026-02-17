@@ -34,7 +34,6 @@ loadSrcI p (dcls, stmts) = case getPackageName p dcls of
                 AST.Qualified _ tokens -> (vars, funs, UE.Syntax (UE.makeError p (map tokenPos tokens) assignErrorMsg) : errs)
                 _ -> error "internal error this error should be catched in process of parser"
 
-
             AST.Function _ e _ _ -> case e of
                 AST.Variable s token -> let fullName = packageName ++ [s] in (vars, Map.insert fullName [tokenPos token] funs, errs)
                 AST.Qualified _ tokens -> (vars, funs, UE.Syntax (UE.makeError p (map tokenPos tokens) unsupportedErrorMsg) : errs)
@@ -77,8 +76,7 @@ loadSrcTypedI p (dcls, stmts) = case getPackageName p dcls of
                         let fullName = packageName ++ [s]
                             pos = tokenPos token
                             sig = FunSig { funParams = map (\(t, _, _) -> t) params
-                                         , funTemplate = Nothing
-                                         , funReturn = retT }
+                                          , funReturn = retT }
                             sigText = prettySig s sig params Nothing
                             (funs', newErrs) = addFun fullName sig sigText pos funs
                         in (vars, funs', newErrs ++ errs)
@@ -91,8 +89,7 @@ loadSrcTypedI p (dcls, stmts) = case getPackageName p dcls of
                         let fullName = packageName ++ [s]
                             pos = tokenPos token
                             sig = FunSig { funParams = map (\(t, _, _) -> t) params
-                                         , funTemplate = Just (map fst tparams)
-                                         , funReturn = retT }
+                                          , funReturn = retT }
                             sigText = prettySig s sig params (Just tparams)
                             (funs', newErrs) = addFun fullName sig sigText pos funs
                         in (vars, funs', newErrs ++ errs)

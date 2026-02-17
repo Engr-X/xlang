@@ -15,6 +15,23 @@ import qualified Data.Map.Strict as Map
 import qualified Util.Exception as UE
 
 
+-- | Map augmented assignment operator to its base operator.
+augAssignOp :: Operator -> Maybe Operator
+augAssignOp op = case op of
+    PlusAssign -> Just Add
+    MinusAssign -> Just Sub
+    MultiplyAssign -> Just Mul
+    DivideAssign -> Just Div
+    ModuloAssign -> Just Mod
+    PowerAssign -> Just Pow
+    BitLShiftAssign -> Just BitLShift
+    BitRShiftAssign -> Just BitRShift
+    BitOrAssign -> Just BitOr
+    BitXorAssign -> Just BitXor
+    BitXnorAssign -> Just BitXnor
+    _ -> Nothing
+
+
 -- | Conversion rank for basic types (smaller -> narrower).
 --   Used by promotion to choose the wider of two operands.
 --   'Void' is included as a sentinel with rank -1.

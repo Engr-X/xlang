@@ -3,14 +3,13 @@
 module Semantic.TypeCheck where
 
 import Control.Monad (when, void)
-import Control.Monad.State.Strict (State, get, modify, put)
-import Data.List (intercalate)
+import Control.Monad.State.Strict (State, get, modify, put, runState)
+import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), SwitchCase(..), exprTokens, prettyClass)
-import Semantic.NameEnv (CheckState(..), QName, Scope(..), VarId)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
+import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (binOpInfer, iCast, isBasicType, unaryOpInfer, widenedArgs)
-import Semantic.ImportLoader (loadSrcTypedI)
+import Semantic.OpInfer (augAssignOp, binOpInfer, iCast, isBasicType, unaryOpInfer, widenedArgs)
 import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -29,14 +28,10 @@ data ClassDef = ClassDef {
 } deriving (Show)
 
 
-defToClass :: QName -> ClassDef -> Class
-defToClass package def = Class (package ++ [className def]) []
-
-
 -- | Type checking context (context state + type tables + diagnostics).
 --   tcCtx: ContextCheck state + use map for resolving VarId by position.
 --   tcVarTypes: mapping from VarId to inferred/declared types + def positions.
---   tcFunTypes: mapping from function name to overload set.
+--   tcFunScopes: stack of function scopes (top = current).
 --   tcClassStack: current class definitions (top = nearest).
 --   tcClassTypeStack: current class types (top = nearest).
 --   tcCurrentReturn: expected return type of the current function.
@@ -44,7 +39,7 @@ defToClass package def = Class (package ++ [className def]) []
 data TypeCtx = TypeCtx {
     tcCtx :: CC.Ctx,
     tcVarTypes :: VarTable,
-    tcFunTypes :: FunTable,
+    tcFunScopes :: [FunTable],
     tcClassStack :: [ClassDef],
     tcClassTypeStack :: [Class],
     tcCurrentReturn :: Maybe Class,
@@ -71,6 +66,23 @@ addWarn :: Warning -> TypeM ()
 addWarn w = modify $ \c -> c { tcWarnings = w : tcWarnings c }
 
 
+-- | Check type compatibility and emit implicit-cast warnings when allowed.
+checkTypeCompat :: Path -> [Position] -> Class -> Class -> TypeM ()
+checkTypeCompat path pos expected actual = do
+    let expected' = normalizeClass expected
+        actual' = normalizeClass actual
+    if actual' == ErrorClass || expected' == ErrorClass || expected' == actual' then
+        pure ()
+    else if expected' == Void || actual' == Void then
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected') (prettyClass actual'))
+    else if isBasicType expected' && isBasicType actual' then
+        mapM_ addWarn (iCast path pos actual' expected')
+    else if isBasicType expected' /= isBasicType actual' then
+        addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actual') (prettyClass expected'))
+    else
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected') (prettyClass actual'))
+
+
 -- | Create a new lexical scope for the duration of an action, then restore depth/scope.
 withScope :: TypeM a -> TypeM a
 withScope action = do
@@ -84,14 +96,26 @@ withScope action = do
             scopeCounter = succ $ scopeCounter cState,
             scope = newScope : scope cState
         }
-    put $ c { tcCtx = cctx { CC.st = cState' } }
+    -- Push a new fun-scope frame for shadowing.
+    put $ c {
+        tcCtx = cctx { CC.st = cState' },
+        tcFunScopes = Map.empty : tcFunScopes c}
+
     res <- action
+
     c2 <- get
     let cctx2 = tcCtx c2
         cState2 = CC.st cctx2
         scope' = tail $ scope cState2
-    put $ c2 { tcCtx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope' } } }
+        funScopes' = case tcFunScopes c2 of
+            [] -> error "BUG: tcFunScopes underflow"
+            (_:rest) -> rest
+
+    put $ c2 {
+        tcCtx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope' } },
+        tcFunScopes = funScopes'}
     pure res
+
 
 
 -- | Resolve `this` usage by returning the current class type.
@@ -118,6 +142,7 @@ inferThisField path pos field = do
                         when (isNothing mType) $
                             addErr $ UE.Syntax $ UE.makeError path pos (UE.undefinedIdentity field)
                         pure $ maybe ErrorClass fst mType
+
 
 -- | Infer the type of an expression.
 --   p: file path for diagnostics.
@@ -206,12 +231,14 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
         pos = map Lex.tokenPos (exprTokens e)
 
     -- one is basic, the other is not
-    if isBasicType fromT && isBasicType toT then do
+    if isBasicType fromT /= isBasicType toT then do
         addErr $ UE.Syntax $ UE.makeError path pos $ staticCastError (prettyClass fromT) (prettyClass toT)
 
     -- both are non-basic (class / array / user type)
     else do
-        error "TODO: class cast is not supported yet: "
+        if isBasicType fromT
+            then pure ()
+            else error "TODO: class cast is not supported yet: "
 
     -- result type of cast is always target type
     pure toT
@@ -226,6 +253,64 @@ inferExpr path packages envs e@(Unary op innerE _) = do
                 pure resT
             Nothing -> error "TODO: unary operator not supported for this type"
     else error "TODO: unary on non-basic type"
+
+
+inferExpr path packages envs e@(Binary Assign lhs rhs _) = do
+    tRhs <- inferExpr path packages envs rhs
+    let tRhsN = normalizeClass tRhs
+    case lhs of
+        Variable name _ -> do
+            c <- get
+            let cctx = tcCtx c
+                cState = CC.st cctx
+            case defineLocalVar path e cState of
+                Left err -> addErr err
+                Right cState' -> do
+                    let varTypes0 = tcVarTypes c
+                    case lookupVarId name cState' of
+                        Just (vid, pos) ->
+                            case Map.lookup vid varTypes0 of
+                                Just (tLhs, _) -> do
+                                    checkTypeCompat path (map Lex.tokenPos (exprTokens e)) tLhs tRhsN
+                                    put $ c { tcCtx = cctx { CC.st = cState' } }
+                                Nothing -> do
+                                    let varTypes' = Map.insert vid (tRhsN, pos) varTypes0
+                                    put $ c { tcCtx = cctx { CC.st = cState' }, tcVarTypes = varTypes' }
+                        Nothing ->
+                            put $ c { tcCtx = cctx { CC.st = cState' } }
+        Qualified _ toks ->
+            addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+        _ ->
+            addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens lhs)) (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
+    pure tRhsN
+
+
+inferExpr path packages envs e@(Binary op lhs rhs _)
+    | Just baseOp <- augAssignOp op = do
+        tRhs <- inferExpr path packages envs rhs
+        tLhs <- case lhs of
+            Variable {} -> inferExpr path packages envs lhs
+            Qualified _ toks -> do
+                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+                pure ErrorClass
+            _ -> do
+                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens lhs)) (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
+                pure ErrorClass
+        let tLhsN = normalizeClass tLhs
+            tRhsN = normalizeClass tRhs
+            pos = map Lex.tokenPos (exprTokens e)
+        if tLhsN == ErrorClass || tRhsN == ErrorClass then
+            pure ErrorClass
+        else if isBasicType tLhsN && isBasicType tRhsN then
+            case Map.lookup (baseOp, tLhsN, tRhsN) binOpInfer of
+                Just resT -> do
+                    mapM_ addWarn (iCast path pos tLhsN resT)
+                    mapM_ addWarn (iCast path pos tRhsN resT)
+                    checkTypeCompat path pos tLhsN resT
+                    pure tLhsN
+                Nothing -> error "TODO: binary operator not supported for this type"
+        else
+            error "TODO: binary on non-basic type"
 
 
 inferExpr path packages envs e@(Binary op e1 e2 _) = do
@@ -243,7 +328,7 @@ inferExpr path packages envs e@(Binary op e1 e2 _) = do
 
 inferExpr path packages envs e@(Call callee args) = do
     c <- get
-    let TypeCtx{tcFunTypes = fts} = c
+    let TypeCtx{tcFunScopes = fScopes} = c
     let callPos = map Lex.tokenPos (exprTokens e)
 
     -- 推导实参类型与位置。
@@ -255,9 +340,8 @@ inferExpr path packages envs e@(Call callee args) = do
         Variable name _ -> do
             let qLocal = [name]
             let qImport = packages ++ [name]
-            let localSigs = Map.findWithDefault [] qLocal fts
             let importSigs = concatMap (maybe [] fst . Map.lookup qImport . tFuncs) envs
-            applyMatches callPos argInfos name (localSigs ++ importSigs)
+            resolveScopedCall qLocal name fScopes importSigs callPos argInfos
 
         -- 调用限定名（可能是 this.xxx 或导入函数）。
         Qualified names _ -> case names of
@@ -289,6 +373,57 @@ inferExpr path packages envs e@(Call callee args) = do
 
         addWarns = mapM_ addWarn
 
+        -- | Resolve a call by searching scopes from inner to outer.
+        --   If a scope has the name but no matching signature, fall through.
+        --   Ambiguous matches are reported immediately.
+        resolveScopedCall ::
+            QName ->
+            String ->
+            [FunTable] ->
+            [FunSig] ->
+            [Position] ->
+            [(Class, [Position])] ->
+            TypeM Class
+        resolveScopedCall qname funName scopes importSigs callPos argInfos =
+            go scopes Nothing
+            where
+                go [] lastErr = case importSigs of
+                    [] -> case lastErr of
+                        Just err -> errClass err
+                        Nothing -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
+                    _ -> do
+                        res <- matchInSigs importSigs callPos argInfos
+                        case res of
+                            Right t -> pure t
+                            Left err -> errClass err
+                go (m:rest) lastErr = do
+                    let sigs = lookupFun qname [m]
+                    if null sigs then
+                        go rest lastErr
+                    else do
+                        res <- matchInSigs sigs callPos argInfos
+                        case res of
+                            Right t -> pure t
+                            Left err ->
+                                if isAmbiguous err then errClass err
+                                else go rest (Just err)
+
+        matchInSigs ::
+            [FunSig] ->
+            [Position] ->
+            [(Class, [Position])] ->
+            TypeM (Either ErrorKind Class)
+        matchInSigs sigs callPos argInfos =
+            case widenedArgs path callPos argInfos sigs of
+                Left err -> pure (Left err)
+                Right (sig, warns) -> do
+                    addWarns warns
+                    pure (Right (funReturn sig))
+
+        isAmbiguous :: ErrorKind -> Bool
+        isAmbiguous (UE.Syntax be) = UE.why be == UE.ambiguousCallMsg
+        isAmbiguous _ = False
+
 inferExpr path _ _ e@(CallT {}) =
     errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens e)) UE.unsupportedErrorMsg
 
@@ -313,44 +448,250 @@ getVarId :: Position -> Ctx -> Maybe VarId
 getVarId pos context = Map.lookup pos (CC.varUses context)
 
 
+-- | Lookup a variable type from imported environments by qualified name.
 getImportedVarType :: QName -> [TypedImportEnv] -> Maybe Class
 getImportedVarType qname = fmap fst . listToMaybe . mapMaybe (Map.lookup qname . tVars)
+
+
+-- | Lookup a function overload set with shadowing.
+--   The nearest scope containing the name wins.
+lookupFun :: QName -> [FunTable] -> [FunSig]
+lookupFun qname scopes = case find (Map.member qname) scopes of
+    Just m -> Map.findWithDefault [] qname m
+    Nothing -> []
+
+
+-- | Infer types in an optional block, creating a new scope if present.
+inferOptBlock :: Path -> QName -> [TypedImportEnv] -> Maybe Block -> TypeM ()
+inferOptBlock _ _ _ Nothing = pure ()
+inferOptBlock path packages envs (Just b) = withScope $ inferBlock path packages envs b
+
+
+
 
 
 -- | Infer types in a statement.
 inferStmt :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
 inferStmt _ _ _ (Command Continue _) = pure ()
 inferStmt _ _ _ (Command Break _) = pure ()
-inferStmt _ _ _ (Command (Return Nothing) _) = pure ()
-inferStmt path packages envs (Command (Return (Just e)) _) = void (inferExpr path packages envs e)
+inferStmt path _ _ (Command (Return Nothing) tok) = do
+    c <- get
+    case tcCurrentReturn c of
+        Just Void -> pure ()
+        Just expected ->
+            addErr $ UE.Syntax $ UE.makeError path [Lex.tokenPos tok]
+                (UE.typeMismatchMsg (prettyClass expected) (prettyClass Void))
+        Nothing -> pure ()
+        
+inferStmt path packages envs (Command (Return (Just e)) _) = do
+    t <- inferExpr path packages envs e
+    c <- get
+    let pos = map Lex.tokenPos (exprTokens e)
+    case tcCurrentReturn c of
+        Nothing -> pure ()
+        Just expected -> checkTypeCompat path pos expected t
 
-inferStmt path packages envs (Expr e) = void (inferExpr path packages envs e)
-inferStmt path packages envs (BlockStmt block) =
-    withScope (inferBlock path packages envs block)
+
+inferStmt path packages envs (Expr e) = void $ inferExpr path packages envs e
+inferStmt path packages envs (BlockStmt block) = withScope $ inferBlock path packages envs block
+
 inferStmt path packages envs (If e ifBlock elseBlock _) = do
     void (inferExpr path packages envs e)
-    case ifBlock of
-        Nothing -> pure ()
-        Just b -> withScope (inferBlock path packages envs b)
-    case elseBlock of
-        Nothing -> pure ()
-        Just b -> withScope (inferBlock path packages envs b)
+    inferOptBlock path packages envs ifBlock
+    inferOptBlock path packages envs elseBlock
 
--- | Infer types in a block (preload function signatures first).
+inferStmt path packages envs (For (e1, e2, e3) forBlock _) = do
+    withScope $ do
+        case e1 of
+            Nothing -> pure ()
+            Just initExpr@(Binary Assign _ _ _) ->
+                void (inferExpr path packages envs initExpr)
+            Just initExpr -> do
+                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens initExpr)) UE.forInitAssignMsg
+                void (inferExpr path packages envs initExpr)
+        maybe (pure ()) (void . inferExpr path packages envs) e2
+        maybe (pure ()) (void . inferExpr path packages envs) e3
+        inferOptBlock path packages envs forBlock
+
+inferStmt path packages envs (While e whileBlock elseBlock _) = do
+    void (inferExpr path packages envs e)
+    inferOptBlock path packages envs whileBlock
+    inferOptBlock path packages envs elseBlock
+
+inferStmt path packages envs (DoWhile whileBlock e elseBlock _) = do
+    inferOptBlock path packages envs whileBlock
+    void (inferExpr path packages envs e)
+    inferOptBlock path packages envs elseBlock
+
+inferStmt path packages envs (Switch e scs _) = do
+    void $ inferExpr path packages envs e
+    mapM_ (inferSwitchCase path packages envs) scs
+
+inferStmt path packages envs (Function (retT, _) _ params body) = do
+    c <- get
+    let cctx = tcCtx c
+        cState = CC.st cctx
+        depth0 = depth cState
+        ret0 = tcCurrentReturn c
+        (varCounter', paramVars, paramTypes) = foldl addParam (varCounter cState, Map.empty, Map.empty) params
+
+        newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
+        cState' = cState {
+            depth = succ depth0,
+            varCounter = varCounter',
+            scopeCounter = succ $ scopeCounter cState,
+            ctrlStack = InFunction : ctrlStack cState,
+            scope = newScope : scope cState
+        }
+
+        -- Param bindings shadow outer bindings.
+        varTypes' = Map.union paramTypes (tcVarTypes c)
+        funScopes' = Map.empty : tcFunScopes c
+
+    put $ c {
+        tcCtx = cctx { CC.st = cState' },
+        tcVarTypes = varTypes',
+        tcFunScopes = funScopes',
+        tcCurrentReturn = Just (normalizeClass retT)
+    }
+
+    inferBlock path packages envs body
+
+    c2 <- get
+    let cctx2 = tcCtx c2
+        cState2 = CC.st cctx2
+        scope' = tail $ scope cState2
+        ctrls' = tail $ ctrlStack cState2
+        funScopes2 = case tcFunScopes c2 of
+            [] -> []
+            (_:rest) -> rest
+    put $ c2 {
+        tcCtx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } },
+        tcFunScopes = funScopes2,
+        tcCurrentReturn = ret0
+    }
+    where
+        addParam :: (VarId, Map.Map String (VarId, Position), VarTable) ->
+            (Class, String, [Lex.Token]) ->
+            (VarId, Map.Map String (VarId, Position), VarTable)
+        addParam (vc, m, vt) (t, name, toks) = case toks of
+            [] -> (vc, m, vt)
+            (tok:_) ->
+                let vid = vc
+                    pos = Lex.tokenPos tok
+                    m'  = Map.insert name (vid, pos) m
+                    vt' = Map.insert vid (normalizeClass t, pos) vt
+                in (succ vc, m', vt')
+
+
+inferStmt _ _ _ (FunctionT {}) = do
+    error "TODO for template"
+
+
+-- | Infer types in a single switch case.
+inferSwitchCase :: Path -> QName -> [TypedImportEnv] -> SwitchCase -> TypeM ()
+inferSwitchCase path packages envs (Case e mb _) = do
+    void (inferExpr path packages envs e)
+    inferOptBlock path packages envs mb
+inferSwitchCase path packages envs (Default b _) =
+    inferOptBlock path packages envs (Just b)
+
+
+-- | Infer types in a block.
 inferBlock :: Path -> QName -> [TypedImportEnv] -> Block -> TypeM ()
-inferBlock path packages envs (Multiple stmts) = do
-    c0 <- get
-    let oldFts = tcFunTypes c0
-    
-    case loadSrcTypedI path ([], stmts) of
-        Left errs -> mapM_ addErr errs
-        Right tenv -> do
-            let newFuns = Map.map fst (tFuncs tenv)
-                fts' = Map.unionWith (++) oldFts newFuns
-            put $ c0 { tcFunTypes = fts' }
+inferBlock path package envs (Multiple ss) = inferStmts path package envs ss
 
-    mapM_ (inferStmt path packages envs) stmts
 
-    c1 <- get
-    put $ c1 { tcFunTypes = oldFts }
+-- | Infer types in a list of statements, preloading function signatures first.
+inferStmts :: Path -> QName -> [TypedImportEnv] -> [Statement] -> TypeM ()
+inferStmts path package envs stmts = do
+    let funDefs = filter isFunctionStmt stmts
+    mapM_ preloadFun funDefs
+    mapM_ (inferStmt path package envs) stmts
+    where
+        isFunctionStmt :: Statement -> Bool
+        isFunctionStmt Function {} = True
+        isFunctionStmt FunctionT {} = True
+        isFunctionStmt _ = False
 
+        preloadFun :: Statement -> TypeM ()
+        preloadFun stmt = case stmt of
+            Function (retT, _) name params _ ->
+                addFunSig name params retT Nothing
+            FunctionT (retT, _) name _ params _ ->
+                addFunSig name params retT Nothing
+            _ -> pure ()
+
+        addFunSig :: Expression -> [(Class, String, [Lex.Token])] -> Class -> Maybe [(Class, [Lex.Token])] -> TypeM ()
+        addFunSig name params retT mTParams = case name of
+            Variable s tok -> do
+                let sig = FunSig {
+                        funParams = map (\(t, _, _) -> t) params,
+                        funReturn = retT
+                    }
+                let sigText = prettySig s sig params mTParams
+                let pos = Lex.tokenPos tok
+                insertSig [s] sig sigText pos
+
+            Qualified _ toks ->
+                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.unsupportedErrorMsg
+
+            _ -> pure ()
+
+        insertSig :: QName -> FunSig -> String -> Position -> TypeM ()
+        insertSig qname sig sigText pos = do
+            c <- get
+            case tcFunScopes c of
+                [] -> error "BUG: tcFunScopes is empty (missing initial frame)"
+                (fts:rest) -> do
+                    let (fts', errs) = addFun qname sig sigText pos fts
+                    put $ c { tcFunScopes = fts' : rest }
+                    mapM_ addErr errs
+
+
+        addFun :: QName -> FunSig -> String -> Position -> FunTable -> (FunTable, [ErrorKind])
+        addFun name sig sigText pos fts = case Map.lookup name fts of
+            Nothing -> (Map.insert name [sig] fts, [])
+            Just sigsOld ->
+                if any (sameArgs sig) sigsOld
+                    then (fts, [UE.Syntax (UE.makeError path [pos] (UE.duplicateMethodMsg sigText))])
+                    else (Map.insert name (sig : sigsOld) fts, [])
+            where
+                sameArgs :: FunSig -> FunSig -> Bool
+                sameArgs a b = funParams a == funParams b
+
+        prettySig :: String -> FunSig -> [(Class, String, [Lex.Token])] -> Maybe [(Class, [Lex.Token])] -> String
+        prettySig name sig params mTParams =
+            let retS = prettyClass (funReturn sig)
+                paramS = intercalate ", " [prettyClass t ++ " " ++ n | (t, n, _) <- params]
+                genS = case mTParams of
+                    Nothing -> ""
+                    Just ts -> "<" ++ intercalate ", " (map (prettyClass . fst) ts) ++ ">"
+            in concat [retS, " ", name, genS, "(", paramS, ")"]
+
+
+-- | Run type checking for a whole program.
+--   Requires context checking results and typed import environments.
+checkProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TypeCtx
+checkProgm path prog@(decls, stmts) importEnvs typedEnvs = do
+    packageName <- getPackageName path decls
+    case CC.checkProgmWithUses path prog importEnvs of
+        Left errs -> Left errs
+        Right (st, uses) ->
+            let initCtx = TypeCtx {
+                    tcCtx = CC.Ctx { st = st, errs = [], varUses = uses },
+                    tcVarTypes = Map.empty,
+                    tcFunScopes = [Map.empty],
+                    tcClassStack = [],
+                    tcClassTypeStack = [],
+                    tcCurrentReturn = Nothing,
+                    tcErrors = [],
+                    tcWarnings = []
+                }
+                (_, finalCtx0) = runState (inferStmts path packageName typedEnvs stmts) initCtx
+                finalErrs = reverse (tcErrors finalCtx0)
+                finalWarns = reverse (tcWarnings finalCtx0)
+                finalCtx = finalCtx0 { tcErrors = finalErrs, tcWarnings = finalWarns }
+            in if null finalErrs
+                then Right finalCtx
+                else Left finalErrs

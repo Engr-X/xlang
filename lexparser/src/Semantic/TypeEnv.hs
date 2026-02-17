@@ -50,7 +50,6 @@ normalizeClass cls = case cls of
 -- | Function signature recorded by the type checker.
 data FunSig = FunSig {
     funParams :: [Class],
-    funTemplate :: Maybe [Class],
     funReturn :: Class
 } deriving (Eq, Show)
 

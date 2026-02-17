@@ -121,6 +121,10 @@ mismatchedBracketMsg = "mismatched bracket"
 assignErrorMsg :: String
 assignErrorMsg = "the left-hand side of an assignment must be a variable"
 
+-- | for-init must be an assignment (or empty)
+forInitAssignMsg :: String
+forInitAssignMsg = "for-init must be an assignment"
+
 
 -- | cannot assign for non-lvalue left-hand side
 cannotAssignMsg :: String -> String
