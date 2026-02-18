@@ -101,6 +101,8 @@ library
             Semantic.TypeEnv
             Semantic.TypeCheck
             Semantic.OpInfer
+            Semantic.ReturnCheck
+            Semantic.SemanticCheck
     
             Util.Basic
             Util.Type
@@ -199,6 +201,8 @@ test-suite lexparser-test
         Semantic.ImportLoaderTest
         Semantic.ContextCheckTest
         Semantic.OpInferTest
+        Semantic.TypeEnvTest
+        Semantic.TypeCheckTest
 
         Util.BasicTest
         Util.ExceptionTest

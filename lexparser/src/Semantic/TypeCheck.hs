@@ -168,25 +168,28 @@ inferExpr path packages envs (Variable str tok) = do
     -- 变量为 this 时，解析为当前类实例。
     if str == "this" then inferThis path pos
     else do
-    -- 优先通过 ContextCheck 记录的 VarId 查找本地变量。
-        case getVarId pos (tcCtx c) of
-            Just vid ->
-                -- 中文: 根据 VarId 在类型表中查找类型。
-                case Map.lookup vid vts of
-                    Just (t, _) -> pure t
-                    -- VarId 存在但类型表缺失，属于内部错误。
-                    Nothing -> error "what? find this variable in ContextCheck but not in typeCheck"
+        let lookupByVid vid = fmap fst (Map.lookup vid vts)
+        let lookupByName = do
+                (vid, _) <- lookupVarId str (CC.st (tcCtx c))
+                fmap fst (Map.lookup vid vts)
 
+        -- 优先通过 ContextCheck 记录的 VarId 查找本地变量。
+        case getVarId pos (tcCtx c) >>= lookupByVid of
+            Just t -> pure t
             Nothing -> do
-                let qn = packages ++ [str]
+                -- 兜底：按当前 TypeCheck 作用域用名字解析一次，避免 VarId 不一致导致崩溃。
+                case lookupByName of
+                    Just t -> pure t
+                    Nothing -> do
+                        let qn = packages ++ [str]
 
-                -- 若本地变量不存在，再按包/导入的限定名查找。
-                case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
-                    -- 在导入环境中找到变量类型。
-                    Just (t, _) -> pure t
+                        -- 若本地变量不存在，再按包/导入的限定名查找。
+                        case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
+                            -- 在导入环境中找到变量类型。
+                            Just (t, _) -> pure t
 
-                    -- 理论上应在 ContextCheck 阶段报错。
-                    Nothing -> error "should already be caught in ContextCheck (undefined variable)."
+                            -- 理论上应在 ContextCheck 阶段报错。
+                            Nothing -> error "should already be caught in ContextCheck (undefined variable)."
 
 inferExpr path _ envs (Qualified names toks) = do
     c <- get
@@ -272,7 +275,7 @@ inferExpr path packages envs e@(Binary Assign lhs rhs _) = do
                             case Map.lookup vid varTypes0 of
                                 Just (tLhs, _) -> do
                                     checkTypeCompat path (map Lex.tokenPos (exprTokens e)) tLhs tRhsN
-                                    put $ c { tcCtx = cctx { CC.st = cState' } }
+                                    modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState' } }
                                 Nothing -> do
                                     let varTypes' = Map.insert vid (tRhsN, pos) varTypes0
                                     put $ c { tcCtx = cctx { CC.st = cState' }, tcVarTypes = varTypes' }
@@ -626,8 +629,8 @@ inferStmts path package envs stmts = do
         addFunSig name params retT mTParams = case name of
             Variable s tok -> do
                 let sig = FunSig {
-                        funParams = map (\(t, _, _) -> t) params,
-                        funReturn = retT
+                        funParams = map (\(t, _, _) -> normalizeClass t) params,
+                        funReturn = normalizeClass retT
                     }
                 let sigText = prettySig s sig params mTParams
                 let pos = Lex.tokenPos tok
@@ -672,26 +675,38 @@ inferStmts path package envs stmts = do
 
 -- | Run type checking for a whole program.
 --   Requires context checking results and typed import environments.
-checkProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TypeCtx
-checkProgm path prog@(decls, stmts) importEnvs typedEnvs = do
+inferProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TypeCtx
+inferProgm path prog@(decls, stmts) importEnvs typedEnvs = do
     packageName <- getPackageName path decls
     case CC.checkProgmWithUses path prog importEnvs of
         Left errs -> Left errs
-        Right (st, uses) ->
-            let initCtx = TypeCtx {
-                    tcCtx = CC.Ctx { st = st, errs = [], varUses = uses },
-                    tcVarTypes = Map.empty,
-                    tcFunScopes = [Map.empty],
-                    tcClassStack = [],
-                    tcClassTypeStack = [],
-                    tcCurrentReturn = Nothing,
-                    tcErrors = [],
-                    tcWarnings = []
-                }
-                (_, finalCtx0) = runState (inferStmts path packageName typedEnvs stmts) initCtx
-                finalErrs = reverse (tcErrors finalCtx0)
-                finalWarns = reverse (tcWarnings finalCtx0)
-                finalCtx = finalCtx0 { tcErrors = finalErrs, tcWarnings = finalWarns }
-            in if null finalErrs
-                then Right finalCtx
-                else Left finalErrs
+        Right (st, uses) -> inferProgmWithCtx path packageName stmts st uses typedEnvs
+
+
+-- | Run type checking given a prepared context check state.
+inferProgmWithCtx ::
+    Path ->
+    QName ->
+    [Statement] ->
+    CheckState ->
+    Map.Map Position VarId ->
+    [TypedImportEnv] ->
+    Either [ErrorKind] TypeCtx
+inferProgmWithCtx path packageName stmts st uses typedEnvs =
+    let initCtx = TypeCtx {
+            tcCtx = CC.Ctx { st = st, errs = [], varUses = uses },
+            tcVarTypes = Map.empty,
+            tcFunScopes = [Map.empty],
+            tcClassStack = [],
+            tcClassTypeStack = [],
+            tcCurrentReturn = Nothing,
+            tcErrors = [],
+            tcWarnings = []
+        }
+        (_, finalCtx0) = runState (inferStmts path packageName typedEnvs stmts) initCtx
+        finalErrs = reverse (tcErrors finalCtx0)
+        finalWarns = reverse (tcWarnings finalCtx0)
+        finalCtx = finalCtx0 { tcErrors = finalErrs, tcWarnings = finalWarns }
+    in if null finalErrs
+        then Right finalCtx
+        else Left finalErrs

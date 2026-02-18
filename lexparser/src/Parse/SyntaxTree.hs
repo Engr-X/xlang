@@ -535,7 +535,7 @@ classesMap = Map.fromList [
     ("byte", Int8T), ("int8", Int8T),
     ("short", Int16T), ("int16", Int16T),
     ("int", Int32T), ("int32", Int32T), 
-    ("long", Int32T), ("int64", Int64T),
+    ("long", Int64T), ("int64", Int64T),
     
     ("float", Float32T), ("float32", Float32T),
     ("double", Float64T), ("float64", Float64T),

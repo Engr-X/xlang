@@ -1,0 +1,66 @@
+情况一:
+int add(int a, int b) = a + b
+
+foo()
+{
+    String add(int a, int b) = String(a) + String(b)
+    return add(1, 2)
+}
+
+foo返回String "12",解释 找最近的定义 foo里面定义了
+
+
+情况2:
+
+int add(int a, int b) = a + b
+
+foo()
+{
+    int add(int a, int b, int c) = a + b + 1
+    return add(1, 2)
+}
+
+foo返回3 解释foo里面add函数和参数和需要的不匹配开始在外层寻找
+
+
+情况3
+
+int add(int a, int b) = a + b
+
+foo()
+{
+    int add2(int a, int b) = a + b + 1
+    return add(1, 2)
+}
+
+foo返回3 解释foo里面add2函数虽然签名相同但是名字不同依然在外面寻找
+
+
+plus: 最近作用域有同名函数包括函数签名一样：只在这一层尝试匹配
+匹配成功 → 用它
+看外层
+如果所有本地作用域都没有同名和同签名函数 → 才去 import
+
+对于变量也是一样的
+a = 10
+
+情况一:
+String add(String a) = a + 1
+报错, String不能和Int相加
+
+
+情况二:
+a = 10
+foo(int b)
+{
+	a = 20
+	println(a)	
+}
+
+输出20，
+
+还是
+plus: 最近作用域有同名变量：只在这一层尝试匹配
+匹配成功 → 用它
+匹配失败 → 直接报错，不看外层
+如果所有本地作用域都没有同名变量 → 才去 import

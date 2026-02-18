@@ -47,5 +47,14 @@ binOpInferTests = testGroup "Semantic.OpInfer.binOpInfer" $
         ("15", Mod, Int64T, Int16T, Just Int64T)]
 
 
+augAssignOpTests :: TestTree
+augAssignOpTests = testGroup "Semantic.OpInfer.augAssignOp" $
+    map (\(name, op, expected) -> testCase name $ augAssignOp op @?= expected) [
+        ("0", PlusAssign, Just Add),
+        ("1", MinusAssign, Just Sub),
+        ("2", BitRShiftAssign, Just BitRShift),
+        ("3", Assign, Nothing)]
+
+
 tests :: TestTree
-tests = testGroup "Semantic.OpInfer" [isBasicTypeTests, promoteBasicTypeTests, binOpInferTests]
+tests = testGroup "Semantic.OpInfer" [isBasicTypeTests, promoteBasicTypeTests, binOpInferTests, augAssignOpTests]

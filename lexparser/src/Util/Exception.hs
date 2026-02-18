@@ -167,6 +167,10 @@ breakCtrlErrorMsg = "`break` can only be used inside a loop or a case"
 returnCtrlErrorMsg :: String
 returnCtrlErrorMsg = "`return` can only be used inside a function"
 
+-- | Missing return statement in a non-void function.
+missingReturnMsg :: String -> String
+missingReturnMsg sig = "missing return statement: " ++ sig
+
 
 -- | Illegal statement means that this one cannot 
 illegalStatementMsg :: String -> String -> String
