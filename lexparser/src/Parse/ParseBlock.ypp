@@ -68,7 +68,7 @@ import qualified Util.Exception as UE
     ','                 { t@(Lex.Symbol Lex.Comma _) }
     ':'                 { t@(Lex.Symbol Lex.Colon _) }
     '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
-    --'=>'              { t@(Lex.Symbol Lex.FatArrow _) }
+    '=>'                { t@(Lex.Symbol Lex.FatArrow _) }
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 %right '='

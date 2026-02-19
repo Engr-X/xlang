@@ -103,6 +103,8 @@ library
             Semantic.OpInfer
             Semantic.ReturnCheck
             Semantic.SemanticCheck
+
+            IR.TAC
     
             Util.Basic
             Util.Type

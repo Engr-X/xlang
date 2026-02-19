@@ -54,6 +54,9 @@ FunctionParams :: { [(Class, String, [Token])] }
 FunctionBlock :: { Block }
     : Stmt                      { Multiple [$1] }
     | ':' Stmt                  { Multiple [$2] }
+
+    -- suger
+    | '=>' Expr                 { Multiple [Command (Return $ Just $ $2) $1] }
     ;
 
 FunctionStmt :: { Statement }

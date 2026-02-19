@@ -18,6 +18,9 @@ import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
 
 
+tp :: Int -> Lex.Token
+tp i = Lex.Error ("test" ++ show i) pos1
+
 pos1, pos2, pos3, pos4 :: Position
 pos1 = makePosition 1 1 1
 pos2 = makePosition 2 1 1
@@ -141,6 +144,33 @@ stInBlockWithSum = stInBlock {
 stPut2, stPut3 :: CheckState
 stPut2 = CheckState 2 5 6 [] [emptyScope] []
 stPut3 = CheckState 0 0 1 [] [emptyScope { scopeId = 9 }] []
+
+
+hasAssignTests :: TestTree
+hasAssignTests = testGroup "Semantic.ContextCheck.hasAssign" $
+    map (\(name, expr, out) -> testCase name $ hasAssign expr @?= out) [
+    
+    ("0", AST.IntConst "1" (tp 0), False),
+    ("1", AST.Variable "a" (tp 1), False),
+    ("2", AST.Qualified ["a","b"] [tp 2, tp 3], False),
+    ("3", AST.Binary AST.Add (AST.IntConst "1" (tp 4)) (AST.IntConst "2" (tp 5)) (tp 6), False),
+    ("4", AST.Binary AST.Assign (AST.Variable "a" (tp 7)) (AST.IntConst "10" (tp 8)) (tp 9), True),
+    ("5", AST.Unary AST.Sub
+            (AST.Binary AST.Assign (AST.Variable "a" (tp 10)) (AST.IntConst "1" (tp 11)) (tp 12))
+            (tp 13),
+        True),
+        
+    ("6", AST.Call (AST.Variable "f" (tp 14)) [
+            AST.IntConst "1" (tp 15),
+            AST.Binary AST.Assign (AST.Variable "x" (tp 16)) (AST.IntConst "2" (tp 17)) (tp 18)],
+        True),
+        
+    ("7", AST.Binary AST.Add
+            (AST.Binary AST.Assign (AST.Variable "a" (tp 19)) (AST.IntConst "1" (tp 20)) (tp 21))
+            (AST.Binary AST.Assign (AST.Variable "b" (tp 22)) (AST.IntConst "2" (tp 23)) (tp 24))
+            (tp 25),
+        True)]
+
 
 
 concatQTests :: TestTree
@@ -719,6 +749,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
 
 tests :: TestTree
 tests = testGroup "Semantic.ContextCheck" [
+    hasAssignTests,
     concatQTests, addErrTests, getStateTests, putStateTests, isFunctionTests,
     withCtrlTests, withScopeTests, withCtrlScopeTests,
     isContinueValidTests, isBreakValidTests, isReturnValidTests,

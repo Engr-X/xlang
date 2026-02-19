@@ -186,6 +186,12 @@ staticCastError :: String -> String -> String
 staticCastError fromT toT = concat ["cannot cast between basic type and class type: ", fromT, " to ", toT]
 
 
+loopCondAssignMsg :: String
+loopCondAssignMsg =
+  "Invalid assignment in loop condition: assignments are not allowed in the condition of a loop. " ++
+  "Move the assignment to the loop body or to the init/step clause."
+
+
 -- | Basic warning information shared by lexer and parser warnings.
 --
 -- This structure records:

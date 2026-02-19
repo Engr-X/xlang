@@ -9,12 +9,36 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
 import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
+
+
+-- | determine an expression have asssignment or not
+hasAssign :: Expression -> Bool
+hasAssign = go
+  where
+    go (AST.Binary AST.Assign _ _ _) = True
+    go (AST.Binary _ a b _) = go a || go b
+    go (AST.Unary _ x _) = go x
+    go (AST.Cast _ x _) = go x
+    go (AST.Call f args) = go f || any go args
+    go (AST.CallT f _ args) = go f || any go args
+    -- Leaves
+    go (AST.Error _ _) = False
+    go (AST.IntConst _ _) = False
+    go (AST.LongConst _ _) = False
+    go (AST.FloatConst _ _) = False
+    go (AST.DoubleConst _ _) = False
+    go (AST.LongDoubleConst _ _) = False
+    go (AST.CharConst _ _) = False
+    go (AST.StringConst _ _) = False
+    go (AST.BoolConst _ _) = False
+    go (AST.Variable _ _) = False
+    go (AST.Qualified _ _) = False
 
 
 data Ctx = Ctx {
@@ -276,7 +300,12 @@ checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
 
     withScope $ do
         for_ e1 (checkExpr p package envs)
-        for_ e2 (checkExpr p package envs)
+        
+        for_ e2 $ \cond -> do
+            when (hasAssign cond) $
+                addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens cond) loopCondAssignMsg
+            checkExpr p package envs cond
+
         for_ e3 (checkExpr p package envs)
         for_ forBlock (withCtrlScope InLoop . checkBlock p package envs)
 

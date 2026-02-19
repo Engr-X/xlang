@@ -2,7 +2,7 @@
 
 module Semantic.OpInfer where
 
-import Control.Applicative (liftA2, liftA3)
+import Control.Applicative (liftA3)
 import Data.List (elemIndex, intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (mapMaybe)
