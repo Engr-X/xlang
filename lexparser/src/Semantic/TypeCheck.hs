@@ -82,6 +82,15 @@ checkTypeCompat path pos expected actual = do
     else
         addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected') (prettyClass actual'))
 
+-- | Check condition expression type (must be bool).
+checkCondBool :: Path -> [Position] -> Class -> TypeM ()
+checkCondBool path pos actual = do
+    let actual' = normalizeClass actual
+    if actual' == ErrorClass || actual' == Bool then
+        pure ()
+    else
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.conditionBoolMsg (prettyClass actual'))
+
 
 -- | Create a new lexical scope for the duration of an action, then restore depth/scope.
 withScope :: TypeM a -> TypeM a
@@ -470,9 +479,6 @@ inferOptBlock _ _ _ Nothing = pure ()
 inferOptBlock path packages envs (Just b) = withScope $ inferBlock path packages envs b
 
 
-
-
-
 -- | Infer types in a statement.
 inferStmt :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
 inferStmt _ _ _ (Command Continue _) = pure ()
@@ -499,7 +505,8 @@ inferStmt path packages envs (Expr e) = void $ inferExpr path packages envs e
 inferStmt path packages envs (BlockStmt block) = withScope $ inferBlock path packages envs block
 
 inferStmt path packages envs (If e ifBlock elseBlock _) = do
-    void (inferExpr path packages envs e)
+    t <- inferExpr path packages envs e
+    checkCondBool path (map Lex.tokenPos (exprTokens e)) t
     inferOptBlock path packages envs ifBlock
     inferOptBlock path packages envs elseBlock
 
@@ -512,18 +519,24 @@ inferStmt path packages envs (For (e1, e2, e3) forBlock _) = do
             Just initExpr -> do
                 addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens initExpr)) UE.forInitAssignMsg
                 void (inferExpr path packages envs initExpr)
-        maybe (pure ()) (void . inferExpr path packages envs) e2
+        case e2 of
+            Nothing -> pure ()
+            Just condExpr -> do
+                t <- inferExpr path packages envs condExpr
+                checkCondBool path (map Lex.tokenPos (exprTokens condExpr)) t
         maybe (pure ()) (void . inferExpr path packages envs) e3
         inferOptBlock path packages envs forBlock
 
 inferStmt path packages envs (While e whileBlock elseBlock _) = do
-    void (inferExpr path packages envs e)
+    t <- inferExpr path packages envs e
+    checkCondBool path (map Lex.tokenPos (exprTokens e)) t
     inferOptBlock path packages envs whileBlock
     inferOptBlock path packages envs elseBlock
 
 inferStmt path packages envs (DoWhile whileBlock e elseBlock _) = do
     inferOptBlock path packages envs whileBlock
-    void (inferExpr path packages envs e)
+    t <- inferExpr path packages envs e
+    checkCondBool path (map Lex.tokenPos (exprTokens e)) t
     inferOptBlock path packages envs elseBlock
 
 inferStmt path packages envs (Switch e scs _) = do

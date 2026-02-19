@@ -140,6 +140,10 @@ implicitCastMsg fromT toT = concat ["implicit cast: ", fromT, " to ", toT]
 typeMismatchMsg :: String -> String -> String
 typeMismatchMsg expected actual = concat["type mismatch: expected ", expected, ", got ", actual]
 
+-- | condition expression must be bool
+conditionBoolMsg :: String -> String
+conditionBoolMsg actual = concat ["condition must be bool, got ", actual]
+
 
 -- | possible overflow warning message for casts
 overflowCastMsg :: String -> String -> String

@@ -543,6 +543,33 @@ inferStmtTests = testGroup "Semantic.TypeCheck.inferStmt" $ map mkCase [
             assertTcErrs errMsg ctx1
 
 
+conditionBoolTests :: TestTree
+conditionBoolTests = testGroup "Semantic.TypeCheck.conditionBool" $ map (uncurry testCase) [
+    ("0", do
+        let stmt = If intExpr Nothing Nothing (tokIf, Nothing)
+        assertCondErr stmt),
+    ("1", do
+        let stmt = While intExpr Nothing Nothing (tokWhile, Nothing)
+        assertCondErr stmt),
+    ("2", do
+        let stmt = For (Nothing, Just intExpr, Nothing) Nothing tokFor
+        assertCondErr stmt),
+    ("3", do
+        let stmt = DoWhile Nothing intExpr Nothing (tokDo, tokWhile, Nothing)
+        assertCondErr stmt)]
+    where
+        intExpr = IntConst "1" (Lex.NumberConst "1" pos1)
+        expected = UE.conditionBoolMsg (prettyClass Int32T)
+        tokIf = Lex.Ident "if" pos1
+        tokWhile = Lex.Ident "while" pos1
+        tokFor = Lex.Ident "for" pos1
+        tokDo = Lex.Ident "do" pos1
+        assertCondErr stmt = do
+            let ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
+                (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
+            assertTcErrs (Just expected) ctx1
+
+
 inferSwitchCaseTests :: TestTree
 inferSwitchCaseTests = testGroup "Semantic.TypeCheck.inferSwitchCase" $ map mkCase [
     ("0", pure (scCaseLiteral Nothing), Nothing, noExtraTc),
@@ -784,4 +811,5 @@ tests = testGroup "Semantic.TypeCheck" [
     inferThisTests, inferThisFieldTests, inferLiteralTests,
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
-    inferExprTests, inferStmtTests, inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
+    inferExprTests, inferStmtTests, conditionBoolTests,
+    inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
