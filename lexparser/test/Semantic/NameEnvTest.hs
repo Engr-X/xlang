@@ -25,9 +25,10 @@ defineLocalVarTests :: TestTree
 defineLocalVarTests = testGroup "Semantic.NameEnv.defineLocalVar" $ map (\(name, expr, st, out) ->
     testCase name $ defineLocalVar "stdin" expr st @?= out) [
     ("0", assignVarX, stBase, Right stAfterNew),
-    ("1", assignVarX, stExisting, Right stExisting),
-    ("2", assignQualified, stBase, Left qualifiedErr),
-    ("3", nonAssignExpr, stBase, Right stBase)]
+    ("1_outer", assignVarX, stOuter, Right stOuter),
+    ("2", assignVarX, stExisting, Right stExisting),
+    ("3", assignQualified, stBase, Left qualifiedErr),
+    ("4", nonAssignExpr, stBase, Right stBase)]
     where
         pos1, pos2, pos3 :: Position
         pos1 = makePosition 1 1 1
@@ -67,6 +68,12 @@ defineLocalVarTests = testGroup "Semantic.NameEnv.defineLocalVar" $ map (\(name,
 
         stExisting :: CheckState
         stExisting = CheckState 0 10 0 [] [emptyScope { sVars = Map.insert "x" (5, pos1) Map.empty }] []
+
+        scopeOuter :: Scope
+        scopeOuter = emptyScope { scopeId = 1, sVars = Map.insert "x" (5, pos1) Map.empty }
+
+        stOuter :: CheckState
+        stOuter = CheckState 0 10 0 [] [emptyScope, scopeOuter] []
 
         qualifiedErr :: UE.ErrorKind
         qualifiedErr = UE.Syntax $ UE.makeError "stdin" (map tokenPos [tokA, tokB]) UE.assignErrorMsg

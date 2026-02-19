@@ -126,7 +126,6 @@ withScope action = do
     pure res
 
 
-
 -- | Resolve `this` usage by returning the current class type.
 inferThis :: Path -> Position -> TypeM Class
 inferThis path pos = do

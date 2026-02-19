@@ -51,7 +51,7 @@ mkHappyErrorExprTests = testGroup "Parse.ParserBasic.mkHappyErrorExpr" $ map (\(
         Lex.Symbol Lex.RBracket (makePosition 2 9 1), Lex.Ident "y" (makePosition 2 10 1)],
         let t = Lex.Symbol Lex.RBracket (makePosition 2 9 1) in Error [t] ("invalid syntax: " ++ show t)), 
     
-    ("3 head is NL", [
+    ("3", [
         Lex.TokenPass  (makePosition 5 3 1)],
         
         let t = Lex.TokenPass  (makePosition 5 3 1)

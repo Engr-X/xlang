@@ -121,8 +121,10 @@ defineLocalVar p (AST.Binary AST.Assign lhs _ _) st = case lhs of
         case scope st of
             [] -> error "internal error: there is no scope to define !!! while define variable"
             (sc:rest) ->
-                if Map.member name (sVars sc) then Right st
-                else 
+                -- If the name already exists in any active scope, reuse it.
+                -- This makes assignments update outer bindings (except for function params).
+                if isVarDefine name st then Right st
+                else
                     let vid = varCounter st
                         sc' = sc { sVars = Map.insert name (vid, tokenPos nameTok) (sVars sc) }
                     in Right $ st { varCounter = succ vid, scope = sc' : rest}

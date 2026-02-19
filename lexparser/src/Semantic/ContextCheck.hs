@@ -111,7 +111,7 @@ withScope action = do
     pure res
 
 
--- | Convenience wrapper to push both a control context and a new scope.
+-- | Push a control context and a new lexical scope for the duration of an action.
 withCtrlScope :: CtrlState -> CheckM a -> CheckM a
 withCtrlScope ctrl action = withCtrl ctrl (withScope action)
 

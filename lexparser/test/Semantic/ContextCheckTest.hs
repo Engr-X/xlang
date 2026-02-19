@@ -334,26 +334,26 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
         let ctx0 = Ctx { st = initSt, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
         errs ctx1 @?= []) [
-        ("0_block", Left $ unlines [
+        ("0", Left $ unlines [
             "{",
             "    x = 1",
             "    y = 2",
             "}"
         ], stInBlock),
-        ("1_while_else", Left $ unlines [
+        ("1", Left $ unlines [
             "while true:",
             "    x = 1",
             "else:",
             "    y = 2"
         ], stInBlock),
-        ("2_if_else", Left $ unlines [
+        ("2", Left $ unlines [
             "if true:",
             "    x = 1",
             "else:",
             "    y = 2"
         ], stInBlock),
-        ("3_do_while_else", Right doWhileStmt, stInBlock),
-        ("4_for_loop", Right forStmt, stInBlockWithSum)]
+        ("3", Right doWhileStmt, stInBlock),
+        ("4", Right forStmt, stInBlockWithSum)]
     where
         tokDo, tokWhile, tokElse, tokTrue, tokFor :: Lex.Token
         tokDo = Lex.Ident "do" pos1
@@ -702,7 +702,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "c = b + 1"
         ], Just (UE.undefinedIdentity "i"))] ++ [
         
-        testCase "do_while/0_ok" $ do
+        testCase "16" $ do
         eInit <- parseExprOrFail "i = 0"
         eInc <- parseExprOrFail "i = i + 1"
         eCond <- parseExprOrFail "i < 10"
@@ -721,8 +721,9 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             body = AST.Multiple [AST.Expr eInit, doStmt, AST.Expr eJ, AST.Expr eK]
             fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) [] body
             prog = ([], [fun])
-        assertCheckProgm (checkProgm "stdin" prog []) Nothing
-    , testCase "do_while/1_scope_err" $ do
+        assertCheckProgm (checkProgm "stdin" prog []) Nothing,
+        
+        testCase "17" $ do
         eInit <- parseExprOrFail "i = 0"
         eCond <- parseExprOrFail "i < 10"
         eElse <- parseExprOrFail "i = i + 2"
@@ -747,6 +748,44 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
         mkCase (name, src, expected) =
             testCase name $ assertCheckProgm (checkProgmFromSrc src) expected
 
+
+forScopeTests :: TestTree
+forScopeTests = testGroup "Semantic.ContextCheck.forScope" [
+    testCase "0_new_var_scoped" $ do
+        let ctx0 = Ctx { st = stInBlock, errs = [], varUses = Map.empty }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] forStmt) ctx0
+            stAfter = st ctx1
+        errs ctx1 @?= []
+        Map.member "i" (sVars (head (scope stAfter))) @?= False
+        varCounter stAfter @?= varCounter stInBlock + 1,
+    testCase "1_reuse_outer_var" $ do
+        let st0 = stInBlock { varCounter = 1, scope = [emptyScope { sVars = Map.insert "i" (0, pos1) Map.empty }] }
+            ctx0 = Ctx { st = st0, errs = [], varUses = Map.empty }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] forStmt) ctx0
+            stAfter = st ctx1
+        errs ctx1 @?= []
+        Map.lookup "i" (sVars (head (scope stAfter))) @?= Just (0, pos1)
+        varCounter stAfter @?= varCounter st0]
+    where
+        tokFor, tokI, tokAssign, tokInc, tokLt, tokNum0, tokNum10 :: Lex.Token
+        tokFor = Lex.Ident "for" pos1
+        tokI = Lex.Ident "i" pos1
+        tokAssign = Lex.Symbol Lex.Assign pos1
+        tokInc = Lex.Symbol Lex.PlusPlus pos1
+        tokLt = Lex.Symbol Lex.LessThan pos1
+        tokNum0 = Lex.NumberConst "0" pos1
+        tokNum10 = Lex.NumberConst "10" pos1
+
+        forStmt :: AST.Statement
+        forStmt =
+            AST.For
+                ( Just (AST.Binary AST.Assign (AST.Variable "i" tokI) (AST.IntConst "0" tokNum0) tokAssign)
+                , Just (AST.Binary AST.LessThan (AST.Variable "i" tokI) (AST.IntConst "10" tokNum10) tokLt)
+                , Just (AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc)
+                )
+                ( Just (AST.Multiple []))
+                tokFor
+
 tests :: TestTree
 tests = testGroup "Semantic.ContextCheck" [
     hasAssignTests,
@@ -754,4 +793,5 @@ tests = testGroup "Semantic.ContextCheck" [
     withCtrlTests, withScopeTests, withCtrlScopeTests,
     isContinueValidTests, isBreakValidTests, isReturnValidTests,
     
-    checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests, checkProgmTests]
+    checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests, checkProgmTests,
+    forScopeTests]

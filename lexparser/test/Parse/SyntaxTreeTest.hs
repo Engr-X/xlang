@@ -220,9 +220,9 @@ toClassTests = testGroup "Parse.SyntaxTree.toClass" $ map (\(i, inp, out) -> tes
 isVariableTests :: TestTree
 isVariableTests = testGroup "Parse.SyntaxTree.isVariable" $ map (\(i, inp, out) -> testCase i $ isVariable inp @=? out) [
     ("0", Variable "a" dummyTok, True),
-    ("1 Qualified", Qualified ["java","lang","Math"] [dummyTok], True),
-    ("2 IntConst", IntConst "1" dummyTok, False),
-    ("3 BinaryExpr", Binary Add (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok, False)]
+    ("1", Qualified ["java","lang","Math"] [dummyTok], True),
+    ("2", IntConst "1" dummyTok, False),
+    ("3", Binary Add (Variable "a" dummyTok) (IntConst "1" dummyTok) dummyTok, False)]
         where
             dummyTok :: Token
             dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
@@ -303,23 +303,22 @@ exprTokensTests = testGroup "Parse.SyntaxTree.exprTokens" $ map (\(n, e, ts) -> 
 
 stmtTokensTests :: TestTree
 stmtTokensTests = testGroup "Parse.SyntaxTree.stmtTokens" $ map (\(n, s, ts) -> testCase n $ stmtTokens s @=? ts) [
-    ("0 Command", Command Continue tokCmd, [tokCmd]),
-    ("1 If", If (Variable "x" tokX)
+    ("0", Command Continue tokCmd, [tokCmd]),
+    ("1", If (Variable "x" tokX)
         (Just (Multiple [Expr (Variable "a" tokA)]))
         (Just (Multiple [Expr (Variable "b" tokB)]))
         (tokIf, Just tokElse),
         [tokIf, tokX, tokA, tokElse, tokB]),
-    ("2 Switch", Switch (Variable "x" tokX) [
+    ("2", Switch (Variable "x" tokX) [
         Case (IntConst "1" tok1) (Just $ Multiple [Expr (Variable "y" tokY)]) tokCase,
         Default (Multiple [Expr (Variable "z" tokZ)]) tokDefault
         ] tokSwitch,
         [tokSwitch, tokX, tok1, tokY, tokZ]),
-    ("3 Function", FunctionT (Int32T, [tokRet]) (Variable "f" tokF)
+    ("3", FunctionT (Int32T, [tokRet]) (Variable "f" tokF)
         [(Int32T, [tokTA1]), (Bool, [tokTA2])]
         [(Int32T, "x", [tokPx]), (Bool, "y", [tokPy])]
         (Multiple [Expr (Variable "body" tokBody)]),
-        [tokRet, tokF, tokTA1, tokTA2, tokPx, tokPy, tokBody])
-    ]
+        [tokRet, tokF, tokTA1, tokTA2, tokPx, tokPy, tokBody])]
     where
         tokCmd, tokIf, tokElse, tokX, tokA, tokB :: Token
         tokCmd  = Lex.Ident "cmd"  (makePosition 1 1 1)
@@ -384,7 +383,7 @@ prettyStmtTests = testGroup "Parse.SyntaxTree.prettyStmt" $ map (\(i, n, inp, ou
     ("1", 0, Just (Expr (Variable "a" dummyTok)), "a\n"),
     ("2", 0, Just (BlockStmt (Multiple [])), "{\n\n}\n"),
     ("3", 0, Just (If (Variable "a" dummyTok) Nothing Nothing (dummyTok, Nothing)), "if (a);\n"),
-    ("4 while with block", 0, Just
+    ("4", 0, Just
         (While
             (Variable "a" dummyTok)
             (Just (Multiple []))

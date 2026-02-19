@@ -35,8 +35,8 @@ import qualified Util.Exception as UE
 
     '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
     '<'                 { t@(Lex.Symbol Lex.LessThan _) }
-    '=='                 { t@(Lex.Symbol Lex.Equal _) }
-    '!='                 { t@(Lex.Symbol Lex.NotEqual _) }
+    '=='                { t@(Lex.Symbol Lex.Equal _) }
+    '!='                { t@(Lex.Symbol Lex.NotEqual _) }
     
     '!'                 { t@(Lex.Symbol Lex.BitNot _) }
 

@@ -441,18 +441,18 @@ getImportedVarTypeTests = testGroup "Semantic.TypeCheck.getImportedVarType" $ ma
 
 lookupFunTests :: TestTree
 lookupFunTests = testGroup "Semantic.TypeCheck.lookupFun" $ map (uncurry testCase) [
-    ("0_empty", do
+    ("0", do
         lookupFun ["f"] [] @?= []),
-    ("1_single_scope", do
+    ("1", do
         let sig0 = FunSig [] Int32T
             scopes = [Map.fromList [(["f"], [sig0])]]
         lookupFun ["f"] scopes @?= [sig0]),
-    ("2_shadowing", do
+    ("2", do
         let sig0 = FunSig [] Int32T
             sig1 = FunSig [Int32T] Int32T
             scopes = [Map.fromList [(["f"], [sig1])], Map.fromList [(["f"], [sig0])]]
         lookupFun ["f"] scopes @?= [sig1]),
-    ("3_find_later", do
+    ("3", do
         let sig0 = FunSig [] Int32T
             scopes = [Map.empty, Map.fromList [(["f"], [sig0])]]
         lookupFun ["f"] scopes @?= [sig0])]
@@ -646,25 +646,25 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
 
 inferProgmTests :: TestTree
 inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
-    ("0_simple_assigns_ok", unlines [
+    ("0", unlines [
         "a = 1;",
         "b = a + 2;",
         "c = b + 3;"
     ], Nothing, \ctx -> do assertVarType "a" Int32T ctx; assertVarType "b" Int32T ctx),
 
-    ("1_bool_assign_ok", unlines [
+    ("1", unlines [
         "a = true;",
         "b = a;",
         "c = b;"
     ], Nothing, \ctx -> do assertVarType "a" Bool ctx; assertVarType "b" Bool ctx),
 
-    ("2_reassign_warn", unlines [
+    ("2", unlines [
         "a = 1;",
         "a = true;",
         "b = a;"
     ], Nothing, assertWarnsNonEmpty),
 
-    ("3_return_missing_err", unlines [
+    ("3", unlines [
         "int f() {",
         "    if true:",
         "        return;",
@@ -675,7 +675,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "y = x + 1;"
     ], Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void)), noExtraTc),
 
-    ("4_return_void_ok", unlines [
+    ("4", unlines [
         "void f() {",
         "    while true:",
         "        a = 1;",
@@ -686,7 +686,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "y = x + 1;"
     ], Nothing, noExtraTc),
 
-    ("5_return_int_ok", unlines [
+    ("5", unlines [
         "int f() {",
         "    if true:",
         "        return 1;",
@@ -697,7 +697,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "y = x + 1;"
     ], Nothing, noExtraTc),
 
-    ("6_return_cast_warn", unlines [
+    ("6", unlines [
         "int f() {",
         "    if true:",
         "        return true;",
@@ -708,7 +708,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "y = x + 1;"
     ], Nothing, assertWarnsNonEmpty),
 
-    ("7_call_type_mismatch_err", unlines [
+    ("7", unlines [
         "int f(int x) {",
         "    if true:",
         "        return 1;",
@@ -719,7 +719,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "a = f(true);"
     ], Just (UE.typeMismatchMsg "(int)" "(bool)"), noExtraTc),
 
-    ("8_call_widen_warn", unlines [
+    ("8", unlines [
         "float f(float x) {",
         "    while true:",
         "        x = x + 1;",
@@ -731,7 +731,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "b = 1;"
     ], Nothing, assertWarnsNonEmpty),
 
-    ("9_undefined_var_err", unlines [
+    ("9", unlines [
         "int h() {",
         "    if true:",
         "        return 1;",
@@ -743,7 +743,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "d = c + 1;"
     ], Just (UE.undefinedIdentity "b"), noExtraTc),
 
-    ("10_undefined_func_err", unlines [
+    ("10", unlines [
         "int g() {",
         "    while true:",
         "        a = 1;",
@@ -756,31 +756,31 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "c = a + 1;"
     ], Just (UE.undefinedIdentity "f"), noExtraTc),
 
-    ("11_cast_ok", unlines [
+    ("11", unlines [
         "a = 1 as double;",
         "b = a;",
         "c = b;"
     ], Nothing, assertVarType "a" Float64T),
 
-    ("12_assign_qualified_err", unlines [
+    ("12", unlines [
         "a = 1;",
         "a.b = 1;",
         "c = a;"
     ], Just UE.assignErrorMsg, noExtraTc),
 
-    ("13_overload_call_ok", unlines [
+    ("13", unlines [
         "int f(int x) { return 1; }",
         "float f(float x) { return 1; }",
         "a = f(1);"
     ], Nothing, noExtraTc),
 
-    ("14_call_arity_err", unlines [
+    ("14", unlines [
         "int f(int x) { return 1; }",
         "int g() { return 1; }",
         "a = f(1, 2);"
     ], Just (UE.typeMismatchMsg "(int)" "(int, int)"), noExtraTc),
 
-    ("15_nested_call_ok", unlines [
+    ("15", unlines [
         "int f() { return 1; }",
         "int g() {",
         "    if true:",
@@ -789,8 +789,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "        return 1;",
         "}",
         "a = g();"
-    ], Nothing, noExtraTc)
-    ]
+    ], Nothing, noExtraTc)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do
             prog <- parseProgmOrFail src
