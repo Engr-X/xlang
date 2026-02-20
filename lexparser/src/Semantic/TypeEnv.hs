@@ -1,6 +1,7 @@
 module Semantic.TypeEnv where
 
 import Data.Map.Strict (Map)
+import Data.Set (Set)
 import Parse.SyntaxTree (Class(..))
 import Semantic.NameEnv (QName, VarId)
 import Util.Type (Path, Position)
@@ -54,6 +55,15 @@ data FunSig = FunSig {
 } deriving (Eq, Show)
 
 
+-- | Variable flags recorded for locals.
+data VarFlag = Static | Final
+    deriving (Eq, Ord, Show)
+
+type VarFlags = Set VarFlag
+
+-- | Function flags for the current stage (reuse VarFlags).
+type FunFlags = VarFlags
+
 -- | Mapping from variable id to its inferred/declared type + def position.
 --   We keep Position so a variable can be traced even if names repeat.
 type VarTable = Map VarId (Class, Position)
@@ -70,6 +80,19 @@ data TypedImportEnv = TIEnv {
     tVars :: Map QName (Class, [Position]),
     tFuncs :: Map QName ([FunSig], [Position])
 } deriving (Eq, Show)
+
+
+-- | Full variable usage table (local or imported).
+data FullVarTable
+    = VarLocal VarFlags String VarId
+    | VarImported Class [String]
+    deriving (Eq, Show)
+
+-- | Full function usage table (local or imported).
+data FullFunctionTable
+    = FunLocal FunFlags String FunSig
+    | FunImported FunFlags [String] FunSig
+    deriving (Eq, Show)
 
 
 emptyTypedImportEnv :: Path -> TypedImportEnv

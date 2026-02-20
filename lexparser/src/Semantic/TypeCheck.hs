@@ -4,18 +4,20 @@ module Semantic.TypeCheck where
 
 import Control.Monad (when, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
+import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
 import Semantic.OpInfer (augAssignOp, binOpInfer, iCast, isBasicType, unaryOpInfer, widenedArgs)
-import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable, normalizeClass)
+import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarFlag(..), VarFlags, FunFlags, VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
 
 import qualified Semantic.ContextCheck as CC
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
 
@@ -39,12 +41,17 @@ data ClassDef = ClassDef {
 data TypeCtx = TypeCtx {
     tcCtx :: CC.Ctx,
     tcVarTypes :: VarTable,
+    tcVarFlags :: Map VarId VarFlags,
     tcFunScopes :: [FunTable],
     tcClassStack :: [ClassDef],
     tcClassTypeStack :: [Class],
     tcCurrentReturn :: Maybe Class,
+    
     tcErrors :: [ErrorKind],
-    tcWarnings :: [Warning]
+    tcWarnings :: [Warning],
+    tcFullVarUses :: Map Position FullVarTable,
+    tcFullVarUsesList :: [(Position, FullVarTable)],
+    tcFullFunUses :: Map Position FullFunctionTable
 } deriving (Show)
 
 
@@ -64,6 +71,46 @@ errClass e = addErr e >> pure ErrorClass
 -- | Append a warning to the current context.
 addWarn :: Warning -> TypeM ()
 addWarn w = modify $ \c -> c { tcWarnings = w : tcWarnings c }
+
+-- | Record a resolved variable use.
+recordVarUse :: Position -> FullVarTable -> TypeM ()
+recordVarUse pos entry =
+    modify $ \c -> c {
+        tcFullVarUses = Map.insert pos entry (tcFullVarUses c),
+        tcFullVarUsesList = (pos, entry) : tcFullVarUsesList c
+    }
+
+-- | Record a resolved function call.
+recordFunUse :: Position -> FullFunctionTable -> TypeM ()
+recordFunUse pos entry =
+    modify $ \c -> c { tcFullFunUses = Map.insert pos entry (tcFullFunUses c) }
+
+-- | Default function flags for the current stage.
+defaultFunFlags :: FunFlags
+defaultFunFlags = Set.fromList [Static, Final]
+
+-- | Compute flags for a newly defined variable at the current depth.
+newVarFlags :: CheckState -> VarFlags
+newVarFlags st =
+    if depth st == 0 then Set.singleton Static else Set.empty
+
+-- | Ensure a VarId has flags; if missing, insert defaults based on current state.
+ensureVarFlags :: VarId -> CheckState -> TypeM VarFlags
+ensureVarFlags vid st = do
+    c <- get
+    case Map.lookup vid (tcVarFlags c) of
+        Just flags -> pure flags
+        Nothing -> do
+            let flags = newVarFlags st
+            modify $ \c0 -> c0 { tcVarFlags = Map.insert vid flags (tcVarFlags c0) }
+            pure flags
+
+-- | Record a resolved local variable use with flags.
+recordVarUseLocal :: Position -> String -> VarId -> TypeM ()
+recordVarUseLocal pos name vid = do
+    c <- get
+    let flags = Map.findWithDefault Set.empty vid (tcVarFlags c)
+    recordVarUse pos (VarLocal flags name vid)
 
 
 -- | Check type compatibility and emit implicit-cast warnings when allowed.
@@ -179,22 +226,32 @@ inferExpr path packages envs (Variable str tok) = do
         let lookupByVid vid = fmap fst (Map.lookup vid vts)
         let lookupByName = do
                 (vid, _) <- lookupVarId str (CC.st (tcCtx c))
-                fmap fst (Map.lookup vid vts)
+                cls <- fmap fst (Map.lookup vid vts)
+                pure (vid, cls)
+        let mVidAtPos = getVarId pos (tcCtx c)
 
         -- 优先通过 ContextCheck 记录的 VarId 查找本地变量。
-        case getVarId pos (tcCtx c) >>= lookupByVid of
-            Just t -> pure t
+        case mVidAtPos >>= lookupByVid of
+            Just t -> do
+                case mVidAtPos of
+                    Just vid -> recordVarUseLocal pos str vid
+                    Nothing -> pure ()
+                pure t
             Nothing -> do
                 -- 兜底：按当前 TypeCheck 作用域用名字解析一次，避免 VarId 不一致导致崩溃。
                 case lookupByName of
-                    Just t -> pure t
+                    Just (vid, t) -> do
+                        recordVarUseLocal pos str vid
+                        pure t
                     Nothing -> do
                         let qn = packages ++ [str]
 
                         -- 若本地变量不存在，再按包/导入的限定名查找。
                         case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
                             -- 在导入环境中找到变量类型。
-                            Just (t, _) -> pure t
+                            Just (t, _) -> do
+                                recordVarUse pos (VarImported t ["toDO import"])
+                                pure t
 
                             -- 理论上应在 ContextCheck 阶段报错。
                             Nothing -> error "should already be caught in ContextCheck (undefined variable)."
@@ -203,6 +260,7 @@ inferExpr path _ envs (Qualified names toks) = do
     c <- get
     let posAll = map Lex.tokenPos toks
     let posHead = head posAll
+    let posLast = last posAll
     let TypeCtx{tcVarTypes = vts} = c
     case names of
         -- 只有 `this` -> 解析为当前类的类型。
@@ -215,6 +273,7 @@ inferExpr path _ envs (Qualified names toks) = do
         -- 1) 先按导入/包的限定名查找。
         _ -> case getImportedVarType names envs of
             Just t -> do
+                recordVarUse posLast (VarImported t ["toDO import"])
                 pure t
 
             -- 2) 否则把头部当变量，再处理成员访问。
@@ -225,6 +284,7 @@ inferExpr path _ envs (Qualified names toks) = do
                     Nothing -> errClass $ UE.Syntax $ UE.makeError path posAll (UE.undefinedIdentity headName)
 
                     Just vid -> do
+                        recordVarUseLocal posHead headName vid
                         case Map.lookup vid vts of
                             -- VarId 存在但没有类型信息 -> 内部错误。
                             Nothing -> error "this variable must is record in context check part"
@@ -270,25 +330,41 @@ inferExpr path packages envs e@(Binary Assign lhs rhs _) = do
     tRhs <- inferExpr path packages envs rhs
     let tRhsN = normalizeClass tRhs
     case lhs of
-        Variable name _ -> do
+        Variable name tok -> do
             c <- get
             let cctx = tcCtx c
                 cState = CC.st cctx
+                posTok = Lex.tokenPos tok
             case defineLocalVar path e cState of
                 Left err -> addErr err
                 Right cState' -> do
                     let varTypes0 = tcVarTypes c
-                    case lookupVarId name cState' of
-                        Just (vid, pos) ->
+                        mByName = lookupVarId name cState'
+                        mByPos = getVarId posTok (tcCtx c)
+                        (cState'', mVid, defPos) = case mByName of
+                            Just (vid, pos) -> (cState', Just vid, pos)
+                            Nothing -> case mByPos of
+                                Just vid -> (cState', Just vid, posTok)
+                                Nothing -> case scope cState' of
+                                    [] -> (cState', Nothing, posTok)
+                                    (sc:rest) ->
+                                        let vid = varCounter cState'
+                                            sc' = sc { sVars = Map.insert name (vid, posTok) (sVars sc) }
+                                            cStateNew = cState' { varCounter = succ vid, scope = sc' : rest }
+                                        in (cStateNew, Just vid, posTok)
+                    case mVid of
+                        Just vid -> do
+                            _ <- ensureVarFlags vid cState''
+                            recordVarUseLocal posTok name vid
                             case Map.lookup vid varTypes0 of
                                 Just (tLhs, _) -> do
                                     checkTypeCompat path (map Lex.tokenPos (exprTokens e)) tLhs tRhsN
-                                    modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState' } }
+                                    modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState'' } }
                                 Nothing -> do
-                                    let varTypes' = Map.insert vid (tRhsN, pos) varTypes0
-                                    put $ c { tcCtx = cctx { CC.st = cState' }, tcVarTypes = varTypes' }
+                                    let varTypes' = Map.insert vid (tRhsN, defPos) varTypes0
+                                    modify $ \c0 -> c0 { tcCtx = cctx { CC.st = cState'' }, tcVarTypes = varTypes' }
                         Nothing ->
-                            put $ c { tcCtx = cctx { CC.st = cState' } }
+                            put $ c { tcCtx = cctx { CC.st = cState'' } }
         Qualified _ toks ->
             addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
         _ ->
@@ -348,38 +424,41 @@ inferExpr path packages envs e@(Call callee args) = do
 
     case callee of
         -- 直接调用函数名 f(...)
-        Variable name _ -> do
+        Variable name tok -> do
             let qLocal = [name]
             let qImport = packages ++ [name]
             let importSigs = concatMap (maybe [] fst . Map.lookup qImport . tFuncs) envs
-            resolveScopedCall qLocal name fScopes importSigs callPos argInfos
+            resolveScopedCall qLocal name fScopes importSigs (Lex.tokenPos tok) callPos argInfos
 
         -- 调用限定名（可能是 this.xxx 或导入函数）。
-        Qualified names _ -> case names of
+        Qualified names toks -> case names of
             -- this.xxx(...) -> 从当前类方法表查找。
             ("this":fname:_) -> case tcClassStack c of
                 [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity "this")
                 (ClassDef _ _ classFuns : _) -> do
                     let sigs = Map.findWithDefault (error "this error should be catched in COntextCheck") [fname] classFuns
-                    applyMatches callPos argInfos fname sigs
+                    let namePos = Lex.tokenPos (last toks)
+                    applyMatches callPos namePos fname argInfos (FunLocal defaultFunFlags fname) sigs
 
             -- 其他限定名 -> 只从导入/包中查找。
             _ -> do
                 let sigs = concatMap (maybe [] fst . Map.lookup names . tFuncs) envs
-                applyMatches callPos argInfos (intercalate "." names) sigs
+                let namePos = Lex.tokenPos (last toks)
+                applyMatches callPos namePos (intercalate "." names) argInfos (FunImported defaultFunFlags ["toDO import"]) sigs
 
         -- 其他表达式作为函数名 -> 非法调用。
         _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
     where
         -- 统一处理匹配与报错逻辑（使用 widenedArgs）。
-        applyMatches :: [Position] -> [(Class, [Position])] -> String -> [FunSig] -> TypeM Class
-        applyMatches callPos _ funName [] =
+        applyMatches :: [Position] -> Position -> String -> [(Class, [Position])] -> (FunSig -> FullFunctionTable) -> [FunSig] -> TypeM Class
+        applyMatches callPos _ funName _ _ [] =
             errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
-        applyMatches callPos argInfos _ sigs@(_ : _) =
-            case widenedArgs path callPos argInfos sigs of
+        applyMatches callPos namePos _ argInfos mkEntry sigs@(_ : _) = do
+            res <- matchInSigs sigs callPos argInfos
+            case res of
                 Left err -> errClass err
-                Right (sig, warns) -> do
-                    addWarns warns
+                Right sig -> do
+                    recordFunUse namePos (mkEntry sig)
                     pure $ funReturn sig
 
         addWarns = mapM_ addWarn
@@ -392,10 +471,11 @@ inferExpr path packages envs e@(Call callee args) = do
             String ->
             [FunTable] ->
             [FunSig] ->
+            Position ->
             [Position] ->
             [(Class, [Position])] ->
             TypeM Class
-        resolveScopedCall qname funName scopes importSigs callPos argInfos =
+        resolveScopedCall qname funName scopes importSigs namePos callPos argInfos =
             go scopes Nothing
             where
                 go [] lastErr = case importSigs of
@@ -405,7 +485,9 @@ inferExpr path packages envs e@(Call callee args) = do
                     _ -> do
                         res <- matchInSigs importSigs callPos argInfos
                         case res of
-                            Right t -> pure t
+                            Right sig -> do
+                                recordFunUse namePos (FunImported defaultFunFlags ["toDO import"] sig)
+                                pure $ funReturn sig
                             Left err -> errClass err
                 go (m:rest) lastErr = do
                     let sigs = lookupFun qname [m]
@@ -414,7 +496,9 @@ inferExpr path packages envs e@(Call callee args) = do
                     else do
                         res <- matchInSigs sigs callPos argInfos
                         case res of
-                            Right t -> pure t
+                            Right sig -> do
+                                recordFunUse namePos (FunLocal defaultFunFlags funName sig)
+                                pure $ funReturn sig
                             Left err ->
                                 if isAmbiguous err then errClass err
                                 else go rest (Just err)
@@ -423,13 +507,13 @@ inferExpr path packages envs e@(Call callee args) = do
             [FunSig] ->
             [Position] ->
             [(Class, [Position])] ->
-            TypeM (Either ErrorKind Class)
+            TypeM (Either ErrorKind FunSig)
         matchInSigs sigs callPos argInfos =
             case widenedArgs path callPos argInfos sigs of
                 Left err -> pure (Left err)
                 Right (sig, warns) -> do
                     addWarns warns
-                    pure (Right (funReturn sig))
+                    pure (Right sig)
 
         isAmbiguous :: ErrorKind -> Bool
         isAmbiguous (UE.Syntax be) = UE.why be == UE.ambiguousCallMsg
@@ -548,7 +632,7 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
         cState = CC.st cctx
         depth0 = depth cState
         ret0 = tcCurrentReturn c
-        (varCounter', paramVars, paramTypes) = foldl addParam (varCounter cState, Map.empty, Map.empty) params
+        (varCounter', paramVars, paramTypes, paramFlags) = foldl addParam (varCounter cState, Map.empty, Map.empty, Map.empty) params
 
         newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
         cState' = cState {
@@ -561,14 +645,18 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
 
         -- Param bindings shadow outer bindings.
         varTypes' = Map.union paramTypes (tcVarTypes c)
+        varFlags' = Map.union paramFlags (tcVarFlags c)
         funScopes' = Map.empty : tcFunScopes c
 
     put $ c {
         tcCtx = cctx { CC.st = cState' },
         tcVarTypes = varTypes',
+        tcVarFlags = varFlags',
         tcFunScopes = funScopes',
         tcCurrentReturn = Just (normalizeClass retT)
     }
+
+    mapM_ (\(name, (vid, pos)) -> recordVarUseLocal pos name vid) (Map.toList paramVars)
 
     inferBlock path packages envs body
 
@@ -586,17 +674,18 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
         tcCurrentReturn = ret0
     }
     where
-        addParam :: (VarId, Map.Map String (VarId, Position), VarTable) ->
+        addParam :: (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId VarFlags) ->
             (Class, String, [Lex.Token]) ->
-            (VarId, Map.Map String (VarId, Position), VarTable)
-        addParam (vc, m, vt) (t, name, toks) = case toks of
-            [] -> (vc, m, vt)
+            (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId VarFlags)
+        addParam (vc, m, vt, vf) (t, name, toks) = case toks of
+            [] -> (vc, m, vt, vf)
             (tok:_) ->
                 let vid = vc
                     pos = Lex.tokenPos tok
                     m'  = Map.insert name (vid, pos) m
                     vt' = Map.insert vid (normalizeClass t, pos) vt
-                in (succ vc, m', vt')
+                    vf' = Map.insert vid Set.empty vf
+                in (succ vc, m', vt', vf')
 
 
 inferStmt _ _ _ (FunctionT {}) = do
@@ -706,15 +795,18 @@ inferProgmWithCtx ::
     Either [ErrorKind] TypeCtx
 inferProgmWithCtx path packageName stmts st uses typedEnvs =
     let initCtx = TypeCtx {
-            tcCtx = CC.Ctx { st = st, errs = [], varUses = uses },
-            tcVarTypes = Map.empty,
-            tcFunScopes = [Map.empty],
-            tcClassStack = [],
-            tcClassTypeStack = [],
-            tcCurrentReturn = Nothing,
-            tcErrors = [],
-            tcWarnings = []
-        }
+        tcCtx = CC.Ctx { st = st, errs = [], varUses = uses },
+        tcVarTypes = Map.empty,
+        tcVarFlags = Map.empty,
+        tcFunScopes = [Map.empty],
+        tcClassStack = [],
+        tcClassTypeStack = [],
+        tcCurrentReturn = Nothing,
+        tcErrors = [],
+        tcWarnings = [],
+        tcFullVarUses = Map.empty,
+        tcFullVarUsesList = [],
+        tcFullFunUses = Map.empty}
         (_, finalCtx0) = runState (inferStmts path packageName typedEnvs stmts) initCtx
         finalErrs = reverse (tcErrors finalCtx0)
         finalWarns = reverse (tcWarnings finalCtx0)

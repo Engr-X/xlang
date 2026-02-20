@@ -11,8 +11,8 @@ StmtSeq :: { [Statement] }
 
 
 StmtSeqOpt :: { [Statement] }
-    : {- empty -} { [] }
-    | StmtSeq     { reverse $1 }
+    : {- empty -}       { [] }
+    | StmtSeq           { reverse $1 }
     ;
 
 
@@ -53,6 +53,7 @@ FunctionParams :: { [(Class, String, [Token])] }
 
 FunctionBlock :: { Block }
     : Stmt                      { Multiple [$1] }
+    | Sep Stmt                  { Multiple [$2] }
     | ':' Stmt                  { Multiple [$2] }
     ;
 

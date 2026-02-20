@@ -1,8 +1,9 @@
 module IR.TAC where
 
-import Parse.SyntaxTree (Operator, Expression, Statement, Block, Class, Program)
-
-import Data.Maybe (fromMaybe)
+import Data.Map.Strict (Map)
+import Parse.SyntaxTree (Operator, Expression, Statement, Block, Program)
+import Semantic.TypeEnv (FullVarTable, FullFunctionTable)
+import Util.Type (Position)
 
 import qualified Parse.SyntaxTree as AST
 
@@ -89,7 +90,7 @@ expandStmt (AST.For (mi, mc, ms) body tokFor) =
         (ssi, mi') = expandMaybeExpr mi
         (_, mc') = expandMaybeExpr mc
         (sss, ms') = expandMaybeExpr ms
-        (AST.Multiple body') = fromMaybe (AST.Multiple []) (fmap expandBlock body)
+        (AST.Multiple body') = maybe (AST.Multiple []) expandBlock body
         bodyFinal = Just $ AST.Multiple (body' ++ sss)
 
     in
@@ -102,6 +103,9 @@ expandStmt (AST.For (mi, mc, ms) body tokFor) =
             let (ss, e') = expandExpr e
             in (ss, Just e')
 
+-- Fallback: leave other statements unchanged for now.
+expandStmt s = [s]
+
 
 expandBlock :: Block -> Block
 expandBlock (AST.Multiple ss) = AST.Multiple $ concatMap expandStmt ss
@@ -109,6 +113,7 @@ expandBlock (AST.Multiple ss) = AST.Multiple $ concatMap expandStmt ss
 
 data IRAtom
     = Var (String, Int)                           -- local variable
+    | Param Int                                   -- param for function and class
     | BoolC Bool
     | CharC Char
     | Int8C Int
@@ -118,10 +123,12 @@ data IRAtom
     | Float32C Double 
     | Float64C Double 
     | Float128C Rational 
+    deriving (Eq, Show)
 
 
 data IRInstr
-    = IAssign IRAtom IRAtom                         -- dst = src (move/copy)
+    = Jump Int                                      -- jump to intId
+    | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
     | IBinary IRAtom Operator IRAtom IRAtom         -- dst = x op y
 
@@ -131,3 +138,27 @@ data IRInstr
 
     | IGetStatic IRAtom [String]                    -- dst = C.f
     | IPutStatic [String] IRAtom                    -- C.f = v
+    deriving (Eq, Show)
+
+
+-- | TAC-level statement.
+data IRStmt
+    = IRInstr IRInstr
+    | IRIf IRAtom IRBlock IRBlock
+    | IRWhile IRAtom IRBlock
+    | IRReturn (Maybe IRAtom)
+    | IRBreak
+    | IRContinue
+    deriving (Eq, Show)
+
+-- | A basic block of IR statements.
+newtype IRBlock = IRBlock [IRStmt]
+    deriving (Eq, Show)
+
+-- | Whole program in IR.
+newtype IRProgm = IRProgm [IRStmt]
+    deriving (Eq, Show)
+
+
+tacGen :: Program -> Map Position FullVarTable -> Map Position FullFunctionTable -> IRInstr
+tacGen = error "TODO"

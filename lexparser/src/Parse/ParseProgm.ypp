@@ -13,6 +13,7 @@ import Util.Type (Path, defaultPosition)
 
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
+import qualified Util.FileHelper as FileHelper
 }
 
 %name parseProgm ProgramEOF
@@ -120,4 +121,13 @@ lexparseProgm p str =
 -- |  used for debug version
 replLexparseProgm :: String -> Either [ErrorKind] Program
 replLexparseProgm = lexparseProgm "stdin"
+
+
+-- | Debug helper: read a file and parse it as a program.
+fileLexparseProgm :: Path -> IO (Either [ErrorKind] Program)
+fileLexparseProgm p = do
+    result <- FileHelper.readFile p
+    case result of
+        Left err -> pure (Left [err])
+        Right code -> pure (lexparseProgm p code)
 }

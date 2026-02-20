@@ -108,7 +108,7 @@ lookupVarId name st = listToMaybe $ mapMaybe (Map.lookup name . sVars) (scope st
 data ImportEnv = IEnv  {
     file :: Path,                                -- ^ File path being checked.
     iVars :: Map QName [Position],               -- ^ Imported vars by qname.
-    iFuncs :: Map QName [Position]                -- ^ Imported funcs by qname + arg types.
+    iFuncs :: Map QName [Position]               -- ^ Imported funcs by qname + arg types.
 }
     deriving (Eq, Show)
 

@@ -81,12 +81,16 @@ mkTypeCtx :: CheckState -> Map.Map Position VarId -> VarTable -> [FunTable] -> T
 mkTypeCtx st uses vts funScopes = TypeCtx {
     tcCtx = CC.Ctx { CC.st = st, CC.errs = [], CC.varUses = uses },
     tcVarTypes = vts,
+    tcVarFlags = Map.empty,
     tcFunScopes = funScopes,
     tcClassStack = [],
     tcClassTypeStack = [],
     tcCurrentReturn = Nothing,
     tcErrors = [],
-    tcWarnings = []
+    tcWarnings = [],
+    tcFullVarUses = Map.empty,
+    tcFullVarUsesList = [],
+    tcFullFunUses = Map.empty
 }
 
 

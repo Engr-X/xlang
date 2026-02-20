@@ -503,5 +503,5 @@ fileTokenize p = do
 
     case result of
         Left e -> return ([e], [])
-        Right code -> return $ tokenize p code
+        Right code -> return $ tokenizeWithNL p code
 }
