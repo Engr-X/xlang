@@ -142,7 +142,7 @@ typeMismatchMsg expected actual = concat["type mismatch: expected ", expected, "
 
 -- | condition expression must be bool
 conditionBoolMsg :: String -> String
-conditionBoolMsg actual = concat ["condition must be bool, got ", actual]
+conditionBoolMsg actual = "condition must be bool, got " ++ actual
 
 
 -- | possible overflow warning message for casts
@@ -170,6 +170,10 @@ breakCtrlErrorMsg = "`break` can only be used inside a loop or a case"
 -- | invalid position for return control flow
 returnCtrlErrorMsg :: String
 returnCtrlErrorMsg = "`return` can only be used inside a function"
+
+-- | Expecting a top level declaration (Kotlin-style message).
+expectTopLevelDeclMsg :: String
+expectTopLevelDeclMsg = "Expecting a top level declaration."
 
 -- | Missing return statement in a non-void function.
 missingReturnMsg :: String -> String
@@ -241,7 +245,7 @@ data Warning = Null
     | ImplicitCast BasicWarning
     | OverflowWarning BasicWarning
     | UnderflowWarning BasicWarning
-    deriving (Show)
+    deriving (Eq, Show)
 
 
 -- | Convert an 'ErrorKind' to a numeric error code.

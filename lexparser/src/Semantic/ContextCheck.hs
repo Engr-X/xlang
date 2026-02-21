@@ -9,7 +9,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, expectTopLevelDeclMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -39,6 +39,11 @@ hasAssign = go
     go (AST.BoolConst _ _) = False
     go (AST.Variable _ _) = False
     go (AST.Qualified _ _) = False
+
+-- | True if an expression is a plain assignment (used for top-level declarations).
+isTopLevelAssign :: Expression -> Bool
+isTopLevelAssign (AST.Binary AST.Assign _ _ _) = True
+isTopLevelAssign _ = False
 
 
 data Ctx = Ctx {
@@ -267,7 +272,13 @@ checkStmt p package envs (AST.Command cmd token) = do
         AST.Return mExpr ->
             if isReturnValid ctrls then let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] returnCtrlErrorMsg
-checkStmt p package envs (AST.Expr e) = checkExpr p package envs e
+checkStmt p package envs (AST.Expr e) = do
+    c <- get
+    let cState = st c
+        isTopLevel = depth cState == 0 && null (ctrlStack cState)
+    if isTopLevel && not (isTopLevelAssign e)
+        then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) expectTopLevelDeclMsg
+        else checkExpr p package envs e
 
 -- block
 checkStmt p package envs stmt@(AST.BlockStmt block) = do

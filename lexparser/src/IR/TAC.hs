@@ -1,11 +1,17 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module IR.TAC where
 
+import Control.Monad.State.Strict (State, get, modify)
 import Data.Map.Strict (Map)
-import Parse.SyntaxTree (Operator, Expression, Statement, Block, Program)
-import Semantic.TypeEnv (FullVarTable, FullFunctionTable)
+import Parse.SyntaxTree (Operator, Expression, Statement, Block, Class)
+import Parse.ParserBasic (AccessModified(..))
+import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
+import Util.Exception (Warning)
 
 import qualified Parse.SyntaxTree as AST
+import qualified Data.Map.Strict as Map
 
 
 -- Expand an expression into: (prefix statements, residual expression).
@@ -111,8 +117,70 @@ expandBlock :: Block -> Block
 expandBlock (AST.Multiple ss) = AST.Multiple $ concatMap expandStmt ss
 
 
+-- | TAC variable versions for a source-level variable.
+--   Key: (name, varId). Each assignment can create a new version like a0$0, a0$1...
+--   Value: stack of (Class, versionIndex). Stack is used because newer versions
+--   shadow older ones, and we can pop when leaving a scope.
+type VarKey = (String, Int)
+type VarStack = [(Class, Int)]
+type VarStackMap = Map VarKey VarStack
+
+data TACState = TACState {
+    tacVarStacks :: VarStackMap,
+    tacVarUses :: Map Position FullVarTable,
+    tacFunUses :: Map Position FullFunctionTable,
+    tacWarnings :: [Warning]
+} deriving (Eq, Show)
+
+
+newtype TACM a = TACM { runTACM :: State TACState a }
+    deriving (Functor, Applicative, Monad)
+
+
+mkTACState :: Map Position FullVarTable -> Map Position FullFunctionTable -> TACState
+mkTACState vUses fUses = TACState {
+    tacVarStacks = Map.empty,
+    tacVarUses = vUses,
+    tacFunUses = fUses,
+    tacWarnings = []
+}
+
+
+-- | Append a warning emitted during TAC lowering.
+addWarn :: Warning -> TACM ()
+addWarn w = TACM $ modify $ \st -> st { tacWarnings = w : tacWarnings st }
+
+
+-- | Get variable usage info by source position (must exist).
+getVar :: Position -> TACM FullVarTable
+getVar pos = TACM $ do
+    st <- get
+    case Map.lookup pos (tacVarUses st) of
+        Just v -> pure v
+        Nothing -> error ("getVar: no var info at " ++ show pos)
+
+
+-- | Get function usage info by source position (must exist).
+getFunction :: Position -> TACM FullFunctionTable
+getFunction pos = TACM $ do
+    st <- get
+    case Map.lookup pos (tacFunUses st) of
+        Just f -> pure f
+        Nothing -> error ("getFunction: no function info at " ++ show pos)
+
+
+-- | Lookup the current (top) version info for a var key.
+peekVarStack :: VarKey -> TACM (Maybe (Class, Int))
+peekVarStack key = TACM $ do
+    st <- get
+    let stacks = tacVarStacks st
+    pure $ case Map.lookup key stacks of
+        Just (x:_) -> Just x
+        _ -> Nothing
+
+
 data IRAtom
-    = Var (String, Int)                           -- local variable
+    = Var (String, Int, Int)                      -- name, varId, versionIndex
     | Param Int                                   -- param for function and class
     | BoolC Bool
     | CharC Char
@@ -128,37 +196,77 @@ data IRAtom
 
 data IRInstr
     = Jump Int                                      -- jump to intId
+    | ConJump IRAtom Int Int                        -- condition Jump by condition
     | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
     | IBinary IRAtom Operator IRAtom IRAtom         -- dst = x op y
 
     -- for class
-    | IGetField  IRAtom IRAtom [String]             -- dst = obj.f
-    | IPutField  IRAtom [String] IRAtom             -- obj.f = v
+    | IGetField IRAtom IRAtom [String]              -- dst = obj.f
+    | IPutField IRAtom [String] IRAtom              -- obj.f = v
 
     | IGetStatic IRAtom [String]                    -- dst = C.f
     | IPutStatic [String] IRAtom                    -- C.f = v
     deriving (Eq, Show)
 
 
+-- | A basic block of IR statements.
+newtype IRBlock = IRBlock (Int, [IRStmt])
+    deriving (Eq, Show)
+
+
 -- | TAC-level statement.
 data IRStmt
     = IRInstr IRInstr
-    | IRIf IRAtom IRBlock IRBlock
-    | IRWhile IRAtom IRBlock
-    | IRReturn (Maybe IRAtom)
-    | IRBreak
-    | IRContinue
+    | IRBlockStmt IRBlock -- for branch
     deriving (Eq, Show)
 
--- | A basic block of IR statements.
-newtype IRBlock = IRBlock [IRStmt]
+
+-- | Class/struct field: access, type, name.
+data FieldVar
+    = FieldVar
+        AccessModified -- ^ access modifier
+        Class          -- ^ field type
+        String         -- ^ field name
+    deriving (Eq, Show)
+
+type AttributeVar = FieldVar
+
+-- | Method signature: access, name, signature.
+data FieldFun
+    = FieldFun
+        AccessModified -- ^ access modifier
+        String         -- ^ method name
+        FunSig         -- ^ method signature
+    deriving (Eq, Show)
+
+type AttributeFun = FieldFun
+
+-- | Function definition: access, name, signature, body.
+data IRFunction
+    = IRFunction
+        AccessModified -- ^ access modifier
+        String         -- ^ function name
+        FunSig         -- ^ function signature
+        [IRStmt]       -- ^ function body
+    deriving (Eq, Show)
+
+-- | Static initializer body statements.
+newtype StaticInit
+  = StaticInit [IRStmt]
+  deriving (Eq, Show)
+ 
+-- | Class definition: name, static init, methods.
+data IRClass
+    = IRClass
+        String        -- ^ class name
+        StaticInit    -- ^ static initializer
+        [IRFunction]  -- ^ methods
     deriving (Eq, Show)
 
 -- | Whole program in IR.
-newtype IRProgm = IRProgm [IRStmt]
+data IRProgm
+    = IRProgm
+        [String]  -- ^ package segments (if any)
+        [IRClass] -- ^ top-level classes
     deriving (Eq, Show)
-
-
-tacGen :: Program -> Map Position FullVarTable -> Map Position FullFunctionTable -> IRInstr
-tacGen = error "TODO"

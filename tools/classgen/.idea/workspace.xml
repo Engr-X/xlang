@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/../../lexparser/lexparser.cabal" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/lexparser.cabal" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParserBasic.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Parse/ParserBasic.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/ContextCheck.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Semantic/ContextCheck.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Util/Exception.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Util/Exception.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/codeStyles/Project.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/gradle.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/kotlinc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/gradle.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/gradlew" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/gradlew.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../java-inspector/src/main/kotlin/Main.kt" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Kotlin File" />
+        <option value="Kotlin Enum" />
+        <option value="Kotlin Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\Murphy\.gradle\wrapper\dists\gradle-8.14-bin\38aieal9i53h9rfe7vjup95b9\gradle-8.14" javaHome="D:\Coding\compilers\jdk-17.0.10" gradleVersion="8.14" />
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="39z1GknzcRVBVXlj6q8zSnlx3ns" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Gradle.classgen [:com.wangdi.classgen.ClassGeneratorKt.main()].executor": "Run",
+    "Gradle.classgen [:com.wangdi.classgen.GenSquare.main()].executor": "Run",
+    "Gradle.下载源代码.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "D:/Coding/projects/Mixed/xlang/tools/classgen",
+    "project.structure.last.edited": "项目",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
+      <recent name="com.wangdi.classgen.base" />
+      <recent name="com.wangdi.classgen.artifact" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Kotlin.GenSquare">
+    <configuration name="GenSquare" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.GenSquare" />
+      <module name="java-inspector.main" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="classgen" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="MainKt" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.MainKt" />
+      <module name="java-inspector.main" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="classgen" />
+      <option name="filePath" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="classgen" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <module name="classgen" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Kotlin.GenSquare" />
+        <item itemvalue="Kotlin.MainKt" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-30f59d01ecdd-cffe25b9f5b3-intellij.indexing.shared.core-IU-253.28294.334" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="" />
+      <created>1771683992201</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1771683992201</updated>
+    </task>
+    <servers />
+  </component>
+</project>

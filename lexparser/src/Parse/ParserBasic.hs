@@ -12,6 +12,10 @@ import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
 
 
+data AccessModified = Private | Protected | Public
+    deriving (Eq, Show)
+
+
 -- Convert a qualified name to an expression.
 -- A single segment is treated as a Variable; otherwise Qualified.
 qnameToExpr :: ([String], [Token]) -> Expression

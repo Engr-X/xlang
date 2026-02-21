@@ -105,6 +105,7 @@ library
             Semantic.SemanticCheck
 
             IR.TAC
+            IR.TACLowing
     
             Util.Basic
             Util.Type

@@ -30,8 +30,7 @@ banPrevSet = HashSet.fromList [
     Lex.LParen, Lex.LBracket, Lex.LBrace,
 
     Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.FatArrow,
-    Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot
-  ]
+    Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot]
 
 
 banNextSet :: HashSet Lex.Symbol
@@ -49,8 +48,7 @@ banNextSet = HashSet.fromList [
     Lex.LParen, Lex.LBracket, Lex.RBrace,
 
     Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.FatArrow,
-    Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot
-  ]
+    Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot]
 
 
 {-# INLINE banPrev #-}
