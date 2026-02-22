@@ -131,6 +131,11 @@ cannotAssignMsg :: String -> String
 cannotAssignMsg s = concat ["\"", s, "\" cannot be assigned"]
 
 
+-- | cannot assign to 'this'
+thisAssignMsg :: String
+thisAssignMsg = "`this` cannot be assigned"
+
+
 -- | implicit cast warning message
 implicitCastMsg :: String -> String -> String
 implicitCastMsg fromT toT = concat ["implicit cast: ", fromT, " to ", toT]
@@ -174,6 +179,10 @@ returnCtrlErrorMsg = "`return` can only be used inside a function"
 -- | Expecting a top level declaration (Kotlin-style message).
 expectTopLevelDeclMsg :: String
 expectTopLevelDeclMsg = "Expecting a top level declaration."
+
+-- | Invalid expression statement (only statement-expressions are allowed).
+invalidExprStmtMsg :: String
+invalidExprStmtMsg = "invalid expression statement: expected assignment, call, or ++/--"
 
 -- | Missing return statement in a non-void function.
 missingReturnMsg :: String -> String

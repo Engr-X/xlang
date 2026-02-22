@@ -48,12 +48,12 @@ dumpFullUseMapsFromFile path = do
                         fLines = renderFunEntries (TC.tcFullFunUses ctx)
                     in pure $ unlines (["[Vars]"] ++ vLines ++ ["[Funs]"] ++ fLines)
     where
-        renderVarEntries :: [(Position, FullVarTable)] -> [String]
+        renderVarEntries :: [([Position], FullVarTable)] -> [String]
         renderVarEntries entries =
             let sorted = sortOn fst entries
             in map renderVarEntry sorted
 
-        renderVarEntry :: (Position, FullVarTable) -> String
+        renderVarEntry :: ([Position], FullVarTable) -> String
         renderVarEntry (pos, entry) = case entry of
             VarLocal flags name vid ->
                 let flagS = renderFlags flags
@@ -62,17 +62,17 @@ dumpFullUseMapsFromFile path = do
             VarImported cls qname ->
                 concat [prettyQName qname, "(", show pos, "): ", prettyClass cls]
 
-        renderFunEntries :: Map Position FullFunctionTable -> [String]
+        renderFunEntries :: Map [Position] FullFunctionTable -> [String]
         renderFunEntries mp =
             let entries = sortOn fst (Map.toList mp)
             in map renderFunEntry entries
 
-        renderFunEntry :: (Position, FullFunctionTable) -> String
+        renderFunEntry :: ([Position], FullFunctionTable) -> String
         renderFunEntry (pos, entry) = case entry of
             FunLocal flags name sig -> formatFun flags name sig pos
             FunImported flags qname sig -> formatFun flags (prettyQName qname) sig pos
 
-        formatFun :: VarFlags -> String -> FunSig -> Position -> String
+        formatFun :: VarFlags -> String -> FunSig -> [Position] -> String
         formatFun flags name sig pos =
             let retS = prettyClass (funReturn sig)
                 paramS = intercalate ", " (map prettyClass (funParams sig))

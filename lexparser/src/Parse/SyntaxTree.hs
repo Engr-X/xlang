@@ -565,6 +565,21 @@ isVariable (Qualified _ _) = True
 isVariable _ = False
 
 
+-- Check a expression is an atom or not
+isAtom :: Expression -> Bool
+isAtom (IntConst _ _) = True
+isAtom (LongConst _ _) = True
+isAtom (FloatConst _ _) = True
+isAtom (DoubleConst _ _) = True
+isAtom (LongDoubleConst _ _) = True
+isAtom (CharConst _ _) = True
+isAtom (StringConst _ _) = True
+isAtom (BoolConst _ _) = True
+isAtom (Variable _ _) = True
+isAtom (Qualified _ _) = True
+isAtom _ = False
+
+
 -- Extract payload from tokens (used by parser actions). for identity name
 identText :: Token -> String
 identText (Lex.Ident s _) = s

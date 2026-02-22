@@ -195,6 +195,15 @@ unaryOpInfer = foldr Map.union Map.empty [unaryArithmetic, unaryIncDec, unaryBit
                 _ -> cls
 
 
+-- | Infer result type for a unary operator on a basic type.
+--   Throws an error if the operator/type combination is unsupported.
+inferUnaryOp :: Operator -> Class -> Class
+inferUnaryOp op cls =
+    case Map.lookup (op, cls) unaryOpInfer of
+        Just resT -> resT
+        Nothing -> error $ "unsupported unary operator: " ++ show op ++ " on " ++ prettyClass cls
+
+
 -- | Inference table for binary operators over basic types.
 --   Built by merging the per-operator maps defined below.
 --   Assignment operators are handled elsewhere.
@@ -235,7 +244,7 @@ binOpInfer = foldr Map.union Map.empty [loadCompare, loadShift, loadBitOp, arith
         loadBitOp =
             let op = [BitOr, BitXor, BitXnor, BitAnd]
                 res = liftA3 (,,) op narrowIntegerTypes narrowIntegerTypes
-            in Map.fromList $ map (\x@(_, a, b) -> (x, promoteBasicType a b)) res ++ 
+            in Map.fromList $ map (\x@(_, a, b) -> (x, promoteBasicType a b)) res ++
                 map (\x -> ((x, Bool, Bool), Bool)) op
 
         -- | Build rules for +, -, *, **, /.
@@ -258,3 +267,12 @@ binOpInfer = foldr Map.union Map.empty [loadCompare, loadShift, loadBitOp, arith
         modOp :: Map (Operator, Class, Class) Class
         modOp = let res = liftA3 (,,) [Mod] generalIntegerTypes generalIntegerTypes
             in Map.fromList $ map (\x@(_, a, b) -> (x, promoteBasicType a b)) res
+
+
+-- | Infer result type for a binary operator on basic types.
+--   Throws an error if the operator/type combination is unsupported.
+inferBinaryOp :: Operator -> Class -> Class -> Class
+inferBinaryOp op t1 t2 =
+    case Map.lookup (op, t1, t2) binOpInfer of
+        Just resT -> resT
+        Nothing -> error $ "unsupported binary operator: " ++ show op ++ " on " ++ prettyClass t1 ++ ", " ++ prettyClass t2

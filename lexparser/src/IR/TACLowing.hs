@@ -7,16 +7,19 @@ import Data.Bits ((.&.))
 import Data.Map.Strict (Map)
 import Text.Read (readMaybe)
 import Data.Maybe (listToMaybe)
+import Data.Foldable (foldrM)
 import Numeric (readHex)
+
 import Lex.Token (tokenPos)
-import Parse.SyntaxTree (Program, Expression)
+import Parse.SyntaxTree (Program, Expression, Statement)
+import Semantic.OpInfer (inferUnaryOp, inferBinaryOp)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable)
+import IR.TAC (IRInstr(..), IRAtom, TACM(..), IRStmt(..), newSubCVar, getVar, peekVarStack, getAtomType)
 import Util.Exception (Warning(..))
 import Util.Type (Path, Position)
 
-import IR.TAC (IRInstr, IRAtom, TACM(..))
-
 import qualified Parse.SyntaxTree as AST
+import qualified Semantic.TypeEnv as TEnv
 import qualified IR.TAC as TAC
 import qualified Util.Exception as UE
 
@@ -85,8 +88,7 @@ wrapInt (minI, maxI) n =
 -- | Safe read for integer literals with overflow warning and wrap-around.
 safeInteger :: Position -> (Integer, Integer) -> String -> TACM Integer
 safeInteger pos (minI, maxI) raw = do
-    let range = maxI - minI + 1
-        wrap = wrapInt (minI, maxI)
+    let wrap = wrapInt (minI, maxI)
         warn msg = TAC.addWarn $ OverflowWarning (UE.makeError tacWarnPath [pos] msg)
     case readIntegerLiteral raw of
         Nothing -> error "this string must be valid any how"
@@ -138,30 +140,166 @@ safeDouble pos (minD, maxD) raw = do
 
 -- | Lower a single expression into a TAC atom.
 --   Use lookupVarUse / lookupFunUse when you need resolved ids/types.
-exprLowing :: Expression -> TACM IRAtom
-exprLowing (AST.Error _ _) = error "this error is catching in semantic already"
-exprLowing (AST.IntConst value tok) = do
+atomLowing :: Expression -> TACM ([IRInstr], IRAtom)
+atomLowing (AST.Error _ _) = error "this error is catching in semantic already"
+
+atomLowing (AST.IntConst value tok) = do
     v <- safeInteger (tokenPos tok) int32Range value
-    pure $ TAC.Int32C (fromInteger v)
-exprLowing (AST.LongConst value tok) = do
+    pure ([], TAC.Int32C (fromInteger v))
+atomLowing (AST.LongConst value tok) = do
     v <- safeInteger (tokenPos tok) int64Range value
-    pure $ TAC.Int64C (fromInteger v)
-exprLowing (AST.FloatConst value tok) = do
+    pure ([], TAC.Int64C (fromInteger v))
+atomLowing (AST.FloatConst value tok) = do
     v <- safeDouble (tokenPos tok) float32Range value
-    pure $ TAC.Float32C v
-exprLowing (AST.DoubleConst value tok) = do
+    pure ([], TAC.Float32C v)
+atomLowing (AST.DoubleConst value tok) = do
     v <- safeDouble (tokenPos tok) float64Range value
-    pure $ TAC.Float64C v
-exprLowing (AST.LongDoubleConst value tok) = do
+    pure ([], TAC.Float64C v)
+atomLowing (AST.LongDoubleConst value tok) = do
     v <- safeRational (tokenPos tok) float128Range value
-    pure $ TAC.Float128C v
+    pure ([], TAC.Float128C v)
     
-exprLowing (AST.CharConst value _) = pure $ TAC.CharC value
-exprLowing (AST.BoolConst value _) = pure $ TAC.BoolC value
-exprLowing (AST.StringConst _ _) = error "string literal is not supported in TAC"
+atomLowing (AST.CharConst value _) = pure ([], TAC.CharC value)
+atomLowing (AST.BoolConst value _) = pure ([], TAC.BoolC value)
+atomLowing (AST.StringConst _ _) = error "string literal is not supported in TAC"
 
---exprLowing
+atomLowing (AST.Variable _ tok) = do
+    let pos = tokenPos tok
+    vinfo <- getVar [pos]
+    case vinfo of
+        -- 本地变量：取 VarId + 当前版本
+        TEnv.VarLocal _ realName vid -> do
+            (_, ver) <- peekVarStack (realName, vid)
+            return ([], TAC.Var (realName, vid, ver))
+
+        -- 导入变量
+        TEnv.VarImported clazz qname -> do
+            nAtom <- newSubCVar clazz
+            return ([IGetStatic nAtom qname], nAtom)
+
+atomLowing (AST.Qualified _ tokens) = do
+    vinfo <- getVar (map tokenPos tokens)
+    case vinfo of
+        TEnv.VarImported clazz varName -> do
+            nAtom <- newSubCVar clazz
+            return ([IGetStatic nAtom varName], nAtom)
+        _ -> error "qualified name is not an imported variable"
+
+atomLowing _ = error "other type is not allowed for IR atom"
 
 
-tacGen :: Path -> Program -> Map Position FullVarTable -> Map Position FullFunctionTable -> IRInstr
-tacGen = error "TODO"
+castIfNeeded :: AST.Class -> IRAtom -> AST.Class -> TACM ([IRInstr], IRAtom)
+castIfNeeded from atom to
+    | from == to = return ([], atom)
+    | otherwise = do
+        castAtom <- newSubCVar to
+        return ([TAC.ICast castAtom (from, to) atom], castAtom)
+
+-- return instruction and output atom eg: a = a + b => a1 = a0 + b0 return a1
+-- warning [IRInstr] is reversed!
+exprLowing :: Expression -> TACM ([IRInstr], IRAtom)
+exprLowing (AST.Cast (toClass, _) inner _) = do
+    (instrs, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    fromClass <- getAtomType oAtom
+    nAtom <- newSubCVar toClass
+    return (TAC.ICast nAtom (fromClass, toClass) oAtom : instrs, nAtom)
+
+exprLowing (AST.Unary op inner _) = do
+    (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    fromClass <- getAtomType oAtom
+    let toClass = inferUnaryOp op fromClass
+
+    if fromClass == toClass then do
+        nAtom <- newSubCVar toClass
+        return (IUnary nAtom op oAtom : instr, nAtom)
+    else do
+        (castInstrs, castAtom) <- castIfNeeded fromClass oAtom toClass
+        nAtom <- newSubCVar toClass
+        return (IUnary nAtom op castAtom : castInstrs ++ instr, nAtom)
+
+exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
+    let pos = tokenPos tok
+    vinfo <- getVar [pos]
+    case vinfo of
+        TEnv.VarLocal _ realName vid -> do
+            let key = (realName, vid)
+            oldCur <- TAC.getCurrentVar
+            
+            TAC.setCurrentVar (Just key)
+            (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+            clazz <- getAtomType rhsAtom
+            lhsAtom <- newSubCVar clazz
+
+            TAC.setCurrentVar oldCur
+            return (IAssign lhsAtom rhsAtom : instrs, lhsAtom)
+        TEnv.VarImported _ qname -> do
+            (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+            return (IPutStatic qname rhsAtom : instrs, rhsAtom)
+
+-- TODO for class
+exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
+    case names of
+        ("this":_) -> error "TODO: assign to this.field is not supported yet"
+        _ -> do
+            vinfo <- getVar (map tokenPos toks)
+            case vinfo of
+                TEnv.VarImported _ qname -> do
+                    (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+                    return (IPutStatic qname rhsAtom : instrs, rhsAtom)
+                _ -> error "assign lhs is not an imported qualified name"
+
+
+exprLowing (AST.Binary AST.Assign _ _ _) = error "cannot be assign in his case. the error should be catched in context check"
+
+
+exprLowing (AST.Binary op e1 e2 _) = do
+    (instr1, oAtom1) <- if AST.isAtom e1 then atomLowing e1 else exprLowing e1
+    (instr2, oAtom2) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+    fromClass1 <- getAtomType oAtom1
+    fromClass2 <- getAtomType oAtom2
+    let toClass = inferBinaryOp op fromClass1 fromClass2
+
+    (cast1Instrs, atom1') <- castIfNeeded fromClass1 oAtom1 toClass
+    (cast2Instrs, atom2') <- castIfNeeded fromClass2 oAtom2 toClass
+    nAtom <- newSubCVar toClass
+    return (IBinary nAtom op atom1' atom2' : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
+
+exprLowing (AST.Call funName params) = do
+    (argInstrs, argAtoms) <- lowerArgs params
+    
+    funInfo <- case funName of
+        AST.Variable _ tok -> TAC.getFunction [tokenPos tok]
+        AST.Qualified _ toks -> TAC.getFunction (map tokenPos toks)
+        _ -> error "call target is not a function name"
+
+    case funInfo of
+        TEnv.FunLocal _ name sig -> do
+            let retT = TEnv.funReturn sig
+            dst <- newSubCVar retT
+            return (ICall dst name argAtoms : argInstrs, dst)
+        TEnv.FunImported _ qname sig -> do
+            let retT = TEnv.funReturn sig
+            dst <- newSubCVar retT
+            return (ICallStatic dst qname argAtoms : argInstrs, dst)
+    where
+        lowerArgs :: [Expression] -> TACM ([IRInstr], [IRAtom])
+        lowerArgs = foldrM step ([], [])
+            where
+                step :: Expression -> ([IRInstr], [IRAtom]) -> TACM ([IRInstr], [IRAtom])
+                step p (instrsRest, atomsRest) = do
+                    (instrsP, atomP) <- if AST.isAtom p then atomLowing p else exprLowing p
+                    return (instrsRest ++ instrsP, atomP : atomsRest)
+
+exprLowing (AST.CallT {}) = error "template is not support!"
+
+exprLowing _ = error "other type is not support for IR ast"
+
+
+
+stmtLowing :: Statement -> TACM [IRStmt]
+stmtLowing (AST.Expr e) = do
+    (instrs, _) <- exprLowing e
+    return $ map IRInstr (reverse instrs)
+
+stmtLowing (AST.BlockStmt (AST.Multiple stmts)) = 
+    fmap concat (mapM stmtLowing stmts)

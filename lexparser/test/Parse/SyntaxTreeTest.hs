@@ -228,6 +228,17 @@ isVariableTests = testGroup "Parse.SyntaxTree.isVariable" $ map (\(i, inp, out) 
             dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
 
 
+isAtomTests :: TestTree
+isAtomTests = testGroup "Parse.SyntaxTree.isAtom" $ map (\(i, inp, out) -> testCase i $ isAtom inp @=? out) [
+    ("0", IntConst "1" dummyTok, True),
+    ("1", Qualified ["java","lang","Math"] [dummyTok], True),
+    ("2", Unary UnaryMinus (IntConst "1" dummyTok) dummyTok, False),
+    ("3", Call (Variable "f" dummyTok) [IntConst "1" dummyTok], False)]
+        where
+            dummyTok :: Token
+            dummyTok = Lex.Ident "<test>" (makePosition 0 0 0)
+
+
 identTextTests :: TestTree
 identTextTests = testGroup "Parse.ParserBasic.identText" $ map (\(i, inp, out) -> testCase i $ identText inp @=? out) [
     ("0", Lex.Ident "a" (makePosition 1 1 1), "a"),
@@ -525,7 +536,7 @@ tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests,
 
-    getErrorProgramTests, isVariableTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
+    getErrorProgramTests, isVariableTests, isAtomTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
     

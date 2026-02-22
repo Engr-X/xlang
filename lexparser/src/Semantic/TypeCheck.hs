@@ -7,10 +7,11 @@ import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing)
+import Data.Foldable (for_)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (augAssignOp, binOpInfer, iCast, isBasicType, unaryOpInfer, widenedArgs)
+import Semantic.OpInfer (augAssignOp, iCast, inferBinaryOp, inferUnaryOp, isBasicType, widenedArgs)
 import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarFlag(..), VarFlags, FunFlags, VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -49,9 +50,9 @@ data TypeCtx = TypeCtx {
     
     tcErrors :: [ErrorKind],
     tcWarnings :: [Warning],
-    tcFullVarUses :: Map Position FullVarTable,
-    tcFullVarUsesList :: [(Position, FullVarTable)],
-    tcFullFunUses :: Map Position FullFunctionTable
+    tcFullVarUses :: Map [Position] FullVarTable,
+    tcFullVarUsesList :: [([Position], FullVarTable)],
+    tcFullFunUses :: Map [Position] FullFunctionTable
 } deriving (Show)
 
 
@@ -73,7 +74,7 @@ addWarn :: Warning -> TypeM ()
 addWarn w = modify $ \c -> c { tcWarnings = w : tcWarnings c }
 
 -- | Record a resolved variable use.
-recordVarUse :: Position -> FullVarTable -> TypeM ()
+recordVarUse :: [Position] -> FullVarTable -> TypeM ()
 recordVarUse pos entry =
     modify $ \c -> c {
         tcFullVarUses = Map.insert pos entry (tcFullVarUses c),
@@ -81,7 +82,7 @@ recordVarUse pos entry =
     }
 
 -- | Record a resolved function call.
-recordFunUse :: Position -> FullFunctionTable -> TypeM ()
+recordFunUse :: [Position] -> FullFunctionTable -> TypeM ()
 recordFunUse pos entry =
     modify $ \c -> c { tcFullFunUses = Map.insert pos entry (tcFullFunUses c) }
 
@@ -110,7 +111,7 @@ recordVarUseLocal :: Position -> String -> VarId -> TypeM ()
 recordVarUseLocal pos name vid = do
     c <- get
     let flags = Map.findWithDefault Set.empty vid (tcVarFlags c)
-    recordVarUse pos (VarLocal flags name vid)
+    recordVarUse [pos] (VarLocal flags name vid)
 
 
 -- | Check type compatibility and emit implicit-cast warnings when allowed.
@@ -233,9 +234,7 @@ inferExpr path packages envs (Variable str tok) = do
         -- 优先通过 ContextCheck 记录的 VarId 查找本地变量。
         case mVidAtPos >>= lookupByVid of
             Just t -> do
-                case mVidAtPos of
-                    Just vid -> recordVarUseLocal pos str vid
-                    Nothing -> pure ()
+                for_ mVidAtPos (recordVarUseLocal pos str)
                 pure t
             Nothing -> do
                 -- 兜底：按当前 TypeCheck 作用域用名字解析一次，避免 VarId 不一致导致崩溃。
@@ -250,7 +249,7 @@ inferExpr path packages envs (Variable str tok) = do
                         case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
                             -- 在导入环境中找到变量类型。
                             Just (t, _) -> do
-                                recordVarUse pos (VarImported t ["toDO import"])
+                                recordVarUse [pos] (VarImported t ["toDO import"])
                                 pure t
 
                             -- 理论上应在 ContextCheck 阶段报错。
@@ -260,8 +259,7 @@ inferExpr path _ envs (Qualified names toks) = do
     c <- get
     let posAll = map Lex.tokenPos toks
     let posHead = head posAll
-    let posLast = last posAll
-    let TypeCtx{tcVarTypes = vts} = c
+    let TypeCtx { tcVarTypes = vts } = c
     case names of
         -- 只有 `this` -> 解析为当前类的类型。
         ["this"] -> inferThis path posHead
@@ -273,7 +271,7 @@ inferExpr path _ envs (Qualified names toks) = do
         -- 1) 先按导入/包的限定名查找。
         _ -> case getImportedVarType names envs of
             Just t -> do
-                recordVarUse posLast (VarImported t ["toDO import"])
+                recordVarUse posAll (VarImported t ["toDO import"])
                 pure t
 
             -- 2) 否则把头部当变量，再处理成员访问。
@@ -318,11 +316,9 @@ inferExpr path packages envs e@(Unary op innerE _) = do
     t0 <- inferExpr path packages envs innerE
     let pos = map Lex.tokenPos (exprTokens e)
     if isBasicType t0 then
-        case Map.lookup (op, t0) unaryOpInfer of
-            Just resT -> do
-                mapM_ addWarn (iCast path pos t0 resT)
-                pure resT
-            Nothing -> error "TODO: unary operator not supported for this type"
+        let resT = inferUnaryOp op t0 in do
+            mapM_ addWarn (iCast path pos t0 resT)
+            pure resT
     else error "TODO: unary on non-basic type"
 
 
@@ -389,13 +385,11 @@ inferExpr path packages envs e@(Binary op lhs rhs _)
         if tLhsN == ErrorClass || tRhsN == ErrorClass then
             pure ErrorClass
         else if isBasicType tLhsN && isBasicType tRhsN then
-            case Map.lookup (baseOp, tLhsN, tRhsN) binOpInfer of
-                Just resT -> do
-                    mapM_ addWarn (iCast path pos tLhsN resT)
-                    mapM_ addWarn (iCast path pos tRhsN resT)
-                    checkTypeCompat path pos tLhsN resT
-                    pure tLhsN
-                Nothing -> error "TODO: binary operator not supported for this type"
+            let resT = inferBinaryOp baseOp tLhsN tRhsN in do
+                mapM_ addWarn (iCast path pos tLhsN resT)
+                mapM_ addWarn (iCast path pos tRhsN resT)
+                checkTypeCompat path pos tLhsN resT
+                pure tLhsN
         else
             error "TODO: binary on non-basic type"
 
@@ -405,12 +399,10 @@ inferExpr path packages envs e@(Binary op e1 e2 _) = do
     t2 <- inferExpr path packages envs e2
     let pos = map Lex.tokenPos (exprTokens e)
     if isBasicType t1 && isBasicType t2 then
-        case Map.lookup (op, t1, t2) binOpInfer of
-            Just resT -> do
-                mapM_ addWarn (iCast path pos t1 resT)
-                mapM_ addWarn (iCast path pos t2 resT)
-                pure resT
-            Nothing -> error "TODO: binary operator not supported for this type"
+        let resT = inferBinaryOp op t1 t2 in do
+            mapM_ addWarn (iCast path pos t1 resT)
+            mapM_ addWarn (iCast path pos t2 resT)
+            pure resT
     else error "TODO: binary on non-basic type"
 
 inferExpr path packages envs e@(Call callee args) = do
@@ -428,7 +420,7 @@ inferExpr path packages envs e@(Call callee args) = do
             let qLocal = [name]
             let qImport = packages ++ [name]
             let importSigs = concatMap (maybe [] fst . Map.lookup qImport . tFuncs) envs
-            resolveScopedCall qLocal name fScopes importSigs (Lex.tokenPos tok) callPos argInfos
+            resolveScopedCall qLocal name fScopes importSigs [Lex.tokenPos tok] callPos argInfos
 
         -- 调用限定名（可能是 this.xxx 或导入函数）。
         Qualified names toks -> case names of
@@ -437,28 +429,28 @@ inferExpr path packages envs e@(Call callee args) = do
                 [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity "this")
                 (ClassDef _ _ classFuns : _) -> do
                     let sigs = Map.findWithDefault (error "this error should be catched in COntextCheck") [fname] classFuns
-                    let namePos = Lex.tokenPos (last toks)
-                    applyMatches callPos namePos fname argInfos (FunLocal defaultFunFlags fname) sigs
+                    let namePoses = map Lex.tokenPos toks
+                    applyMatches callPos namePoses fname argInfos (FunLocal defaultFunFlags fname) sigs
 
             -- 其他限定名 -> 只从导入/包中查找。
             _ -> do
                 let sigs = concatMap (maybe [] fst . Map.lookup names . tFuncs) envs
-                let namePos = Lex.tokenPos (last toks)
-                applyMatches callPos namePos (intercalate "." names) argInfos (FunImported defaultFunFlags ["toDO import"]) sigs
+                let namePoses = map Lex.tokenPos toks
+                applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultFunFlags ["toDO import"]) sigs
 
         -- 其他表达式作为函数名 -> 非法调用。
         _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
     where
         -- 统一处理匹配与报错逻辑（使用 widenedArgs）。
-        applyMatches :: [Position] -> Position -> String -> [(Class, [Position])] -> (FunSig -> FullFunctionTable) -> [FunSig] -> TypeM Class
+        applyMatches :: [Position] -> [Position] -> String -> [(Class, [Position])] -> (FunSig -> FullFunctionTable) -> [FunSig] -> TypeM Class
         applyMatches callPos _ funName _ _ [] =
             errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
-        applyMatches callPos namePos _ argInfos mkEntry sigs@(_ : _) = do
+        applyMatches callPos namePoses _ argInfos mkEntry sigs@(_ : _) = do
             res <- matchInSigs sigs callPos argInfos
             case res of
                 Left err -> errClass err
                 Right sig -> do
-                    recordFunUse namePos (mkEntry sig)
+                    recordFunUse namePoses (mkEntry sig)
                     pure $ funReturn sig
 
         addWarns = mapM_ addWarn
@@ -471,7 +463,7 @@ inferExpr path packages envs e@(Call callee args) = do
             String ->
             [FunTable] ->
             [FunSig] ->
-            Position ->
+            [Position] ->
             [Position] ->
             [(Class, [Position])] ->
             TypeM Class

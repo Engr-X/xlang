@@ -171,6 +171,51 @@ hasAssignTests = testGroup "Semantic.ContextCheck.hasAssign" $
             (tp 25),
         True)]
 
+isAssignOpTests :: TestTree
+isAssignOpTests = testGroup "Semantic.ContextCheck.isAssignOp" $
+    map (\(name, op, out) -> testCase name $ isAssignOp op @?= out) [
+        ("0", AST.Assign, True),
+        ("1", AST.BitXorAssign, True),
+        ("2", AST.PowerAssign, True),
+        ("3", AST.Add, False)]
+
+isIncDecOpTests :: TestTree
+isIncDecOpTests = testGroup "Semantic.ContextCheck.isIncDecOp" $
+    map (\(name, op, out) -> testCase name $ isIncDecOp op @?= out) [
+        ("0", AST.IncSelf, True),
+        ("1", AST.DecSelf, True),
+        ("2", AST.SelfInc, True),
+        ("3", AST.SelfDec, True)]
+
+isStmtExprTests :: TestTree
+isStmtExprTests = testGroup "Semantic.ContextCheck.isStmtExpr" $
+    map (\(name, expr, out) -> testCase name $ isStmtExpr expr @?= out) [
+        ("0", exprAssign, True),
+        ("1", exprCall, True),
+        ("2", exprInc, True),
+        ("3", exprAdd, False)]
+    where
+        tokAssign, tokPlus, tokInc, tokF, tokI, tokNum1, tokNum2 :: Lex.Token
+        tokAssign = Lex.Symbol Lex.Assign pos1
+        tokPlus = Lex.Symbol Lex.Plus pos1
+        tokInc = Lex.Symbol Lex.PlusPlus pos1
+        tokF = Lex.Ident "f" pos1
+        tokI = Lex.Ident "i" pos1
+        tokNum1 = Lex.NumberConst "1" pos1
+        tokNum2 = Lex.NumberConst "2" pos1
+
+        exprAssign :: AST.Expression
+        exprAssign = AST.Binary AST.Assign (AST.Variable "x" tokI) (AST.IntConst "1" tokNum1) tokAssign
+
+        exprCall :: AST.Expression
+        exprCall = AST.Call (AST.Variable "f" tokF) []
+
+        exprInc :: AST.Expression
+        exprInc = AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc
+
+        exprAdd :: AST.Expression
+        exprAdd = AST.Binary AST.Add (AST.IntConst "1" tokNum1) (AST.IntConst "2" tokNum2) tokPlus
+
 
 
 concatQTests :: TestTree
@@ -459,10 +504,10 @@ checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, bl
             (_, ctx1) = runState (checkBlock "stdin" [] [] block) ctx0
         assertErrs expected ctx1
         extra ctx1) [
-        ("0", blockDefineUse, stEmpty, Nothing, assertVarDefined "x"),
-        ("1", blockUndefinedVar, stEmpty, Just (UE.undefinedIdentity "y"), noExtra),
-        ("2", blockBreak, stEmpty, Just UE.breakCtrlErrorMsg, noExtra),
-        ("3", blockCallBeforeDef, stEmpty, Nothing, assertFuncDefined "f")]
+        ("0", blockDefineUse, stInBlock, Nothing, assertVarDefined "x"),
+        ("1", blockUndefinedVar, stInBlock, Just (UE.undefinedIdentity "y"), noExtra),
+        ("2", blockBreak, stInBlock, Just UE.breakCtrlErrorMsg, noExtra),
+        ("3", blockCallBeforeDef, stInBlock, Nothing, assertFuncDefined "f")]
     where
         tokX, tokY, tokF, tokAssign, tokPlus, tokNum1, tokBreak :: Lex.Token
         tokX = Lex.Ident "x" pos1
@@ -477,10 +522,16 @@ checkBlockTests = testGroup "Semantic.ContextCheck.checkBlock" $ map (\(name, bl
         assignX = AST.Expr (AST.Binary AST.Assign (AST.Variable "x" tokX) (AST.IntConst "1" tokNum1) tokAssign)
 
         useX :: AST.Statement
-        useX = AST.Expr (AST.Binary AST.Add (AST.Variable "x" tokX) (AST.IntConst "1" tokNum1) tokPlus)
+        useX = AST.Expr (AST.Binary AST.Assign
+            (AST.Variable "x" tokX)
+            (AST.Binary AST.Add (AST.Variable "x" tokX) (AST.IntConst "1" tokNum1) tokPlus)
+            tokAssign)
 
         useY :: AST.Statement
-        useY = AST.Expr (AST.Binary AST.Add (AST.Variable "y" tokY) (AST.IntConst "1" tokNum1) tokPlus)
+        useY = AST.Expr (AST.Binary AST.Assign
+            (AST.Variable "x" tokX)
+            (AST.Binary AST.Add (AST.Variable "y" tokY) (AST.IntConst "1" tokNum1) tokPlus)
+            tokAssign)
 
         callF :: AST.Statement
         callF = AST.Expr (AST.Call (AST.Variable "f" tokF) [])
@@ -509,9 +560,9 @@ checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, st
         assertErrs expected ctx1
         extra ctx1) [
         ("0", [], stEmpty, Nothing, assertState stEmpty),
-        ("1", [callF, funDefF], stEmpty, Nothing, assertFuncDefined "f"),
-        ("2", [callG], stEmpty, Just (UE.undefinedIdentity "g"), noExtra),
-        ("3", [funDefQualified], stEmpty, Just UE.unsupportedErrorMsg, noExtra)]
+        ("1", [callF, funDefF], stInBlock, Nothing, assertFuncDefined "f"),
+        ("2", [callG], stInBlock, Just (UE.undefinedIdentity "g"), noExtra),
+        ("3", [funDefQualified], stInBlock, Just UE.unsupportedErrorMsg, noExtra)]
     where
         tokF, tokG, tokA :: Lex.Token
         tokF = Lex.Ident "f" pos1
@@ -789,6 +840,7 @@ forScopeTests = testGroup "Semantic.ContextCheck.forScope" [
 tests :: TestTree
 tests = testGroup "Semantic.ContextCheck" [
     hasAssignTests,
+    isAssignOpTests, isIncDecOpTests, isStmtExprTests,
     concatQTests, addErrTests, getStateTests, putStateTests, isFunctionTests,
     withCtrlTests, withScopeTests, withCtrlScopeTests,
     isContinueValidTests, isBreakValidTests, isReturnValidTests,

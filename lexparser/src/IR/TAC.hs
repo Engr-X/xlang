@@ -2,7 +2,7 @@
 
 module IR.TAC where
 
-import Control.Monad.State.Strict (State, get, modify)
+import Control.Monad.State.Strict (State, get, put, modify, MonadState)
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Operator, Expression, Statement, Block, Class)
 import Parse.ParserBasic (AccessModified(..))
@@ -10,6 +10,7 @@ import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
 import Util.Exception (Warning)
 
+import qualified Semantic.TypeEnv as TEnv
 import qualified Parse.SyntaxTree as AST
 import qualified Data.Map.Strict as Map
 
@@ -127,22 +128,27 @@ type VarStackMap = Map VarKey VarStack
 
 data TACState = TACState {
     tacVarStacks :: VarStackMap,
-    tacVarUses :: Map Position FullVarTable,
-    tacFunUses :: Map Position FullFunctionTable,
-    tacWarnings :: [Warning]
+    tacVarUses :: Map [Position] FullVarTable,
+    tacFunUses :: Map [Position] FullFunctionTable,
+    tacWarnings :: [Warning],
+
+    tacCurrentVar :: Maybe VarKey,
+    tacCurrentFun :: Maybe FunSig
 } deriving (Eq, Show)
 
 
 newtype TACM a = TACM { runTACM :: State TACState a }
-    deriving (Functor, Applicative, Monad)
+    deriving (Functor, Applicative, Monad, MonadState TACState)
 
 
-mkTACState :: Map Position FullVarTable -> Map Position FullFunctionTable -> TACState
+mkTACState :: Map [Position] FullVarTable -> Map [Position] FullFunctionTable -> TACState
 mkTACState vUses fUses = TACState {
     tacVarStacks = Map.empty,
     tacVarUses = vUses,
     tacFunUses = fUses,
-    tacWarnings = []
+    tacWarnings = [],
+    tacCurrentVar = Nothing,
+    tacCurrentFun = Nothing
 }
 
 
@@ -151,8 +157,29 @@ addWarn :: Warning -> TACM ()
 addWarn w = TACM $ modify $ \st -> st { tacWarnings = w : tacWarnings st }
 
 
+-- | Set current variable context (if any).
+setCurrentVar :: Maybe VarKey -> TACM ()
+setCurrentVar mv = TACM $ modify $ \st -> st { tacCurrentVar = mv }
+
+
+-- | Get current variable context (if any).
+getCurrentVar :: TACM (Maybe VarKey)
+getCurrentVar = tacCurrentVar <$> get
+
+
+-- | Set current function context (if any).
+setCurrentFun :: Maybe FunSig -> TACM ()
+setCurrentFun mf = TACM $ modify $ \st -> st { tacCurrentFun = mf }
+
+
+-- | Get current function context (if any).
+getCurrentFun :: TACM (Maybe FunSig)
+getCurrentFun = tacCurrentFun <$> get
+
+
+
 -- | Get variable usage info by source position (must exist).
-getVar :: Position -> TACM FullVarTable
+getVar :: [Position] -> TACM FullVarTable
 getVar pos = TACM $ do
     st <- get
     case Map.lookup pos (tacVarUses st) of
@@ -161,7 +188,7 @@ getVar pos = TACM $ do
 
 
 -- | Get function usage info by source position (must exist).
-getFunction :: Position -> TACM FullFunctionTable
+getFunction :: [Position] -> TACM FullFunctionTable
 getFunction pos = TACM $ do
     st <- get
     case Map.lookup pos (tacFunUses st) of
@@ -170,19 +197,51 @@ getFunction pos = TACM $ do
 
 
 -- | Lookup the current (top) version info for a var key.
-peekVarStack :: VarKey -> TACM (Maybe (Class, Int))
+peekVarStack :: VarKey -> TACM (Class, Int)
 peekVarStack key = TACM $ do
     st <- get
     let stacks = tacVarStacks st
-    pure $ case Map.lookup key stacks of
-        Just (x:_) -> Just x
-        _ -> Nothing
+    return $ case Map.lookup key stacks of
+        Just (x:_) -> x
+        Just [] -> error "stack is empty!"
+        Nothing -> error "cannot fin the variable!"
+
+
+-- | Lookup the current (top) version info for the current variable context.
+peekCVarStack :: TACM (Class, Int)
+peekCVarStack = do
+    mKey <- getCurrentVar
+    case mKey of
+        Just key -> peekVarStack key
+        Nothing -> error "peekCVarStack: no current variable context"
+
+-- | Create a new SSA-style version for a variable key.
+--   Pushes the new (Class, versionIndex) on the stack and
+--   returns the corresponding Var atom.
+newSubVar :: Class -> VarKey -> TACM IRAtom
+newSubVar cls key@(name, vid) = TACM $ do
+    st <- get
+    let stacks = tacVarStacks st
+        (newIdx, newStack) = case Map.lookup key stacks of
+            Nothing -> (0, [(cls, 0)])
+            Just [] -> (0, [(cls, 0)])
+            Just l@((_, idx):_) -> (succ idx, (cls, succ idx) : l)
+    put st { tacVarStacks = Map.insert key newStack stacks }
+    return (Var (name, vid, newIdx))
+
+
+-- | Create a new SSA-style version for the current variable context.
+--   Requires 'tacCurrentVar' to be set.
+newSubCVar :: Class -> TACM IRAtom
+newSubCVar cls = do
+    mKey <- getCurrentVar
+    case mKey of
+        Just key -> newSubVar cls key
+        Nothing -> error "newSubCVar: no current variable context"
 
 
 data IRAtom
-    = Var (String, Int, Int)                      -- name, varId, versionIndex
-    | Param Int                                   -- param for function and class
-    | BoolC Bool
+    = BoolC Bool
     | CharC Char
     | Int8C Int
     | Int16C Int 
@@ -191,15 +250,50 @@ data IRAtom
     | Float32C Double 
     | Float64C Double 
     | Float128C Rational 
+    | Var (String, Int, Int)                      -- name, varId, versionIndex
+    | Param Int                                   -- param for function and class
     deriving (Eq, Show)
+
+
+getAtomType :: IRAtom -> TACM Class
+getAtomType (BoolC _) = return AST.Bool
+getAtomType (CharC _) = return AST.Char
+getAtomType (Int8C _) = return AST.Int8T
+getAtomType (Int16C _) = return AST.Int16T
+getAtomType (Int32C _) = return AST.Int32T
+getAtomType (Int64C _) = return AST.Int64T
+getAtomType (Float32C _) = return AST.Float32T
+getAtomType (Float64C _) = return AST.Float64T
+getAtomType (Float128C _) = return AST.Float128T
+getAtomType (Var (name, varId, index)) = let varKey = (name, varId) in do
+    st <- get
+    let stackMap = tacVarStacks st
+    let classId = Map.lookup varKey stackMap
+
+    case classId of
+        Just list -> let rel = filter (\(_, num) -> num == index) list in return $ fst $ head rel
+        Nothing -> error "cannot find atom in VarStackMap!"
+
+getAtomType (Param index) = do
+    funSig <- getCurrentFun
+    case funSig of
+        Just sig -> return $ TEnv.funParams sig !! index
+        Nothing -> error "this is not in a function"
+    
+
 
 
 data IRInstr
     = Jump Int                                      -- jump to intId
     | ConJump IRAtom Int Int                        -- condition Jump by condition
+
     | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
     | IBinary IRAtom Operator IRAtom IRAtom         -- dst = x op y
+    --              class1, class2
+    | ICast IRAtom (Class, Class) IRAtom            -- dst = cast atom from class1 to class2
+    | ICall IRAtom String [IRAtom]                  -- dst = call f(args)
+    | ICallStatic IRAtom [String] [IRAtom]          -- dst = call C.f(args)
 
     -- for class
     | IGetField IRAtom IRAtom [String]              -- dst = obj.f

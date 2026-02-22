@@ -9,7 +9,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, expectTopLevelDeclMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, expectTopLevelDeclMsg, invalidExprStmtMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -17,11 +17,23 @@ import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
 
 
+-- | Predicate: operator is an assignment-like op.
+isAssignOp :: AST.Operator -> Bool
+isAssignOp op = op `elem` [
+    AST.Assign,
+    AST.BitLShiftAssign, AST.BitRShiftAssign, AST.BitOrAssign, AST.BitXorAssign, AST.BitXnorAssign,
+    AST.PlusAssign, AST.MinusAssign, AST.MultiplyAssign, AST.DivideAssign, AST.ModuloAssign, AST.PowerAssign
+    ]
+
+-- | Predicate: operator is an inc/dec op.
+isIncDecOp :: AST.Operator -> Bool
+isIncDecOp op = op `elem` [AST.IncSelf, AST.DecSelf, AST.SelfInc, AST.SelfDec]
+
 -- | determine an expression have asssignment or not
 hasAssign :: Expression -> Bool
 hasAssign = go
   where
-    go (AST.Binary AST.Assign _ _ _) = True
+    go (AST.Binary op _ _ _) | isAssignOp op = True
     go (AST.Binary _ a b _) = go a || go b
     go (AST.Unary _ x _) = go x
     go (AST.Cast _ x _) = go x
@@ -39,6 +51,16 @@ hasAssign = go
     go (AST.BoolConst _ _) = False
     go (AST.Variable _ _) = False
     go (AST.Qualified _ _) = False
+
+-- | Predicate: expression is a valid statement-expression (Java-style).
+--   Only assignments, function calls, or ++/-- are allowed.
+isStmtExpr :: Expression -> Bool
+isStmtExpr expr = case expr of
+    AST.Binary op _ _ _ -> isAssignOp op
+    AST.Call _ _ -> True
+    AST.CallT _ _ _ -> True
+    AST.Unary op _ _ -> isIncDecOp op
+    _ -> False
 
 -- | True if an expression is a plain assignment (used for top-level declarations).
 isTopLevelAssign :: Expression -> Bool
@@ -176,6 +198,8 @@ checkExpr p packages envs expr = case expr of
         checkExpr p packages envs e2
 
         case e1 of
+            AST.Variable "this" nameTok ->
+                addErr $ UE.Syntax $ UE.makeError p [tokenPos nameTok] UE.thisAssignMsg
             AST.Variable {} -> do
                 c <- get
                 let cState = st c
@@ -278,7 +302,10 @@ checkStmt p package envs (AST.Expr e) = do
         isTopLevel = depth cState == 0 && null (ctrlStack cState)
     if isTopLevel && not (isTopLevelAssign e)
         then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) expectTopLevelDeclMsg
-        else checkExpr p package envs e
+        else
+            if not (isStmtExpr e)
+                then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
+                else checkExpr p package envs e
 
 -- block
 checkStmt p package envs stmt@(AST.BlockStmt block) = do
