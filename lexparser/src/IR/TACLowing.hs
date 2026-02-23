@@ -4,17 +4,16 @@
 module IR.TACLowing where
 
 import Data.Bits ((.&.))
-import Data.Map.Strict (Map)
 import Text.Read (readMaybe)
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Foldable (foldrM)
 import Numeric (readHex)
 
-import Lex.Token (tokenPos)
-import Parse.SyntaxTree (Program, Expression, Statement)
+import Lex.Token (tokenPos, dummyToken)
+import Parse.SyntaxTree (Program, Expression, Statement, Block)
 import Semantic.OpInfer (inferUnaryOp, inferBinaryOp)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable)
-import IR.TAC (IRInstr(..), IRAtom, TACM(..), IRStmt(..), newSubCVar, getVar, peekVarStack, getAtomType)
+import IR.TAC (IRInstr(..), IRAtom, TACM(..), IRStmt(..), newSubCVar, getVar, peekVarStack, getAtomType, incBlockId)
 import Util.Exception (Warning(..))
 import Util.Type (Path, Position)
 
@@ -295,11 +294,65 @@ exprLowing (AST.CallT {}) = error "template is not support!"
 exprLowing _ = error "other type is not support for IR ast"
 
 
+stmtsLowing :: [Statement] -> TACM [IRStmt]
+stmtsLowing [] = return []
+stmtsLowing ((AST.Expr e):stmts) = let
+    exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return $ map IRInstr (reverse instrs) in do
+        current <- exprLowing' e
+        rest <- stmtsLowing stmts
+        return $ current ++ rest
 
-stmtLowing :: Statement -> TACM [IRStmt]
-stmtLowing (AST.Expr e) = do
-    (instrs, _) <- exprLowing e
-    return $ map IRInstr (reverse instrs)
+stmtsLowing ((AST.BlockStmt b):stmts) = do
+    current <- blockLowing b
+    rest <- stmtsLowing stmts
+    return $ current ++ rest
 
-stmtLowing (AST.BlockStmt (AST.Multiple stmts)) = 
-    fmap concat (mapM stmtLowing stmts)
+{-
+code:
+    if cond
+        b() nullable
+    else
+        c() nullable
+
+    d()
+
+IR:
+    if cond goto .L1:
+
+    c()
+    goto .L2
+
+    .L1
+        b()
+        goto .L2
+    .L2
+        d()
+-}
+stmtsLowing ((AST.If e thenB elseB _):stmts) = do
+    l1ID <- incBlockId
+    l2ID <- incBlockId
+
+    (condInstrs, condAtom) <- exprLowing e -- if cond
+    let gotoL1 = TAC.ConJump condAtom l1ID
+
+    elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
+    let gotoL2 = TAC.Jump l2ID
+
+    thenStmts <- blockLowing $ fromMaybe (AST.Multiple []) thenB
+    let l1B = TAC.IRBlockStmt (TAC.IRBlock (l1ID, thenStmts ++ [TAC.IRInstr gotoL2]))
+
+    afterStmts <- stmtsLowing stmts
+    let l2B = TAC.IRBlockStmt (TAC.IRBlock (l2ID, afterStmts))
+
+    return $ concat [
+        fmap TAC.IRInstr (reverse condInstrs), [TAC.IRInstr gotoL1],   -- if cond goto .L1:
+
+        elseStmts,                                                      -- c()
+        [TAC.IRInstr gotoL2],                                           -- goto .L2  
+
+        [l1B],                                                          -- .L1: b() + goto .L2
+        [l2B]]                                                          -- .L2: after
+
+
+blockLowing :: Block -> TACM [IRStmt]
+blockLowing (AST.Multiple stmts) = stmtsLowing stmts

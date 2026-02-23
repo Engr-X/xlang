@@ -3,6 +3,7 @@
 module IR.TAC where
 
 import Control.Monad.State.Strict (State, get, put, modify, MonadState)
+import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Operator, Expression, Statement, Block, Class)
 import Parse.ParserBasic (AccessModified(..))
@@ -133,7 +134,8 @@ data TACState = TACState {
     tacWarnings :: [Warning],
 
     tacCurrentVar :: Maybe VarKey,
-    tacCurrentFun :: Maybe FunSig
+    tacCurrentFun :: Maybe FunSig,
+    tacBlockId :: Int
 } deriving (Eq, Show)
 
 
@@ -148,7 +150,8 @@ mkTACState vUses fUses = TACState {
     tacFunUses = fUses,
     tacWarnings = [],
     tacCurrentVar = Nothing,
-    tacCurrentFun = Nothing
+    tacCurrentFun = Nothing,
+    tacBlockId = -1
 }
 
 
@@ -176,6 +179,14 @@ setCurrentFun mf = TACM $ modify $ \st -> st { tacCurrentFun = mf }
 getCurrentFun :: TACM (Maybe FunSig)
 getCurrentFun = tacCurrentFun <$> get
 
+
+-- | Increment the global block id and return the new value.
+incBlockId :: TACM Int
+incBlockId = TACM $ do
+    st <- get
+    let bid = succ $ tacBlockId st
+    put st { tacBlockId = bid }
+    pure bid
 
 
 -- | Get variable usage info by source position (must exist).
@@ -255,6 +266,21 @@ data IRAtom
     deriving (Eq, Show)
 
 
+prettyIRAtom :: IRAtom -> String
+prettyIRAtom (BoolC b) = if b then "true" else "false"
+prettyIRAtom (CharC c) = [c]
+prettyIRAtom (Int8C i) = show i
+prettyIRAtom (Int16C i) = show i
+prettyIRAtom (Int32C i) = show i
+prettyIRAtom (Int64C i) = show i
+prettyIRAtom (Float32C f) = show f
+prettyIRAtom (Float64C f) = show f
+prettyIRAtom (Float128C r) = show r
+prettyIRAtom (Var (name, vid, ver)) = concat [name, "$", show vid, "$", show ver]
+prettyIRAtom (Param i) = "param" ++ show i
+
+
+-- get the typr for the atom.
 getAtomType :: IRAtom -> TACM Class
 getAtomType (BoolC _) = return AST.Bool
 getAtomType (CharC _) = return AST.Char
@@ -281,11 +307,9 @@ getAtomType (Param index) = do
         Nothing -> error "this is not in a function"
     
 
-
-
 data IRInstr
     = Jump Int                                      -- jump to intId
-    | ConJump IRAtom Int Int                        -- condition Jump by condition
+    | ConJump IRAtom Int                            -- condition Jump by condition
 
     | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
@@ -304,9 +328,34 @@ data IRInstr
     deriving (Eq, Show)
 
 
+prettyIRInstr :: Int -> IRInstr -> String
+prettyIRInstr n instr = prefix ++ case instr of
+    Jump bid -> "goto " ++ show bid
+    ConJump cond t -> concat ["if ", prettyIRAtom cond, " goto L" ++ show t]
+    IAssign dst src -> concat [prettyIRAtom dst, " = ", prettyIRAtom src]
+    IUnary dst op x -> concat [prettyIRAtom dst, " = ", AST.prettyOp op, prettyIRAtom x]
+    IBinary dst op x y -> concat [prettyIRAtom dst, " = ", prettyIRAtom x, " ", AST.prettyOp op, " ", prettyIRAtom y]
+    ICast dst (fromC, toC) x -> concat [prettyIRAtom dst, " = cast(", AST.prettyClass fromC, "->", AST.prettyClass toC, ") ", prettyIRAtom x]
+    ICall dst name args -> concat [prettyIRAtom dst, " = call ", name, "(", intercalate ", " (map prettyIRAtom args), ")"]
+    ICallStatic dst qname args -> concat [prettyIRAtom dst, " = call ", intercalate "." qname, "(", intercalate ", " (map prettyIRAtom args), ")"]
+    IGetField dst obj field -> concat [prettyIRAtom dst, " = ", prettyIRAtom obj, ".", intercalate "." field]
+    IPutField obj field v -> concat [prettyIRAtom obj, ".", intercalate "." field, " = ", prettyIRAtom v]
+    IGetStatic dst qname -> concat [prettyIRAtom dst, " = ", intercalate "." qname]
+    IPutStatic qname v -> concat [intercalate "." qname, " = ", prettyIRAtom v]
+    where
+        prefix = replicate (n * 4) ' '
+
+
 -- | A basic block of IR statements.
 newtype IRBlock = IRBlock (Int, [IRStmt])
     deriving (Eq, Show)
+
+
+prettyIRBlock :: Int -> IRBlock -> String
+prettyIRBlock n (IRBlock (bid, stmts)) =
+    let header = concat [replicate (n * 4) ' ', ".L", show bid, ":\n"]
+        body = concatMap (prettyStmt (n + 1)) stmts
+    in header ++ body
 
 
 -- | TAC-level statement.
@@ -314,6 +363,11 @@ data IRStmt
     = IRInstr IRInstr
     | IRBlockStmt IRBlock -- for branch
     deriving (Eq, Show)
+
+
+prettyStmt :: Int -> IRStmt -> String
+prettyStmt n (IRInstr instr) = prettyIRInstr n instr ++ "\n"
+prettyStmt n (IRBlockStmt blk) = prettyIRBlock n blk
 
 
 -- | Class/struct field: access, type, name.

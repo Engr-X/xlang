@@ -5,27 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/../../lexparser/lexparser.cabal" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/lexparser.cabal" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParserBasic.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Parse/ParserBasic.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/ContextCheck.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Semantic/ContextCheck.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Util/Exception.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Util/Exception.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/codeStyles/Project.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/gradle.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/kotlinc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/build.gradle.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/gradle.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/gradlew" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/gradlew.bat" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/settings.gradle.kts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../java-inspector/src/main/kotlin/Main.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TACLowing.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/IR/TACLowing.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Lex/Token.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Lex/Token.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/SyntaxTree.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Parse/SyntaxTree.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassLayout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,9 +26,9 @@
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Kotlin File" />
         <option value="Kotlin Enum" />
         <option value="Kotlin Class" />
+        <option value="Kotlin File" />
       </list>
     </option>
   </component>
@@ -66,12 +52,17 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "D:/Coding/projects/Mixed/xlang/tools/classgen",
-    "project.structure.last.edited": "项目",
-    "project.structure.proportion": "0.0",
-    "project.structure.side.proportion": "0.0"
+    "project.structure.last.edited": "模块",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "editor.preferences.inline.completion",
+    "to.speed.mode.migration.done": "true"
   }
 }]]></component>
   <component name="RecentsManager">

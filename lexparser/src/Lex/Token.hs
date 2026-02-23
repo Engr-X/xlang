@@ -97,6 +97,11 @@ data Token =
     deriving (Eq, Show)
 
 
+-- | Dummy token for tests/examples.
+dummyToken :: Token
+dummyToken = Ident "<dummy>" defaultPosition
+
+
 -- | 'Show' instance for 'Token' provides a human-readable representation
 -- of each token, including its value (if applicable) and its source position.
 prettyToken :: Token -> String
