@@ -142,8 +142,10 @@ data TACState = TACState {
 
     --                 start, after
     tacCurrentLoop :: [(Int, Int)],
+    tacLoopPhis :: [[(VarKey, IRAtom)]],
     tacBlockId :: Int,
-    tempId :: Int
+    tempId :: Int,
+    tacVarNextId :: Map VarKey Int
 } deriving (Eq, Show)
 
 
@@ -161,8 +163,10 @@ mkTACState vUses fUses = TACState {
     tacCurrentVar = Nothing,
     tacCurrentFun = [],
     tacCurrentLoop = [],
+    tacLoopPhis = [],
     tacBlockId = -1,
-    tempId = 0
+    tempId = 0,
+    tacVarNextId = Map.empty
 }
 
 
@@ -274,6 +278,32 @@ withLoop w action = do
     pure result
 
 
+-- | Push current loop phi mapping onto the stack.
+--   Mapping is from variable key to its loop-phi atom.
+pushLoopPhis :: [(VarKey, IRAtom)] -> TACM ()
+pushLoopPhis phis = TACM $ modify $ \st -> st { tacLoopPhis = phis : tacLoopPhis st }
+
+
+-- | Pop current loop phi mapping from the stack.
+popLoopPhis :: TACM [(VarKey, IRAtom)]
+popLoopPhis = TACM $ do
+    st <- get
+    case tacLoopPhis st of
+        [] -> error "popLoopPhis: no loop phi context"
+        (p:ps) -> do
+            put st { tacLoopPhis = ps }
+            pure p
+
+
+-- | Get current loop phi mapping (if any).
+getCurrentLoopPhis :: TACM [(VarKey, IRAtom)]
+getCurrentLoopPhis = do
+    st <- get
+    case tacLoopPhis st of
+        (p:_) -> pure p
+        [] -> pure []
+
+
 
 
 -- | Increment the global block id and return the new value.
@@ -314,6 +344,16 @@ peekVarStack key = TACM $ do
         Nothing -> error "cannot fin the variable!"
 
 
+-- | Get the full var stacks map.
+getVarStacks :: TACM VarStackMap
+getVarStacks = tacVarStacks <$> get
+
+
+-- | Replace the var stacks map.
+setVarStacks :: VarStackMap -> TACM ()
+setVarStacks stacks = TACM $ modify $ \st -> st { tacVarStacks = stacks }
+
+
 -- | Lookup the current (top) version info for the current variable context.
 peekCVarStack :: TACM (Class, Int)
 peekCVarStack = do
@@ -322,6 +362,7 @@ peekCVarStack = do
         Just key -> peekVarStack key
         Nothing -> error "peekCVarStack: no current variable context"
 
+
 -- | Create a new SSA-style version for a variable key.
 --   Pushes the new (Class, versionIndex) on the stack and
 --   returns the corresponding Var atom.
@@ -329,11 +370,15 @@ newSubVar :: Class -> VarKey -> TACM IRAtom
 newSubVar cls key@(name, vid) = TACM $ do
     st <- get
     let stacks = tacVarStacks st
-        (newIdx, newStack) = case Map.lookup key stacks of
-            Nothing -> (0, [(cls, 0)])
-            Just [] -> (0, [(cls, 0)])
-            Just l@((_, idx):_) -> (succ idx, (cls, succ idx) : l)
-    put st { tacVarStacks = Map.insert key newStack stacks }
+        nextId = Map.findWithDefault 0 key (tacVarNextId st)
+        newIdx = nextId
+        newStack = case Map.lookup key stacks of
+            Nothing -> [(cls, newIdx)]
+            Just l -> (cls, newIdx) : l
+    put st {
+        tacVarStacks = Map.insert key newStack stacks,
+        tacVarNextId = Map.insert key (succ newIdx) (tacVarNextId st)
+        }
     return (Var (name, vid, newIdx))
 
 
@@ -362,6 +407,7 @@ data IRAtom
     | Float64C Double 
     | Float128C Rational 
     | Var (String, Int, Int)                      -- name, varId, versionIndex
+    | Phi [(Int, IRAtom)]                         -- incoming block id -> atom
     | Param Int                                   -- param for function and class
     deriving (Eq, Show)
 
@@ -377,6 +423,9 @@ prettyIRAtom (Float32C f) = show f
 prettyIRAtom (Float64C f) = show f
 prettyIRAtom (Float128C r) = show r
 prettyIRAtom (Var (name, vid, ver)) = concat [name, "$", show vid, "$", show ver]
+prettyIRAtom (Phi pairs) =
+    let showPair (bid, atom) = concat [".L", show bid, ":", prettyIRAtom atom]
+    in concat ["phi(", intercalate ", " (map showPair pairs), ")"]
 prettyIRAtom (Param i) = "param" ++ show i
 
 
@@ -399,6 +448,8 @@ getAtomType (Var (name, varId, index)) = let varKey = (name, varId) in do
     case classId of
         Just list -> let rel = filter (\(_, num) -> num == index) list in return $ fst $ head rel
         Nothing -> error "cannot find atom in VarStackMap!"
+
+getAtomType (Phi _) = error "getAtomType: phi should be stripped before type query"
 
 getAtomType (Param index) = do
     (funSig, _, _) <- getCurrentFun
@@ -691,6 +742,3 @@ rmEBInStmts = fixpoint
         isEmptyBlock _ = False
 
 
--- | Flatten nested blocks, prune redundant gotos, then remove empty blocks.
-formateIR :: IRProgm -> IRProgm
-formateIR = rmEBInProg . pruneIRProgm . flattenIRProgm

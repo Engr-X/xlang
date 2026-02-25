@@ -8,7 +8,7 @@ import Control.Monad.State.Strict (evalState)
 import Data.List (partition)
 import Data.Char (toUpper)
 import Text.Read (readMaybe)
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
 import Data.Foldable (foldrM)
 import Data.Map.Strict (Map)
 import Numeric (readHex)
@@ -17,7 +17,8 @@ import Lex.Token (Token, tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
 import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp)
 import IR.TAC (IRInstr, IRAtom, TACM, IRStmt, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
-    getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, addStaticVars, isStaticVar)
+    getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
+    getVarStacks, setVarStacks, pushLoopPhis, popLoopPhis, getCurrentLoopPhis)
 import Util.Exception (Warning(..))
 import Util.Type (Path, Position)
 
@@ -176,10 +177,9 @@ atomLowing (AST.Variable _ tok) = do
         TEnv.VarLocal _ realName vid -> do
             (_, ver) <- peekVarStack (realName, vid)
             let atom = TAC.Var (realName, vid, ver)
-            let paramKey = TAC.Var (realName, vid, 0)
 
             mFun <- TAC.getCurrentFunMaybe
-            case mFun >>= (\(_, _, argMap) -> lookupParamIndex paramKey argMap) of
+            case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
                 Just idx -> return ([], TAC.Param idx)
                 Nothing -> return ([], atom)
 
@@ -321,17 +321,132 @@ exprLowing (AST.CallT {}) = error "template is not support!"
 exprLowing _ = error "other type is not support for IR ast"
 
 
+type VarKey = (String, Int)
+
+paramifyAtom :: IRAtom -> TACM IRAtom
+paramifyAtom atom@(TAC.Var {}) = do
+    mFun <- getCurrentFunMaybe
+    case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
+        Just idx -> pure (TAC.Param idx)
+        Nothing -> pure atom
+paramifyAtom atom = pure atom
+
+topAtomFromStacksM :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (Class, IRAtom))
+topAtomFromStacksM stacks key@(name, vid) = case Map.lookup key stacks of
+    Just ((cls, ver):_) -> do
+        atom <- paramifyAtom (TAC.Var (name, vid, ver))
+        pure (Just (cls, atom))
+    _ -> pure Nothing
+
+topAtomInStacksM :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe IRAtom)
+topAtomInStacksM stacks key = fmap snd <$> topAtomFromStacksM stacks key
+
+diffVarKeys :: Map VarKey [(Class, Int)] -> Map VarKey [(Class, Int)] -> [VarKey]
+diffVarKeys a b =
+    let keys = Map.keys (Map.union a b)
+        topVer stacks key = case Map.lookup key stacks of
+            Just ((_, ver):_) -> Just ver
+            _ -> Nothing
+    in filter (\k -> topVer a k /= topVer b k) keys
+
+currentAtomForKey :: VarKey -> TACM IRAtom
+currentAtomForKey key@(name, vid) = do
+    (_, ver) <- peekVarStack key
+    pure (TAC.Var (name, vid, ver))
+
+assignPhiFromCurrent :: (VarKey, IRAtom) -> TACM (Maybe IRInstr)
+assignPhiFromCurrent (key, dest) = do
+    cur <- currentAtomForKey key
+    pure $ if cur == dest then Nothing else Just (TAC.IAssign dest cur)
+
+collectAssignKeysBlock :: Block -> TACM [VarKey]
+collectAssignKeysBlock (AST.Multiple ss) = do
+    keys <- concat <$> mapM collectAssignKeysStmt ss
+    pure $ Map.keys (Map.fromList (map (\k -> (k, ())) keys))
+    where
+        collectAssignKeysStmt :: Statement -> TACM [VarKey]
+        collectAssignKeysStmt stmt = case stmt of
+            AST.Expr e -> collectAssignKeysExpr e
+            AST.Command (AST.Return (Just e)) _ -> collectAssignKeysExpr e
+            AST.BlockStmt b -> collectAssignKeysBlock b
+            AST.If e b1 b2 _ -> do
+                ks1 <- collectAssignKeysExpr e
+                ks2 <- maybe (pure []) collectAssignKeysBlock b1
+                ks3 <- maybe (pure []) collectAssignKeysBlock b2
+                pure (ks1 ++ ks2 ++ ks3)
+            AST.For (e1, e2, e3) b _ -> do
+                ks1 <- maybe (pure []) collectAssignKeysExpr e1
+                ks2 <- maybe (pure []) collectAssignKeysExpr e2
+                ks3 <- maybe (pure []) collectAssignKeysExpr e3
+                ks4 <- maybe (pure []) collectAssignKeysBlock b
+                pure (ks1 ++ ks2 ++ ks3 ++ ks4)
+            AST.While e b1 b2 _ -> do
+                ks1 <- collectAssignKeysExpr e
+                ks2 <- maybe (pure []) collectAssignKeysBlock b1
+                ks3 <- maybe (pure []) collectAssignKeysBlock b2
+                pure (ks1 ++ ks2 ++ ks3)
+            AST.DoWhile b1 e b2 _ -> do
+                ks1 <- maybe (pure []) collectAssignKeysBlock b1
+                ks2 <- collectAssignKeysExpr e
+                ks3 <- maybe (pure []) collectAssignKeysBlock b2
+                pure (ks1 ++ ks2 ++ ks3)
+            AST.Switch e scs _ -> do
+                ks1 <- collectAssignKeysExpr e
+                ks2 <- concat <$> mapM collectAssignKeysCase scs
+                pure (ks1 ++ ks2)
+            AST.Function {} -> pure []
+            AST.FunctionT {} -> pure []
+            AST.Command {} -> pure []
+
+        collectAssignKeysCase :: AST.SwitchCase -> TACM [VarKey]
+        collectAssignKeysCase sc = case sc of
+            AST.Case e b _ -> do
+                ks1 <- collectAssignKeysExpr e
+                ks2 <- maybe (pure []) collectAssignKeysBlock b
+                pure (ks1 ++ ks2)
+            AST.Default b _ -> collectAssignKeysBlock b
+
+        collectAssignKeysExpr :: Expression -> TACM [VarKey]
+        collectAssignKeysExpr expr = case expr of
+            AST.Binary AST.Assign lhs rhs _ -> do
+                ks1 <- collectAssignKeysLhs lhs
+                ks2 <- collectAssignKeysExpr rhs
+                pure (ks1 ++ ks2)
+            AST.Binary _ e1 e2 _ -> do
+                ks1 <- collectAssignKeysExpr e1
+                ks2 <- collectAssignKeysExpr e2
+                pure (ks1 ++ ks2)
+            AST.Unary _ e _ -> collectAssignKeysExpr e
+            AST.Cast _ e _ -> collectAssignKeysExpr e
+            AST.Call callee args -> concat <$> mapM collectAssignKeysExpr (callee : args)
+            AST.CallT callee _ args -> concat <$> mapM collectAssignKeysExpr (callee : args)
+            _ -> pure []
+
+        collectAssignKeysLhs :: Expression -> TACM [VarKey]
+        collectAssignKeysLhs lhs = case lhs of
+            AST.Variable _ tok -> do
+                vinfo <- getVar [tokenPos tok]
+                case vinfo of
+                    TEnv.VarLocal _ realName vid -> pure [(realName, vid)]
+                    _ -> pure []
+            _ -> pure []
+
+
 stmtsLowing :: [Statement] -> TACM [IRStmt]
 stmtsLowing [] = return []
 stmtsLowing ((AST.Command AST.Continue _):stmts) = do
     (startId, _) <- getCurrentLoop
+    phis <- getCurrentLoopPhis
+    phiInstrs <- fmap catMaybes (mapM assignPhiFromCurrent phis)
     rest <- stmtsLowing stmts
-    return (TAC.IRInstr (TAC.Jump startId):rest)
+    return (map TAC.IRInstr phiInstrs ++ TAC.IRInstr (TAC.Jump startId) : rest)
 
 stmtsLowing ((AST.Command AST.Break _):stmts) = do
     (_, afterId) <- getCurrentLoop
+    phis <- getCurrentLoopPhis
+    phiInstrs <- fmap catMaybes (mapM assignPhiFromCurrent phis)
     rest <- stmtsLowing stmts
-    return (TAC.IRInstr (TAC.Jump afterId) : rest)
+    return (map TAC.IRInstr phiInstrs ++ TAC.IRInstr (TAC.Jump afterId) : rest)
 
 stmtsLowing ((AST.Command (AST.Return Nothing) _):stmts) = do
     (_, retBId, _) <- getCurrentFun
@@ -369,41 +484,67 @@ code:
     d()
 
 IR:
-    if cond goto .L1:
+    if cond goto .L_then
+    goto .L_else
 
-    c()
-    goto .L2
-
-    .L1
+    .L_then
         b()
-        goto .L2
-    .L2
+        goto .L_join
+
+    .L_else
+        c()
+        goto .L_join
+
+    .L_join
         d()
 -}
 stmtsLowing ((AST.If e thenB elseB _):stmts) = do
-    l1ID <- incBlockId
-    l2ID <- incBlockId
+    lThenID <- incBlockId
+    lElseID <- incBlockId
+    lJoinID <- incBlockId
 
-    (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e -- if cond
-    let gotoL1 = TAC.ConJump condAtom l1ID
+    _preStacks <- getVarStacks
 
-    elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
-    let gotoL2 = TAC.Jump l2ID
+    (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
+    condStacks <- getVarStacks
 
     thenStmts <- blockLowing $ fromMaybe (AST.Multiple []) thenB
-    let l1B = TAC.IRBlockStmt (TAC.IRBlock (l1ID, thenStmts ++ [TAC.IRInstr gotoL2]))
+    thenStacks <- getVarStacks
+
+    setVarStacks condStacks
+    elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
+    elseStacks <- getVarStacks
+
+    let phiKeys = diffVarKeys thenStacks elseStacks
+
+    setVarStacks condStacks
+    phiInfos <- fmap catMaybes $ mapM (mkPhi thenStacks elseStacks) phiKeys
 
     afterStmts <- stmtsLowing stmts
-    let l2B = TAC.IRBlockStmt (TAC.IRBlock (l2ID, afterStmts))
+
+    let thenAssigns = map (\(dst, thenAtom, _) -> TAC.IRInstr (TAC.IAssign dst thenAtom)) phiInfos
+    let elseAssigns = map (\(dst, _, elseAtom) -> TAC.IRInstr (TAC.IAssign dst elseAtom)) phiInfos
+    let phiInstrs = map (\(dst, thenAtom, elseAtom) ->
+            TAC.IRInstr (TAC.IAssign dst (TAC.Phi [(lThenID, thenAtom), (lElseID, elseAtom)]))) phiInfos
+
+    let thenBlock = TAC.IRBlockStmt (TAC.IRBlock (lThenID, thenStmts ++ thenAssigns ++ [TAC.IRInstr (TAC.Jump lJoinID)]))
+    let elseBlock = TAC.IRBlockStmt (TAC.IRBlock (lElseID, elseStmts ++ elseAssigns ++ [TAC.IRInstr (TAC.Jump lJoinID)]))
+    let joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoinID, phiInstrs ++ afterStmts))
 
     return $ concat [
-        fmap TAC.IRInstr (reverse condInstrs), [TAC.IRInstr gotoL1],   -- if cond goto .L1:
-
-        elseStmts,                                                      -- c()
-        [TAC.IRInstr gotoL2],                                           -- goto .L2  
-
-        [l1B],                                                          -- .L1: b() + goto .L2
-        [l2B]]                                                          -- .L2: after
+        fmap TAC.IRInstr (reverse condInstrs),
+        [TAC.IRInstr (TAC.ConJump condAtom lThenID), TAC.IRInstr (TAC.Jump lElseID)],
+        [thenBlock, elseBlock, joinBlock]]
+    where
+        mkPhi :: Map VarKey [(Class, Int)] -> Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (IRAtom, IRAtom, IRAtom))
+        mkPhi thenStacks elseStacks key = do
+            mThen <- topAtomFromStacksM thenStacks key
+            mElse <- topAtomFromStacksM elseStacks key
+            case (mThen, mElse) of
+                (Just (cls, thenAtom), Just (_, elseAtom)) -> do
+                    dst <- newSubVar cls key
+                    pure (Just (dst, thenAtom, elseAtom))
+                _ -> pure Nothing
 
 
 {-
@@ -435,33 +576,65 @@ if there is break then goto .L3
 -- so pushCurrentLoop (L1, L3)
 -}
 stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
+    l0ID <- incBlockId
     l1ID <- incBlockId
     l2ID <- incBlockId
     l3ID <- incBlockId
-    (gotoL1, l2B, l1B) <- withLoop (l1ID, l3ID) $ do
-         -- condition block (L1)
-        (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
-        elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
-        let gotoL2 = TAC.ConJump condAtom l2ID
-        let gotoL3 = TAC.Jump l3ID
-        let l1B = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
-                fmap TAC.IRInstr (reverse condInstrs),
-                [TAC.IRInstr gotoL2],
-                elseStmts,
-                [TAC.IRInstr gotoL3]]))
 
-        -- body block
-        bodyStmts <- blockLowing $ fromMaybe (AST.Multiple []) bodyB
-        let gotoL1 = TAC.Jump l1ID
-        let l2B = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ [TAC.IRInstr gotoL1]))
+    preStacks <- getVarStacks
+    loopKeys <- collectAssignKeysBlock (fromMaybe (AST.Multiple []) bodyB)
 
-        return (gotoL1, l2B, l1B)
+    phiInfos <- fmap catMaybes $ mapM (mkPhi preStacks) loopKeys
 
-    -- after block
+    (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
+    headerStacks <- getVarStacks
+
+    (bodyStmts, bodyStacks, elseStmts) <- withLoop (l1ID, l3ID) $ do
+        pushLoopPhis [(key, dst) | (key, dst, _) <- phiInfos]
+
+        bodyStmts' <- blockLowing $ fromMaybe (AST.Multiple []) bodyB
+        bodyStacks' <- getVarStacks
+
+        setVarStacks headerStacks
+        elseStmts' <- blockLowing $ fromMaybe (AST.Multiple []) elseB
+
+        _ <- popLoopPhis
+        pure (bodyStmts', bodyStacks', elseStmts')
+
+    phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
+    let preAssigns = map (\(_, dst, preAtom, _) -> TAC.IRInstr (TAC.IAssign dst preAtom)) phiInfos'
+    let backAssigns = map (\(_, dst, _, bodyAtom) -> TAC.IRInstr (TAC.IAssign dst bodyAtom)) phiInfos'
+    let phiInstrs = map (\(_, dst, preAtom, bodyAtom) ->
+            TAC.IRInstr (TAC.IAssign dst (TAC.Phi [(l0ID, preAtom), (l2ID, bodyAtom)]))) phiInfos'
+
+    let preBlock = TAC.IRBlockStmt (TAC.IRBlock (l0ID, preAssigns ++ [TAC.IRInstr (TAC.Jump l1ID)]))
+    let bodyBlock = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ backAssigns ++ [TAC.IRInstr (TAC.Jump l1ID)]))
+    let headerBlock = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
+            phiInstrs,
+            fmap TAC.IRInstr (reverse condInstrs),
+            [TAC.IRInstr (TAC.ConJump condAtom l2ID)],
+            elseStmts,
+            [TAC.IRInstr (TAC.Jump l3ID)]]))
+
     afterStmts <- stmtsLowing stmts
-    let l3B = TAC.IRBlockStmt (TAC.IRBlock (l3ID, afterStmts))
+    let afterBlock = TAC.IRBlockStmt (TAC.IRBlock (l3ID, afterStmts))
 
-    return [TAC.IRInstr gotoL1, l2B, l1B, l3B]
+    return [preBlock, bodyBlock, headerBlock, afterBlock]
+    where
+        mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
+        mkPhi stacks key = do
+            mPre <- topAtomFromStacksM stacks key
+            case mPre of
+                Just (cls, preAtom) -> do
+                    dst <- newSubVar cls key
+                    pure (Just (key, dst, preAtom))
+                Nothing -> pure Nothing
+
+        attachBodyAtom :: Map VarKey [(Class, Int)] -> (VarKey, IRAtom, IRAtom) -> TACM (VarKey, IRAtom, IRAtom, IRAtom)
+        attachBodyAtom stacks (key, dst, preAtom) = do
+            mBody <- topAtomInStacksM stacks key
+            let bodyAtom = fromMaybe dst mBody
+            pure (key, dst, preAtom, bodyAtom)
 
 
 stmtsLowing _ = error "other branch is not supporting TODO"

@@ -15,6 +15,7 @@ import Util.Exception (ErrorKind, Warning)
 import Util.Type (Path, Position)
 
 import qualified IR.TAC as TAC
+import qualified IR.Optimize as Opt
 import qualified IR.TACLowing as Low
 import qualified Parse.SyntaxTree as AST
 import qualified Util.FileHelper as FH
@@ -74,7 +75,7 @@ lowerWithUses path (decls, stmts) vUses fUses =
             pure $ TAC.IRProgm pkgSegs (classIRs ++ extraIRs)
         st0 = TAC.mkTACState vUses fUses
         (ir0, st1) = runState (TAC.runTACM action) st0
-        ir = TAC.formateIR ir0
+        ir = Opt.formateIR ir0
         tacWarns = reverse (TAC.tacWarnings st1)
     in (ir, tacWarns)
     where

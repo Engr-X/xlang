@@ -1,6 +1,6 @@
 package com.wangdi.classgen.base
 
-class Type(private val typeRef: TypeRef)
+class Type(private val typeRef: TypeRef, private val arrayDimension: Int = 0)
 {
     companion object
     {
@@ -25,8 +25,8 @@ class Type(private val typeRef: TypeRef)
         val INT32 = Type(PrimaryType.I32)
         val INT64 = Type(PrimaryType.I64)
 
-        val Float32 = Type(PrimaryType.I32)
-        val Float64 = Type(PrimaryType.I64)
+        val Float32 = Type(PrimaryType.F32)
+        val Float64 = Type(PrimaryType.F64)
     }
 
     private var pt: PrimaryType? = null
@@ -38,5 +38,8 @@ class Type(private val typeRef: TypeRef)
 
     fun isPrimitive(): Boolean = this.pt != null
 
-    fun getName(): String = if (this.pt == null) "L${this.typeRef.getFullName("/")}" else PRIM[this.pt!!]!!
+    fun getName(): String = if (this.pt == null)
+        "[".repeat(this.arrayDimension) + "L${this.typeRef.getFullName("/")};"
+    else
+        "[".repeat(this.arrayDimension) + PRIM[this.pt!!]!!
 }

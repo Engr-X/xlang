@@ -32,5 +32,15 @@ abstract class ClassArtifact(
         Files.write(outFile, bytes)
     }
 
-    fun accessOf(): Int = this.access.fold(0) { acc, f -> acc or f.flag }
+    protected fun accessOf(): Int = this.access.fold(0) { acc, f -> acc or f.flag }
+
+    protected fun genSignature(): String?
+    {
+        if (this.signature.isEmpty())
+            return null
+
+        val typeParams = this.signature.joinToString(separator = "") { tv -> "${tv}:L${TypeRef.OBJECT_FULL_NAME};" }
+
+        return "<$typeParams>L${TypeRef.OBJECT_FULL_NAME};"
+    }
 }

@@ -16,6 +16,8 @@ import Semantic.ContextCheckTest
 import Semantic.OpInferTest
 import Semantic.TypeCheckTest
 import Semantic.TypeEnvTest
+import Semantic.ReturnCheckTest
+import Semantic.SemanticCheckTest
 
 import Util.BasicTest
 import Util.ExceptionTest
@@ -34,4 +36,5 @@ main = defaultMain $ testGroup "xlang test" [
     Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,
     
     Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
-    Semantic.OpInferTest.tests, Semantic.TypeEnvTest.tests, Semantic.TypeCheckTest.tests]
+    Semantic.OpInferTest.tests, Semantic.TypeEnvTest.tests, Semantic.TypeCheckTest.tests,
+    Semantic.ReturnCheckTest.tests, Semantic.SemanticCheckTest.tests]

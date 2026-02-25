@@ -105,6 +105,7 @@ library
             IR.TAC
             IR.TACLowing
             IR.IRLowing
+            IR.Optimize
     
             Util.Basic
             Util.Type
@@ -204,6 +205,8 @@ test-suite lexparser-test
         Semantic.OpInferTest
         Semantic.TypeEnvTest
         Semantic.TypeCheckTest
+        Semantic.ReturnCheckTest
+        Semantic.SemanticCheckTest
 
         Util.BasicTest
         Util.ExceptionTest
@@ -219,6 +222,7 @@ test-suite lexparser-test
         bytestring,
         containers,
         mtl,
+        directory,
 
         lexparser,
         tasty,

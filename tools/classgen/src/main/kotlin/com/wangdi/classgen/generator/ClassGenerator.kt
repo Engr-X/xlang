@@ -29,14 +29,4 @@ class ClassGenerator(
             this.superClass.getFullName("/"),
             this.interfaces.map { impl -> impl.toString() }.toTypedArray())
     }
-
-    private fun genSignature(): String?
-    {
-        if (this.signature.isEmpty())
-            return null
-
-        val typeParams = this.signature.joinToString(separator = "") { tv -> "${tv}:L${TypeRef.OBJECT_FULL_NAME};" }
-
-        return "<$typeParams>L${TypeRef.OBJECT_FULL_NAME};"
-    }
 }
