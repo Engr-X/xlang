@@ -9,7 +9,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, expectTopLevelDeclMsg, invalidExprStmtMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -58,7 +58,7 @@ isStmtExpr :: Expression -> Bool
 isStmtExpr expr = case expr of
     AST.Binary op _ _ _ -> isAssignOp op
     AST.Call _ _ -> True
-    AST.CallT _ _ _ -> True
+    AST.CallT {} -> True
     AST.Unary op _ _ -> isIncDecOp op
     _ -> False
 
@@ -81,6 +81,14 @@ type CheckM a = State Ctx a
 -- | Join a qualified name into a dotted string.
 concatQ :: QName -> String
 concatQ = intercalate "."
+
+-- | Determine parent control context for legality checks.
+--   At top-level (no control stack), treat it like a block so that
+--   static-init statements (loops/ifs) are allowed.
+parentCtrlFor :: CheckState -> CtrlState
+parentCtrlFor cState
+    | depth cState == 0 && null (ctrlStack cState) = InBlock
+    | otherwise = fromMaybe InClass (listToMaybe (ctrlStack cState))
 
 
 -- | Append a new error to the context (keeps existing errors).
@@ -297,21 +305,15 @@ checkStmt p package envs (AST.Command cmd token) = do
             if isReturnValid ctrls then let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] returnCtrlErrorMsg
 checkStmt p package envs (AST.Expr e) = do
-    c <- get
-    let cState = st c
-        isTopLevel = depth cState == 0 && null (ctrlStack cState)
-    if isTopLevel && not (isTopLevelAssign e)
-        then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) expectTopLevelDeclMsg
-        else
-            if not (isStmtExpr e)
-                then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
-                else checkExpr p package envs e
+    if not (isStmtExpr e)
+        then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
+        else checkExpr p package envs e
 
 -- block
 checkStmt p package envs stmt@(AST.BlockStmt block) = do
     c <- get
     let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InBlock) $ addErr $
         UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) (illegalStatementMsg (prettyCtrlState InBlock) (prettyCtrlState parentCtrl))
     withCtrlScope InBlock $ checkBlock p package envs block
@@ -320,7 +322,7 @@ checkStmt p package envs stmt@(AST.BlockStmt block) = do
 checkStmt p package envs stmt@(AST.If e ifBlock elseBlock _) = do
     c <- get
     let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InIf) $ addErr $
         UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) (illegalStatementMsg (prettyCtrlState InIf) (prettyCtrlState parentCtrl))
 
@@ -332,7 +334,7 @@ checkStmt p package envs stmt@(AST.If e ifBlock elseBlock _) = do
 checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
     c <- get
     let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
 
@@ -351,7 +353,7 @@ checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
 checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
     c <- get
     let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
 
@@ -363,7 +365,7 @@ checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
 checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
     c <- get
     let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
 
@@ -375,7 +377,7 @@ checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
 checkStmt p package envs stmt@(AST.Switch e scs _) = do
     c <- get
     let cState = st c
-    let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+    let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InSwitch) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
         (illegalStatementMsg (prettyCtrlState InSwitch) (prettyCtrlState parentCtrl))
 
@@ -394,7 +396,7 @@ checkStmt p package envs stmt
         checkFunctionStmt stmt' params body = do
             c <- get
             let cState = st c
-            let parentCtrl = fromMaybe InClass (listToMaybe (ctrlStack cState))
+            let parentCtrl = parentCtrlFor cState
             when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt')
                 (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState parentCtrl))
 

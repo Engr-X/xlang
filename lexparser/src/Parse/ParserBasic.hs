@@ -15,6 +15,16 @@ import qualified Util.Exception as UE
 data AccessModified = Private | Protected | Public
     deriving (Eq, Show)
 
+-- | Declaration flags (used by variables/functions).
+data DeclFlag = Static | Final | None
+    deriving (Eq, Ord, Show)
+
+
+type DeclFlags = [DeclFlag]
+
+
+type Decl = (AccessModified, DeclFlags)
+
 
 -- Convert a qualified name to an expression.
 -- A single segment is treated as a Variable; otherwise Qualified.

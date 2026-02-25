@@ -4,9 +4,11 @@ module IR.TAC where
 
 import Control.Monad.State.Strict (State, get, put, modify, MonadState)
 import Data.List (intercalate)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Map.Strict (Map)
+import Data.Set (Set)
 import Parse.SyntaxTree (Operator, Expression, Statement, Block, Class)
-import Parse.ParserBasic (AccessModified(..))
+import Parse.ParserBasic (AccessModified(..), Decl)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
 import Util.Exception (Warning)
@@ -14,6 +16,7 @@ import Util.Exception (Warning)
 import qualified Semantic.TypeEnv as TEnv
 import qualified Parse.SyntaxTree as AST
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 
 -- Expand an expression into: (prefix statements, residual expression).
@@ -129,12 +132,16 @@ type VarStackMap = Map VarKey VarStack
 
 data TACState = TACState {
     tacVarStacks :: VarStackMap,
+    tacStaticVars :: Set VarKey, -- ^ static variables keyed by (name, varId)
     tacVarUses :: Map [Position] FullVarTable,
     tacFunUses :: Map [Position] FullFunctionTable,
     tacWarnings :: [Warning],
 
     tacCurrentVar :: Maybe VarKey,
-    tacCurrentFun :: Maybe FunSig,
+    tacCurrentFun :: [(FunSig, Int, Map Int IRAtom)],
+
+    --                 start, after
+    tacCurrentLoop :: [(Int, Int)],
     tacBlockId :: Int
 } deriving (Eq, Show)
 
@@ -146,11 +153,13 @@ newtype TACM a = TACM { runTACM :: State TACState a }
 mkTACState :: Map [Position] FullVarTable -> Map [Position] FullFunctionTable -> TACState
 mkTACState vUses fUses = TACState {
     tacVarStacks = Map.empty,
+    tacStaticVars = Set.empty,
     tacVarUses = vUses,
     tacFunUses = fUses,
     tacWarnings = [],
     tacCurrentVar = Nothing,
-    tacCurrentFun = Nothing,
+    tacCurrentFun = [],
+    tacCurrentLoop = [],
     tacBlockId = -1
 }
 
@@ -170,14 +179,97 @@ getCurrentVar :: TACM (Maybe VarKey)
 getCurrentVar = tacCurrentVar <$> get
 
 
--- | Set current function context (if any).
-setCurrentFun :: Maybe FunSig -> TACM ()
-setCurrentFun mf = TACM $ modify $ \st -> st { tacCurrentFun = mf }
+-- | Mark a variable key as static.
+addStaticVar :: VarKey -> TACM ()
+addStaticVar key = TACM $ modify $ \st ->
+    st { tacStaticVars = Set.insert key (tacStaticVars st) }
+
+
+-- | Mark multiple variable keys as static.
+addStaticVars :: [VarKey] -> TACM ()
+addStaticVars keys = TACM $ modify $ \st ->
+    st { tacStaticVars = foldr Set.insert (tacStaticVars st) keys }
+
+
+-- | Check whether a variable key is static.
+isStaticVar :: VarKey -> TACM Bool
+isStaticVar key = do
+    Set.member key . tacStaticVars <$> get
+
+
+
+-- | Push current function context onto the stack.
+--   Tuple is (signature, unifiedExitLabel).
+pushCurrentFun :: (FunSig, Int, Map Int IRAtom) -> TACM ()
+pushCurrentFun f = TACM $ modify $ \st -> st { tacCurrentFun = f : tacCurrentFun st }
+
+
+-- | Get current function context (must exist).
+--   Tuple is (signature, unifiedExitLabel).
+getCurrentFun :: TACM (FunSig, Int, Map Int IRAtom)
+getCurrentFun = do
+    fromMaybe (error "getCurrentFun: no current function context") .
+        listToMaybe .
+        tacCurrentFun <$> get
 
 
 -- | Get current function context (if any).
-getCurrentFun :: TACM (Maybe FunSig)
-getCurrentFun = tacCurrentFun <$> get
+getCurrentFunMaybe :: TACM (Maybe (FunSig, Int, Map Int IRAtom))
+getCurrentFunMaybe = listToMaybe . tacCurrentFun <$> get
+
+
+-- | Pop current function context from the stack (must exist).
+popCurrentFun :: TACM (FunSig, Int, Map Int IRAtom)
+popCurrentFun = TACM $ do
+    st <- get
+    case tacCurrentFun st of
+        [] -> error "popCurrentFun: no current function context"
+        (f:fs) -> do
+            put st { tacCurrentFun = fs }
+            pure f
+
+
+-- | Run an action with a function context pushed, then pop it.
+withFun :: (FunSig, Int, Map Int IRAtom) -> TACM a -> TACM a
+withFun f action = do
+    pushCurrentFun f
+    result <- action
+    _ <- popCurrentFun
+    pure result
+
+
+-- | Push current loop context onto the stack.
+--   Tuple is (continueTarget, breakTarget).
+pushCurrentLoop :: (Int, Int) -> TACM ()
+pushCurrentLoop w = TACM $ modify $ \st -> st { tacCurrentLoop = w : tacCurrentLoop st }
+
+
+-- | Get current loop context (must exist).
+getCurrentLoop :: TACM (Int, Int)
+getCurrentLoop = do
+    fromMaybe (error "getCurrentLoop: no current loop context")
+        . listToMaybe
+        . tacCurrentLoop <$> get
+
+
+-- | Pop current loop context from the stack (must exist).
+popCurrentLoop :: TACM (Int, Int)
+popCurrentLoop = TACM $ do
+    st <- get
+    case tacCurrentLoop st of
+        [] -> error "popCurrentLoop: no current loop context"
+        (w:ws) -> do
+            put st { tacCurrentLoop = ws }
+            pure w
+
+
+-- | Run an action with a loop context pushed, then pop it.
+withLoop :: (Int, Int) -> TACM a -> TACM a
+withLoop w action = do
+    pushCurrentLoop w
+    result <- action
+    _ <- popCurrentLoop
+    pure result
 
 
 -- | Increment the global block id and return the new value.
@@ -301,15 +393,17 @@ getAtomType (Var (name, varId, index)) = let varKey = (name, varId) in do
         Nothing -> error "cannot find atom in VarStackMap!"
 
 getAtomType (Param index) = do
-    funSig <- getCurrentFun
-    case funSig of
-        Just sig -> return $ TEnv.funParams sig !! index
-        Nothing -> error "this is not in a function"
+    (funSig, _, _) <- getCurrentFun
+    return $ TEnv.funParams funSig !! index
     
 
 data IRInstr
     = Jump Int                                      -- jump to intId
     | ConJump IRAtom Int                            -- condition Jump by condition
+
+    | SetIRet IRAtom                                -- set return value
+    | IReturn                                       -- return with RetVar
+    | Return                                        -- this is return void
 
     | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
@@ -332,6 +426,9 @@ prettyIRInstr :: Int -> IRInstr -> String
 prettyIRInstr n instr = prefix ++ case instr of
     Jump bid -> "goto " ++ show bid
     ConJump cond t -> concat ["if ", prettyIRAtom cond, " goto L" ++ show t]
+    SetIRet atom -> "$ret = " ++ prettyIRAtom atom
+    IReturn -> "ireturn"
+    Return -> "return"
     IAssign dst src -> concat [prettyIRAtom dst, " = ", prettyIRAtom src]
     IUnary dst op x -> concat [prettyIRAtom dst, " = ", AST.prettyOp op, prettyIRAtom x]
     IBinary dst op x y -> concat [prettyIRAtom dst, " = ", prettyIRAtom x, " ", AST.prettyOp op, " ", prettyIRAtom y]
@@ -396,6 +493,7 @@ data IRFunction
         AccessModified -- ^ access modifier
         String         -- ^ function name
         FunSig         -- ^ function signature
+        
         [IRStmt]       -- ^ function body
     deriving (Eq, Show)
 
@@ -407,7 +505,9 @@ newtype StaticInit
 -- | Class definition: name, static init, methods.
 data IRClass
     = IRClass
+        Decl          -- ^ property
         String        -- ^ class name
+        [(Decl, Class, String)]
         StaticInit    -- ^ static initializer
         [IRFunction]  -- ^ methods
     deriving (Eq, Show)

@@ -172,6 +172,48 @@ isImportDeclTests = testGroup "Parse.SyntaxTree.isImportDecl" $ map (\(i, decl, 
         ("3", Package ["x","y"] dummyToks, False)]
 
 
+isClassDeclarTests :: TestTree
+isClassDeclarTests = testGroup "Parse.SyntaxTree.isClassDeclar" $ map (\(i, stmt, out) ->
+    testCase i $ isClassDeclar stmt @=? out) [
+        ("0", Expr (IntConst "1" $ mkNumD "1"), False),
+        ("1", Command (Return Nothing) (mkIdD "return"), False)
+    ]
+
+
+isFunctionTests :: TestTree
+isFunctionTests = testGroup "Parse.SyntaxTree.isFunction" $ map (\(i, stmt, out) ->
+    testCase i $ isFunction stmt @=? out) [
+        ("0", Function (Int32T, [mkIdD "int"]) (Variable "f" $ mkIdD "f") [] (Multiple []), True),
+        ("1", Function (Int32T, [mkIdD "int"]) (Variable "g" $ mkIdD "g")
+            [(Int32T, "x", [mkIdD "x"])] (Multiple []), True),
+        ("2", FunctionT (Int32T, [mkIdD "int"]) (Variable "f" $ mkIdD "f")
+            [(Int32T, [mkIdD "T"])] [] (Multiple []), False),
+        ("3", Expr (IntConst "1" $ mkNumD "1"), False)
+    ]
+
+
+isFunctionTTests :: TestTree
+isFunctionTTests = testGroup "Parse.SyntaxTree.isFunctionT" $ map (\(i, stmt, out) ->
+    testCase i $ isFunctionT stmt @=? out) [
+        ("0", FunctionT (Int32T, [mkIdD "int"]) (Variable "f" $ mkIdD "f")
+            [(Int32T, [mkIdD "T"])] [] (Multiple []), True),
+        ("1", FunctionT (Int32T, [mkIdD "int"]) (Variable "g" $ mkIdD "g")
+            [(Int32T, [mkIdD "T"])] [(Int32T, "x", [mkIdD "x"])] (Multiple []), True),
+        ("2", Function (Int32T, [mkIdD "int"]) (Variable "f" $ mkIdD "f") [] (Multiple []), False),
+        ("3", Expr (IntConst "1" $ mkNumD "1"), False)
+    ]
+
+
+isAssignmentTests :: TestTree
+isAssignmentTests = testGroup "Parse.SyntaxTree.isAssignment" $ map (\(i, stmt, out) ->
+    testCase i $ isAssignment stmt @=? out) [
+        ("0", Expr (Binary Assign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.Assign)), True),
+        ("1", Expr (Binary PlusAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.PlusAssign)), True),
+        ("2", Expr (Binary Add (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.Plus)), False),
+        ("3", Command (Return Nothing) (mkIdD "return"), False)
+    ]
+
+
 declPathTests :: TestTree
 declPathTests = testGroup "Parse.SyntaxTree.declPath" $
     map (\(i, decl, out) -> testCase i $ declPath decl @=? out) [
@@ -540,4 +582,5 @@ tests = testGroup "Parse.SyntaxTree" [
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
     
-    isPackageDeclTests, isImportDeclTests, declPathTests]
+    isPackageDeclTests, isImportDeclTests, isClassDeclarTests,
+    isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests]

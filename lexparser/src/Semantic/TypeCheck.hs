@@ -9,16 +9,16 @@ import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing)
 import Data.Foldable (for_)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
+import Parse.ParserBasic (AccessModified(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
 import Semantic.OpInfer (augAssignOp, iCast, inferBinaryOp, inferUnaryOp, isBasicType, widenedArgs)
-import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarFlag(..), VarFlags, FunFlags, VarTable, normalizeClass)
+import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable, normalizeClass)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
 
 import qualified Semantic.ContextCheck as CC
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
 
@@ -42,7 +42,7 @@ data ClassDef = ClassDef {
 data TypeCtx = TypeCtx {
     tcCtx :: CC.Ctx,
     tcVarTypes :: VarTable,
-    tcVarFlags :: Map VarId VarFlags,
+    tcVarFlags :: Map VarId DeclFlags,
     tcFunScopes :: [FunTable],
     tcClassStack :: [ClassDef],
     tcClassTypeStack :: [Class],
@@ -86,17 +86,24 @@ recordFunUse :: [Position] -> FullFunctionTable -> TypeM ()
 recordFunUse pos entry =
     modify $ \c -> c { tcFullFunUses = Map.insert pos entry (tcFullFunUses c) }
 
--- | Default function flags for the current stage.
-defaultFunFlags :: FunFlags
-defaultFunFlags = Set.fromList [Static, Final]
+-- | Default declaration flags (no keywords parsed yet).
+-- TODO: populate from parsed modifiers once supported.
+defaultDeclFlags :: DeclFlags
+defaultDeclFlags = []
+
+-- | Default declaration info for locals/functions.
+-- TODO: use parsed access/flags once supported.
+defaultDecl :: Decl
+defaultDecl = (Public, defaultDeclFlags)
 
 -- | Compute flags for a newly defined variable at the current depth.
-newVarFlags :: CheckState -> VarFlags
-newVarFlags st =
-    if depth st == 0 then Set.singleton Static else Set.empty
+newVarFlags :: CheckState -> DeclFlags
+newVarFlags _ =
+    -- TODO: apply parsed modifiers (e.g. static/final) when available.
+    []
 
 -- | Ensure a VarId has flags; if missing, insert defaults based on current state.
-ensureVarFlags :: VarId -> CheckState -> TypeM VarFlags
+ensureVarFlags :: VarId -> CheckState -> TypeM DeclFlags
 ensureVarFlags vid st = do
     c <- get
     case Map.lookup vid (tcVarFlags c) of
@@ -110,8 +117,9 @@ ensureVarFlags vid st = do
 recordVarUseLocal :: Position -> String -> VarId -> TypeM ()
 recordVarUseLocal pos name vid = do
     c <- get
-    let flags = Map.findWithDefault Set.empty vid (tcVarFlags c)
-    recordVarUse [pos] (VarLocal flags name vid)
+    let flags = Map.findWithDefault [] vid (tcVarFlags c)
+        decl = (Public, flags) -- TODO: use parsed access/flags
+    recordVarUse [pos] (VarLocal decl name vid)
 
 
 -- | Check type compatibility and emit implicit-cast warnings when allowed.
@@ -249,7 +257,7 @@ inferExpr path packages envs (Variable str tok) = do
                         case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
                             -- 在导入环境中找到变量类型。
                             Just (t, _) -> do
-                                recordVarUse [pos] (VarImported t ["toDO import"])
+                                recordVarUse [pos] (VarImported defaultDeclFlags t ["toDO import"])
                                 pure t
 
                             -- 理论上应在 ContextCheck 阶段报错。
@@ -271,7 +279,7 @@ inferExpr path _ envs (Qualified names toks) = do
         -- 1) 先按导入/包的限定名查找。
         _ -> case getImportedVarType names envs of
             Just t -> do
-                recordVarUse posAll (VarImported t ["toDO import"])
+                recordVarUse posAll (VarImported defaultDeclFlags t ["toDO import"])
                 pure t
 
             -- 2) 否则把头部当变量，再处理成员访问。
@@ -430,13 +438,13 @@ inferExpr path packages envs e@(Call callee args) = do
                 (ClassDef _ _ classFuns : _) -> do
                     let sigs = Map.findWithDefault (error "this error should be catched in COntextCheck") [fname] classFuns
                     let namePoses = map Lex.tokenPos toks
-                    applyMatches callPos namePoses fname argInfos (FunLocal defaultFunFlags fname) sigs
+                    applyMatches callPos namePoses fname argInfos (FunLocal defaultDecl fname) sigs
 
             -- 其他限定名 -> 只从导入/包中查找。
             _ -> do
                 let sigs = concatMap (maybe [] fst . Map.lookup names . tFuncs) envs
                 let namePoses = map Lex.tokenPos toks
-                applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultFunFlags ["toDO import"]) sigs
+                applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultDeclFlags ["toDO import"]) sigs
 
         -- 其他表达式作为函数名 -> 非法调用。
         _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
@@ -478,7 +486,7 @@ inferExpr path packages envs e@(Call callee args) = do
                         res <- matchInSigs importSigs callPos argInfos
                         case res of
                             Right sig -> do
-                                recordFunUse namePos (FunImported defaultFunFlags ["toDO import"] sig)
+                                recordFunUse namePos (FunImported defaultDeclFlags ["toDO import"] sig)
                                 pure $ funReturn sig
                             Left err -> errClass err
                 go (m:rest) lastErr = do
@@ -489,7 +497,7 @@ inferExpr path packages envs e@(Call callee args) = do
                         res <- matchInSigs sigs callPos argInfos
                         case res of
                             Right sig -> do
-                                recordFunUse namePos (FunLocal defaultFunFlags funName sig)
+                                recordFunUse namePos (FunLocal defaultDecl funName sig)
                                 pure $ funReturn sig
                             Left err ->
                                 if isAmbiguous err then errClass err
@@ -666,9 +674,9 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
         tcCurrentReturn = ret0
     }
     where
-        addParam :: (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId VarFlags) ->
+        addParam :: (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId DeclFlags) ->
             (Class, String, [Lex.Token]) ->
-            (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId VarFlags)
+            (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId DeclFlags)
         addParam (vc, m, vt, vf) (t, name, toks) = case toks of
             [] -> (vc, m, vt, vf)
             (tok:_) ->
@@ -676,7 +684,7 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
                     pos = Lex.tokenPos tok
                     m'  = Map.insert name (vid, pos) m
                     vt' = Map.insert vid (normalizeClass t, pos) vt
-                    vf' = Map.insert vid Set.empty vf
+                    vf' = Map.insert vid [] vf
                 in (succ vc, m', vt', vf')
 
 

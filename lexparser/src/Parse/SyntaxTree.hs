@@ -7,6 +7,7 @@ import Lex.Token (Token)
 import Util.Basic
 
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Lex.Token as Lex
 
 
@@ -482,6 +483,40 @@ data Declaration =
 prettyDeclaration :: Declaration -> String
 prettyDeclaration (Package ss _) = "package " ++ intercalate "." ss
 prettyDeclaration (Import ss _) = "Import " ++ intercalate "." ss
+
+
+-- | Check whether a statement is a class declaration.
+--   Placeholder: class declarations are not modeled yet, so this is always False.
+--   Add cases here when class statements are introduced.
+isClassDeclar :: Statement -> Bool
+isClassDeclar _ = False
+
+
+-- | Check whether a statement is a function declaration.
+isFunction :: Statement -> Bool
+isFunction (Function {}) = True
+isFunction _ = False
+
+
+-- | Check whether a statement is a template function declaration.
+isFunctionT :: Statement -> Bool
+isFunctionT (FunctionT {}) = True
+isFunctionT _ = False
+
+
+assignOps :: Set.Set Operator
+assignOps = Set.fromList [
+    Assign, BitLShiftAssign, BitRShiftAssign,
+    BitOrAssign, BitXorAssign, BitXnorAssign,
+    PlusAssign, MinusAssign,
+    MultiplyAssign, DivideAssign,
+    ModuloAssign, PowerAssign]
+
+
+-- | Check whether a statement is an assignment expression statement.
+isAssignment :: Statement -> Bool
+isAssignment (Expr (Binary op _ _ _)) = Set.member op assignOps
+isAssignment _ = False
 
 
 -- | Extract the path segments from a declaration.

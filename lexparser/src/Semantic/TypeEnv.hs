@@ -1,8 +1,8 @@
 module Semantic.TypeEnv where
 
 import Data.Map.Strict (Map)
-import Data.Set (Set)
 import Parse.SyntaxTree (Class(..))
+import Parse.ParserBasic (DeclFlags, Decl)
 import Semantic.NameEnv (QName, VarId)
 import Util.Type (Path, Position)
 
@@ -55,14 +55,8 @@ data FunSig = FunSig {
 } deriving (Eq, Show)
 
 
--- | Variable flags recorded for locals.
-data VarFlag = Static | Final
-    deriving (Eq, Ord, Show)
-
-type VarFlags = Set VarFlag
-
--- | Function flags for the current stage (reuse VarFlags).
-type FunFlags = VarFlags
+-- | Declaration flags recorded for locals/functions.
+--   NOTE: Uses DeclFlags from Parse.ParserBasic.
 
 -- | Mapping from variable id to its inferred/declared type + def position.
 --   We keep Position so a variable can be traced even if names repeat.
@@ -84,14 +78,16 @@ data TypedImportEnv = TIEnv {
 
 -- | Full variable usage table (local or imported).
 data FullVarTable
-    = VarLocal VarFlags String VarId
-    | VarImported Class [String]
+    = VarLocal Decl String VarId
+    | VarImported DeclFlags Class [String]
     deriving (Eq, Show)
 
 -- | Full function usage table (local or imported).
+-- TODO: FunSig does not carry declaration flags; use DeclFlags = [] (None)
+--       as a placeholder until modifiers are parsed and threaded through.
 data FullFunctionTable
-    = FunLocal FunFlags String FunSig
-    | FunImported FunFlags [String] FunSig
+    = FunLocal Decl String FunSig
+    | FunImported DeclFlags [String] FunSig
     deriving (Eq, Show)
 
 

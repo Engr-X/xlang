@@ -4,19 +4,25 @@
 module IR.TACLowing where
 
 import Data.Bits ((.&.))
+import Control.Monad.State.Strict (evalState)
+import Data.List (partition)
+import Data.Char (toUpper)
 import Text.Read (readMaybe)
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Foldable (foldrM)
+import Data.Map.Strict (Map)
 import Numeric (readHex)
 
-import Lex.Token (tokenPos, dummyToken)
-import Parse.SyntaxTree (Program, Expression, Statement, Block)
+import Lex.Token (Token, tokenPos)
+import Parse.SyntaxTree (Class, Expression, Statement, Block, Program)
 import Semantic.OpInfer (inferUnaryOp, inferBinaryOp)
-import Semantic.TypeEnv (FullVarTable, FullFunctionTable)
-import IR.TAC (IRInstr(..), IRAtom, TACM(..), IRStmt(..), newSubCVar, getVar, peekVarStack, getAtomType, incBlockId)
+import IR.TAC (IRInstr, IRAtom, TACM, IRStmt, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
+    getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, addStaticVars, isStaticVar)
 import Util.Exception (Warning(..))
 import Util.Type (Path, Position)
 
+import qualified Data.Map.Strict as Map
+import qualified Parse.ParserBasic as PB
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeEnv as TEnv
 import qualified IR.TAC as TAC
@@ -169,22 +175,34 @@ atomLowing (AST.Variable _ tok) = do
         -- 本地变量：取 VarId + 当前版本
         TEnv.VarLocal _ realName vid -> do
             (_, ver) <- peekVarStack (realName, vid)
-            return ([], TAC.Var (realName, vid, ver))
+            let atom = TAC.Var (realName, vid, ver)
+            let paramKey = TAC.Var (realName, vid, 0)
+
+            mFun <- TAC.getCurrentFunMaybe
+            case mFun >>= (\(_, _, argMap) -> lookupParamIndex paramKey argMap) of
+                Just idx -> return ([], TAC.Param idx)
+                Nothing -> return ([], atom)
 
         -- 导入变量
-        TEnv.VarImported clazz qname -> do
+        TEnv.VarImported _ clazz qname -> do
             nAtom <- newSubCVar clazz
-            return ([IGetStatic nAtom qname], nAtom)
+            return ([TAC.IGetStatic nAtom qname], nAtom)
 
 atomLowing (AST.Qualified _ tokens) = do
     vinfo <- getVar (map tokenPos tokens)
     case vinfo of
-        TEnv.VarImported clazz varName -> do
+        TEnv.VarImported _ clazz varName -> do
             nAtom <- newSubCVar clazz
-            return ([IGetStatic nAtom varName], nAtom)
+            return ([TAC.IGetStatic nAtom varName], nAtom)
         _ -> error "qualified name is not an imported variable"
 
 atomLowing _ = error "other type is not allowed for IR atom"
+
+
+-- | Find parameter index for a given atom, if it is a function argument.
+lookupParamIndex :: IRAtom -> Map Int IRAtom -> Maybe Int
+lookupParamIndex atom =
+    Map.foldrWithKey (\k v acc -> if v == atom then Just k else acc) Nothing
 
 
 castIfNeeded :: AST.Class -> IRAtom -> AST.Class -> TACM ([IRInstr], IRAtom)
@@ -210,11 +228,11 @@ exprLowing (AST.Unary op inner _) = do
 
     if fromClass == toClass then do
         nAtom <- newSubCVar toClass
-        return (IUnary nAtom op oAtom : instr, nAtom)
+        return (TAC.IUnary nAtom op oAtom : instr, nAtom)
     else do
         (castInstrs, castAtom) <- castIfNeeded fromClass oAtom toClass
         nAtom <- newSubCVar toClass
-        return (IUnary nAtom op castAtom : castInstrs ++ instr, nAtom)
+        return (TAC.IUnary nAtom op castAtom : castInstrs ++ instr, nAtom)
 
 exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
     let pos = tokenPos tok
@@ -222,18 +240,26 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
     case vinfo of
         TEnv.VarLocal _ realName vid -> do
             let key = (realName, vid)
+            isStatic <- isStaticVar key
+
             oldCur <- TAC.getCurrentVar
-            
+                    
             TAC.setCurrentVar (Just key)
+
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
             clazz <- getAtomType rhsAtom
             lhsAtom <- newSubCVar clazz
 
             TAC.setCurrentVar oldCur
-            return (IAssign lhsAtom rhsAtom : instrs, lhsAtom)
-        TEnv.VarImported _ qname -> do
+
+            return $
+                if isStatic
+                    then (TAC.IPutStatic [realName] lhsAtom : TAC.IAssign lhsAtom rhsAtom : instrs, lhsAtom)
+                    else (TAC.IAssign lhsAtom rhsAtom : instrs, lhsAtom)
+            
+        TEnv.VarImported _ _ qname -> do
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-            return (IPutStatic qname rhsAtom : instrs, rhsAtom)
+            return (TAC.IPutStatic qname rhsAtom : instrs, rhsAtom)
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -242,9 +268,9 @@ exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
         _ -> do
             vinfo <- getVar (map tokenPos toks)
             case vinfo of
-                TEnv.VarImported _ qname -> do
+                TEnv.VarImported _ _ qname -> do
                     (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-                    return (IPutStatic qname rhsAtom : instrs, rhsAtom)
+                    return (TAC.IPutStatic qname rhsAtom : instrs, rhsAtom)
                 _ -> error "assign lhs is not an imported qualified name"
 
 
@@ -261,7 +287,7 @@ exprLowing (AST.Binary op e1 e2 _) = do
     (cast1Instrs, atom1') <- castIfNeeded fromClass1 oAtom1 toClass
     (cast2Instrs, atom2') <- castIfNeeded fromClass2 oAtom2 toClass
     nAtom <- newSubCVar toClass
-    return (IBinary nAtom op atom1' atom2' : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
+    return (TAC.IBinary nAtom op atom1' atom2' : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
 
 exprLowing (AST.Call funName params) = do
     (argInstrs, argAtoms) <- lowerArgs params
@@ -275,11 +301,11 @@ exprLowing (AST.Call funName params) = do
         TEnv.FunLocal _ name sig -> do
             let retT = TEnv.funReturn sig
             dst <- newSubCVar retT
-            return (ICall dst name argAtoms : argInstrs, dst)
+            return (TAC.ICall dst name argAtoms : argInstrs, dst)
         TEnv.FunImported _ qname sig -> do
             let retT = TEnv.funReturn sig
             dst <- newSubCVar retT
-            return (ICallStatic dst qname argAtoms : argInstrs, dst)
+            return (TAC.ICallStatic dst qname argAtoms : argInstrs, dst)
     where
         lowerArgs :: [Expression] -> TACM ([IRInstr], [IRAtom])
         lowerArgs = foldrM step ([], [])
@@ -296,8 +322,33 @@ exprLowing _ = error "other type is not support for IR ast"
 
 stmtsLowing :: [Statement] -> TACM [IRStmt]
 stmtsLowing [] = return []
+stmtsLowing ((AST.Command AST.Continue _):stmts) = do
+    (startId, _) <- getCurrentLoop
+    rest <- stmtsLowing stmts
+    return (TAC.IRInstr (TAC.Jump startId):rest)
+
+stmtsLowing ((AST.Command AST.Break _):stmts) = do
+    (_, afterId) <- getCurrentLoop
+    rest <- stmtsLowing stmts
+    return (TAC.IRInstr (TAC.Jump afterId) : rest)
+
+stmtsLowing ((AST.Command (AST.Return Nothing) _):stmts) = do
+    (_, retBId, _) <- getCurrentFun
+    rest <- stmtsLowing stmts
+    return (TAC.IRInstr (TAC.Jump retBId) : rest)
+
+stmtsLowing ((AST.Command (AST.Return (Just e)) _):stmts) = do
+    (_, retBId, _) <- getCurrentFun
+    (setInstrs, returnAtom) <- exprLowing e
+    let setReturnStmt = TAC.IRInstr (TAC.SetIRet returnAtom)
+    rest <- stmtsLowing stmts
+    return $ concat [
+        fmap TAC.IRInstr (reverse setInstrs),
+        [setReturnStmt, TAC.IRInstr (TAC.Jump retBId)],
+        rest]
+
 stmtsLowing ((AST.Expr e):stmts) = let
-    exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return $ map IRInstr (reverse instrs) in do
+    exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return $ map TAC.IRInstr (reverse instrs) in do
         current <- exprLowing' e
         rest <- stmtsLowing stmts
         return $ current ++ rest
@@ -354,5 +405,196 @@ stmtsLowing ((AST.If e thenB elseB _):stmts) = do
         [l2B]]                                                          -- .L2: after
 
 
+{-
+code:
+    while cond
+        a()
+    else:
+        b()
+    c()
+
+IR:
+    goto L1.
+
+    .L2:
+        a()
+        goto .L1
+
+    .L1:                    ; start of the loop
+        if cond got .L2
+        b()
+        goto .L3
+    .L3:                    ; after of the loop
+        c()
+
+
+if there is continue goto .L1
+if there is break then goto .L3
+
+-- so pushCurrentLoop (L1, L3)
+-}
+stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
+    l1ID <- incBlockId
+    l2ID <- incBlockId
+    l3ID <- incBlockId
+
+    (gotoL1, l2B, l1B) <- withLoop (l1ID, l3ID) $ do
+
+        -- body block
+        bodyStmts <- blockLowing $ fromMaybe (AST.Multiple []) bodyB
+        let gotoL1 = TAC.Jump l1ID
+        let l2B = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ [TAC.IRInstr gotoL1]))
+
+        -- condition block (L1)
+        (condInstrs, condAtom) <- exprLowing e
+        elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
+        let gotoL2 = TAC.ConJump condAtom l2ID
+        let gotoL3 = TAC.Jump l3ID
+        let l1B = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
+                fmap TAC.IRInstr (reverse condInstrs), [TAC.IRInstr gotoL2],
+                elseStmts,
+                [TAC.IRInstr gotoL3]]))
+
+        return (gotoL1, l2B, l1B)
+
+    -- after block
+    afterStmts <- stmtsLowing stmts
+    let l3B = TAC.IRBlockStmt (TAC.IRBlock (l3ID, afterStmts))
+
+    return [TAC.IRInstr gotoL1, l2B, l1B, l3B]
+
+
+stmtsLowing _ = error "other branch is not supporting TODO"
+
+
+functionLowering :: Statement -> TACM IRFunction
+functionLowering (AST.Function (clazz, _) (AST.Variable funName _) args functB) = do
+    -- load all args
+    atoms <- mapM loadArgs args
+    let _argsMap = genArgMap atoms -- TODO: use this map to rewrite args into Param 0..n
+
+
+    let funSig = TEnv.FunSig {
+        TEnv.funParams = map (\(a, _, _) -> a) args,
+        TEnv.funReturn = clazz
+    }
+
+    retBId <- incBlockId
+    let retInstr = if clazz == AST.Void then TAC.Return else TAC.IReturn
+    let retBlock = TAC.IRBlockStmt (TAC.IRBlock (retBId, [TAC.IRInstr retInstr]))
+
+    funStmts <- TAC.withFun (funSig, retBId, _argsMap) $ blockLowing functB
+
+    return $ TAC.IRFunction PB.Public funName funSig (funStmts ++ [retBlock])
+        
+    where
+        loadArgs :: (Class, String, [Token]) -> TACM IRAtom
+        loadArgs (argClazz, _, tokens) = do
+            let pos = map tokenPos tokens
+
+            vinfo <- getVar pos
+            case vinfo of
+                TEnv.VarImported {} -> error "args cannot be imported"
+                TEnv.VarLocal _ str vid -> newSubVar argClazz (str, vid)
+
+        genArgMap :: [IRAtom] -> Map Int IRAtom
+        genArgMap atoms = Map.fromList $ zip [0..] atoms
+
+
+functionLowering (AST.Function _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
+functionLowering _ = error "this is not a function!!!"
+
+
+-- | Lower non-function class statements into a synthetic class:
+--   non-function statements become static-init, functions become methods.
+classStmtsLowing :: String -> [Statement] -> TACM IRClass
+classStmtsLowing name stmts = do
+    let (funcDef, rest0) = partition AST.isFunction stmts
+    let (_, rest1) = partition AST.isFunctionT rest0
+
+    let staticKeyMap = collectAssignKey rest1
+    staticKeys <- mapM resolveStaticKey (Map.toList staticKeyMap)
+    addStaticVars staticKeys
+
+    staticStmts <- stmtsLowing rest1
+    staticFields <- mapM staticFieldFor staticKeys
+    funcs <- mapM functionLowering funcDef
+
+    let decl = (PB.Public, []) -- TODO: default class decl until parser carries modifiers.
+    return $ TAC.IRClass decl name staticFields (TAC.StaticInit staticStmts) funcs
+    where
+        resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
+        resolveStaticKey (_, poss) = do
+            pos <- case poss of
+                (p:_) -> pure p
+                [] -> error "collectAssignKey: empty position list"
+            vinfo <- getVar [pos]
+            case vinfo of
+                TEnv.VarLocal _ str vid -> pure (str, vid)
+                _ -> error "collectAssignKey: this should be catched in Semantic"
+        staticFieldFor :: (String, Int) -> TACM (PB.Decl, Class, String)
+        staticFieldFor (varName, vid) = do
+            (clazz, _) <- peekVarStack (varName, vid)
+            let declStatic = (PB.Public, [PB.Static]) -- TODO: use parsed modifiers
+            pure (declStatic, clazz, varName)
+
+
+-- | Lower a class statement into IR (not implemented yet).
+classLowing :: Statement -> TACM IRClass
+classLowing _ = error "the class is not implement"
+
+
+-- | Lower a whole program into IR:
+--   extract class declarations, and wrap remaining stmts into a synthetic class.
+progmLowing :: Path -> Program -> IRProgm
+progmLowing path (decls, stmts) =
+    let (classStmts, otherStmts) = partition AST.isClassDeclar stmts
+        pkgSegs = case filter AST.isPackageDecl decls of
+            (d:_) -> AST.declPath d
+            [] -> []
+        mainClassName = toMainClassName path
+        action = do
+            classIRs <- mapM classLowing classStmts
+            extraIRs <- if null otherStmts
+                then pure []
+                else (:[]) <$> classStmtsLowing mainClassName otherStmts
+            pure $ TAC.IRProgm pkgSegs (classIRs ++ extraIRs)
+    in
+        let st0 = TAC.mkTACState Map.empty Map.empty -- TODO: pass semantic var/fun uses
+        in evalState (TAC.runTACM action) st0
+    where
+        -- | Build synthetic class name from file name: MainXl style.
+        toMainClassName :: Path -> String
+        toMainClassName p =
+            let fileName = takeFileName p
+                base = takeWhile (/= '.') fileName
+                cap = case base of
+                    [] -> "Main"
+                    (c:cs) -> toUpper c : cs
+            in cap ++ "Xl"
+        -- | Extract file name from a path (no path module dependency).
+        takeFileName :: FilePath -> FilePath
+        takeFileName p =
+            let rev = reverse p
+                nameRev = takeWhile (\c -> c /= '/' && c /= '\\') rev
+            in reverse nameRev
+
+
+-- | Lower a block into a list of IR statements.
 blockLowing :: Block -> TACM [IRStmt]
 blockLowing (AST.Multiple stmts) = stmtsLowing stmts
+
+
+-- | Collect LHS variable names from assignment statements.
+--   Stores all positions for the same name.
+collectAssignKey :: [Statement] -> Map String [Position]
+collectAssignKey = foldl step Map.empty
+    where
+        step :: Map String [Position] -> Statement -> Map String [Position]
+        step acc stmt = case stmt of
+            AST.Expr (AST.Binary _ (AST.Variable name tok) _ _) ->
+                insertOnce name (tokenPos tok) acc
+            _ -> acc
+
+        insertOnce :: String -> Position -> Map String [Position] -> Map String [Position]
+        insertOnce name pos = Map.insertWith (++) name [pos]
