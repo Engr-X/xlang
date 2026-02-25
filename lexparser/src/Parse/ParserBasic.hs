@@ -1,7 +1,7 @@
 module Parse.ParserBasic where
 
 import Data.Maybe (listToMaybe, fromMaybe)
-import Data.List (find)
+import Data.List (find, sort)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
 import Parse.SyntaxTree
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
@@ -12,18 +12,42 @@ import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
 
 
+-- | Access modifiers for declarations.
 data AccessModified = Private | Protected | Public
     deriving (Eq, Show)
 
+prettyAccess :: AccessModified -> String
+prettyAccess Private = "private"
+prettyAccess Protected = "protected"
+prettyAccess Public = "public"
+
+
 -- | Declaration flags (used by variables/functions).
-data DeclFlag = Static | Final | None
+data DeclFlag = Static | Final
     deriving (Eq, Ord, Show)
+
+
+prettyDeclFlag :: DeclFlag -> String
+prettyDeclFlag Static = "static"
+prettyDeclFlag Final = "final"
 
 
 type DeclFlags = [DeclFlag]
 
+-- | Render a list of declaration flags as a single string.
+prettyDeclFlags :: DeclFlags -> String
+prettyDeclFlags = unwords . map prettyDeclFlag . sort
+
 
 type Decl = (AccessModified, DeclFlags)
+
+-- | Render a declaration as "access [flags]".
+prettyDecl :: Decl -> String
+prettyDecl (acc, flags) =
+    let accS = prettyAccess acc
+        flagsS = prettyDeclFlags flags
+        parts = filter (not . null) [accS, flagsS]
+    in unwords parts
 
 
 -- Convert a qualified name to an expression.

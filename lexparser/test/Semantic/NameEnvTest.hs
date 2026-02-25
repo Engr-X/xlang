@@ -15,10 +15,11 @@ import qualified Lex.Token as Lex
 forbiddenForTests :: TestTree
 forbiddenForTests = testGroup "Semantic.NameEnv.forbiddenFor" $ map (\(name, parent, current, out) ->
     testCase name $ forbiddenFor parent current @?= out) [
-    ("0", InBlock, InClass, True),
-    ("1", InSwitch, InIf, True),
-    ("2", InBlock, InLoop, False),
-    ("3", InFunction, InLoop, False)]
+    ("0", Just InBlock, InClass, True),
+    ("1", Just InSwitch, InIf, True),
+    ("2", Just InBlock, InLoop, False),
+    ("3", Just InFunction, InLoop, False),
+    ("4", Nothing, InBlock, False)]
 
 
 defineLocalVarTests :: TestTree

@@ -41,6 +41,7 @@ WhileStmt :: { Statement }
     
 
 -- this argument is reversed
+-- only the first one is current varName token
 TypedParams :: { [(Class, String, [Token])] }
     : Clazz identity                            { [(fst $1, identText $2, $2 : snd $1)] }
     | TypedParams ',' Clazz identity            { (fst $3, identText $4, $4 : snd $3) : $1 }
@@ -52,9 +53,10 @@ FunctionParams :: { [(Class, String, [Token])] }
     ;
 
 FunctionBlock :: { Block }
-    : Stmt                      { Multiple [$1] }
-    | Sep Stmt                  { Multiple [$2] }
-    | ':' Stmt                  { Multiple [$2] }
+    : Block Sep                     { fromMaybe (Multiple []) $1 }
+    | Sep Block Sep                 { fromMaybe (Multiple []) $2 }
+    | ':' Expr Sep                  { Multiple [Expr $2] }
+    | '=' Expr Sep                  { Multiple [Command (Return (Just $2)) $1] }
     ;
 
 FunctionStmt :: { Statement }

@@ -34,29 +34,12 @@ isBasicClassName :: QName -> Bool
 isBasicClassName q = Map.member q basicClassEnv
 
 
--- | Normalize a parsed class into canonical forms.
---   Converts built-in names (e.g. "int") into primitive Class constructors,
---   and recursively normalizes array/generic elements.
-normalizeClass :: Class -> Class
-normalizeClass cls = case cls of
-    Array c n -> Array (normalizeClass c) n
-    Class [name] args ->
-        case (Map.lookup name basicClassMap, args) of
-            (Just prim, []) -> prim
-            _ -> Class [name] (map normalizeClass args)
-    Class names args -> Class names (map normalizeClass args)
-    other -> other
-
-
 -- | Function signature recorded by the type checker.
 data FunSig = FunSig {
     funParams :: [Class],
     funReturn :: Class
 } deriving (Eq, Show)
 
-
--- | Declaration flags recorded for locals/functions.
---   NOTE: Uses DeclFlags from Parse.ParserBasic.
 
 -- | Mapping from variable id to its inferred/declared type + def position.
 --   We keep Position so a variable can be traced even if names repeat.
@@ -71,23 +54,23 @@ type FunTable = Map QName [FunSig]
 --   Keeps types + positions for imported symbols.
 data TypedImportEnv = TIEnv {
     tFile :: Path,
-    tVars :: Map QName (Class, [Position]),
-    tFuncs :: Map QName ([FunSig], [Position])
+    -- | key: imported name as written (possibly short); value carries full qname.
+    tVars :: Map QName (Class, [Position], QName),
+    tFuncs :: Map QName ([FunSig], [Position], QName)
 } deriving (Eq, Show)
 
 
 -- | Full variable usage table (local or imported).
 data FullVarTable
     = VarLocal Decl String VarId
-    | VarImported DeclFlags Class [String]
+    | VarImported DeclFlags Class QName
     deriving (Eq, Show)
+    
 
 -- | Full function usage table (local or imported).
--- TODO: FunSig does not carry declaration flags; use DeclFlags = [] (None)
---       as a placeholder until modifiers are parsed and threaded through.
 data FullFunctionTable
     = FunLocal Decl String FunSig
-    | FunImported DeclFlags [String] FunSig
+    | FunImported DeclFlags QName FunSig
     deriving (Eq, Show)
 
 

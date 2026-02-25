@@ -6,6 +6,7 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Lex.Token (Token, tokenPos)
 import Lex.Tokenizer (tokenizeWithNL)
+import Parse.ParserBasic
 import Parse.SyntaxTree
 import Parse.ParserBasic
 import Util.Exception (ErrorKind, makeError, expectedExpression, assignErrorMsg)

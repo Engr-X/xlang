@@ -29,6 +29,7 @@ pos2 :: Position
 pos2 = makePosition 1 2 1
 
 
+
 emptyScope :: Scope
 emptyScope = Scope { scopeId = 0, sVars = Map.empty, sFuncs = Map.empty }
 
@@ -168,7 +169,7 @@ importVars names = IEnv {
 typedVarsEnv :: [(QName, Class)] -> TypedImportEnv
 typedVarsEnv vars = TIEnv {
     tFile = "stdin",
-    tVars = Map.fromList $ map (\(q, c) -> (q, (c, [pos1]))) vars,
+    tVars = Map.fromList $ map (\(q, c) -> (q, (c, [pos1], q))) vars,
     tFuncs = Map.empty
 }
 
@@ -806,6 +807,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
                 Right ctx -> case expected of
                     Just _ -> assertFailure "expected errors but got success"
                     Nothing -> extra ctx
+
 
 
 tests :: TestTree

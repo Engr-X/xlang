@@ -14,8 +14,8 @@ import Data.Map.Strict (Map)
 import Numeric (readHex)
 
 import Lex.Token (Token, tokenPos)
-import Parse.SyntaxTree (Class, Expression, Statement, Block, Program)
-import Semantic.OpInfer (inferUnaryOp, inferBinaryOp)
+import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
+import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp)
 import IR.TAC (IRInstr, IRAtom, TACM, IRStmt, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, addStaticVars, isStaticVar)
 import Util.Exception (Warning(..))
@@ -35,10 +35,10 @@ tacWarnPath = "<tac>"
 
 -- | Explicit numeric ranges (IEEE 754 for floats).
 int32Range :: (Integer, Integer)
-int32Range = (0x80000000,  0x7fffffff)
+int32Range = (-0x80000000,  0x7fffffff)
 
 int64Range :: (Integer, Integer)
-int64Range = (0x8000000000000000, 0x7fffffffffffffff)
+int64Range = (-0x8000000000000000, 0x7fffffffffffffff)
 
 float32Range :: (Double, Double)
 float32Range = (0x0.000002P-126, 0x1.fffffeP+127)
@@ -205,7 +205,7 @@ lookupParamIndex atom =
     Map.foldrWithKey (\k v acc -> if v == atom then Just k else acc) Nothing
 
 
-castIfNeeded :: AST.Class -> IRAtom -> AST.Class -> TACM ([IRInstr], IRAtom)
+castIfNeeded :: Class -> IRAtom -> Class -> TACM ([IRInstr], IRAtom)
 castIfNeeded from atom to
     | from == to = return ([], atom)
     | otherwise = do
@@ -282,11 +282,12 @@ exprLowing (AST.Binary op e1 e2 _) = do
     (instr2, oAtom2) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
     fromClass1 <- getAtomType oAtom1
     fromClass2 <- getAtomType oAtom2
-    let toClass = inferBinaryOp op fromClass1 fromClass2
+    let castClass = binaryOpCastType op fromClass1 fromClass2
+        resClass = inferBinaryOp op fromClass1 fromClass2
 
-    (cast1Instrs, atom1') <- castIfNeeded fromClass1 oAtom1 toClass
-    (cast2Instrs, atom2') <- castIfNeeded fromClass2 oAtom2 toClass
-    nAtom <- newSubCVar toClass
+    (cast1Instrs, atom1') <- castIfNeeded fromClass1 oAtom1 castClass
+    (cast2Instrs, atom2') <- castIfNeeded fromClass2 oAtom2 castClass
+    nAtom <- newSubCVar resClass
     return (TAC.IBinary nAtom op atom1' atom2' : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
 
 exprLowing (AST.Call funName params) = do
@@ -339,7 +340,7 @@ stmtsLowing ((AST.Command (AST.Return Nothing) _):stmts) = do
 
 stmtsLowing ((AST.Command (AST.Return (Just e)) _):stmts) = do
     (_, retBId, _) <- getCurrentFun
-    (setInstrs, returnAtom) <- exprLowing e
+    (setInstrs, returnAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
     let setReturnStmt = TAC.IRInstr (TAC.SetIRet returnAtom)
     rest <- stmtsLowing stmts
     return $ concat [
@@ -383,7 +384,7 @@ stmtsLowing ((AST.If e thenB elseB _):stmts) = do
     l1ID <- incBlockId
     l2ID <- incBlockId
 
-    (condInstrs, condAtom) <- exprLowing e -- if cond
+    (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e -- if cond
     let gotoL1 = TAC.ConJump condAtom l1ID
 
     elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
@@ -437,23 +438,22 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
     l1ID <- incBlockId
     l2ID <- incBlockId
     l3ID <- incBlockId
-
     (gotoL1, l2B, l1B) <- withLoop (l1ID, l3ID) $ do
+         -- condition block (L1)
+        (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
+        elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
+        let gotoL2 = TAC.ConJump condAtom l2ID
+        let gotoL3 = TAC.Jump l3ID
+        let l1B = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
+                fmap TAC.IRInstr (reverse condInstrs),
+                [TAC.IRInstr gotoL2],
+                elseStmts,
+                [TAC.IRInstr gotoL3]]))
 
         -- body block
         bodyStmts <- blockLowing $ fromMaybe (AST.Multiple []) bodyB
         let gotoL1 = TAC.Jump l1ID
         let l2B = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ [TAC.IRInstr gotoL1]))
-
-        -- condition block (L1)
-        (condInstrs, condAtom) <- exprLowing e
-        elseStmts <- blockLowing $ fromMaybe (AST.Multiple []) elseB
-        let gotoL2 = TAC.ConJump condAtom l2ID
-        let gotoL3 = TAC.Jump l3ID
-        let l1B = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
-                fmap TAC.IRInstr (reverse condInstrs), [TAC.IRInstr gotoL2],
-                elseStmts,
-                [TAC.IRInstr gotoL3]]))
 
         return (gotoL1, l2B, l1B)
 
@@ -480,19 +480,21 @@ functionLowering (AST.Function (clazz, _) (AST.Variable funName _) args functB) 
     }
 
     retBId <- incBlockId
-    let retInstr = if clazz == AST.Void then TAC.Return else TAC.IReturn
+    let retInstr = if clazz == Void then TAC.Return else TAC.IReturn
     let retBlock = TAC.IRBlockStmt (TAC.IRBlock (retBId, [TAC.IRInstr retInstr]))
 
     funStmts <- TAC.withFun (funSig, retBId, _argsMap) $ blockLowing functB
 
-    return $ TAC.IRFunction PB.Public funName funSig (funStmts ++ [retBlock])
+    let decl = (PB.Public, [PB.Static]) -- default: public static
+    return $ TAC.IRFunction decl funName funSig (funStmts ++ [retBlock])
         
     where
         loadArgs :: (Class, String, [Token]) -> TACM IRAtom
         loadArgs (argClazz, _, tokens) = do
-            let pos = map tokenPos tokens
+            let pos = tokenPos $ head  tokens
 
-            vinfo <- getVar pos
+            -- the first one is type bro
+            vinfo <- getVar [pos]
             case vinfo of
                 TEnv.VarImported {} -> error "args cannot be imported"
                 TEnv.VarLocal _ str vid -> newSubVar argClazz (str, vid)

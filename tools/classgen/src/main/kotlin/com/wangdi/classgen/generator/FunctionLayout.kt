@@ -10,7 +10,7 @@ class FunctionLayout(
     cw: ClassWriter,
     private val access: Array<Access>,
     private val name: String,
-    private val funParams: (Type, MutableList<Type>)
+    private val funParams: Pair<Type, MutableList<Type>>
 ) : Layout(cw)
 {
     override fun generate(): Layout = this.apply {

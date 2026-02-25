@@ -354,7 +354,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         "}"],
         ([], [
             FunctionT
-                (Class ["void"] [], [mkId "void" 1 1 4])
+                (Void, [mkId "void" 1 1 4])
                 (Variable "addToMap" (mkId "addToMap" 1 6 8))
                 [ (Class ["T"] [], [mkId "T" 1 17 1]) ] [
                     (Class ["map"] [Class ["T"] []],
@@ -372,12 +372,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     )
                 ]
                 (Multiple [
-                    BlockStmt (Multiple [
-                        Expr (Call
-                            (Qualified ["m","add"] [mkId "m" 2 5 1, mkId "add" 2 7 3])
-                            [Variable "item" (mkId "item" 2 11 4)]
-                        )
-                    ])
+                    Expr (Call
+                        (Qualified ["m","add"] [mkId "m" 2 5 1, mkId "add" 2 7 3])
+                        [Variable "item" (mkId "item" 2 11 4)]
+                    )
                 ])
         ])),
         
@@ -386,7 +384,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         "    s.push(items)",
         "}"], ([], [
             FunctionT
-                (Class ["void"] [], [mkId "void" 1 1 4])
+                (Void, [mkId "void" 1 1 4])
                 (Variable "pushAll" (mkId "pushAll" 1 6 7))
                 [ (Class ["T"] [], [mkId "T" 1 16 1]) ] [
                     (Class ["stack"] [Class ["T"] []],
@@ -408,12 +406,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     )
                 ]
                 (Multiple [
-                    BlockStmt (Multiple [
-                        Expr (Call
-                            (Qualified ["s","push"] [mkId "s" 2 5 1, mkId "push" 2 7 4])
-                            [Variable "items" (mkId "items" 2 12 5)]
-                        )
-                    ])
+                    Expr (Call
+                        (Qualified ["s","push"] [mkId "s" 2 5 1, mkId "push" 2 7 4])
+                        [Variable "items" (mkId "items" 2 12 5)]
+                    )
                 ])
         ])),
 
@@ -423,7 +419,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         "}"],
         ([], [
             FunctionT
-                (Class ["void"] [], [mkId "void" 1 1 4])
+                (Void, [mkId "void" 1 1 4])
                 (Variable "flatten" (mkId "flatten" 1 6 7))
                 [ (Class ["T"] [], [mkId "T" 1 16 1]) ] [
                     (Class ["list"] [Class ["list"] [Class ["T"] []]],
@@ -448,12 +444,10 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     )
                 ]
                 (Multiple [
-                    BlockStmt (Multiple [
-                        Expr (Call
+                    Expr (Call
                             (Qualified ["out","addAll"] [mkId "out" 2 5 3, mkId "addAll" 2 9 6])
                             [Variable "ll" (mkId "ll" 2 16 2)]
-                        )
-                    ])
+                    )
                 ])
         ]))]
         

@@ -7,8 +7,8 @@ import Data.List (intercalate)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
-import Parse.SyntaxTree (Operator, Expression, Statement, Block, Class)
-import Parse.ParserBasic (AccessModified(..), Decl)
+import Parse.SyntaxTree (Block, Class, Expression, Operator, Statement)
+import Parse.ParserBasic (Decl, prettyDecl)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
 import Util.Exception (Warning)
@@ -142,7 +142,8 @@ data TACState = TACState {
 
     --                 start, after
     tacCurrentLoop :: [(Int, Int)],
-    tacBlockId :: Int
+    tacBlockId :: Int,
+    tempId :: Int
 } deriving (Eq, Show)
 
 
@@ -160,7 +161,8 @@ mkTACState vUses fUses = TACState {
     tacCurrentVar = Nothing,
     tacCurrentFun = [],
     tacCurrentLoop = [],
-    tacBlockId = -1
+    tacBlockId = -1,
+    tempId = 0
 }
 
 
@@ -272,6 +274,8 @@ withLoop w action = do
     pure result
 
 
+
+
 -- | Increment the global block id and return the new value.
 incBlockId :: TACM Int
 incBlockId = TACM $ do
@@ -340,7 +344,11 @@ newSubCVar cls = do
     mKey <- getCurrentVar
     case mKey of
         Just key -> newSubVar cls key
-        Nothing -> error "newSubCVar: no current variable context"
+        Nothing -> do
+            st <- get
+            let newId = succ $ tempId st
+            put st { tempId = newId }
+            newSubVar cls ("#temp", newId)
 
 
 data IRAtom
@@ -424,8 +432,8 @@ data IRInstr
 
 prettyIRInstr :: Int -> IRInstr -> String
 prettyIRInstr n instr = prefix ++ case instr of
-    Jump bid -> "goto " ++ show bid
-    ConJump cond t -> concat ["if ", prettyIRAtom cond, " goto L" ++ show t]
+    Jump bid -> "goto .L" ++ show bid
+    ConJump cond t -> concat ["if ", prettyIRAtom cond, " goto .L" ++ show t]
     SetIRet atom -> "$ret = " ++ prettyIRAtom atom
     IReturn -> "ireturn"
     Return -> "return"
@@ -467,50 +475,67 @@ prettyStmt n (IRInstr instr) = prettyIRInstr n instr ++ "\n"
 prettyStmt n (IRBlockStmt blk) = prettyIRBlock n blk
 
 
--- | Class/struct field: access, type, name.
-data FieldVar
-    = FieldVar
-        AccessModified -- ^ access modifier
-        Class          -- ^ field type
-        String         -- ^ field name
-    deriving (Eq, Show)
+type Attribute = (Decl, Class, String)
 
-type AttributeVar = FieldVar
-
--- | Method signature: access, name, signature.
-data FieldFun
-    = FieldFun
-        AccessModified -- ^ access modifier
-        String         -- ^ method name
-        FunSig         -- ^ method signature
-    deriving (Eq, Show)
-
-type AttributeFun = FieldFun
+prettyAttribute :: Int -> Attribute -> String
+prettyAttribute n (decl, cls, name) =
+    let indent = replicate (n * 4) ' '
+        declS = prettyDecl decl
+        prefix = if null declS then "" else declS ++ " "
+    in concat [indent, prefix, AST.prettyClass cls, " ", name]
 
 -- | Function definition: access, name, signature, body.
 data IRFunction
     = IRFunction
-        AccessModified -- ^ access modifier
+        Decl           -- ^ declaration (access + flags)
         String         -- ^ function name
         FunSig         -- ^ function signature
         
         [IRStmt]       -- ^ function body
     deriving (Eq, Show)
 
+prettyIRFunction :: Int -> IRFunction -> String
+prettyIRFunction n (IRFunction decl name sig body) =
+    let indent = replicate (n * 4) ' '
+        declS = prettyDecl decl
+        declPrefix = if null declS then "" else declS ++ " "
+        retS = AST.prettyClass (TEnv.funReturn sig)
+        paramS = intercalate ", " (map AST.prettyClass (TEnv.funParams sig))
+        header = concat [indent, declPrefix, retS, " ", name, "(", paramS, "):\n"]
+        bodyS = concatMap (prettyStmt (n + 1)) body
+    in header ++ bodyS
+
+
 -- | Static initializer body statements.
-newtype StaticInit
-  = StaticInit [IRStmt]
-  deriving (Eq, Show)
+newtype StaticInit = StaticInit [IRStmt] deriving (Eq, Show)
+
+prettyStaticInit :: Int -> StaticInit -> String
+prettyStaticInit n (StaticInit stmts) =
+    let indent = replicate (n * 4) ' '
+        header = indent ++ "static {}:\n"
+        body = concatMap (prettyStmt (n + 1)) stmts
+    in header ++ body
  
 -- | Class definition: name, static init, methods.
 data IRClass
     = IRClass
         Decl          -- ^ property
         String        -- ^ class name
-        [(Decl, Class, String)]
+        [Attribute]
         StaticInit    -- ^ static initializer
         [IRFunction]  -- ^ methods
     deriving (Eq, Show)
+
+prettyIRClass :: Int -> IRClass -> String
+prettyIRClass n (IRClass decl name attrs sInit funs) =
+    let indent = replicate (n * 4) ' '
+        declS = prettyDecl decl
+        declPrefix = if null declS then "" else declS ++ " "
+        header = concat [indent, declPrefix, "class ", name, ":\n"]
+        attrsS = concatMap (\a -> prettyAttribute (n + 1) a ++ "\n") attrs
+        staticS = prettyStaticInit (n + 1) sInit
+        funsS = concatMap (prettyIRFunction (n + 1)) funs
+    in header ++ attrsS ++ staticS ++ funsS
 
 -- | Whole program in IR.
 data IRProgm
@@ -518,3 +543,154 @@ data IRProgm
         [String]  -- ^ package segments (if any)
         [IRClass] -- ^ top-level classes
     deriving (Eq, Show)
+
+prettyIRProgm :: IRProgm -> String
+prettyIRProgm (IRProgm pkgSegs classes) =
+    let pkgLine = case pkgSegs of
+            [] -> ""
+            _ -> concat ["package ", intercalate "." pkgSegs, "\n\n"]
+        classesS = concatMap (prettyIRClass 0) classes
+        gap = if null pkgLine || null classesS then "" else "\n\n"
+    in concat [pkgLine, gap, classesS]
+
+
+-- | Flatten nested IR blocks so that block bodies contain only IRInstr.
+--   Nested blocks are lifted in depth-first order.
+flattenIRProgm :: IRProgm -> IRProgm
+flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
+
+flattenIRClass :: IRClass -> IRClass
+flattenIRClass (IRClass decl name fields (StaticInit stmts) funs) = 
+    IRClass decl name fields (StaticInit (flattenTopStmts stmts)) (map flattenIRFunction funs)
+
+flattenIRFunction :: IRFunction -> IRFunction
+flattenIRFunction (IRFunction acc name sig stmts) =
+    IRFunction acc name sig (flattenTopStmts stmts)
+
+flattenTopStmts :: [IRStmt] -> [IRStmt]
+flattenTopStmts [] = []
+flattenTopStmts (IRInstr instr : ss) = IRInstr instr : flattenTopStmts ss
+flattenTopStmts (IRBlockStmt blk : ss) =
+    let (blk', lifted) = flattenBlock blk
+    in IRBlockStmt blk' : lifted ++ flattenTopStmts ss
+
+flattenBlock :: IRBlock -> (IRBlock, [IRStmt])
+flattenBlock (IRBlock (bid, stmts)) =
+    let (flatBody, lifted) = flattenBlockStmts stmts
+    in (IRBlock (bid, flatBody), lifted)
+
+flattenBlockStmts :: [IRStmt] -> ([IRStmt], [IRStmt])
+flattenBlockStmts [] = ([], [])
+flattenBlockStmts (IRInstr instr : ss) =
+    let (flatRest, liftedRest) = flattenBlockStmts ss
+    in (IRInstr instr : flatRest, liftedRest)
+flattenBlockStmts (IRBlockStmt blk : ss) =
+    let (blk', liftedInside) = flattenBlock blk
+        (flatRest, liftedRest) = flattenBlockStmts ss
+    in (flatRest, IRBlockStmt blk' : liftedInside ++ liftedRest)
+
+
+-- | Remove redundant gotos:
+--   1) `goto Lx` immediately followed by `.Lx:`
+--   2) trailing `goto Lx` at end of a block when the next block is `.Lx:`
+pruneIRProgm :: IRProgm -> IRProgm
+pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
+
+pruneIRClass :: IRClass -> IRClass
+pruneIRClass (IRClass decl name fields (StaticInit stmts) funs) =
+    IRClass decl name fields (StaticInit (pruneTopStmts stmts)) (map pruneIRFunction funs)
+
+pruneIRFunction :: IRFunction -> IRFunction
+pruneIRFunction (IRFunction acc name sig stmts) =
+    IRFunction acc name sig (pruneTopStmts stmts)
+
+pruneTopStmts :: [IRStmt] -> [IRStmt]
+pruneTopStmts [] = []
+pruneTopStmts [s] = [s]
+pruneTopStmts (s1:s2:rest) =
+    case (s1, s2) of
+        (IRInstr (Jump tgt), IRBlockStmt (IRBlock (bid, _))) | tgt == bid ->
+            pruneTopStmts (s2:rest)
+        (IRBlockStmt (IRBlock (bid, stmts)), IRBlockStmt (IRBlock (nextId, _))) ->
+            let stmts' = dropTrailingJump stmts nextId
+            in IRBlockStmt (IRBlock (bid, stmts')) : pruneTopStmts (s2:rest)
+        _ ->
+            s1 : pruneTopStmts (s2:rest)
+
+
+dropTrailingJump :: [IRStmt] -> Int -> [IRStmt]
+dropTrailingJump stmts nextId = case reverse stmts of
+    (IRInstr (Jump tgt) : rest) | tgt == nextId -> reverse rest
+    _ -> stmts
+
+-- | Remove empty blocks after pruning.
+rmEBInProg :: IRProgm -> IRProgm
+rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
+
+rmEBInClass :: IRClass -> IRClass
+rmEBInClass (IRClass decl name fields (StaticInit stmts) funs) =
+    IRClass decl name fields (StaticInit (rmEBInStmts stmts)) (map rmEBInFunc funs)
+
+rmEBInFunc :: IRFunction -> IRFunction
+rmEBInFunc (IRFunction acc name sig stmts) =
+    IRFunction acc name sig (unwrapSingleBlock (rmEBInStmts stmts))
+    where
+        unwrapSingleBlock :: [IRStmt] -> [IRStmt]
+        unwrapSingleBlock [IRBlockStmt (IRBlock (_, stmts'))] = stmts'
+        unwrapSingleBlock stmts' = stmts'
+
+rmEBInStmts :: [IRStmt] -> [IRStmt]
+rmEBInStmts = fixpoint
+    where
+        fixpoint :: [IRStmt] -> [IRStmt]
+        fixpoint stmts =
+            let stmts' = pruneTopStmts (rmEmptyOnce stmts)
+            in if stmts' == stmts then stmts else fixpoint stmts'
+
+        rmEmptyOnce :: [IRStmt] -> [IRStmt]
+        rmEmptyOnce stmts =
+            let redirectMap = buildRedirectMap stmts
+                rewritten = map (rewriteStmt redirectMap) stmts
+            in filter (not . isEmptyBlock) rewritten
+
+        buildRedirectMap :: [IRStmt] -> Map Int (Maybe Int)
+        buildRedirectMap = Map.fromList . go
+            where
+                go [] = []
+                go (IRBlockStmt (IRBlock (bid, stmts)) : rest)
+                    | null stmts = (bid, nextBlockId rest) : go rest
+                    | otherwise = go rest
+                go (_ : rest) = go rest
+
+                nextBlockId :: [IRStmt] -> Maybe Int
+                nextBlockId [] = Nothing
+                nextBlockId (IRBlockStmt (IRBlock (bid, _)) : _) = Just bid
+                nextBlockId (_ : _) = Nothing
+
+        rewriteStmt :: Map Int (Maybe Int) -> IRStmt -> IRStmt
+        rewriteStmt redirectMap stmt = case stmt of
+            IRInstr instr -> IRInstr (rewriteInstr redirectMap instr)
+            IRBlockStmt (IRBlock (bid, stmts)) ->
+                IRBlockStmt (IRBlock (bid, map (rewriteStmt redirectMap) stmts))
+
+        rewriteInstr :: Map Int (Maybe Int) -> IRInstr -> IRInstr
+        rewriteInstr redirectMap instr = case instr of
+            Jump tgt -> Jump (redirect redirectMap tgt)
+            ConJump cond tgt -> ConJump cond (redirect redirectMap tgt)
+            _ -> instr
+
+        redirect :: Map Int (Maybe Int) -> Int -> Int
+        redirect redirectMap tgt =
+            case Map.lookup tgt redirectMap of
+                Nothing -> tgt
+                Just (Just newTgt) -> newTgt
+                Just Nothing -> error "invalid ir"
+
+        isEmptyBlock :: IRStmt -> Bool
+        isEmptyBlock (IRBlockStmt (IRBlock (_, []))) = True
+        isEmptyBlock _ = False
+
+
+-- | Flatten nested blocks, prune redundant gotos, then remove empty blocks.
+formateIR :: IRProgm -> IRProgm
+formateIR = rmEBInProg . pruneIRProgm . flattenIRProgm

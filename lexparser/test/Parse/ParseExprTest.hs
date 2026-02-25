@@ -187,7 +187,7 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
     ("12", "addToMap::<int>(m, 1)", Right $
             CallT
                 (Variable "addToMap" (mkId "addToMap" 1 1 8))
-                [(Class ["int"] [], [mkId "int" 1 12 3])]
+                [(Int32T, [mkId "int" 1 12 3])]
                 [Variable "m" (mkId "m" 1 17 1), IntConst "1" (mkNum "1" 1 20 1)]
         ),
         
@@ -195,8 +195,8 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
         CallT
             (Variable "makePair" (mkId "makePair" 1 1 8))
             [
-                (Class ["int"] [],    [mkId "int"    1 12 3]),
-                (Class ["double"] [], [mkId "double" 1 17 6])
+                (Int32T, [mkId "int" 1 12 3]),
+                (Float64T, [mkId "double" 1 17 6])
             ] [
                 Variable "x" (mkId "x" 1 25 1),
                 IntConst "2" (mkNum "2" 1 28 1)]
@@ -224,14 +224,14 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
         CallT
             (Variable "bar" (mkId "bar" 1 1 3))
                 [(
-                    Class ["List"] [Class ["int"] []], [
+                    Class ["List"] [Int32T], [
                     mkId "List" 1 7 4,
                     mkSym Lex.DoubleColon 1 11 2,
                     mkSym Lex.LessThan 1 13 1,
                     mkId "int" 1 14 3,
                     mkSym Lex.GreaterThan 1 17 1]), (
                         
-                        Class ["HashMap"] [Class ["int"] []], [
+                        Class ["HashMap"] [Int32T], [
                             mkId "HashMap" 1 20  7,
                             mkSym Lex.DoubleColon 1 27 2,
                             mkSym Lex.LessThan 1 29 1,

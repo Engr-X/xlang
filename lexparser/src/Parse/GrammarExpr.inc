@@ -11,9 +11,9 @@ ClazzList :: { [(Class, [Token])] }
     ;
 
 Clazz :: { (Class, [Token]) }
-    : QName                             { (Class (reverse (fst $1)) [] , snd $1) }
+    : QName                             { (normalizeClass $ Class (reverse (fst $1)) [] , snd $1) }
     | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in
-        (Class (reverse (fst $1)) (map fst reversed),
+        (normalizeClass $ Class (reverse (fst $1)) (map fst reversed),
         concat [snd $1, [$2, $3], concatMap snd reversed, [$5]]) }
     ;
 

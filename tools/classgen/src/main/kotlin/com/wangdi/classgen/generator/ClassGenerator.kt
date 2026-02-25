@@ -7,6 +7,7 @@ import com.wangdi.classgen.base.TypeRef
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes.V1_8
 import java.security.Signature
+import kotlin.math.sin
 
 
 class ClassGenerator(

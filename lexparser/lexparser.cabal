@@ -96,8 +96,6 @@ library
                 
             Semantic.NameEnv
             Semantic.ContextCheck
-            Semantic.ImportLoader
-
             Semantic.TypeEnv
             Semantic.TypeCheck
             Semantic.OpInfer
@@ -106,6 +104,7 @@ library
 
             IR.TAC
             IR.TACLowing
+            IR.IRLowing
     
             Util.Basic
             Util.Type
@@ -201,7 +200,6 @@ test-suite lexparser-test
         Parse.ParseProgmTest
 
         Semantic.NameEnvTest
-        Semantic.ImportLoaderTest
         Semantic.ContextCheckTest
         Semantic.OpInferTest
         Semantic.TypeEnvTest

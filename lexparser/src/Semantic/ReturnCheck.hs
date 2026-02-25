@@ -1,8 +1,7 @@
 module Semantic.ReturnCheck where
 
 import Data.List (intercalate)
-import Parse.SyntaxTree (Block(..), Command(..), Expression, Program, Statement(..), SwitchCase(..), exprTokens)
-import Semantic.TypeEnv (normalizeClass)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression, Program, Statement(..), SwitchCase(..), exprTokens, prettyClass)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
 
@@ -51,9 +50,9 @@ checkSwitchCase path sc = case sc of
 
 
 -- | Check whether a non-void function body returns on all paths.
-checkFunc :: Path -> AST.Class -> [Lex.Token] -> Expression -> [(AST.Class, String, [Lex.Token])] -> Maybe [(AST.Class, [Lex.Token])] -> Block -> [ErrorKind]
+checkFunc :: Path -> Class -> [Lex.Token] -> Expression -> [(Class, String, [Lex.Token])] -> Maybe [(Class, [Lex.Token])] -> Block -> [ErrorKind]
 checkFunc path retT retToks name params mTParams body
-    | normalizeClass retT == AST.Void = []
+    | retT == Void = []
     | blockReturns body = []
     | otherwise =
         let pos = funcPos retToks name
@@ -70,14 +69,14 @@ funcPos [] name = case exprTokens name of
 
 
 -- | Render a function signature for diagnostics.
-funcSig :: AST.Class -> Expression -> [(AST.Class, String, [Lex.Token])] -> Maybe [(AST.Class, [Lex.Token])] -> String
+funcSig :: Class -> Expression -> [(Class, String, [Lex.Token])] -> Maybe [(Class, [Lex.Token])] -> String
 funcSig retT name params mTParams =
-    let retS = AST.prettyClass retT
+    let retS = prettyClass retT
         nameS = funcName name
-        paramS = intercalate ", " [AST.prettyClass t ++ " " ++ n | (t, n, _) <- params]
+        paramS = intercalate ", " [prettyClass t ++ " " ++ n | (t, n, _) <- params]
         genS = case mTParams of
             Nothing -> ""
-            Just ts -> "<" ++ intercalate ", " (map (AST.prettyClass . fst) ts) ++ ">"
+            Just ts -> "<" ++ intercalate ", " (map (prettyClass . fst) ts) ++ ">"
     in concat [retS, " ", nameS, genS, "(", paramS, ")"]
 
 

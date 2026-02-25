@@ -12,8 +12,8 @@ import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Oper
 import Parse.ParserBasic (AccessModified(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (augAssignOp, iCast, inferBinaryOp, inferUnaryOp, isBasicType, widenedArgs)
-import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable, normalizeClass)
+import Semantic.OpInfer (augAssignOp, binaryOpCastType, iCast, inferBinaryOp, inferUnaryOp, isBasicType, widenedArgs)
+import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
 
@@ -125,27 +125,24 @@ recordVarUseLocal pos name vid = do
 -- | Check type compatibility and emit implicit-cast warnings when allowed.
 checkTypeCompat :: Path -> [Position] -> Class -> Class -> TypeM ()
 checkTypeCompat path pos expected actual = do
-    let expected' = normalizeClass expected
-        actual' = normalizeClass actual
-    if actual' == ErrorClass || expected' == ErrorClass || expected' == actual' then
+    if actual == ErrorClass || expected == ErrorClass || expected == actual then
         pure ()
-    else if expected' == Void || actual' == Void then
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected') (prettyClass actual'))
-    else if isBasicType expected' && isBasicType actual' then
-        mapM_ addWarn (iCast path pos actual' expected')
-    else if isBasicType expected' /= isBasicType actual' then
-        addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actual') (prettyClass expected'))
+    else if expected == Void || actual == Void then
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected) (prettyClass actual))
+    else if isBasicType expected && isBasicType actual then
+        mapM_ addWarn (iCast path pos actual expected)
+    else if isBasicType expected /= isBasicType actual then
+        addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actual) (prettyClass expected))
     else
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected') (prettyClass actual'))
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected) (prettyClass actual))
 
 -- | Check condition expression type (must be bool).
 checkCondBool :: Path -> [Position] -> Class -> TypeM ()
 checkCondBool path pos actual = do
-    let actual' = normalizeClass actual
-    if actual' == ErrorClass || actual' == Bool then
+    if actual == ErrorClass || actual == Bool then
         pure ()
     else
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.conditionBoolMsg (prettyClass actual'))
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.conditionBoolMsg (prettyClass actual))
 
 
 -- | Create a new lexical scope for the duration of an action, then restore depth/scope.
@@ -256,8 +253,8 @@ inferExpr path packages envs (Variable str tok) = do
                         -- 若本地变量不存在，再按包/导入的限定名查找。
                         case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
                             -- 在导入环境中找到变量类型。
-                            Just (t, _) -> do
-                                recordVarUse [pos] (VarImported defaultDeclFlags t ["toDO import"])
+                            Just (t, _, full) -> do
+                                recordVarUse [pos] (VarImported defaultDeclFlags t full)
                                 pure t
 
                             -- 理论上应在 ContextCheck 阶段报错。
@@ -304,7 +301,7 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
     -- recursively infer inner expression
     fromT <- inferExpr path packages envs innerE
 
-    let toT = normalizeClass cls
+    let toT = cls
         pos = map Lex.tokenPos (exprTokens e)
 
     -- one is basic, the other is not
@@ -332,7 +329,7 @@ inferExpr path packages envs e@(Unary op innerE _) = do
 
 inferExpr path packages envs e@(Binary Assign lhs rhs _) = do
     tRhs <- inferExpr path packages envs rhs
-    let tRhsN = normalizeClass tRhs
+    let tRhsN = tRhs
     case lhs of
         Variable name tok -> do
             c <- get
@@ -387,15 +384,16 @@ inferExpr path packages envs e@(Binary op lhs rhs _)
             _ -> do
                 addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens lhs)) (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
                 pure ErrorClass
-        let tLhsN = normalizeClass tLhs
-            tRhsN = normalizeClass tRhs
+        let tLhsN = tLhs
+            tRhsN = tRhs
             pos = map Lex.tokenPos (exprTokens e)
         if tLhsN == ErrorClass || tRhsN == ErrorClass then
             pure ErrorClass
         else if isBasicType tLhsN && isBasicType tRhsN then
-            let resT = inferBinaryOp baseOp tLhsN tRhsN in do
-                mapM_ addWarn (iCast path pos tLhsN resT)
-                mapM_ addWarn (iCast path pos tRhsN resT)
+            let resT = inferBinaryOp baseOp tLhsN tRhsN
+                castT = binaryOpCastType baseOp tLhsN tRhsN in do
+                mapM_ addWarn (iCast path pos tLhsN castT)
+                mapM_ addWarn (iCast path pos tRhsN castT)
                 checkTypeCompat path pos tLhsN resT
                 pure tLhsN
         else
@@ -407,9 +405,10 @@ inferExpr path packages envs e@(Binary op e1 e2 _) = do
     t2 <- inferExpr path packages envs e2
     let pos = map Lex.tokenPos (exprTokens e)
     if isBasicType t1 && isBasicType t2 then
-        let resT = inferBinaryOp op t1 t2 in do
-            mapM_ addWarn (iCast path pos t1 resT)
-            mapM_ addWarn (iCast path pos t2 resT)
+        let resT = inferBinaryOp op t1 t2
+            castT = binaryOpCastType op t1 t2 in do
+            mapM_ addWarn (iCast path pos t1 castT)
+            mapM_ addWarn (iCast path pos t2 castT)
             pure resT
     else error "TODO: binary on non-basic type"
 
@@ -427,7 +426,7 @@ inferExpr path packages envs e@(Call callee args) = do
         Variable name tok -> do
             let qLocal = [name]
             let qImport = packages ++ [name]
-            let importSigs = concatMap (maybe [] fst . Map.lookup qImport . tFuncs) envs
+            let importSigs = concatMap (maybe [] (\(sigs, _, _) -> sigs) . Map.lookup qImport . tFuncs) envs
             resolveScopedCall qLocal name fScopes importSigs [Lex.tokenPos tok] callPos argInfos
 
         -- 调用限定名（可能是 this.xxx 或导入函数）。
@@ -442,7 +441,7 @@ inferExpr path packages envs e@(Call callee args) = do
 
             -- 其他限定名 -> 只从导入/包中查找。
             _ -> do
-                let sigs = concatMap (maybe [] fst . Map.lookup names . tFuncs) envs
+                let sigs = concatMap (maybe [] (\(sigs', _, _) -> sigs') . Map.lookup names . tFuncs) envs
                 let namePoses = map Lex.tokenPos toks
                 applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultDeclFlags ["toDO import"]) sigs
 
@@ -545,7 +544,7 @@ getVarId pos context = Map.lookup pos (CC.varUses context)
 
 -- | Lookup a variable type from imported environments by qualified name.
 getImportedVarType :: QName -> [TypedImportEnv] -> Maybe Class
-getImportedVarType qname = fmap fst . listToMaybe . mapMaybe (Map.lookup qname . tVars)
+getImportedVarType qname = fmap (\(t, _, _) -> t) . listToMaybe . mapMaybe (Map.lookup qname . tVars)
 
 
 -- | Lookup a function overload set with shadowing.
@@ -653,7 +652,7 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
         tcVarTypes = varTypes',
         tcVarFlags = varFlags',
         tcFunScopes = funScopes',
-        tcCurrentReturn = Just (normalizeClass retT)
+        tcCurrentReturn = Just retT
     }
 
     mapM_ (\(name, (vid, pos)) -> recordVarUseLocal pos name vid) (Map.toList paramVars)
@@ -683,7 +682,7 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
                 let vid = vc
                     pos = Lex.tokenPos tok
                     m'  = Map.insert name (vid, pos) m
-                    vt' = Map.insert vid (normalizeClass t, pos) vt
+                    vt' = Map.insert vid (t, pos) vt
                     vf' = Map.insert vid [] vf
                 in (succ vc, m', vt', vf')
 
@@ -730,8 +729,8 @@ inferStmts path package envs stmts = do
         addFunSig name params retT mTParams = case name of
             Variable s tok -> do
                 let sig = FunSig {
-                        funParams = map (\(t, _, _) -> normalizeClass t) params,
-                        funReturn = normalizeClass retT
+                        funParams = map (\(t, _, _) -> t) params,
+                        funReturn = retT
                     }
                 let sigText = prettySig s sig params mTParams
                 let pos = Lex.tokenPos tok

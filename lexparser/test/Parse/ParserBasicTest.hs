@@ -57,6 +57,38 @@ mkHappyErrorExprTests = testGroup "Parse.ParserBasic.mkHappyErrorExpr" $ map (\(
         let t = Lex.TokenPass  (makePosition 5 3 1)
         in Error [t] ("invalid syntax: " ++ show t))]
 
+prettyAccessTests :: TestTree
+prettyAccessTests = testGroup "Parse.ParserBasic.prettyAccess" $ map (\(n, acc, out) ->
+    testCase n $ prettyAccess acc @?= out) [
+        ("0", Private, "private"),
+        ("1", Protected, "protected"),
+        ("2", Public, "public"),
+        ("3", Private, "private")]
+
+prettyDeclFlagTests :: TestTree
+prettyDeclFlagTests = testGroup "Parse.ParserBasic.prettyDeclFlag" $ map (\(n, flag, out) ->
+    testCase n $ prettyDeclFlag flag @?= out) [
+        ("0", Static, "static"),
+        ("1", Final, "final"),
+        ("2", Static, "static"),
+        ("3", Final, "final")]
+
+prettyDeclFlagsTests :: TestTree
+prettyDeclFlagsTests = testGroup "Parse.ParserBasic.prettyDeclFlags" $ map (\(n, flags, out) ->
+    testCase n $ prettyDeclFlags flags @?= out) [
+        ("0", [], ""),
+        ("1", [Static], "static"),
+        ("2", [Final], "final"),
+        ("3", [Final, Static], "static final")]
+
+prettyDeclTests :: TestTree
+prettyDeclTests = testGroup "Parse.ParserBasic.prettyDecl" $ map (\(n, decl, out) ->
+    testCase n $ prettyDecl decl @?= out) [
+        ("0", (Public, []), "public"),
+        ("1", (Private, [Static]), "private static"),
+        ("2", (Protected, [Final]), "protected final"),
+        ("3", (Public, [Static, Final]), "public static final")]
+
 
 checkBracketTests :: TestTree
 checkBracketTests = testGroup "Parse.ParserBasic.checkBracket" $ map (\(n, s, e) -> 
@@ -176,4 +208,6 @@ stmtToExprTests = testGroup "Parse.ParserBasic.stmtToExpr" $ map (\(name, _, stm
 
 tests :: TestTree
 tests = testGroup "Parse.ParserBasic" [
-    qnameToExprTests, nearestTokTests, mkHappyErrorExprTests, classifyNumberTests, toExceptionTests, stmtToBlockTests, stmtToExprTests]
+    qnameToExprTests, nearestTokTests, mkHappyErrorExprTests,
+    prettyAccessTests, prettyDeclFlagTests, prettyDeclFlagsTests, prettyDeclTests,
+    classifyNumberTests, toExceptionTests, stmtToBlockTests, stmtToExprTests]

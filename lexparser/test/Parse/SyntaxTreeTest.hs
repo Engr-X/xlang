@@ -252,6 +252,15 @@ getErrorProgramTests = testGroup "Parse.SyntaxTree.getErrorProgram" $ map (\(i, 
         makeError s = Error [dummyTok s] "why?"
 
 
+normalizeClassTests :: TestTree
+normalizeClassTests = testGroup "Parse.SyntaxTree.normalizeClass" $
+    map (\(name, input, expected) -> testCase name $ normalizeClass input @?= expected) [
+        ("0", Class ["int"] [], Int32T),
+        ("1", Array (Class ["int"] []) 2, Array Int32T 2),
+        ("2", Class ["List"] [Class ["int"] []], Class ["List"] [Int32T]),
+        ("3", Class ["int"] [Class ["int"] []], Class ["int"] [Int32T])]
+
+
 {-toClassTests :: TestTree
 toClassTests = testGroup "Parse.SyntaxTree.toClass" $ map (\(i, inp, out) -> testCase i $ toClass inp @=? out) [
     ("0", ["bool"], Bool), ("1",  ["int"], Int32T), ("2", ["int32"], Int32T), ("3", ["int64"], Int64T), ("4", ["float"], Float32T),
@@ -408,7 +417,7 @@ prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, ou
     ("3", 1, Just (BoolConst False (mkIdD "false")), insertSpace 4 ++ "false"),
     ("4", 0, Just (Variable "x" (mkIdD "x")), "x"),
     ("5", 0, Just (Qualified ["a","b","c"] [mkIdD "a"]), "a.b.c"),
-    ("6", 0, Just (Cast (Class ["Int"] [], [mkIdD "Int"]) (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(Int)(1)"),
+    ("6", 0, Just (Cast (Class ["Int"] [], [mkIdD "Int"]) (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(_Int)(1)"),
     ("7", 0, Just (Binary Add
         (Unary Sub (Variable "x" (mkIdD "x")) (mkIdD "-"))
         (IntConst "2" (mkNumD "2"))
@@ -578,7 +587,8 @@ tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests,
 
-    getErrorProgramTests, isVariableTests, isAtomTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
+    getErrorProgramTests, normalizeClassTests,
+    isVariableTests, isAtomTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
     

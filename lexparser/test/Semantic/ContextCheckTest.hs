@@ -621,7 +621,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "}",
             "c = 3",
             "d = 4"
-        ], Just (UE.illegalStatementMsg "block" "class")),
+        ], Nothing),
         ("5", unlines [
             "int main() {",
             "    {",

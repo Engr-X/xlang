@@ -22,8 +22,7 @@ isAssignOp :: AST.Operator -> Bool
 isAssignOp op = op `elem` [
     AST.Assign,
     AST.BitLShiftAssign, AST.BitRShiftAssign, AST.BitOrAssign, AST.BitXorAssign, AST.BitXnorAssign,
-    AST.PlusAssign, AST.MinusAssign, AST.MultiplyAssign, AST.DivideAssign, AST.ModuloAssign, AST.PowerAssign
-    ]
+    AST.PlusAssign, AST.MinusAssign, AST.MultiplyAssign, AST.DivideAssign, AST.ModuloAssign, AST.PowerAssign]
 
 -- | Predicate: operator is an inc/dec op.
 isIncDecOp :: AST.Operator -> Bool
@@ -85,10 +84,8 @@ concatQ = intercalate "."
 -- | Determine parent control context for legality checks.
 --   At top-level (no control stack), treat it like a block so that
 --   static-init statements (loops/ifs) are allowed.
-parentCtrlFor :: CheckState -> CtrlState
-parentCtrlFor cState
-    | depth cState == 0 && null (ctrlStack cState) = InBlock
-    | otherwise = fromMaybe InClass (listToMaybe (ctrlStack cState))
+parentCtrlFor :: CheckState -> Maybe CtrlState
+parentCtrlFor = listToMaybe . ctrlStack
 
 
 -- | Append a new error to the context (keeps existing errors).
@@ -315,7 +312,8 @@ checkStmt p package envs stmt@(AST.BlockStmt block) = do
     let cState = st c
     let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InBlock) $ addErr $
-        UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) (illegalStatementMsg (prettyCtrlState InBlock) (prettyCtrlState parentCtrl))
+        UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+            (illegalStatementMsg (prettyCtrlState InBlock) (prettyCtrlState (fromMaybe InClass parentCtrl)))
     withCtrlScope InBlock $ checkBlock p package envs block
 
 -- if-else
@@ -324,7 +322,8 @@ checkStmt p package envs stmt@(AST.If e ifBlock elseBlock _) = do
     let cState = st c
     let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InIf) $ addErr $
-        UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) (illegalStatementMsg (prettyCtrlState InIf) (prettyCtrlState parentCtrl))
+        UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+            (illegalStatementMsg (prettyCtrlState InIf) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     checkExpr p package envs e
     for_ ifBlock (withCtrlScope InIf . checkBlock p package envs)
@@ -336,7 +335,7 @@ checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
     let cState = st c
     let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
-        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     withScope $ do
         for_ e1 (checkExpr p package envs)
@@ -355,7 +354,7 @@ checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
     let cState = st c
     let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
-        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     checkExpr p package envs e
     for_ whileBlock (withCtrlScope InLoop . checkBlock p package envs)
@@ -367,7 +366,7 @@ checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
     let cState = st c
     let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
-        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState parentCtrl))
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     for_ whileBlock (withCtrlScope InLoop . checkBlock p package envs)
     checkExpr p package envs e
@@ -379,7 +378,7 @@ checkStmt p package envs stmt@(AST.Switch e scs _) = do
     let cState = st c
     let parentCtrl = parentCtrlFor cState
     when (forbiddenFor parentCtrl InSwitch) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
-        (illegalStatementMsg (prettyCtrlState InSwitch) (prettyCtrlState parentCtrl))
+        (illegalStatementMsg (prettyCtrlState InSwitch) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     checkExpr p package envs e
     withCtrl InSwitch $ for_ scs (checkSwitchCase p package envs)
@@ -398,7 +397,7 @@ checkStmt p package envs stmt
             let cState = st c
             let parentCtrl = parentCtrlFor cState
             when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt')
-                (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState parentCtrl))
+                (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
             let depth0 = depth cState
             let (varCounter', paramVars) = foldl addParam (varCounter cState, Map.empty) params
@@ -478,3 +477,4 @@ checkProgmWithUses p (decls, stmts) envs = case getPackageName p decls of
 --   Returns the final state on success, or a list of errors otherwise.
 checkProgm :: Path -> Program -> [ImportEnv] -> Either [ErrorKind] CheckState
 checkProgm p prog envs = fmap fst (checkProgmWithUses p prog envs)
+

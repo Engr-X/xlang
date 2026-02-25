@@ -35,15 +35,6 @@ isBasicClassNameTests = testGroup "Semantic.TypeEnv.isBasicClassName" $
         ("3", ["pkg", "int"], False)]
 
 
-normalizeClassTests :: TestTree
-normalizeClassTests = testGroup "Semantic.TypeEnv.normalizeClass" $
-    map (\(name, input, expected) -> testCase name $ normalizeClass input @?= expected) [
-        ("0", Class ["int"] [], Int32T),
-        ("1", Array (Class ["int"] []) 2, Array Int32T 2),
-        ("2", Class ["List"] [Class ["int"] []], Class ["List"] [Int32T]),
-        ("3", Class ["int"] [Class ["int"] []], Class ["int"] [Int32T])]
-
-
 emptyTypedImportEnvTests :: TestTree
 emptyTypedImportEnvTests = testGroup "Semantic.TypeEnv.emptyTypedImportEnv" $
     map (\(name, path) -> testCase name $ emptyTypedImportEnv path @?= TIEnv {
@@ -62,5 +53,4 @@ tests = testGroup "Semantic.TypeEnv" [
     basicClassMapTests,
     basicClassEnvTests,
     isBasicClassNameTests,
-    normalizeClassTests,
     emptyTypedImportEnvTests]

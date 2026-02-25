@@ -137,6 +137,12 @@ isFloatType :: Class -> Bool
 isFloatType c = c `elem` [Float32T, Float64T, Float128T]
 
 
+-- | Check whether an operator is a comparison (==, !=, <, <=, >, >=).
+isCompareOp :: Operator -> Bool
+isCompareOp op = op `elem`
+    [Equal, NotEqual, GreaterThan, LessThan, GreaterEqual, LessEqual]
+
+
 -- | Build implicit-cast related warnings for a type conversion.
 --   If types are equal, returns [].
 --   If types differ, returns an ImplicitCast warning.
@@ -276,3 +282,12 @@ inferBinaryOp op t1 t2 =
     case Map.lookup (op, t1, t2) binOpInfer of
         Just resT -> resT
         Nothing -> error $ "unsupported binary operator: " ++ show op ++ " on " ++ prettyClass t1 ++ ", " ++ prettyClass t2
+
+
+-- | Operand promotion type for a binary operator.
+--   For comparisons, operands should be promoted to a common numeric type,
+--   while the result remains Bool.
+binaryOpCastType :: Operator -> Class -> Class -> Class
+binaryOpCastType op t1 t2
+    | isCompareOp op = promoteBasicType t1 t2
+    | otherwise = inferBinaryOp op t1 t2

@@ -13,7 +13,7 @@ import qualified Lex.Token as Lex
 
 -- | Language-level type representation.
 --   Includes primitive types, arrays, and user-defined classes.
-data Class = 
+data Class =
     Int8T | Int16T | Int32T | Int64T |
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
@@ -38,11 +38,10 @@ prettyClass Bool = "bool"
 prettyClass Char = "char"
 prettyClass (Array c _) = concat ["Array<", prettyClass c, ">"]
 prettyClass (Class ss args) =
-    let base = intercalate "." ss
+    let base = '_' : intercalate "." ss
     in case args of
         [] -> base
         _  -> concat [base, "<", intercalate ", " (map prettyClass args), ">"]
-
 
 -- | Control-flow commands that can appear as expressions.
 --   Used for statements such as return, break, and continue.
@@ -578,6 +577,20 @@ classesMap = Map.fromList [
     
     ("char", Char),
     ("void", Void)]
+
+
+-- | Normalize a parsed class into canonical forms.
+--   Converts built-in names (e.g. "int") into primitive Class constructors,
+--   and recursively normalizes array/generic elements.
+normalizeClass :: Class -> Class
+normalizeClass cls = case cls of
+    Array c n -> Array (normalizeClass c) n
+    Class [name] args ->
+        case (Map.lookup name classesMap, args) of
+            (Just prim, []) -> prim
+            _ -> Class [name] (map normalizeClass args)
+    Class names args -> Class names (map normalizeClass args)
+    other -> other
 
 
 -- | Extract all error expressions from a program.

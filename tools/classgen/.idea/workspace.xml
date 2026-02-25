@@ -5,13 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TACLowing.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/IR/TACLowing.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Lex/Token.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Lex/Token.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/SyntaxTree.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../lexparser/src/Parse/SyntaxTree.hs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassLayout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Example.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Example.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Main.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,6 +27,7 @@
         <option value="Kotlin Enum" />
         <option value="Kotlin Class" />
         <option value="Kotlin File" />
+        <option value="Class" />
       </list>
     </option>
   </component>
@@ -48,6 +47,7 @@
   "keyToString": {
     "Gradle.classgen [:com.wangdi.classgen.ClassGeneratorKt.main()].executor": "Run",
     "Gradle.classgen [:com.wangdi.classgen.GenSquare.main()].executor": "Run",
+    "Gradle.classgen [:com.wangdi.classgen.MainKt.main()].executor": "Run",
     "Gradle.下载源代码.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -67,11 +67,13 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
+      <recent name="com.wangdi.classgen" />
+      <recent name="com.wangdi.classgen.generator" />
       <recent name="com.wangdi.classgen.base" />
       <recent name="com.wangdi.classgen.artifact" />
     </key>
   </component>
-  <component name="RunManager" selected="Kotlin.GenSquare">
+  <component name="RunManager" selected="Kotlin.MainKt">
     <configuration name="GenSquare" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.GenSquare" />
       <module name="java-inspector.main" />

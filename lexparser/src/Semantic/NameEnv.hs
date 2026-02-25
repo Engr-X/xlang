@@ -70,8 +70,9 @@ forbiddenMap = Map.fromList [
 
 
 -- | Check whether a parent control state forbids a child control state.
-forbiddenFor :: CtrlState -> CtrlState -> Bool
-forbiddenFor parent current = HashSet.member current (Map.findWithDefault HashSet.empty parent forbiddenMap)
+forbiddenFor :: Maybe CtrlState -> CtrlState -> Bool
+forbiddenFor Nothing _ = False
+forbiddenFor (Just parent) current = HashSet.member current (Map.findWithDefault HashSet.empty parent forbiddenMap)
 
 
 -- | A single lexical scope (no parent pointer; use the scope stack).
