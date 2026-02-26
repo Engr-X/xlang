@@ -76,3 +76,28 @@ data FullFunctionTable
 
 emptyTypedImportEnv :: Path -> TypedImportEnv
 emptyTypedImportEnv p = TIEnv { tFile = p, tVars = Map.empty, tFuncs = Map.empty }
+
+
+-- | Add a default imported function with void return type.
+--   key: short name used in code; qname: fully-qualified target.
+addDefaultFun :: String -> [Class] -> QName -> TypedImportEnv -> TypedImportEnv
+addDefaultFun name args qname env =
+    let sig = FunSig { funParams = args, funReturn = Void }
+        key = [name]
+        entry = ([sig], [], qname)
+        merge (newSigs, newPos, newQName) (oldSigs, oldPos, oldQName) =
+            let sigs = oldSigs ++ filter (`notElem` oldSigs) newSigs
+                pos = oldPos ++ newPos
+                qn = if null oldQName then newQName else oldQName
+            in (sigs, pos, qn)
+    in env { tFuncs = Map.insertWith merge key entry (tFuncs env) }
+
+
+envWithDefault :: TypedImportEnv -> TypedImportEnv
+envWithDefault env = let pTypes = [Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T, Bool, Char] in
+    map (\x -> addDefaultFun "")
+
+    where
+        addPrintln :: [Class] -> [TypedImportEnv] -> [TypedImportEnv]
+        addPrintln clazz env = map (\x -> addDefaultFun "println" x "java.lang.System.out.println") clazz
+

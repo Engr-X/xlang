@@ -104,7 +104,7 @@ library
 
             IR.TAC
             IR.TACLowing
-            IR.IRLowing
+            IR.Lowing
             IR.Optimize
     
             Util.Basic
