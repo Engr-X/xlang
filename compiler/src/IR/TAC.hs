@@ -482,7 +482,7 @@ data IRInstr
 
 
 prettyIRInstr :: Int -> IRInstr -> String
-prettyIRInstr n instr = prefix ++ case instr of
+prettyIRInstr n instr = replicate (n * 4) ' ' ++ case instr of
     Jump bid -> "goto .L" ++ show bid
     ConJump cond t -> concat ["if ", prettyIRAtom cond, " goto .L" ++ show t]
     SetIRet atom -> "$ret = " ++ prettyIRAtom atom
@@ -494,12 +494,14 @@ prettyIRInstr n instr = prefix ++ case instr of
     ICast dst (fromC, toC) x -> concat [prettyIRAtom dst, " = cast(", AST.prettyClass fromC, "->", AST.prettyClass toC, ") ", prettyIRAtom x]
     ICall dst name args -> concat [prettyIRAtom dst, " = call ", name, "(", intercalate ", " (map prettyIRAtom args), ")"]
     ICallStatic dst qname args -> concat [prettyIRAtom dst, " = call ", intercalate "." qname, "(", intercalate ", " (map prettyIRAtom args), ")"]
-    IGetField dst obj field -> concat [prettyIRAtom dst, " = ", prettyIRAtom obj, ".", intercalate "." field]
-    IPutField obj field v -> concat [prettyIRAtom obj, ".", intercalate "." field, " = ", prettyIRAtom v]
-    IGetStatic dst qname -> concat [prettyIRAtom dst, " = ", intercalate "." qname]
-    IPutStatic qname v -> concat [intercalate "." qname, " = ", prettyIRAtom v]
-    where
-        prefix = replicate (n * 4) ' '
+    IGetField dst obj field -> concat [
+        "getfield ", prettyIRAtom dst, " ", prettyIRAtom obj, " ", intercalate "." field]
+    IPutField obj field v -> concat [
+        "putfield ", prettyIRAtom obj, " ", intercalate "." field, " ", prettyIRAtom v]
+    IGetStatic dst qname -> concat [
+        "getstatic ", prettyIRAtom dst, " ", intercalate "." qname]
+    IPutStatic qname v -> concat [
+        "putstatic ", intercalate "." qname, " ", prettyIRAtom v]
 
 
 -- | A basic block of IR statements.
