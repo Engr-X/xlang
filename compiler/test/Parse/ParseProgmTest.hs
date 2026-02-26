@@ -209,7 +209,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
             ])),
 
         ("6b", unlines [
-            "while true: {}"],
+            "while true {}"],
 
             ([], [
                 While
@@ -221,12 +221,12 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
             
         ("7", unlines [
             "a = a + 1",
-            "while a:",
+            "while a",
             "{",
             "    while p:",
             "        p + I",
             "}",
-            "else:",
+            "else",
             "{",
             "    while l:",
             "        l + p - I",
@@ -307,7 +307,7 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
         ])),
         
         ("9", unlines [
-            "while true:",
+            "while true",
             "{",
             "    a = a + 1",
             "}",

@@ -1,6 +1,6 @@
 Sep :: { () }
-    : ';' { () }
-    | NL  { () }
+    : ';'           { () }
+    | NL            { () }
     ;
 
 -- this one is reversed
@@ -18,16 +18,15 @@ StmtSeqOpt :: { [Statement] }
 
 ElseBlock :: { (Maybe Block, Token) }
     : KW_ELSE ';'                       { (Nothing, $1) }
-    | KW_ELSE Stmt                      { (Just $ stmtToBlock $2, $1) }
-    | KW_ELSE ':' Stmt                  { (Just $ stmtToBlock $3, $1) }
+    | KW_ELSE BlockLike                 { (Just $2, $1) }
     ;
 
 
 IfStmt :: { Statement }
     : KW_IF Expr ';'                      %prec IFX { If $2 Nothing Nothing ($1, Nothing) }
     | KW_IF Expr ';' ElseBlock                      { If $2 Nothing (fst $4) ($1, Just $ snd $4) }
-    | KW_IF Expr ':' Stmt                 %prec IFX { If $2 (Just $ stmtToBlock $4) Nothing ($1, Nothing) }
-    | KW_IF Expr ':' Stmt ElseBlock                 { If $2 (Just $ stmtToBlock $4) (fst $5) ($1, Just $ snd $5) }
+    | KW_IF Expr BlockLike                %prec IFX { If $2 (Just $3) Nothing ($1, Nothing) }
+    | KW_IF Expr BlockLike ElseBlock                { If $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
     ;
 
 
@@ -35,8 +34,8 @@ IfStmt :: { Statement }
 WhileStmt :: { Statement }
     : KW_WHILE Expr ';'                   %prec IFX { While $2 Nothing Nothing ($1, Nothing) }
     | KW_WHILE Expr ';' ElseBlock                   { While $2 Nothing (fst $4) ($1, Just $ snd $4) }
-    | KW_WHILE Expr ':' Stmt              %prec IFX { While $2 (Just $ stmtToBlock $4) Nothing ($1, Nothing) }
-    | KW_WHILE Expr ':' Stmt ElseBlock              { While $2 (Just $ stmtToBlock $4) (fst $5) ($1, Just $ snd $5) }
+    | KW_WHILE Expr BlockLike             %prec IFX { While $2 (Just $3) Nothing ($1, Nothing) }
+    | KW_WHILE Expr BlockLike ElseBlock             { While $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
     ;
     
 
@@ -53,9 +52,7 @@ FunctionParams :: { [(Class, String, [Token])] }
     ;
 
 FunctionBlock :: { Block }
-    : Block Sep                     { fromMaybe (Multiple []) $1 }
-    | Sep Block Sep                 { fromMaybe (Multiple []) $2 }
-    | ':' Expr Sep                  { Multiple [Expr $2] }
+    : BlockLike                     { $1 }
     | '=' Expr Sep                  { Multiple [Command (Return (Just $2)) $1] }
     ;
 
@@ -84,4 +81,10 @@ Stmt :: { Statement }
 Block :: { Maybe Block }
     : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
     | '{' Sep '}'               { Nothing }
+    ;
+
+BlockLike :: { Block }
+    : ':' Stmt                      { Multiple [$2] }
+    | Block Sep                     { fromMaybe (Multiple []) $1 }
+    | NL Block Sep                  { fromMaybe (Multiple []) $2 }
     ;

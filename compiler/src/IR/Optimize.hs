@@ -35,4 +35,13 @@ stripPhiStmt stmt = case stmt of
 
 -- | Flatten nested blocks, prune redundant gotos, then remove empty blocks.
 formateIR :: IRProgm -> IRProgm
-formateIR = rmEBInProg . pruneIRProgm . flattenIRProgm . stripPhiProgm
+formateIR = foldr (.) id [
+    rmEBInProg,
+    pruneIRProgm,
+    stripPhiProgm,
+    optimizeProgm,
+    flattenIRProgm]
+
+
+optimizeProgm :: IRProgm -> IRProgm
+optimizeProgm = id

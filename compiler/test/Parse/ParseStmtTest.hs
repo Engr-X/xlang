@@ -60,14 +60,10 @@ normalTests = testGroup "Parse.ParseStmt.lexparseStmt" $ map (\(n, src, expected
             Expr (Binary Add
                 (IntConst "3" $ mkNum "3" 2 3 1)
                 (IntConst "4" $ mkNum "4" 2 7 1)
-                (mkSym Lex.Plus 2 5 1))]))]
+                (mkSym Lex.Plus 2 5 1))])),
 
-
-whileTests :: TestTree
-whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
-    testCase n $ replLexparseStmt src @=? expected) [
-        ("0", unlines [
-            "while true: {",
+        ("4", unlines [
+            "while true {",
             "    x = x + 1",
             "}"],
         
@@ -86,7 +82,7 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
                 Nothing
                 (mkId "while" 1 1 5, Nothing)),
 
-        ("1",
+        ("5",
             unlines [
                 "while true:",
                 "    while false:",
@@ -116,7 +112,7 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
         -- while true
         --   x = x + 1
         --   x = x + 2
-        ("2",
+        ("6",
             unlines [
                 "while true:",
                 "    x = x + 1",
@@ -128,7 +124,7 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
 
 
         -- while x + 2 { a }
-        ("3",
+        ("7",
             unlines [
                 "while x + 2:",
                 "{",
@@ -140,12 +136,12 @@ whileTests = testGroup "Parse.ParseStmt.while" $ map (\(n, src, expected) ->
                     (Variable "x" (mkId "x" 1 7 1))
                     (IntConst "2" (mkNum "2" 1 11 1))
                     (mkSym Lex.Plus 1 9 1))
-                (Just (Multiple [
+                (Just (Multiple [BlockStmt  (Multiple [
                     Expr (Variable "a" (mkId "a" 3 5 1))
-                ]))
+                ])]))
                 Nothing
                 (mkId "while" 1 1 5, Nothing))]
 
 
 tests :: TestTree
-tests = testGroup "Parse.ParseStmt" [normalTests, whileTests]
+tests = testGroup "Parse.ParseStmt" [normalTests]

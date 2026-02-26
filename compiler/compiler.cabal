@@ -11,7 +11,7 @@ cabal-version:      3.0
 --   http://haskell.org/cabal/users-guide/
 --
 -- The name of the package.
-name:               lexparser
+name:               compiler
 
 -- The package version.
 -- See the Haskell package versioning policy (PVP) for standards
@@ -29,7 +29,7 @@ version:            0.1.0.0
 -- description:
 
 -- The license under which the package is released.
-license:            BSD-3-Clause
+license:            MIT
 
 -- The file containing the license text.
 license-file:       LICENSE
@@ -215,7 +215,7 @@ test-suite lexparser-test
 
     -- Test dependencies.
     build-depends:
-        lexparser,
+        compiler,
         base >=4.17.2.1,
         aeson,
         text,
@@ -224,7 +224,6 @@ test-suite lexparser-test
         mtl,
         directory,
 
-        lexparser,
         tasty,
         tasty-hunit,
 

@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/../../lexparser/.vscode/settings.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/.vscode/tasks.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/CHANGELOG.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/LICENSE" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/README.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/Setup.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/lexparser.cabal" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/IRLowing.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/Optimize.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TAC.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/IR/TACLowing.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Lex/Token.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Lex/TokenPass.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Lex/Tokenizer.x" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Lexparser.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/GrammarDecl.inc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/GrammarExpr.inc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/GrammarStmtBlock.inc" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParseBlock.ypp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParseExpr.ypp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParseProgm.ypp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParseStmt.ypp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/ParserBasic.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Parse/SyntaxTree.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/ContextCheck.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/NameEnv.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/OpInfer.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/ReturnCheck.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/SemanticCheck.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/TypeCheck.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Semantic/TypeEnv.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Util/Basic.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Util/Exception.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Util/FileHelper.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/src/Util/Type.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Lex/TokenPassTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Lex/TokenTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Lex/TokenizerTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Main.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Parse/ParseBlockTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Parse/ParseExprTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Parse/ParseProgmTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Parse/ParseStmtTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Parse/ParserBasicTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Parse/SyntaxTreeTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/ContextCheckTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/NameEnvTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/OpInferTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/ReturnCheckTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/SemanticCheckTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/TypeCheckTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Semantic/TypeEnvTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Util/BasicTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Util/ExceptionTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Util/FileHelperTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test/Util/TypeTest.hs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../lexparser/test_input.input" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.idea/.name" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.idea/gradle.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.idea/kotlinc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/.idea/workspace.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/Square.class" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/build.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/gradle.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/gradle/wrapper/gradle-wrapper.jar" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/gradlew" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/gradlew.bat" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/settings.gradle.kts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/Example.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/Main.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/Test.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/artifact/ClassArtifact.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/base/Access.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/base/Command.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/base/PrimaryType.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/base/Type.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/base/TypeRef.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../classgen/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="ExternalProjectsManager">
+    <system id="GRADLE">
+      <state>
+        <task path="$PROJECT_DIR$">
+          <activation />
+        </task>
+        <projects_view>
+          <tree_state>
+            <expand>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="BytecodeGnerator" type="f1a62948:ProjectNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="BytecodeGnerator" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+              </path>
+              <path>
+                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
+                <item name="BytecodeGnerator" type="f1a62948:ProjectNode" />
+                <item name="Tasks" type="e4a08cd1:TasksNode" />
+                <item name="build" type="c8890929:TasksNode$1" />
+              </path>
+            </expand>
+            <select />
+          </tree_state>
+        </projects_view>
+      </state>
+    </system>
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Kotlin Enum" />
+        <option value="Kotlin Class" />
+        <option value="Kotlin File" />
+        <option value="Class" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\Murphy\.gradle\wrapper\dists\gradle-8.14-bin\38aieal9i53h9rfe7vjup95b9\gradle-8.14" javaHome="D:\Coding\compilers\jdk-17.0.10" gradleVersion="8.14" />
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="39z1GknzcRVBVXlj6q8zSnlx3ns" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Gradle.Build BytecodeGenerator.executor": "Run",
+    "Gradle.BytecodeGenerator [build].executor": "Run",
+    "Gradle.BytecodeGenerator [clean].executor": "Run",
+    "Gradle.classgen [:com.wangdi.classgen.ClassGeneratorKt.main()].executor": "Run",
+    "Gradle.classgen [:com.wangdi.classgen.GenSquare.main()].executor": "Run",
+    "Gradle.classgen [:com.wangdi.classgen.MainKt.main()].executor": "Run",
+    "Gradle.下载源代码.executor": "Run",
+    "Kotlin.MainKt (1).executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/homes/dw725/Desktop/xlang/tools/BytecodeGenerator",
+    "project.structure.last.edited": "模块",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "editor.preferences.inline.completion",
+    "to.speed.mode.migration.done": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
+      <recent name="com.wangdi.classgen" />
+      <recent name="com.wangdi.classgen.generator" />
+      <recent name="com.wangdi.classgen.base" />
+      <recent name="com.wangdi.classgen.artifact" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Gradle.BytecodeGenerator [jar]">
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="classgen" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <module name="classgen" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="BytecodeGenerator [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="build" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="BytecodeGenerator [clean]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="clean" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="BytecodeGenerator [jar]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
+      <ExternalSystemSettings>
+        <option name="executionName" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="externalSystemIdString" value="GRADLE" />
+        <option name="scriptParameters" />
+        <option name="taskDescriptions">
+          <list />
+        </option>
+        <option name="taskNames">
+          <list>
+            <option value="jar" />
+          </list>
+        </option>
+        <option name="vmOptions" />
+      </ExternalSystemSettings>
+      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
+      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
+      <DebugAllEnabled>false</DebugAllEnabled>
+      <RunAsTest>false</RunAsTest>
+      <method v="2" />
+    </configuration>
+    <configuration name="GenSquare" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.GenSquare" />
+      <module name="java-inspector.main" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="MainKt (1)" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.MainKt" />
+      <module name="BytecodeGnerator.main" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Gradle.BytecodeGenerator [jar]" />
+        <item itemvalue="Gradle.BytecodeGenerator [build]" />
+        <item itemvalue="Gradle.BytecodeGenerator [clean]" />
+        <item itemvalue="Kotlin.MainKt (1)" />
+        <item itemvalue="Kotlin.GenSquare" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="" />
+      <created>1771683992201</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1771683992201</updated>
+    </task>
+    <servers />
+  </component>
+</project>
