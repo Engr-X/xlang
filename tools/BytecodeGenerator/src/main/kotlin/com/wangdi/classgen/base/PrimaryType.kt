@@ -1,5 +1,6 @@
 package com.wangdi.classgen.base
 
+
 enum class PrimaryType
 {
     BOOL,

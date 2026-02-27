@@ -2,6 +2,7 @@ package com.wangdi.classgen.artifact
 
 import com.wangdi.classgen.base.Access
 import com.wangdi.classgen.base.TypeRef
+
 import org.objectweb.asm.ClassWriter
 
 import java.nio.file.Files

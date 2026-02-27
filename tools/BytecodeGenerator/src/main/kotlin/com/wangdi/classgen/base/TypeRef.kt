@@ -1,5 +1,6 @@
 package com.wangdi.classgen.base
 
+
 class TypeRef(private val name: MutableList<String>)
 {
     constructor(vararg name: String) : this(name.toMutableList())

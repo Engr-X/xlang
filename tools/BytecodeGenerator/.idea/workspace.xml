@@ -5,57 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/../../c/.vscode/c_cpp_properties.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/.vscode/tasks.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/CMakeLists.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/include/ghc9.4.8/HsFFI.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/include/ghc9.4.8/ghcautoconf.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/include/ghc9.4.8/ghcplatform.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/include/ghc9.4.8/ghcversion.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/include/ghc9.4.8/stg_types.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/include/libhaskell.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../c/src/xlang.c" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/compiler.cabal" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/compiler.cabal" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/Lex/Tokenizer.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/Parse/ParseBlock.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/Parse/ParseExpr.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/Parse/ParseProgm.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/Parse/ParseStmt.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/PackageInfo_compiler.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseBlock.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseBlock.y" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseExpr.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseExpr.y" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseProgm.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseProgm.y" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseStmt.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Parse/ParseStmt.y" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/Paths_compiler.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/build/autogen/cabal_macros.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/cache/config" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/package.conf.inplace/package.cache" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/package.conf.inplace/package.cache.lock" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup-config" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup/Main.hi" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup/Main.o" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup/setup" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup/setup.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup/setup.version" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/build/x86_64-linux/ghc-9.6.7/compiler-0.1.0.0/setup/setup_macros.h" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/compiler" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/config" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/elaborated-plan" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/improved-plan" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/plan.json" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/solver-plan" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/source-hashes" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/cache/up-to-date" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/packagedb/ghc-9.6.7/package.cache" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/dist-newstyle/packagedb/ghc-9.6.7/package.cache.lock" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/IR/IRLowing.hs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/Semantic/TypeEnv.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Semantic/TypeEnv.hs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Example.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Example.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/ClassArtifact.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/ClassArtifact.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Access.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Access.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Command.kt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/PrimaryType.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/PrimaryType.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Type.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Type.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/TypeRef.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/TypeRef.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -102,9 +62,9 @@
     <option name="RECENT_TEMPLATES">
       <list>
         <option value="Kotlin Enum" />
-        <option value="Kotlin Class" />
-        <option value="Kotlin File" />
         <option value="Class" />
+        <option value="Kotlin File" />
+        <option value="Kotlin Class" />
       </list>
     </option>
   </component>
@@ -120,34 +80,35 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Gradle.Build BytecodeGenerator.executor": "Run",
-    "Gradle.BytecodeGenerator [build].executor": "Run",
-    "Gradle.BytecodeGenerator [clean].executor": "Run",
-    "Gradle.classgen [:com.wangdi.classgen.ClassGeneratorKt.main()].executor": "Run",
-    "Gradle.classgen [:com.wangdi.classgen.GenSquare.main()].executor": "Run",
-    "Gradle.classgen [:com.wangdi.classgen.MainKt.main()].executor": "Run",
-    "Gradle.下载源代码.executor": "Run",
-    "Kotlin.MainKt (1).executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "D:/Coding/projects/Mixed/xlang/tools/BytecodeGenerator/build.gradle.kts",
-    "project.structure.last.edited": "模块",
-    "project.structure.proportion": "0.15",
-    "project.structure.side.proportion": "0.2",
-    "settings.editor.selected.configurable": "editor.preferences.inline.completion",
-    "to.speed.mode.migration.done": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Gradle.Build BytecodeGenerator.executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.BytecodeGenerator [build].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.BytecodeGenerator [clean].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.classgen [:com.wangdi.classgen.ClassGeneratorKt.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.classgen [:com.wangdi.classgen.GenSquare.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.classgen [:com.wangdi.classgen.MainKt.main()].executor&quot;: &quot;Run&quot;,
+    &quot;Gradle.下载源代码.executor&quot;: &quot;Run&quot;,
+    &quot;Kotlin.MainKt (1).executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Coding/projects/Mixed/xlang/tools/BytecodeGenerator/build.gradle.kts&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;模块&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.inline.completion&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
+      <recent name="com.wangdi.classgen.artifact.operation" />
       <recent name="com.wangdi.classgen" />
       <recent name="com.wangdi.classgen.generator" />
       <recent name="com.wangdi.classgen.base" />

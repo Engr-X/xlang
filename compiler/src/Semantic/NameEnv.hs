@@ -114,6 +114,22 @@ data ImportEnv = IEnv  {
     deriving (Eq, Show)
 
 
+-- | Empty import environment for a single file.
+emptyImportEnv :: Path -> ImportEnv
+emptyImportEnv p = IEnv { file = p, iVars = Map.empty, iFuncs = Map.empty }
+
+-- | Default import environment with built-in functions preloaded.
+defaultImportEnv :: Path -> ImportEnv
+defaultImportEnv p = envWithDefaultImport (emptyImportEnv p)
+    where
+        envWithDefaultImport :: ImportEnv -> ImportEnv
+        envWithDefaultImport env =
+            let addFun qn env0 = env0 { iFuncs = Map.insert qn [] (iFuncs env0) }
+                addPut env0 = addFun ["xlang", "io", "put"] (addFun ["put"] env0)
+                addPutln env0 = addFun ["xlang", "io", "putln"] (addFun ["putln"] env0)
+            in addPutln (addPut env)
+
+
 -- Define a local variable when we see a top-level assignment like: x = expr.
 -- This only treats "Variable" as a definable l-value for now.
 defineLocalVar :: Path -> Expression -> CheckState -> Either ErrorKind CheckState

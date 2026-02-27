@@ -136,6 +136,7 @@ data TACState = TACState {
     tacVarUses :: Map [Position] FullVarTable,
     tacFunUses :: Map [Position] FullFunctionTable,
     tacWarnings :: [Warning],
+    tacAtomTypes :: Map IRAtom Class,
 
     tacCurrentVar :: Maybe VarKey,
     tacCurrentFun :: [(FunSig, Int, Map Int IRAtom)],
@@ -160,6 +161,7 @@ mkTACState vUses fUses = TACState {
     tacVarUses = vUses,
     tacFunUses = fUses,
     tacWarnings = [],
+    tacAtomTypes = Map.empty,
     tacCurrentVar = Nothing,
     tacCurrentFun = [],
     tacCurrentLoop = [],
@@ -354,6 +356,11 @@ setVarStacks :: VarStackMap -> TACM ()
 setVarStacks stacks = TACM $ modify $ \st -> st { tacVarStacks = stacks }
 
 
+-- | Get the atom type map recorded during lowering.
+getAtomTypes :: TACM (Map IRAtom Class)
+getAtomTypes = tacAtomTypes <$> get
+
+
 -- | Lookup the current (top) version info for the current variable context.
 peekCVarStack :: TACM (Class, Int)
 peekCVarStack = do
@@ -375,11 +382,13 @@ newSubVar cls key@(name, vid) = TACM $ do
         newStack = case Map.lookup key stacks of
             Nothing -> [(cls, newIdx)]
             Just l -> (cls, newIdx) : l
+        atom = Var (name, vid, newIdx)
     put st {
         tacVarStacks = Map.insert key newStack stacks,
-        tacVarNextId = Map.insert key (succ newIdx) (tacVarNextId st)
+        tacVarNextId = Map.insert key (succ newIdx) (tacVarNextId st),
+        tacAtomTypes = Map.insert atom cls (tacAtomTypes st)
         }
-    return (Var (name, vid, newIdx))
+    return atom
 
 
 -- | Create a new SSA-style version for the current variable context.
@@ -409,7 +418,7 @@ data IRAtom
     | Var (String, Int, Int)                      -- name, varId, versionIndex
     | Phi [(Int, IRAtom)]                         -- incoming block id -> atom
     | Param Int                                   -- param for function and class
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 
 prettyIRAtom :: IRAtom -> String
@@ -543,12 +552,13 @@ data IRFunction
         Decl           -- ^ declaration (access + flags)
         String         -- ^ function name
         FunSig         -- ^ function signature
-        
+        (Map IRAtom Class) -- ^ atom -> type map
+
         [IRStmt]       -- ^ function body
     deriving (Eq, Show)
 
 prettyIRFunction :: Int -> IRFunction -> String
-prettyIRFunction n (IRFunction decl name sig body) =
+prettyIRFunction n (IRFunction decl name sig _atomTypes body) =
     let indent = replicate (n * 4) ' '
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
@@ -576,11 +586,12 @@ data IRClass
         String        -- ^ class name
         [Attribute]
         StaticInit    -- ^ static initializer
+        (Map IRAtom Class) -- ^ atom -> type map (static init + methods)
         [IRFunction]  -- ^ methods
     deriving (Eq, Show)
 
 prettyIRClass :: Int -> IRClass -> String
-prettyIRClass n (IRClass decl name attrs sInit funs) =
+prettyIRClass n (IRClass decl name attrs sInit _atomTypes funs) =
     let indent = replicate (n * 4) ' '
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
@@ -613,12 +624,12 @@ flattenIRProgm :: IRProgm -> IRProgm
 flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
 
 flattenIRClass :: IRClass -> IRClass
-flattenIRClass (IRClass decl name fields (StaticInit stmts) funs) = 
-    IRClass decl name fields (StaticInit (flattenTopStmts stmts)) (map flattenIRFunction funs)
+flattenIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs) = 
+    IRClass decl name fields (StaticInit (flattenTopStmts stmts)) atomTypes (map flattenIRFunction funs)
 
 flattenIRFunction :: IRFunction -> IRFunction
-flattenIRFunction (IRFunction acc name sig stmts) =
-    IRFunction acc name sig (flattenTopStmts stmts)
+flattenIRFunction (IRFunction acc name sig atomTypes stmts) =
+    IRFunction acc name sig atomTypes (flattenTopStmts stmts)
 
 flattenTopStmts :: [IRStmt] -> [IRStmt]
 flattenTopStmts [] = []
@@ -650,12 +661,12 @@ pruneIRProgm :: IRProgm -> IRProgm
 pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
 
 pruneIRClass :: IRClass -> IRClass
-pruneIRClass (IRClass decl name fields (StaticInit stmts) funs) =
-    IRClass decl name fields (StaticInit (pruneTopStmts stmts)) (map pruneIRFunction funs)
+pruneIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs) =
+    IRClass decl name fields (StaticInit (pruneTopStmts stmts)) atomTypes (map pruneIRFunction funs)
 
 pruneIRFunction :: IRFunction -> IRFunction
-pruneIRFunction (IRFunction acc name sig stmts) =
-    IRFunction acc name sig (pruneTopStmts stmts)
+pruneIRFunction (IRFunction acc name sig atomTypes stmts) =
+    IRFunction acc name sig atomTypes (pruneTopStmts stmts)
 
 pruneTopStmts :: [IRStmt] -> [IRStmt]
 pruneTopStmts [] = []
@@ -681,12 +692,12 @@ rmEBInProg :: IRProgm -> IRProgm
 rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
 
 rmEBInClass :: IRClass -> IRClass
-rmEBInClass (IRClass decl name fields (StaticInit stmts) funs) =
-    IRClass decl name fields (StaticInit (rmEBInStmts stmts)) (map rmEBInFunc funs)
+rmEBInClass (IRClass decl name fields (StaticInit stmts) atomTypes funs) =
+    IRClass decl name fields (StaticInit (rmEBInStmts stmts)) atomTypes (map rmEBInFunc funs)
 
 rmEBInFunc :: IRFunction -> IRFunction
-rmEBInFunc (IRFunction acc name sig stmts) =
-    IRFunction acc name sig (unwrapSingleBlock (rmEBInStmts stmts))
+rmEBInFunc (IRFunction acc name sig atomTypes stmts) =
+    IRFunction acc name sig atomTypes (unwrapSingleBlock (rmEBInStmts stmts))
     where
         unwrapSingleBlock :: [IRStmt] -> [IRStmt]
         unwrapSingleBlock [IRBlockStmt (IRBlock (_, stmts'))] = stmts'
@@ -742,5 +753,3 @@ rmEBInStmts = fixpoint
         isEmptyBlock :: IRStmt -> Bool
         isEmptyBlock (IRBlockStmt (IRBlock (_, []))) = True
         isEmptyBlock _ = False
-
-

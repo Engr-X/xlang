@@ -1,8 +1,11 @@
 package com.wangdi.classgen.artifact
 
 import com.wangdi.classgen.base.Access
+import com.wangdi.classgen.base.Type
 import com.wangdi.classgen.base.TypeRef
+
 import org.objectweb.asm.ClassWriter
+
 import kotlin.collections.fold
 
 
@@ -21,4 +24,6 @@ abstract class Layout(protected val cw: ClassWriter)
 
         return "<$typeParams>L${TypeRef.OBJECT_FULL_NAME};"
     }
+
+    protected fun genExceptions(exceptions: MutableList<Type>): Array<String> = exceptions.map { it.getName() }.toTypedArray()
 }

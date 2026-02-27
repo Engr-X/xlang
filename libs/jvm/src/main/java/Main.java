@@ -1,6 +1,9 @@
+import xlang.io.ConsoleXl;
+
 public class Main
 {
     public static void main(String[] args) {
-        xlang.io.ConsoleXl.print(10);
+        String line = ConsoleXl.input("input: ");
+        System.out.println(line);
     }
 }

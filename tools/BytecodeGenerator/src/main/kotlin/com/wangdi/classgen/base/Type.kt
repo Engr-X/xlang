@@ -1,5 +1,6 @@
 package com.wangdi.classgen.base
 
+
 class Type(private val typeRef: TypeRef, private val arrayDimension: Int = 0)
 {
     companion object

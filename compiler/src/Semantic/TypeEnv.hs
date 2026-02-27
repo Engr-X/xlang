@@ -77,27 +77,35 @@ data FullFunctionTable
 emptyTypedImportEnv :: Path -> TypedImportEnv
 emptyTypedImportEnv p = TIEnv { tFile = p, tVars = Map.empty, tFuncs = Map.empty }
 
+-- | Default typed import environment with built-in functions preloaded.
+defaultTypedImportEnv :: Path -> TypedImportEnv
+defaultTypedImportEnv p = envWithDefault (emptyTypedImportEnv p)
+
 
 -- | Add a default imported function with void return type.
 --   key: short name used in code; qname: fully-qualified target.
-addDefaultFun :: String -> [Class] -> QName -> TypedImportEnv -> TypedImportEnv
-addDefaultFun name args qname env =
-    let sig = FunSig { funParams = args, funReturn = Void }
-        key = [name]
-        entry = ([sig], [], qname)
+addDefaultFun :: QName -> (Class, [Class]) -> QName -> TypedImportEnv -> TypedImportEnv
+addDefaultFun name (retT, args) full env =
+    let sig = FunSig { funParams = args, funReturn = retT }
+        entry = ([sig], [], full)
         merge (newSigs, newPos, newQName) (oldSigs, oldPos, oldQName) =
             let sigs = oldSigs ++ filter (`notElem` oldSigs) newSigs
                 pos = oldPos ++ newPos
                 qn = if null oldQName then newQName else oldQName
             in (sigs, pos, qn)
-    in env { tFuncs = Map.insertWith merge key entry (tFuncs env) }
+        env1 = env { tFuncs = Map.insertWith merge name entry (tFuncs env) }
+    in if name == full
+        then env1
+        else env1 { tFuncs = Map.insertWith merge full entry (tFuncs env1) }
 
 
 envWithDefault :: TypedImportEnv -> TypedImportEnv
-envWithDefault env = let pTypes = [Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T, Bool, Char] in
-    map (\x -> addDefaultFun "")
+envWithDefault env = let pTypes = [Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T, Bool, Char]
+    in addPutln pTypes (addPut pTypes env)
 
     where
-        addPrintln :: [Class] -> [TypedImportEnv] -> [TypedImportEnv]
-        addPrintln clazz env = map (\x -> addDefaultFun "println" x "java.lang.System.out.println") clazz
+        addPut :: [Class] -> TypedImportEnv -> TypedImportEnv
+        addPut cs env0 = foldl (\e x -> addDefaultFun ["put"] (Void, [x]) ["xlang", "io", "put"] e) env0 cs
 
+        addPutln :: [Class] -> TypedImportEnv -> TypedImportEnv
+        addPutln cs env0 = foldl (\e x -> addDefaultFun ["putln"] (Void, [x]) ["xlang", "io", "putln"] e) env0 cs

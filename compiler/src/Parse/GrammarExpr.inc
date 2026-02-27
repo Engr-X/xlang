@@ -105,5 +105,8 @@ Expr :: { Expression }
     | Expr '/' Expr             { Binary Div $1 $3 $2}
     | Expr '/' error            { Error [$2] (expectedExpression 1 "/") }
 
+    | Expr '**' Expr            { Binary Pow $1 $3 %2 }
+    | Expr '**' error           { Error [$2] (expectedExpression 1 "**") }
+
     | Postfix                   { $1 }
     ;

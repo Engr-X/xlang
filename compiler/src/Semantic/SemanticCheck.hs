@@ -5,7 +5,7 @@ import Data.List (intercalate, sortOn)
 import Parse.ParseProgm (lexparseProgm)
 import Parse.SyntaxTree (Program, prettyClass)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
-import Semantic.NameEnv (ImportEnv, getPackageName)
+import Semantic.NameEnv (ImportEnv, getPackageName, defaultImportEnv)
 import Semantic.TypeEnv (FullFunctionTable(..), FullVarTable(..), FunSig(..), TypedImportEnv)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
@@ -26,7 +26,8 @@ checkProgm path prog@(decls, stmts) importEnvs typedEnvs = do
         Left errs -> Left errs
         Right () -> do
             packageName <- getPackageName path decls
-            case CC.checkProgmWithUses path prog importEnvs of
+            let importEnvs0 = defaultImportEnv path : importEnvs
+            case CC.checkProgmWithUses path prog importEnvs0 of
                 Left errs -> Left errs
                 Right (st, uses) ->
                     TC.inferProgmWithCtx path packageName stmts st uses typedEnvs

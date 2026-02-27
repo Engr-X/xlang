@@ -2,6 +2,7 @@ package com.wangdi.classgen.base
 
 import org.objectweb.asm.Opcodes
 
+
 enum class Access(val flag: Int)
 {
     Public(Opcodes.ACC_PUBLIC),

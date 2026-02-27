@@ -4,6 +4,7 @@ import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Opcodes.*
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 
 
 object GenSquare
@@ -69,6 +70,6 @@ object GenSquare
         cw.visitEnd()
 
         val bytes = cw.toByteArray()
-        Files.write(Path.of("Square.class"), bytes)
+        Files.write(Paths.get("Square.class"), bytes);
     }
 }

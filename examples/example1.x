@@ -2,7 +2,7 @@ int sum(int from, int to)
 {
 	sum = from
 	
-	while (from < to):
+	while (from < to)
 	{
 		sum = sum + from
 		from  = from  + 1

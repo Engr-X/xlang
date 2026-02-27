@@ -12,13 +12,13 @@ stripPhiProgm (IRProgm pkg classes) = IRProgm pkg (map stripPhiClass classes)
 
 
 stripPhiClass :: IRClass -> IRClass
-stripPhiClass (IRClass decl name fields (TAC.StaticInit stmts) funs) =
-    IRClass decl name fields (TAC.StaticInit (stripPhiStmts stmts)) (map stripPhiFunction funs)
+stripPhiClass (IRClass decl name fields (TAC.StaticInit stmts) atomTypes funs) =
+    IRClass decl name fields (TAC.StaticInit (stripPhiStmts stmts)) atomTypes (map stripPhiFunction funs)
 
 
 stripPhiFunction :: IRFunction -> IRFunction
-stripPhiFunction (IRFunction acc name sig stmts) =
-    IRFunction acc name sig (stripPhiStmts stmts)
+stripPhiFunction (IRFunction acc name sig atomTypes stmts) =
+    IRFunction acc name sig atomTypes (stripPhiStmts stmts)
 
 
 stripPhiStmts :: [IRStmt] -> [IRStmt]

@@ -6,14 +6,14 @@ import Control.Monad (when, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
-import Data.Maybe (listToMaybe, mapMaybe, isNothing)
+import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
 import Parse.ParserBasic (AccessModified(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
 import Semantic.OpInfer (augAssignOp, binaryOpCastType, iCast, inferBinaryOp, inferUnaryOp, isBasicType, widenedArgs)
-import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable)
+import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable, defaultTypedImportEnv)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
 
@@ -275,8 +275,8 @@ inferExpr path _ envs (Qualified names toks) = do
 
         -- 1) 先按导入/包的限定名查找。
         _ -> case getImportedVarType names envs of
-            Just t -> do
-                recordVarUse posAll (VarImported defaultDeclFlags t ["toDO import"])
+            Just (t, full) -> do
+                recordVarUse posAll (VarImported defaultDeclFlags t full)
                 pure t
 
             -- 2) 否则把头部当变量，再处理成员访问。
@@ -426,8 +426,8 @@ inferExpr path packages envs e@(Call callee args) = do
         Variable name tok -> do
             let qLocal = [name]
             let qImport = packages ++ [name]
-            let importSigs = concatMap (maybe [] (\(sigs, _, _) -> sigs) . Map.lookup qImport . tFuncs) envs
-            resolveScopedCall qLocal name fScopes importSigs [Lex.tokenPos tok] callPos argInfos
+            let importEntries = concatMap (maybe [] (\(sigs, _, full) -> [(full, sigs)]) . Map.lookup qImport . tFuncs) envs
+            resolveScopedCall qLocal name fScopes importEntries [Lex.tokenPos tok] callPos argInfos
 
         -- 调用限定名（可能是 this.xxx 或导入函数）。
         Qualified names toks -> case names of
@@ -443,7 +443,7 @@ inferExpr path packages envs e@(Call callee args) = do
             _ -> do
                 let sigs = concatMap (maybe [] (\(sigs', _, _) -> sigs') . Map.lookup names . tFuncs) envs
                 let namePoses = map Lex.tokenPos toks
-                applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultDeclFlags ["toDO import"]) sigs
+                applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultDeclFlags names) sigs
 
         -- 其他表达式作为函数名 -> 非法调用。
         _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
@@ -469,14 +469,16 @@ inferExpr path packages envs e@(Call callee args) = do
             QName ->
             String ->
             [FunTable] ->
-            [FunSig] ->
+            [(QName, [FunSig])] ->
             [Position] ->
             [Position] ->
             [(Class, [Position])] ->
             TypeM Class
-        resolveScopedCall qname funName scopes importSigs namePos callPos argInfos =
+        resolveScopedCall qname funName scopes importEntries namePos callPos argInfos =
             go scopes Nothing
             where
+                importSigs = concatMap snd importEntries
+                findImportQName sig = fmap fst (find (elem sig . snd) importEntries)
                 go [] lastErr = case importSigs of
                     [] -> case lastErr of
                         Just err -> errClass err
@@ -485,7 +487,8 @@ inferExpr path packages envs e@(Call callee args) = do
                         res <- matchInSigs importSigs callPos argInfos
                         case res of
                             Right sig -> do
-                                recordFunUse namePos (FunImported defaultDeclFlags ["toDO import"] sig)
+                                let qn = fromMaybe qname (findImportQName sig)
+                                recordFunUse namePos (FunImported defaultDeclFlags qn sig)
                                 pure $ funReturn sig
                             Left err -> errClass err
                 go (m:rest) lastErr = do
@@ -543,8 +546,9 @@ getVarId pos context = Map.lookup pos (CC.varUses context)
 
 
 -- | Lookup a variable type from imported environments by qualified name.
-getImportedVarType :: QName -> [TypedImportEnv] -> Maybe Class
-getImportedVarType qname = fmap (\(t, _, _) -> t) . listToMaybe . mapMaybe (Map.lookup qname . tVars)
+getImportedVarType :: QName -> [TypedImportEnv] -> Maybe (Class, QName)
+getImportedVarType qname =
+    fmap (\(t, _, full) -> (t, full)) . listToMaybe . mapMaybe (Map.lookup qname . tVars)
 
 
 -- | Lookup a function overload set with shadowing.
@@ -793,7 +797,9 @@ inferProgmWithCtx ::
     [TypedImportEnv] ->
     Either [ErrorKind] TypeCtx
 inferProgmWithCtx path packageName stmts st uses typedEnvs =
-    let initCtx = TypeCtx {
+    let defaultEnv = defaultTypedImportEnv path
+        typedEnvs0 = defaultEnv : typedEnvs
+        initCtx = TypeCtx {
         tcCtx = CC.Ctx { st = st, errs = [], varUses = uses },
         tcVarTypes = Map.empty,
         tcVarFlags = Map.empty,
@@ -806,7 +812,7 @@ inferProgmWithCtx path packageName stmts st uses typedEnvs =
         tcFullVarUses = Map.empty,
         tcFullVarUsesList = [],
         tcFullFunUses = Map.empty}
-        (_, finalCtx0) = runState (inferStmts path packageName typedEnvs stmts) initCtx
+        (_, finalCtx0) = runState (inferStmts path packageName typedEnvs0 stmts) initCtx
         finalErrs = reverse (tcErrors finalCtx0)
         finalWarns = reverse (tcWarnings finalCtx0)
         finalCtx = finalCtx0 { tcErrors = finalErrs, tcWarnings = finalWarns }
