@@ -148,3 +148,8 @@ insertSpace = (`replicate` ' ')
 --
 insertTab :: Int -> String
 insertTab = insertSpace . (4*)
+
+
+-- | pair 2 D point (x, y) into on D point a it is bijection function
+paring :: (Int, Int) -> Int
+paring (x, y) = let sum = x + y in (sum * succ sum) / 2 + y

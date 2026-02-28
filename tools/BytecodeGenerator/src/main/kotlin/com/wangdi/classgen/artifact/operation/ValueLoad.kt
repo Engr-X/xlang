@@ -5,6 +5,9 @@ import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 
 
+private fun loadInsn(prefix: String, index: Int): String =
+    if (index in 0..3) "${prefix}_${index}" else "${prefix} ${index}"
+
 // load reference from local variable slot onto the operand stack.
 class LoadInt(
     mv: MethodVisitor,
@@ -15,6 +18,8 @@ class LoadInt(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitVarInsn(Opcodes.ILOAD, this.index)
     }
+
+    override fun toString(tabs: Int): String = indent(tabs) + loadInsn("iload", this.index)
 }
 
 
@@ -27,6 +32,8 @@ class LoadLong(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitVarInsn(Opcodes.LLOAD, this.index)
     }
+
+    override fun toString(tabs: Int): String = indent(tabs) + loadInsn("lload", this.index)
 }
 
 
@@ -39,6 +46,8 @@ class LoadFloat(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitVarInsn(Opcodes.FLOAD, this.index)
     }
+
+    override fun toString(tabs: Int): String = indent(tabs) + loadInsn("fload", this.index)
 }
 
 
@@ -51,6 +60,8 @@ class LoadDouble(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitVarInsn(Opcodes.DLOAD, this.index)
     }
+
+    override fun toString(tabs: Int): String = indent(tabs) + loadInsn("dload", this.index)
 }
 
 
@@ -63,4 +74,6 @@ class LoadRef(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitVarInsn(Opcodes.ALOAD, this.index)
     }
+
+    override fun toString(tabs: Int): String = indent(tabs) + loadInsn("aload", this.index)
 }

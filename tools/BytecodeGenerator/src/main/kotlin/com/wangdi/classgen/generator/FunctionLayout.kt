@@ -6,6 +6,7 @@ import com.wangdi.classgen.base.Access
 import com.wangdi.classgen.base.Type
 
 import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 
 
@@ -26,6 +27,8 @@ class FunctionLayout(
         this.genSignature(this.signature),
         this.genExceptions(this.exceptions)
     )
+
+    private val labels: MutableMap<Int, Label> = mutableMapOf()
 
     private fun getDescription(): String =
         "(${this.funParams.second.joinToString(separator = "") { it.getName() }})${this.funParams.first.getName()}"

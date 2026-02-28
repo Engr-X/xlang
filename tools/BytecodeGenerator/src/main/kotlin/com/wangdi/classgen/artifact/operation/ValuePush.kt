@@ -31,6 +31,23 @@ class IPush(
                 it.visitLdcInsn(value)
         }
     }
+
+    override fun toString(tabs: Int): String {
+        val op = when (this.value)
+        {
+            -1 -> "iconst_m1"
+            0 -> "iconst_0"
+            1 -> "iconst_1"
+            2 -> "iconst_2"
+            3 -> "iconst_3"
+            4 -> "iconst_4"
+            5 -> "iconst_5"
+            in Byte.MIN_VALUE..Byte.MAX_VALUE -> "bipush ${this.value}"
+            in Short.MIN_VALUE..Short.MAX_VALUE -> "sipush ${this.value}"
+            else -> "ldc ${this.value}"
+        }
+        return "${indent(tabs)}${op}"
+    }
 }
 
 
@@ -47,6 +64,16 @@ class LPush(
             1L -> it.visitInsn(Opcodes.LCONST_1)
             else -> it.visitLdcInsn(this.value) // ASM handles LDC2_W when needed
         }
+    }
+
+    override fun toString(tabs: Int): String {
+        val op = when (this.value)
+        {
+            0L -> "lconst_0"
+            1L -> "lconst_1"
+            else -> "ldc2_w ${this.value}"
+        }
+        return "${indent(tabs)}${op}"
     }
 }
 
@@ -67,6 +94,17 @@ class FPush(
             else -> it.visitLdcInsn(this.value)
         }
     }
+
+    override fun toString(tabs: Int): String {
+        val op = when (java.lang.Float.floatToIntBits(this.value))
+        {
+            java.lang.Float.floatToIntBits(0.0f) -> "fconst_0"
+            java.lang.Float.floatToIntBits(1.0f) -> "fconst_1"
+            java.lang.Float.floatToIntBits(2.0f) -> "fconst_2"
+            else -> "ldc ${this.value}"
+        }
+        return "${indent(tabs)}${op}"
+    }
 }
 
 
@@ -84,5 +122,15 @@ class DPush(
             java.lang.Double.doubleToLongBits(1.0) -> it.visitInsn(Opcodes.DCONST_1)
             else -> it.visitLdcInsn(this.value)
         }
+    }
+
+    override fun toString(tabs: Int): String {
+        val op = when (java.lang.Double.doubleToLongBits(this.value))
+        {
+            java.lang.Double.doubleToLongBits(0.0) -> "dconst_0"
+            java.lang.Double.doubleToLongBits(1.0) -> "dconst_1"
+            else -> "ldc2_w ${this.value}"
+        }
+        return "${indent(tabs)}${op}"
     }
 }

@@ -14,6 +14,8 @@ class INeg(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.INEG)
     }
+
+    override fun toString(tabs: Int): String = "${indent(tabs)}ineg"
 }
 
 class LNeg(
@@ -24,6 +26,8 @@ class LNeg(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.LNEG)
     }
+
+    override fun toString(tabs: Int): String = "${indent(tabs)}lneg"
 }
 
 class FNeg(
@@ -34,6 +38,8 @@ class FNeg(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.FNEG)
     }
+
+    override fun toString(tabs: Int): String = "${indent(tabs)}fneg"
 }
 
 class DNeg(
@@ -44,6 +50,8 @@ class DNeg(
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.DNEG)
     }
+
+    override fun toString(tabs: Int): String = "${indent(tabs)}dneg"
 }
 
 
@@ -59,6 +67,11 @@ class IBitNot(
         it.visitLdcInsn(-1)
         it.visitInsn(Opcodes.IXOR)
     }
+
+    override fun toString(tabs: Int): String {
+        val pad = indent(tabs)
+        return "${pad}ldc -1\n${pad}ixor"
+    }
 }
 
 class LBitNot(
@@ -70,6 +83,11 @@ class LBitNot(
         // English comment: bitwise not for long: x -> x ^ -1L.
         it.visitLdcInsn(-1L)
         it.visitInsn(Opcodes.LXOR)
+    }
+
+    override fun toString(tabs: Int): String {
+        val pad = indent(tabs)
+        return "${pad}ldc2_w -1\n${pad}lxor"
     }
 }
 
@@ -87,9 +105,17 @@ class BNot(
         it.visitInsn(Opcodes.ICONST_1)
         it.visitInsn(Opcodes.IXOR)
     }
+
+    override fun toString(tabs: Int): String {
+        val pad = indent(tabs)
+        return "${pad}iconst_1\n${pad}ixor"
+    }
 }
 
 
 // ---------- Unary plus: +x ----------
 // No-op; emit nothing.
 class UPlus(mv: MethodVisitor, labels: MutableMap<Int, Label>) : OP(mv, labels)
+{
+    override fun toString(tabs: Int): String = "${indent(tabs)}uplus"
+}

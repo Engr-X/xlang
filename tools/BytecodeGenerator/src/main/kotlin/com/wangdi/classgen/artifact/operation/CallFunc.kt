@@ -35,4 +35,7 @@ class StaticCall(
             false
         )
     }
+
+    override fun toString(tabs: Int): String =
+        "${indent(tabs)}invokestatic ${this.owner}/${this.name}${this.desc}"
 }

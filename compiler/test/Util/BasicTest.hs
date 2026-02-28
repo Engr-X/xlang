@@ -98,5 +98,13 @@ insertTabTests = testGroup "Utils.Basic.insertTabTests" $ map
         ("0", 0, ""), ("1", 1, "    "), ("2", 2, "        "), ("5", 5, "                    ")]
 
 
+paringTests :: TestTree
+paringTests = testGroup "Util.Basic.paring" [
+    testCase "0" $ paring (0, 0) @?= 0,
+    testCase "1" $ paring (1, 0) @?= 1,
+    testCase "2" $ paring (0, 1) @?= 2,
+    testCase "3" $ paring (2, 3) @?= 18]
+
+
 tests :: TestTree
-tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests, insertSpaceTests, insertTabTests]
+tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests, insertSpaceTests, insertTabTests, paringTests]

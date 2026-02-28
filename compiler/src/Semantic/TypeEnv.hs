@@ -105,7 +105,7 @@ envWithDefault env = let pTypes = [Int8T, Int16T, Int32T, Int64T, Float32T, Floa
 
     where
         addPut :: [Class] -> TypedImportEnv -> TypedImportEnv
-        addPut cs env0 = foldl (\e x -> addDefaultFun ["put"] (Void, [x]) ["xlang", "io", "put"] e) env0 cs
+        addPut cs env0 = foldl (\e x -> addDefaultFun ["put"] (Void, [x]) ["xlang", "io", "ConsoleXl", "put"] e) env0 cs
 
         addPutln :: [Class] -> TypedImportEnv -> TypedImportEnv
-        addPutln cs env0 = foldl (\e x -> addDefaultFun ["putln"] (Void, [x]) ["xlang", "io", "putln"] e) env0 cs
+        addPutln cs env0 = foldl (\e x -> addDefaultFun ["putln"] (Void, [x]) ["xlang", "io", "ConsoleXl", "putln"] e) env0 cs

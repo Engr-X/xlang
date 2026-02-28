@@ -5,16 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/Semantic/TypeEnv.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Semantic/TypeEnv.hs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Example.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Example.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/ClassArtifact.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/ClassArtifact.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/Layout.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Access.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Access.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Command.kt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/PrimaryType.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/PrimaryType.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Type.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/Type.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/TypeRef.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/base/TypeRef.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassGenerator.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/BinOp.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/BinOp.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/CallFunc.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/CallFunc.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/Control.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/Control.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/OP.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/OP.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/FunctionLayout.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -115,7 +111,7 @@
       <recent name="com.wangdi.classgen.artifact" />
     </key>
   </component>
-  <component name="RunManager" selected="Gradle.BytecodeGenerator [build]">
+  <component name="RunManager" selected="Gradle.BytecodeGenerator [clean]">
     <configuration name="BytecodeGenerator [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -243,9 +239,9 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Gradle.BytecodeGenerator [clean]" />
         <item itemvalue="Gradle.BytecodeGenerator [build]" />
         <item itemvalue="Gradle.BytecodeGenerator [jar]" />
-        <item itemvalue="Gradle.BytecodeGenerator [clean]" />
         <item itemvalue="Kotlin.MainKt (1)" />
         <item itemvalue="Kotlin.GenSquare" />
       </list>
