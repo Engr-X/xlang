@@ -14,6 +14,7 @@ import qualified Semantic.TypeEnv as TEnv
 data LowerState = LowerState {
     nextLocal :: Int,
     locals :: Map IR.IRAtom Int,
+    paramSlots :: Map Int Int,
     atomTypes :: Map IR.IRAtom Class,
     retType :: Maybe Class,
     retLocal :: Maybe Int
@@ -195,14 +196,20 @@ storeAtom atom = do
 -- | Ensure a local slot exists for the atom and return its index.
 ensureLocal :: IR.IRAtom -> State LowerState Int
 ensureLocal atom = case atom of
-    IR.Param i -> return  i
+    IR.Param i -> do
+        st <- get
+        case Map.lookup i (paramSlots st) of
+            Just idx -> return  idx
+            Nothing -> error ("missing param slot for index: " ++ show i)
     _ -> do
         st <- get
         case Map.lookup atom (locals st) of
             Just idx -> return  idx
             Nothing -> do
+                cls <- atomClass atom
                 let idx = nextLocal st
-                put st { nextLocal = idx + 1, locals = Map.insert atom idx (locals st) }
+                    nextIdx = idx + slotSize cls
+                put st { nextLocal = nextIdx, locals = Map.insert atom idx (locals st) }
                 return  idx
 
 
@@ -242,14 +249,17 @@ atomToConst _ = Nothing
 -- | Lower a single IR function into JVM commands with a fresh local mapping.
 jvmLowingFun :: IR.IRFunction -> JVM.JFunction
 jvmLowingFun (IR.IRFunction decl name sig atomT body) =
-    let paramCount = length (TEnv.funParams sig)
+    let (paramSlotMap, nextAfterParams) = buildParamSlots (TEnv.funParams sig)
         retLocalSlot = case TEnv.funReturn sig of
             Void -> Nothing
-            _ -> Just paramCount
-        nextLocal0 = paramCount + if retLocalSlot == Nothing then 0 else 1
+            _ -> Just nextAfterParams
+        nextLocal0 = case TEnv.funReturn sig of
+            Void -> nextAfterParams
+            cls -> nextAfterParams + slotSize cls
         initState = LowerState {
             nextLocal = nextLocal0,
             locals = Map.empty,
+            paramSlots = paramSlotMap,
             atomTypes = atomT,
             retType = case TEnv.funReturn sig of
                 Void -> Nothing
@@ -266,12 +276,31 @@ jvmClinitLowing (IR.StaticInit body) atomT =
     let initState = LowerState {
             nextLocal = 0,
             locals = Map.empty,
+            paramSlots = Map.empty,
             atomTypes = atomT,
             retType = Nothing,
             retLocal = Nothing
         }
         (cmds, _) = runState (jvmLowerStmts body) initState
     in JVM.JClinit cmds
+
+
+-- | JVM local slot size for a class (long/double are wide).
+slotSize :: Class -> Int
+slotSize cls = case cls of
+    Int64T -> 2
+    Float64T -> 2
+    Float128T -> 2
+    _ -> 1
+
+
+-- | Build parameter index -> local slot mapping and return next free slot.
+buildParamSlots :: [Class] -> (Map Int Int, Int)
+buildParamSlots params = foldl step (Map.empty, 0) (zip [0..] params)
+    where
+        step :: (Map Int Int, Int) -> (Int, Class) -> (Map Int Int, Int)
+        step (m, nextIdx) (i, cls) =
+            (Map.insert i nextIdx m, nextIdx + slotSize cls)
 
 
 -- | Lower an IR class into JVM class (constructors not supported yet).
