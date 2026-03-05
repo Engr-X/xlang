@@ -1,0 +1,98 @@
+package com.wangdi.classgen.generator
+
+import com.wangdi.classgen.base.Access
+import com.wangdi.classgen.artifact.ClassArtifact
+import com.wangdi.classgen.base.Type
+import com.wangdi.classgen.base.TypeRef
+
+import org.objectweb.asm.ClassWriter
+
+
+class ClassEmitter(
+    jvmTarget: Int,
+    access: MutableList<Access>,
+    clazz: TypeRef,
+    signature: MutableList<String> = mutableListOf(),
+
+    private val superClass: TypeRef = TypeRef.OBJECT,
+    private val interfaces: MutableList<TypeRef> = ArrayList(),
+) : ClassArtifact(jvmTarget, access, clazz, signature)
+{
+    private val attributes: MutableList<AttributeGenerator> = mutableListOf()
+
+    private var clinitEmitter: ClinitEmitter? = null
+
+    private val initEmitters: MutableList<InitEmitter> = mutableListOf()
+
+    private var visited: Boolean = false
+
+    fun addAttribute(attr: AttributeGenerator): ClassArtifact = this.apply { this.attributes.add(attr) }
+
+    fun setClinit(clinit: ClinitEmitter): ClassEmitter = this.apply {
+        this.ensureVisited()
+        this.clinitEmitter = clinit
+    }
+
+    fun addInit(init: InitEmitter): ClassEmitter = this.apply {
+        this.ensureVisited()
+        this.initEmitters.add(init)
+    }
+
+    fun newClinit(): ClinitEmitter {
+        this.ensureVisited()
+        return ClinitEmitter(this.cw)
+    }
+
+    fun newInit(
+        access: Access,
+        params: MutableList<Type> = mutableListOf(),
+        signature: MutableList<String> = mutableListOf(),
+        exceptions: MutableList<Type> = mutableListOf(),
+    ): InitEmitter
+    {
+        this.ensureVisited()
+        return InitEmitter(this.cw, access, params, signature, exceptions)
+    }
+
+    fun newMethod(
+        access: MutableList<Access>,
+        name: String,
+        funParams: Pair<Type, MutableList<Type>>,
+        signature: MutableList<String> = mutableListOf(),
+        exceptions: MutableList<Type> = mutableListOf(),
+    ): MethodEmitter
+    {
+        this.ensureVisited()
+        return MethodEmitter(this.cw, access, name, funParams, signature, exceptions)
+    }
+
+    private fun ensureVisited(cw: ClassWriter = this.cw)
+    {
+        if (this.visited)
+            return
+        cw.visit(
+            this.jvmTarget,
+            this.accessOf(),
+            this.clazz.getFullName("/"),
+            this.genSignature(),
+            this.superClass.getFullName("/"),
+            this.interfaces.map { impl -> impl.getFullName("/") }.toTypedArray())
+        this.visited = true
+    }
+
+    override fun init(cw: ClassWriter): ClassWriter = cw.also {
+        this.ensureVisited(it)
+
+        this.attributes.forEach { attr -> attr.generate() }
+
+        val clinitEmitter = this.clinitEmitter ?: ClinitEmitter.getEmpty(cw)
+        clinitEmitter.generate()
+        val inits = if (this.initEmitters.isEmpty())
+            mutableListOf(InitEmitter.getEmpty(cw))
+        else
+            this.initEmitters
+
+        inits.forEach { it.generate() }
+        this.methods.forEach { method -> method.generate() }
+    }
+}

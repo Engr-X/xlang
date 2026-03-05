@@ -1,0 +1,119 @@
+{
+module Parse.ParseStmt where
+
+import Unsafe.Coerce (unsafeCoerce)
+import Data.List (intercalate)
+import Data.Maybe (fromMaybe)
+import Lex.Token (Token, tokenPos)
+import Lex.Tokenizer (tokenizeWithNL)
+import Parse.ParserBasic
+import Parse.SyntaxTree
+import Parse.ParserBasic
+import Util.Exception (ErrorKind, makeError, expectedExpression, assignErrorMsg)
+import Util.Type (Path, defaultPosition)
+
+import qualified Lex.Token as Lex
+import qualified Util.Exception as UE
+}
+
+%name parseStmt StmtEOF
+%tokentype { Token }
+%error { parseStmtError }
+
+%token
+    EOF                 { t@(Lex.EOF _) }
+    NL                  { t@(Lex.TokenPass  _) }
+    KW_TRUE             { t@(Lex.Ident "true" _) }
+    KW_FALSE            { t@(Lex.Ident "false" _) }
+    KW_AS               { t@(Lex.Ident "as" _) }
+    KW_IF               { t@(Lex.Ident "if" _) }
+    KW_ELSE             { t@(Lex.Ident "else" _) }
+    KW_WHILE            { t@(Lex.Ident "while" _) }
+
+    KW_BREAK            { t@(Lex.Ident "break" _) }
+    KW_CONTINUE         { t@(Lex.Ident "continue" _) }
+    KW_RETURN           { t@(Lex.Ident "return" _) }
+
+    KW_FUNC             { t@(Lex.Ident "fun" _) }
+
+
+    -- literals / identifiers
+    identity            { t@(Lex.Ident _ _) }
+    number              { t@(Lex.NumberConst _ _) }
+    character           { t@(Lex.CharConst _ _) }
+    string              { t@(Lex.StrConst _ _) }
+
+
+    '='                 { t@(Lex.Symbol Lex.Assign _) }
+
+    '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
+    '<'                 { t@(Lex.Symbol Lex.LessThan _) }
+    '=='                { t@(Lex.Symbol Lex.Equal _) }
+    '!='                { t@(Lex.Symbol Lex.NotEqual _) }
+
+    '!'                 { t@(Lex.Symbol Lex.BitNot _) }
+
+    '+'                 { t@(Lex.Symbol Lex.Plus _) }
+    '-'                 { t@(Lex.Symbol Lex.Minus _) }
+    '*'                 { t@(Lex.Symbol Lex.Multiply _) }
+    '/'                 { t@(Lex.Symbol Lex.Divide _) }
+    '**'                { t@(Lex.Symbol Lex.Power _) }
+
+    '('                 { t@(Lex.Symbol Lex.LParen _) }
+    ')'                 { t@(Lex.Symbol Lex.RParen _) }
+    '{'                 { t@(Lex.Symbol Lex.LBrace _) }
+    '}'                 { t@(Lex.Symbol Lex.RBrace _) }
+    
+    ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
+    ','                 { t@(Lex.Symbol Lex.Comma _) }
+    ':'                 { t@(Lex.Symbol Lex.Colon _) }
+    '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
+    '->'                { t@(Lex.Symbol Lex.Arrow _) }
+    --'=>'                { t@(Lex.Symbol Lex.FatArrow _) }
+    '.'                 { t@(Lex.Symbol Lex.Dot _) }
+
+%right '='
+%left '!=' '=='
+%left '>' '<'
+%left '+' '-'
+%left '*' '/'
+%left '**'
+%right UPLUS UMINUS '!'
+
+%nonassoc IFX
+%nonassoc KW_ELSE
+
+
+%%
+
+#include "Parse/GrammarStmtBlock.inc"
+#include "Parse/GrammarExpr.inc"
+
+StmtEOF :: { Statement } :      Stmt EOF { $1 };
+
+{
+-- Happy 2.0 expects a polymorphic error handler.
+-- We return a sentinel statement containing one error expression.
+parseStmtError :: [Token] -> a
+parseStmtError toks =
+    let e = mkHappyErrorExpr toks
+        st = Expr e :: Statement
+    in unsafeCoerce st
+
+
+-- used for parse statement for ast tree
+lexparseStmt :: Path -> String -> Either [ErrorKind] Statement
+lexparseStmt p str =
+    let (errs, tokens) = tokenizeWithNL p str
+    in case errs of
+        [] ->  let st = parseStmt tokens
+            in case getErrorProgram ([], [st]) of
+                [] -> Right st
+                es -> Left $ map (toException p) es
+        _  -> Left errs
+
+
+-- |  used for debug version
+replLexparseStmt :: String -> Either [ErrorKind] Statement
+replLexparseStmt = lexparseStmt "stdin"
+}

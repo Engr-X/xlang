@@ -1,0 +1,96 @@
+Sep :: { () }
+    : ';'           { () }
+    | NL            { () }
+    ;
+
+-- this one is reversed
+StmtSeq :: { [Statement] }
+    : Stmt             { [$1] }
+    | StmtSeq Stmt     { $2 : $1 }
+    ;
+
+
+StmtSeqOpt :: { [Statement] }
+    : {- empty -}       { [] }
+    | StmtSeq           { reverse $1 }
+    ;
+
+
+ElseBlock :: { (Maybe Block, Token) }
+    : KW_ELSE ';'                       { (Nothing, $1) }
+    | KW_ELSE BlockLike                 { (Just $2, $1) }
+    ;
+
+
+IfStmt :: { Statement }
+    : KW_IF Expr ';'                      %prec IFX { If $2 Nothing Nothing ($1, Nothing) }
+    | KW_IF Expr ';' ElseBlock                      { If $2 Nothing (fst $4) ($1, Just $ snd $4) }
+    | KW_IF Expr BlockLike                %prec IFX { If $2 (Just $3) Nothing ($1, Nothing) }
+    | KW_IF Expr BlockLike ElseBlock                { If $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
+    ;
+
+
+-- while
+WhileStmt :: { Statement }
+    : KW_WHILE Expr ';'                   %prec IFX { While $2 Nothing Nothing ($1, Nothing) }
+    | KW_WHILE Expr ';' ElseBlock                   { While $2 Nothing (fst $4) ($1, Just $ snd $4) }
+    | KW_WHILE Expr BlockLike             %prec IFX { While $2 (Just $3) Nothing ($1, Nothing) }
+    | KW_WHILE Expr BlockLike ElseBlock             { While $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
+    ;
+    
+
+-- this argument is reversed
+-- only the first one is current varName token
+TypedParams :: { [(Class, String, [Token])] }
+    : Clazz identity                            { [(fst $1, identText $2, $2 : snd $1)] }
+    | identity ':' Clazz                        { [(fst $3, identText $1, [$1, $2] ++ snd $3)] }
+
+    | TypedParams ',' Clazz identity            { (fst $3, identText $4, $4 : snd $3) : $1 }
+    | TypedParams ',' identity ':' Clazz        { (fst $5, identText $3, [$3, $4] ++ snd $5) : $1 }
+    ;
+
+FunctionParams :: { [(Class, String, [Token])] }
+    : '(' ')'                       { [] }
+    | '(' TypedParams ')'           { reverse $2 }
+    ;
+
+FunctionBlock :: { Block }
+    : BlockLike                     { $1 }
+    | '=' Expr Sep                  { Multiple [Command (Return (Just $2)) $1] }
+    ;
+
+FunctionStmt :: { Statement }
+    : Clazz QName FunctionParams FunctionBlock                      { Function $1 (qnameToExpr $2) $3 $4 }
+    | Clazz QName GenericParamList FunctionParams FunctionBlock     { FunctionT $1 (qnameToExpr $2) $3 $4 $5 }
+
+    | KW_FUNC QName FunctionParams '->' Clazz FunctionBlock                         { Function $5 (qnameToExpr $2) $3 $6 }
+    | KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock        { FunctionT $6 (qnameToExpr $2) $3 $4 $7 }
+    ;
+
+
+-- assembled statement
+Stmt :: { Statement }
+    : KW_CONTINUE           { Command Continue $1 }
+    | KW_BREAK              { Command Break $1 }
+    | KW_RETURN ';'         { Command (Return Nothing) $1 }
+    | KW_RETURN Stmt        { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
+
+    | Expr Sep              { Expr $1 }
+    | Block Sep             { BlockStmt $ fromMaybe (Multiple []) $1 }
+    | IfStmt                { $1 }
+    | WhileStmt             { $1 }
+    | FunctionStmt          { $1 }
+    ;
+
+
+-- block
+Block :: { Maybe Block }
+    : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
+    | '{' Sep '}'               { Nothing }
+    ;
+
+BlockLike :: { Block }
+    : ':' Stmt                      { Multiple [$2] }
+    | Block Sep                     { fromMaybe (Multiple []) $1 }
+    | NL Block Sep                  { fromMaybe (Multiple []) $2 }
+    ;

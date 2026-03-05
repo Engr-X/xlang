@@ -1,0 +1,137 @@
+{
+module Parse.ParseProgm where
+
+import Unsafe.Coerce (unsafeCoerce)
+import Data.List (intercalate)
+import Data.Maybe (fromMaybe)
+import Lex.Token (Token, tokenPos)
+import Lex.Tokenizer (tokenizeWithNL)
+import Parse.ParserBasic
+import Parse.SyntaxTree
+import Parse.ParserBasic
+import Util.Exception (ErrorKind, makeError, expectedExpression, assignErrorMsg)
+import Util.Type (Path, defaultPosition)
+
+import qualified Lex.Token as Lex
+import qualified Util.Exception as UE
+import qualified Util.FileHelper as FileHelper
+}
+
+%name parseProgm ProgramEOF
+
+%tokentype { Token }
+%error { parseProgmError }
+
+%token
+    -- keywords (Ident)
+    EOF                 { t@(Lex.EOF _) }
+    NL                  { t@(Lex.TokenPass  _) }
+    
+    KW_TRUE             { t@(Lex.Ident "true" _) }
+    KW_FALSE            { t@(Lex.Ident "false" _) }
+
+    KW_PACKAGE          { t@(Lex.Ident "package" _) }
+    KW_IMPORT           { t@(Lex.Ident "import" _) }
+
+    KW_AS               { t@(Lex.Ident "as" _) }
+    KW_IF               { t@(Lex.Ident "if" _) }
+    KW_ELSE             { t@(Lex.Ident "else" _) }
+    KW_WHILE            { t@(Lex.Ident "while" _) }
+    KW_BREAK            { t@(Lex.Ident "break" _) }
+    KW_CONTINUE         { t@(Lex.Ident "continue" _) }
+    KW_RETURN           { t@(Lex.Ident "return" _) }
+
+    KW_FUNC             { t@(Lex.Ident "fun" _) }
+
+   
+    identity            { t@(Lex.Ident _ _) }
+    number              { t@(Lex.NumberConst _ _) }
+    character           { t@(Lex.CharConst _ _) }
+    string              { t@(Lex.StrConst _ _) }
+
+
+    '='                 { t@(Lex.Symbol Lex.Assign _) }
+
+    '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
+    '<'                 { t@(Lex.Symbol Lex.LessThan _) }
+    '=='                { t@(Lex.Symbol Lex.Equal _) }
+    '!='                { t@(Lex.Symbol Lex.NotEqual _) }
+
+    '!'                 { t@(Lex.Symbol Lex.BitNot _) }
+
+    '+'                 { t@(Lex.Symbol Lex.Plus _) }
+    '-'                 { t@(Lex.Symbol Lex.Minus _) }
+    '*'                 { t@(Lex.Symbol Lex.Multiply _) }
+    '/'                 { t@(Lex.Symbol Lex.Divide _) }
+    '**'                { t@(Lex.Symbol Lex.Power _) }
+
+    '('                 { t@(Lex.Symbol Lex.LParen _) }
+    ')'                 { t@(Lex.Symbol Lex.RParen _) }
+    '{'                 { t@(Lex.Symbol Lex.LBrace _) }
+    '}'                 { t@(Lex.Symbol Lex.RBrace _) }
+    
+    ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
+    ','                 { t@(Lex.Symbol Lex.Comma _) }
+    ':'                 { t@(Lex.Symbol Lex.Colon _) }
+    '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
+    '->'                { t@(Lex.Symbol Lex.Arrow _) }
+    --'=>'                { t@(Lex.Symbol Lex.FatArrow _) }
+    '.'                 { t@(Lex.Symbol Lex.Dot _) }
+
+%right '='
+%left '!=' '=='
+%left '>' '<'
+%left '+' '-'
+%left '*' '/'
+%left '**'
+%right UPLUS UMINUS '!'
+
+%nonassoc IFX
+%nonassoc KW_ELSE
+
+%%
+
+#include "Parse/GrammarStmtBlock.inc"
+#include "Parse/GrammarExpr.inc"
+#include "Parse/GrammarDecl.inc"
+
+
+ProgramEOF :: { Program }
+    : DeclSeqOpt StmtSeqOpt EOF { ($1, $2) }
+
+
+{
+-- Happy expects a polymorphic error handler.
+-- We return a sentinel program containing one error expression statement.
+parseProgmError :: [Token] -> a
+parseProgmError toks =
+    let e  = mkHappyErrorExpr toks
+        pr = ([], [Expr e]) :: Program
+    in unsafeCoerce pr
+
+
+-- prase the whole program to abstract syntax tree
+lexparseProgm :: Path -> String -> Either [ErrorKind] Program
+lexparseProgm p str =
+    let (errs, tokens) = tokenizeWithNL p str
+    in case errs of
+        [] ->
+            let prog = parseProgm tokens
+            in case getErrorProgram prog of
+                [] -> Right prog
+                es -> Left $ map (toException p) es
+        _  -> Left errs
+
+-- |  used for debug version
+replLexparseProgm :: String -> Either [ErrorKind] Program
+replLexparseProgm = lexparseProgm "stdin"
+
+
+-- | Debug helper: read a file and parse it as a program.
+fileLexparseProgm :: Path -> IO (Either [ErrorKind] Program)
+fileLexparseProgm p = do
+    result <- FileHelper.readFile p
+    case result of
+        Left err -> pure (Left [err])
+        Right code -> pure (lexparseProgm p code)
+}

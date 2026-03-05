@@ -1,0 +1,213 @@
+module Parse.ParserBasicTest where
+
+import Lex.Tokenizer (replTokenize)
+import Test.Tasty
+import Test.Tasty.HUnit
+import Lex.Token (Token, tokenPos)
+import Parse.ParserBasic
+import Parse.SyntaxTree
+import Util.Type
+import Util.Exception (expectedExpression)
+
+import qualified Lex.Token as Lex
+import qualified Util.Exception as UE
+import qualified Parse.SyntaxTree as AST
+
+
+qnameToExprTests :: TestTree
+qnameToExprTests = testGroup "Parse.ParserBasic.qnameToExpr" $ map (\(n, xs, ts, e) -> testCase n $ qnameToExpr (xs, ts) @=? e) [
+    ("0", ["x"], [tokX], Variable "x" tokX),
+    ("1", [""], [tokEmpty], Variable "" tokEmpty),
+    ("2" , reverse ["A", "B"], reverse [tokA, tokB], Qualified ["A", "B"] [tokA, tokB]),
+    ("3", reverse ["A", "B", "C"], reverse [tokA, tokB, tokC], Qualified ["A", "B", "C"] [tokA, tokB, tokC])]
+    where
+        tokX, tokEmpty, tokA, tokB, tokC :: Token
+        tokX     = Lex.Ident "x"     (makePosition 1 1 1)
+        tokEmpty = Lex.Ident ""      (makePosition 1 1 0)
+        tokA     = Lex.Ident "A"     (makePosition 1 1 1)
+        tokB     = Lex.Ident "B"     (makePosition 1 3 1)
+        tokC     = Lex.Ident "C"     (makePosition 1 5 1)
+
+
+nearestTokTests :: TestTree
+nearestTokTests = testGroup "Parse.ParserBasic.nearestTok" $ map (\(n, ts, e) -> testCase n $ nearestTok ts @=? e) [
+    ("0", [] , Lex.EOF (makePosition 0 0 0)),
+    ("1", [Lex.Ident "x" (makePosition 1 1 1)], Lex.Ident "x" (makePosition 1 1 1)),
+    ("2", [
+        Lex.Symbol Lex.RParen (makePosition 3 7 1), Lex.Ident "y" (makePosition 3 8 1)],
+        Lex.Symbol Lex.RParen (makePosition 3 7 1)),
+    ("3", [
+        Lex.TokenPass  (makePosition 10 5 1), Lex.Ident "z" (makePosition 11 1 1)],
+        Lex.TokenPass  (makePosition 10 5 1))]
+
+
+mkHappyErrorExprTests :: TestTree
+mkHappyErrorExprTests = testGroup "Parse.ParserBasic.mkHappyErrorExpr" $ map (\(n, ts, e) -> testCase n $ mkHappyErrorExpr ts @=? e) [
+    ("0", [], let t = Lex.EOF (makePosition 0 0 0) in Error [t] ("invalid syntax: " ++ show t)),
+    ("1", [
+        Lex.Ident "x" (makePosition 1 1 1)], let t = Lex.Ident "x" (makePosition 1 1 1) in Error [t] ("invalid syntax: " ++ show t)),
+        
+    ("2", [
+        Lex.Symbol Lex.RBracket (makePosition 2 9 1), Lex.Ident "y" (makePosition 2 10 1)],
+        let t = Lex.Symbol Lex.RBracket (makePosition 2 9 1) in Error [t] ("invalid syntax: " ++ show t)), 
+    
+    ("3", [
+        Lex.TokenPass  (makePosition 5 3 1)],
+        
+        let t = Lex.TokenPass  (makePosition 5 3 1)
+        in Error [t] ("invalid syntax: " ++ show t))]
+
+prettyAccessTests :: TestTree
+prettyAccessTests = testGroup "Parse.ParserBasic.prettyAccess" $ map (\(n, acc, out) ->
+    testCase n $ prettyAccess acc @?= out) [
+        ("0", Private, "private"),
+        ("1", Protected, "protected"),
+        ("2", Public, "public"),
+        ("3", Private, "private")]
+
+prettyDeclFlagTests :: TestTree
+prettyDeclFlagTests = testGroup "Parse.ParserBasic.prettyDeclFlag" $ map (\(n, flag, out) ->
+    testCase n $ prettyDeclFlag flag @?= out) [
+        ("0", Static, "static"),
+        ("1", Final, "final"),
+        ("2", Static, "static"),
+        ("3", Final, "final")]
+
+prettyDeclFlagsTests :: TestTree
+prettyDeclFlagsTests = testGroup "Parse.ParserBasic.prettyDeclFlags" $ map (\(n, flags, out) ->
+    testCase n $ prettyDeclFlags flags @?= out) [
+        ("0", [], ""),
+        ("1", [Static], "static"),
+        ("2", [Final], "final"),
+        ("3", [Final, Static], "static final")]
+
+prettyDeclTests :: TestTree
+prettyDeclTests = testGroup "Parse.ParserBasic.prettyDecl" $ map (\(n, decl, out) ->
+    testCase n $ prettyDecl decl @?= out) [
+        ("0", (Public, []), "public"),
+        ("1", (Private, [Static]), "private static"),
+        ("2", (Protected, [Final]), "protected final"),
+        ("3", (Public, [Static, Final]), "public static final")]
+
+
+checkBracketTests :: TestTree
+checkBracketTests = testGroup "Parse.ParserBasic.checkBracket" $ map (\(n, s, e) -> 
+    let (_, tokens) = replTokenize s in testCase n $ checkBracket tokens @=? e) [
+        ("0", "", Nothing), ("1", "()[]{}", Nothing), ("2 complex", "[() {[], [a..b]} () ]", Nothing),
+        ("3", "() )", Just $ Lex.Symbol Lex.RParen $ makePosition 1 4 1), ("4", "[()] ]", Just $ Lex.Symbol Lex.RBracket $ makePosition 1 6 1),
+        ("5", "(", Just $ Lex.Symbol Lex.LParen $ makePosition 1 1 1), ("6 missing }", "{ [() ]", Just $ Lex.Symbol Lex.LBrace $ makePosition 1 1 1),
+        ("7", "(]", Just $ Lex.Symbol Lex.RBracket $ makePosition 1 2 1)]
+
+
+classifyNumberTests :: TestTree
+classifyNumberTests = testGroup "Parse.ParserBasic.classifyNumber" $ map (\(i, s, e) -> testCase i $ classifyNumber s (mkTok s) @=? e) [
+    ("0", "0", Just (IntConst "0" (mkTok "0"))),
+    ("1", "123.4", Just (DoubleConst "123.4" (mkTok "123.4"))),
+    ("2", "1e9l", Just (LongDoubleConst "1e9l" (mkTok "1e9l"))),
+    ("3", "0x", Nothing)]
+    where
+        mkTok :: String -> Token
+        mkTok s = Lex.NumberConst s $ makePosition 1 1 (length s)
+
+
+toExceptionTests :: TestTree
+toExceptionTests = testGroup "toException" $ map (\(i, expr, expected) ->
+    testCase i $ toException "stdin" expr @=? expected) [
+    ("0",
+        Error [tokBad] "boom",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokBad] "boom")),
+        
+    ("1",
+        Error [tokPlus] "bad plus",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokPlus] "bad plus")),
+        
+    ("2",
+        Error [tokNum] "bad number",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokNum] "bad number")),
+        
+    ("3",
+        Error [tokId] "bad ident",
+        UE.Parsing (UE.makeError "stdin" [tokenPos tokId] "bad ident"))]
+    where
+        tokBad, tokNum, tokId, tokPlus :: Token
+        tokBad  = Lex.Symbol Lex.RBrace (makePosition 1 4 1)
+        tokNum  = Lex.NumberConst "1"   (makePosition 1 1 1)
+        tokId   = Lex.Ident "x"         (makePosition 1 1 1)
+        tokPlus = Lex.Symbol Lex.Plus   (makePosition 1 3 1)
+
+
+stmtToBlockTests :: TestTree
+stmtToBlockTests = testGroup "Parse.ParserBasic.stmtToBlock" $
+    map (\(name, stmt, expected) -> testCase name $ stmtToBlock stmt @=? expected) [
+        ("0",
+            Expr (IntConst "1" (mkNum "1" 1 1 1)),
+            Multiple [
+                Expr (IntConst "1" (mkNum "1" 1 1 1))
+            ]),
+
+        ("1",
+            BlockStmt (Multiple [
+                Expr (IntConst "1" (mkNum "1" 1 1 1))
+            ]),
+            Multiple [
+                Expr (IntConst "1" (mkNum "1" 1 1 1))
+            ]),
+
+        ("2",
+            While
+                (BoolConst True (mkId "true" 1 1 4))
+                (Just (Multiple [
+                    Expr (IntConst "1" (mkNum "1" 2 1 1))
+                ]))
+                Nothing
+                (mkId "while" 1 1 5, Nothing),
+            Multiple [
+                While
+                    (BoolConst True (mkId "true" 1 1 4))
+                    (Just (Multiple [
+                        Expr (IntConst "1" (mkNum "1" 2 1 1))
+                    ]))
+                    Nothing
+                    (mkId "while" 1 1 5, Nothing)]),
+
+        ("3",
+            While
+                (BoolConst True (mkId "true" 1 1 4))
+                Nothing
+                Nothing
+                (mkId "while" 1 1 5, Nothing),
+            Multiple [
+                While
+                    (BoolConst True (mkId "true" 1 1 4))
+                    Nothing
+                    Nothing
+                    (mkId "while" 1 1 5, Nothing)])]
+    where
+        -- mkSym :: Symbol -> Int -> Int -> Int -> Token
+        -- mkSym s a b c = Lex.Symbol s $ Position a b c
+
+        mkNum :: String -> Int -> Int -> Int -> Token
+        mkNum s a b c = Lex.NumberConst s $ Position a b c
+
+        mkId :: String -> Int -> Int -> Int -> Token
+        mkId s a b c = Lex.Ident s $ makePosition a b c
+
+
+stmtToExprTests :: TestTree
+stmtToExprTests = testGroup "Parse.ParserBasic.stmtToExpr" $ map (\(name, _, stmt, expected) ->
+    testCase name $ stmtToExpr tok stmt @=? expected) [
+        ("0", tok, Expr expr, expr),
+        ("1", tok, BlockStmt (Multiple []), Error [tok] (expectedExpression 1 $ show tok)),
+        ("2", tok, If (BoolConst True tok) Nothing Nothing (tok, Nothing), Error [tok] (expectedExpression 1 $ show tok)),
+        ("3", tok, While (BoolConst True tok) Nothing Nothing (tok, Nothing), Error [tok] (expectedExpression 1 $ show tok))]
+    where
+        tok  = Lex.Ident "x" (makePosition 1 1 1)
+        expr = AST.IntConst "42" tok
+
+
+
+tests :: TestTree
+tests = testGroup "Parse.ParserBasic" [
+    qnameToExprTests, nearestTokTests, mkHappyErrorExprTests,
+    prettyAccessTests, prettyDeclFlagTests, prettyDeclFlagsTests, prettyDeclTests,
+    classifyNumberTests, toExceptionTests, stmtToBlockTests, stmtToExprTests]
