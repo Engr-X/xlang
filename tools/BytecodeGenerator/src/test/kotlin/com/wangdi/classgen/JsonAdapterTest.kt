@@ -3,6 +3,7 @@ package com.wangdi.classgen
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class JsonAdapterTest
@@ -78,5 +79,47 @@ class JsonAdapterTest
         emitter.save(outDir)
 
         assertTrue(Files.exists(outDir.resolve("TestB.class")))
+    }
+
+    @Test
+    fun unknownOpThrowsReadableError()
+    {
+        val json: String = """
+            {
+                "class": ["TestVStore"],
+                "methods": [
+                    {
+                        "access": ["public", "static"],
+                        "name": "callee",
+                        "return": ["void"],
+                        "param_types": [["int"]],
+                        "ops": [
+                            { "op_name": "return" }
+                        ]
+                    },
+                    {
+                        "access": ["public", "static"],
+                        "name": "caller",
+                        "return": ["void"],
+                        "param_types": [],
+                        "ops": [
+                            { "op_name": "ipush", "value": 1 },
+                            {
+                                "op_name": "invokestatic",
+                                "full_name": ["TestVStore", "callee"],
+                                "func_sig": { "func_return": ["void"], "func_params": [["int"]] }
+                            },
+                            { "op_name": "vstore", "index": 0 },
+                            { "op_name": "return" }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            JsonAdapter(json).getClassEmitter()
+        }
+        assertTrue(error.message?.contains("Unknown op_name: vstore") == true)
     }
 }

@@ -109,8 +109,12 @@ lowerInstr (IR.ICall {}) = error "ICall is not supported; use ICallStatic"
 lowerInstr (IR.ICallStatic dst qname args) = do
     argOps <- loadArgs args
     sig <- callSig dst args
-    dstOps <- storeAtom dst
-    return (argOps ++ [JVM.InvokeStatic qname sig] ++ dstOps)
+    retCls <- atomClass dst
+    case retCls of
+        Void -> return (argOps ++ [JVM.InvokeStatic qname sig])
+        _ -> do
+            dstOps <- storeAtom dst
+            return (argOps ++ [JVM.InvokeStatic qname sig] ++ dstOps)
 lowerInstr (IR.IGetStatic dst qname) = do
     cls <- atomClass dst
     dstOps <- storeAtom dst
@@ -341,7 +345,7 @@ buildParamSlots params = foldl step (Map.empty, 0) (zip [0..] params)
 
 -- | Lower an IR class into JVM class (constructors not supported yet).
 jvmClassLowing :: QName -> IR.IRClass -> JVM.JClass
-jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs) =
+jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs mainKind) =
     let qname = if null pkg then [name] else pkg ++ [name]
         extendQ = []
         interfaces = []
@@ -349,7 +353,7 @@ jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs) =
         clinit = jvmClinitLowing sInit atomT
         inits = []
         methods = map jvmLowingFun funs
-    in JVM.JClass decl qname extendQ interfaces fields clinit inits methods
+    in JVM.JClass decl qname extendQ interfaces fields clinit inits methods mainKind
 
 
 -- | Lower a whole IR program into JVM classes.

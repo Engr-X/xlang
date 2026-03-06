@@ -92,7 +92,7 @@ class ClassEmitter(
         else
             this.initEmitters
 
-        inits.forEach { it.generate() }
+        inits.forEach { `init` -> `init`.generate() }
         this.methods.forEach { method -> method.generate() }
     }
 }

@@ -122,11 +122,9 @@ private fun parseClassObjects(jsonText: String): List<JSONObject>
     val rootObj = root as? JSONObject
         ?: throw ClassCastException("Root JSON must be JSONObject, but was ${root::class.java.name}")
 
-    val classesValue: Any? = rootObj["classes"]
-    if (classesValue == null)
-        return listOf(rootObj)
+    val classesValue: Any = rootObj["classes"] ?: return listOf(rootObj)
 
-    val classArray = classesValue as? JSONArray
+    val classArray: JSONArray = classesValue as? JSONArray
         ?: throw ClassCastException("classes must be JSONArray, but was ${classesValue::class.java.name}")
 
     return classArray.map { item ->
@@ -152,11 +150,7 @@ fun main(args: Array<String>)
         return
     }
 
-    val jsonText: String =
-        if (opts.jsonText == null)
-            readFile(opts.jsonPath!!)
-        else
-            opts.jsonText
+    val jsonText: String = opts.jsonText ?: readFile(opts.jsonPath!!)
 
     val classObjects: List<JSONObject> = parseClassObjects(jsonText)
     classObjects.forEach { classJson ->

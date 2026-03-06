@@ -10,6 +10,7 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Parse.SyntaxTree (Block, Class, Expression, Operator, Statement)
 import Parse.ParserBasic (Decl, prettyDecl)
+import Semantic.NameEnv (QName)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
 import Util.Exception (Warning)
@@ -590,6 +591,26 @@ prettyStaticInit n (StaticInit stmts) =
         header = indent ++ "static {}:\n"
         body = concatMap (prettyStmt (n + 1)) stmts
     in header ++ body
+
+
+-- | Main-entry flavor detected from methods in a class.
+data MainKind
+    = NoMain
+    | MainInt QName
+    | MainVoid QName
+    | MainIntArgs QName
+    | MainVoidArgs QName
+    deriving (Eq, Show)
+
+
+prettyMainKind :: MainKind -> String
+prettyMainKind kind = case kind of
+    NoMain -> "none"
+    MainInt qn -> "int main() @ " ++ intercalate "." qn
+    MainVoid qn -> "void main() @ " ++ intercalate "." qn
+    MainIntArgs qn -> "int main(String[]) @ " ++ intercalate "." qn
+    MainVoidArgs qn -> "void main(String[]) @ " ++ intercalate "." qn
+    
  
 -- | Class definition: name, static init, methods.
 data IRClass
@@ -600,19 +621,21 @@ data IRClass
         StaticInit    -- ^ static initializer
         (Map IRAtom Class) -- ^ atom -> type map (static init)
         [IRFunction]  -- ^ methods
+        MainKind      -- ^ detected class-level main entry
     deriving (Eq, Show)
 
 prettyIRClass :: Int -> IRClass -> String
-prettyIRClass n (IRClass decl name attrs sInit atomTypes funs) =
+prettyIRClass n (IRClass decl name attrs sInit atomTypes funs mainKind) =
     let indent = replicate (n * 4) ' '
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
         header = concat [indent, declPrefix, "class ", name, ":\n"]
+        mainS = indent ++ "    main: " ++ prettyMainKind mainKind ++ "\n"
         attrsS = concatMap (\a -> prettyAttribute (n + 1) a ++ "\n") attrs
         staticS = prettyStaticInit (n + 1) sInit
         typesS = prettyTypeMap (n + 1) atomTypes
         funsS = concatMap (prettyIRFunction (n + 1)) funs
-    in concat [header, attrsS, staticS, typesS, funsS]
+    in concat [header, mainS, attrsS, staticS, typesS, funsS]
 
 prettyTypeMap :: Int -> Map IRAtom Class -> String
 prettyTypeMap n atomTypes
@@ -649,8 +672,8 @@ flattenIRProgm :: IRProgm -> IRProgm
 flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
 
 flattenIRClass :: IRClass -> IRClass
-flattenIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs) = 
-    IRClass decl name fields (StaticInit (flattenTopStmts stmts)) atomTypes (map flattenIRFunction funs)
+flattenIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (flattenTopStmts stmts)) atomTypes (map flattenIRFunction funs) mainKind
 
 flattenIRFunction :: IRFunction -> IRFunction
 flattenIRFunction (IRFunction acc name sig atomTypes stmts) =
@@ -686,8 +709,8 @@ pruneIRProgm :: IRProgm -> IRProgm
 pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
 
 pruneIRClass :: IRClass -> IRClass
-pruneIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs) =
-    IRClass decl name fields (StaticInit (pruneTopStmts stmts)) atomTypes (map pruneIRFunction funs)
+pruneIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (pruneTopStmts stmts)) atomTypes (map pruneIRFunction funs) mainKind
 
 pruneIRFunction :: IRFunction -> IRFunction
 pruneIRFunction (IRFunction acc name sig atomTypes stmts) =
@@ -717,8 +740,8 @@ rmEBInProg :: IRProgm -> IRProgm
 rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
 
 rmEBInClass :: IRClass -> IRClass
-rmEBInClass (IRClass decl name fields (StaticInit stmts) atomTypes funs) =
-    IRClass decl name fields (StaticInit (rmEBInStmts stmts)) atomTypes (map rmEBInFunc funs)
+rmEBInClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (rmEBInStmts stmts)) atomTypes (map rmEBInFunc funs) mainKind
 
 rmEBInFunc :: IRFunction -> IRFunction
 rmEBInFunc (IRFunction acc name sig atomTypes stmts) =

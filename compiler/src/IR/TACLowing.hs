@@ -20,6 +20,7 @@ import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isCompar
 import IR.TAC (IRInstr, IRAtom, TACM, IRStmt, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
     getVarStacks, setVarStacks, pushLoopPhis, popLoopPhis, getCurrentLoopPhis, getAtomTypes)
+import Semantic.NameEnv (QName)
 import Util.Exception (Warning(..))
 import Util.Type (Path, Position)
 
@@ -874,8 +875,9 @@ classStmtsLowing pkgSegs name stmts = do
     let classQName = pkgSegs ++ [name]
         staticStmts = qualifyStmts classQName staticStmts0
         funcs = map (qualifyFunction classQName) funcs0
+        mainKind = detectMainKind classQName funcs
     let decl = (PB.Public, []) -- TODO: default class decl until parser carries modifiers.
-    return $ TAC.IRClass decl name staticFields (TAC.StaticInit staticStmts) staticAtomTypes funcs
+    return $ TAC.IRClass decl name staticFields (TAC.StaticInit staticStmts) staticAtomTypes funcs mainKind
     where
         resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
         resolveStaticKey (_, poss) = do
@@ -921,6 +923,43 @@ classStmtsLowing pkgSegs name stmts = do
             where
                 pkg = take (length cls - 1) cls
                 isPkgOnly = length qn == length cls && take (length cls - 1) qn == pkg
+
+
+detectMainKind :: QName -> [IRFunction] -> TAC.MainKind
+detectMainKind classQName = foldl' pick TAC.NoMain . map classify
+    where
+        pick :: TAC.MainKind -> TAC.MainKind -> TAC.MainKind
+        pick acc kind
+            | rank kind > rank acc = kind
+            | otherwise = acc
+
+        rank :: TAC.MainKind -> Int
+        rank TAC.NoMain = 0
+        rank (TAC.MainInt _) = 1
+        rank (TAC.MainVoid _) = 2
+        rank (TAC.MainIntArgs _) = 3
+        rank (TAC.MainVoidArgs _) = 4
+
+        classify :: IRFunction -> TAC.MainKind
+        classify (TAC.IRFunction _ "main" sig _ _) =
+            case (TEnv.funReturn sig, TEnv.funParams sig) of
+                (Int32T, []) -> TAC.MainInt mainQName
+                (Void, []) -> TAC.MainVoid mainQName
+                (Int32T, [param]) | isStringArray param -> TAC.MainIntArgs mainQName
+                (Void, [param]) | isStringArray param -> TAC.MainVoidArgs mainQName
+                _ -> TAC.NoMain
+        classify _ = TAC.NoMain
+
+        mainQName :: QName
+        mainQName = classQName ++ ["main"]
+
+        isStringArray :: Class -> Bool
+        isStringArray (Array elemT 1) = isStringClass elemT
+        isStringArray _ = False
+
+        isStringClass :: Class -> Bool
+        isStringClass (Class qn []) = qn == ["String"] || qn == ["java", "lang", "String"]
+        isStringClass _ = False
 
 
 -- | Lower a class statement into IR (not implemented yet).

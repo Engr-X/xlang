@@ -11,6 +11,7 @@ import Semantic.TypeEnv (FunSig(..))
 
 import qualified Data.Aeson.Key as Key
 import qualified Data.Map.Strict as Map
+import qualified IR.TAC as IR
 import qualified Lowing.JVM as JVM
 
 
@@ -85,6 +86,12 @@ initKey = Key.fromString "init"
 
 methodsKey :: Key
 methodsKey = Key.fromString "methods"
+
+mainTypeKey :: Key
+mainTypeKey = Key.fromString "main_type"
+
+mainQNameKey :: Key
+mainQNameKey = Key.fromString "main_qname"
 
 jvmTargetKey :: Key
 jvmTargetKey = Key.fromString "jvm_target"
@@ -319,8 +326,8 @@ jInitToJSON (JVM.JInit decl sig body) = object [
 
 -- | Encode a class into JSON.
 jClassToJSON :: Int -> JVM.JClass -> Value
-jClassToJSON jvmTarget (JVM.JClass decl qname extendQ interfaces fields clinit inits methods) =
-    object [
+jClassToJSON jvmTarget (JVM.JClass decl qname extendQ interfaces fields clinit inits methods mainKind) =
+    object $ [
         jvmTargetKey .= jvmTarget,
         classKey .= qname,
         accessKey .= declToAccessList decl,
@@ -330,8 +337,23 @@ jClassToJSON jvmTarget (JVM.JClass decl qname extendQ interfaces fields clinit i
         attributesKey .= map jFieldToJSON fields,
         clinitKey .= jClinitToJSON clinit,
         initKey .= map jInitToJSON inits,
-        methodsKey .= map jFunctionToJSON methods
-    ]
+        methodsKey .= map jFunctionToJSON methods,
+        mainTypeKey .= mainType
+        ] ++ mainQNameField
+    where
+        (mainType, mainQName) = mainKindMeta mainKind
+        mainQNameField = case mainQName of
+            Nothing -> []
+            Just qn -> [mainQNameKey .= qn]
+
+
+mainKindMeta :: IR.MainKind -> (Int, Maybe QName)
+mainKindMeta kind = case kind of
+    IR.NoMain -> (-1, Nothing)
+    IR.MainVoid qn -> (0, Just qn)
+    IR.MainInt qn -> (1, Just qn)
+    IR.MainVoidArgs qn -> (2, Just qn)
+    IR.MainIntArgs qn -> (3, Just qn)
 
 
 -- | Encode a whole program (list of classes) into JSON.

@@ -55,6 +55,9 @@ class JsonAdapter(private val json: JSONObject)
         private const val METHOD_PARAM_TYPES = "param_types"
         private const val METHOD_OPS = "ops"
 
+        private const val MAIN_TYPE = "main_type"
+        private const val MAIN_QNAME = "main_qname"
+
         private fun selectCtorAccess(access: MutableList<Access>): Access =
             access.firstOrNull { it == Access.Public || it == Access.Private || it == Access.Protected } ?: Access.Public
 
@@ -390,7 +393,9 @@ class JsonAdapter(private val json: JSONObject)
             val opName = opJson.getString(OP_NAME)?.lowercase()
                 ?: throw NoSuchElementException("Missing key: $OP_NAME")
 
-            OP_HANDLERS[opName]!!(this, opJson)
+            val handler = OP_HANDLERS[opName]
+                ?: throw IllegalArgumentException("Unknown op_name: $opName")
+            handler(this, opJson)
         }
     }
 
@@ -436,6 +441,7 @@ class JsonAdapter(private val json: JSONObject)
         this.addClinit(ce)
         this.addInit(ce)
         this.addMethods(ce)
+        this.addMain(ce)
         return ce
     }
 
@@ -560,5 +566,61 @@ class JsonAdapter(private val json: JSONObject)
             builder.build()
             ce.addInit(init)
         }
+    }
+
+    private fun addMain(ce: ClassEmitter)
+    {
+        val mainType: Int = this.json.getOrDefault<Int>(MAIN_TYPE, -1)
+
+        if (mainType == -1 || mainType == 2)
+            return
+
+        val main: MutableList<String> = this.json.getJSONArray(MAIN_QNAME).toList<String>()
+        require(main.isNotEmpty()) { "$MAIN_QNAME must not be empty" }
+
+        val stringArrayType = Type(TypeRef("java", "lang", "String"), 1)
+
+        val mainMethod: MethodEmitter = ce.newMethod(
+            mutableListOf(Access.Public, Access.Static),
+            "main",
+            Type.VOID to mutableListOf(stringArrayType),
+            mutableListOf(),
+            mutableListOf()
+        )
+
+        val builder: MethodEmitter.Builder = mainMethod.Builder()
+
+        when (mainType)
+        {
+            // void main()
+            0 -> {
+                builder.invokeStatic(main, Type.VOID to mutableListOf())
+                builder.`return`()
+            }
+
+            // int main()
+            1 -> {
+                builder.invokeStatic(main, Type.INT32 to mutableListOf())
+                builder.invokeStatic(
+                    mutableListOf("java", "lang", "System", "exit"),
+                    Type.VOID to mutableListOf(Type.INT32))
+                builder.`return`()
+            }
+
+            // int main(String[] args)
+            3 -> {
+                builder.aload(0)
+                builder.invokeStatic(main, Type.INT32 to mutableListOf(stringArrayType))
+                builder.invokeStatic(
+                    mutableListOf("java", "lang", "System", "exit"),
+                    Type.VOID to mutableListOf(Type.INT32))
+                builder.`return`()
+            }
+
+            else -> throw IllegalArgumentException("unknown main method $mainType")
+        }
+
+        builder.build()
+        ce.addMethod(mainMethod)
     }
 }

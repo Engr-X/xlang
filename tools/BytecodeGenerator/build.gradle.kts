@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.wangdi"
-version = "1.0"
+version = "alpha"
 
 repositories {
     mavenCentral()

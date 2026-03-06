@@ -1,7 +1,7 @@
 module Lowing.JVM where
 
 import Data.Int (Int64)
-import IR.TAC (IRProgm)
+import IR.TAC (IRProgm, MainKind)
 import Parse.ParserBasic (Decl)
 import Parse.SyntaxTree (Class)
 import Semantic.NameEnv (QName)
@@ -102,6 +102,7 @@ data JClass = JClass
     JClinit
     [JInit]
     [JFunction]
+    MainKind        -- main entry metadata (NoMain/Main* with full qname)
 
 
 

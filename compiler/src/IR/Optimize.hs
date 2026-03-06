@@ -12,8 +12,8 @@ stripPhiProgm (IRProgm pkg classes) = IRProgm pkg (map stripPhiClass classes)
 
 
 stripPhiClass :: IRClass -> IRClass
-stripPhiClass (IRClass decl name fields (TAC.StaticInit stmts) atomTypes funs) =
-    IRClass decl name fields (TAC.StaticInit (stripPhiStmts stmts)) atomTypes (map stripPhiFunction funs)
+stripPhiClass (IRClass decl name fields (TAC.StaticInit stmts) atomTypes funs mainKind) =
+    IRClass decl name fields (TAC.StaticInit (stripPhiStmts stmts)) atomTypes (map stripPhiFunction funs) mainKind
 
 
 stripPhiFunction :: IRFunction -> IRFunction

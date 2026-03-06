@@ -1,0 +1,12 @@
+# Gradle
+.gradle/
+**/.gradle/
+**/.gradle-home/
+build/
+**/build/
+
+# IntelliJ
+**/.idea/workspace.xml
+**/.idea/tasks.xml
+**/.idea/shelf/
+**/*.iml
