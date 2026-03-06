@@ -15,6 +15,8 @@ import com.wangdi.classgen.generator.MethodEmitter
 import org.objectweb.asm.Opcodes
 
 
+private typealias OpHandler = MethodEmitter.Builder.(JSONObject) -> Unit
+
 class JsonAdapter(private val json: JSONObject)
 {
     companion object
@@ -84,20 +86,20 @@ class JsonAdapter(private val json: JSONObject)
             throw ClassCastException("${R::class.java.name}, but was ${it::class.java.name}")
         }.toMutableList()
 
+        private val ACCESS_TABLE_MAP: Map<String, Access> = mutableMapOf(
+            "public" to Access.Public,
+            "private" to Access.Private,
+            "protected" to Access.Protected,
+            "static" to Access.Static,
+            "final" to Access.Final,
+            "abstract" to Access.Abstract,
+            "interface" to Access.Interface,
+            "enum" to Access.Enum,
+            "super" to Access.Super
+        )
+
         private fun parseAccess(value: String): Access =
-            when (value.trim().lowercase())
-            {
-                "public" -> Access.Public
-                "private" -> Access.Private
-                "protected" -> Access.Protected
-                "static" -> Access.Static
-                "final" -> Access.Final
-                "abstract" -> Access.Abstract
-                "interface" -> Access.Interface
-                "enum" -> Access.Enum
-                "super" -> Access.Super
-                else -> throw IllegalArgumentException("Unknown access flag: $value")
-            }
+            ACCESS_TABLE_MAP[value.trim().lowercase()] ?: throw IllegalArgumentException("Unknown access flag: $value")
 
         private fun parseAccessList(json: JSONObject): MutableList<Access> =
             json.getOrDefault<JSONArray>(ACCESS_KEY, JSONArray())
@@ -105,21 +107,29 @@ class JsonAdapter(private val json: JSONObject)
                 .map { parseAccess(it) }
                 .toMutableList()
 
-        private fun toJvmTarget(value: Int): Int = when (value)
-        {
-            8 -> Opcodes.V1_8
-            9 -> Opcodes.V9
-            10 -> Opcodes.V10
-            11 -> Opcodes.V11
-            12 -> Opcodes.V12
-            13 -> Opcodes.V13
-            14 -> Opcodes.V14
-            15 -> Opcodes.V15
-            16 -> Opcodes.V16
-            17 -> Opcodes.V17
-            18 -> Opcodes.V18
-            else -> value
-        }
+        private val JVM_TARGET_MAP = mapOf(
+            8 to Opcodes.V1_8,
+            9 to Opcodes.V9,
+            10 to Opcodes.V10,
+            11 to Opcodes.V11,
+            12 to Opcodes.V12,
+            13 to Opcodes.V13,
+            14 to Opcodes.V14,
+            15 to Opcodes.V15,
+            16 to Opcodes.V16,
+            17 to Opcodes.V17,
+            18 to Opcodes.V18,
+            19 to Opcodes.V19,
+            20 to Opcodes.V20,
+            21 to Opcodes.V21,
+            22 to Opcodes.V22,
+            23 to Opcodes.V23,
+            24 to Opcodes.V24,
+            25 to Opcodes.V25,
+            26 to Opcodes.V26
+        )
+
+        private fun toJvmTarget(value: Int): Int = JVM_TARGET_MAP[value] ?: value
 
         private val PRIMITIVE_TYPE_MAP: MutableMap<String, Type> = mutableMapOf(
             "void" to Type.VOID,
@@ -225,143 +235,162 @@ class JsonAdapter(private val json: JSONObject)
             return normalized
         }
 
+        private val OP_HANDLERS: MutableMap<String, OpHandler> = mutableMapOf(
+            "iadd" to { iadd() },
+            "ladd" to { ladd() },
+            "fadd" to { fadd() },
+            "dadd" to { dadd() },
+
+            "isub" to { isub() },
+            "lsub" to { lsub() },
+            "fsub" to { fsub() },
+            "dsub" to { dsub() },
+
+            "imul" to { imul() },
+            "lmul" to { lmul() },
+            "fmul" to { fmul() },
+            "dmul" to { dmul() },
+
+            "idiv" to { idiv() },
+            "ldiv" to { ldiv() },
+            "fdiv" to { fdiv() },
+            "ddiv" to { ddiv() },
+
+            "irem" to { irem() },
+            "lrem" to { lrem() },
+
+            "i2l" to { i2l() },
+            "i2f" to { i2f() },
+            "i2d" to { i2d() },
+
+            "l2i" to { l2i() },
+            "l2f" to { l2f() },
+            "l2d" to { l2d() },
+
+            "f2i" to { f2i() },
+            "f2l" to { f2l() },
+            "f2d" to { f2d() },
+
+            "d2i" to { d2i() },
+            "d2l" to { d2l() },
+            "d2f" to { d2f() },
+
+            "return" to { `return`() },
+            "ireturn" to { ireturn() },
+            "lreturn" to { lreturn() },
+            "freturn" to { freturn() },
+            "dreturn" to { dreturn() },
+
+            "pop" to { pop() },
+            "dup" to { dup() },
+            "nop" to { nop() },
+
+            "ineg" to { ineg() },
+            "lneg" to { lneg() },
+            "fneg" to { fneg() },
+            "dneg" to { dneg() },
+
+            "inot" to { inot() },
+            "lnot" to { lnot() },
+
+            "pos" to { pos() },
+
+            "goto" to { json -> goto(json.getInteger(BLOCK_ID)) },
+
+            "if_icmpeq" to { json -> if_icmpeq(json.getInteger(BLOCK_ID)) },
+            "if_icmpne" to { json -> if_icmpne(json.getInteger(BLOCK_ID)) },
+            "if_icmplt" to { json -> if_icmplt(json.getInteger(BLOCK_ID)) },
+            "if_icmple" to { json -> if_icmple(json.getInteger(BLOCK_ID)) },
+            "if_icmpgt" to { json -> if_icmpgt(json.getInteger(BLOCK_ID)) },
+            "if_icmpge" to { json -> if_icmpge(json.getInteger(BLOCK_ID)) },
+
+            "if_lcmpeq" to { json -> if_lcmpeq(json.getInteger(BLOCK_ID)) },
+            "if_lcmpne" to { json -> if_lcmpne(json.getInteger(BLOCK_ID)) },
+            "if_lcmplt" to { json -> if_lcmplt(json.getInteger(BLOCK_ID)) },
+            "if_lcmple" to { json -> if_lcmple(json.getInteger(BLOCK_ID)) },
+            "if_lcmpgt" to { json -> if_lcmpgt(json.getInteger(BLOCK_ID)) },
+            "if_lcmpge" to { json -> if_lcmpge(json.getInteger(BLOCK_ID)) },
+
+            "if_fcmpeq" to { json -> if_fcmpeq(json.getInteger(BLOCK_ID)) },
+            "if_fcmpne" to { json -> if_fcmpne(json.getInteger(BLOCK_ID)) },
+            "if_fcmplt" to { json -> if_fcmplt(json.getInteger(BLOCK_ID)) },
+            "if_fcmple" to { json -> if_fcmple(json.getInteger(BLOCK_ID)) },
+            "if_fcmpgt" to { json -> if_fcmpgt(json.getInteger(BLOCK_ID)) },
+            "if_fcmpge" to { json -> if_fcmpge(json.getInteger(BLOCK_ID)) },
+
+            "if_dcmpeq" to { json -> if_dcmpeq(json.getInteger(BLOCK_ID)) },
+            "if_dcmpne" to { json -> if_dcmpne(json.getInteger(BLOCK_ID)) },
+            "if_dcmplt" to { json -> if_dcmplt(json.getInteger(BLOCK_ID)) },
+            "if_dcmple" to { json -> if_dcmple(json.getInteger(BLOCK_ID)) },
+            "if_dcmpgt" to { json -> if_dcmpgt(json.getInteger(BLOCK_ID)) },
+            "if_dcmpge" to { json -> if_dcmpge(json.getInteger(BLOCK_ID)) },
+
+            "iload" to { json -> iload(json.getOrError(VAR_INDEX)) },
+            "lload" to { json -> lload(json.getOrError(VAR_INDEX)) },
+            "fload" to { json -> fload(json.getOrError(VAR_INDEX)) },
+            "dload" to { json -> dload(json.getOrError(VAR_INDEX)) },
+            "aload" to { json -> aload(json.getOrError(VAR_INDEX)) },
+
+            "ipush" to { json -> ipush(json.getInteger(VALUE).toInt()) },
+            "lpush" to { json -> lpush(json.getLong(VALUE).toLong()) },
+            "fpush" to { json -> fpush(json.getFloat(VALUE).toFloat()) },
+            "dpush" to { json -> dpush(json.getDouble(VALUE).toDouble()) },
+
+            "istore" to { json -> istore(json.getOrError(VAR_INDEX)) },
+            "lstore" to { json -> lstore(json.getOrError(VAR_INDEX)) },
+            "fstore" to { json -> fstore(json.getOrError(VAR_INDEX)) },
+            "dstore" to { json -> dstore(json.getOrError(VAR_INDEX)) },
+
+            "invokestatic" to { json ->
+                val (fullName, sig) = parseInvokeSpec(json)
+                invokeStatic(fullName, sig)
+            },
+
+            "invokespecial" to { json ->
+                val (fullName, sig) = parseInvokeSpec(json)
+                invokeSpecial(fullName, sig)
+            },
+
+            "invokevirtual" to { json ->
+                val (fullName, sig) = parseInvokeSpec(json)
+                invokeVirtual(fullName, sig)
+            },
+
+            "getstatic" to { json ->
+                val (fullName, type) = parseFieldSpec(json)
+                getstatic(fullName, type)
+            },
+
+            "putstatic" to { json ->
+                val (fullName, type) = parseFieldSpec(json)
+                putstatic(fullName, type)
+            },
+
+            "block" to { json ->
+                val blockId: Int = json.getOrError(BLOCK_ID)
+                val blockOps: JSONArray = json.getJSONArray(BLOCK_OPS)
+
+                val blockBuilder: MethodEmitter.BlockBuilder = getParent().BlockBuilder(blockId)
+
+                blockOps.forEach { item ->
+                    val opJson = item as? JSONObject
+                        ?: throw ClassCastException(
+                            "block_ops item must be JSONObject, but was ${item::class.java.name}"
+                        )
+                    blockBuilder.addOp(opJson)
+                }
+
+                val opBlock: OpBlock = blockBuilder.buildBlock() as OpBlock
+                block(opBlock)
+            }
+        )
+
         private fun MethodEmitter.Builder.addOp(json: JSONObject): MethodEmitter.Builder = this.apply {
             val opJson = normalizeOp(json)
-            val opName: String = opJson.getString(OP_NAME)
+            val opName = opJson.getString(OP_NAME)?.lowercase()
                 ?: throw NoSuchElementException("Missing key: $OP_NAME")
-            when (opName.lowercase())
-            {
-                "iadd" -> this.iadd()
-                "ladd" -> this.ladd()
-                "fadd" -> this.fadd()
-                "dadd" -> this.dadd()
 
-                "isub" -> this.isub()
-                "lsub" -> this.lsub()
-                "fsub" -> this.fsub()
-                "dsub" -> this.dsub()
-
-                "imul" -> this.imul()
-                "lmul" -> this.lmul()
-                "fmul" -> this.fmul()
-                "dmul" -> this.dmul()
-
-                "idiv" -> this.idiv()
-                "ldiv" -> this.ldiv()
-                "fdiv" -> this.fdiv()
-                "ddiv" -> this.ddiv()
-
-                "irem" -> this.irem()
-                "lrem" -> this.lrem()
-
-                "invokestatic" -> {
-                    val (fullName, sig) = parseInvokeSpec(opJson)
-                    this.invokeStatic(fullName, sig)
-                }
-
-                "invokespecial" -> {
-                    val (fullName, sig) = parseInvokeSpec(opJson)
-                    this.invokeSpecial(fullName, sig)
-                }
-
-                "invokevirtual" -> {
-                    val (fullName, sig) = parseInvokeSpec(opJson)
-                    this.invokeVirtual(fullName, sig)
-                }
-
-                "i2l" -> this.i2l()
-                "i2f" -> this.i2f()
-                "i2d" -> this.i2d()
-
-                "l2i" -> this.l2i()
-                "l2f" -> this.l2f()
-                "l2d" -> this.l2d()
-
-                "f2i" -> this.f2i()
-                "f2l" -> this.f2l()
-                "f2d" -> this.f2d()
-
-                "d2i" -> this.d2i()
-                "d2l" -> this.d2l()
-                "d2f" -> this.d2f()
-
-                "block" -> {
-                    val blockId: Int = opJson.getOrError(BLOCK_ID)
-                    val blockOps: JSONArray = opJson.getOrDefault<JSONArray>(BLOCK_OPS, JSONArray())
-
-                    val blockBuilder: MethodEmitter.BlockBuilder = this.getParent().BlockBuilder(blockId)
-
-                    blockOps.forEach { item ->
-                        val opJson = item as? JSONObject
-                            ?: throw ClassCastException("block_ops item must be JSONObject, but was ${item::class.java.name}")
-                        blockBuilder.addOp(opJson)
-                    }
-
-                    val opBlock: OpBlock = blockBuilder.buildBlock() as OpBlock
-                    this.block(opBlock)
-                }
-
-                "goto" -> {
-                    val blockId: Int = opJson.getInteger(BLOCK_ID)
-                    this.goto(blockId)
-                }
-
-                "ifeq" -> {
-                    val blockId: Int = opJson.getInteger(BLOCK_ID)
-                    this.ifeq(blockId)
-                }
-
-                "ifne" -> {
-                    val blockId: Int = opJson.getInteger(BLOCK_ID)
-                    this.ifne(blockId)
-                }
-
-                "return" -> this.`return`()
-                "ireturn" -> this.ireturn()
-                "lreturn" -> this.lreturn()
-                "freturn" -> this.freturn()
-                "dreturn" -> this.dreturn()
-
-                "pop" -> this.pop()
-                "dup" -> this.dup()
-                "nop" -> this.nop()
-
-                "getstatic" -> {
-                    val (fullName, type) = parseFieldSpec(opJson)
-                    this.getstatic(fullName, type)
-                }
-
-                "putstatic" -> {
-                    val (fullName, type) = parseFieldSpec(opJson)
-                    this.putstatic(fullName, type)
-                }
-
-                "ineg" -> this.ineg()
-                "lneg" -> this.lneg()
-                "fneg" -> this.fneg()
-                "dneg" -> this.dneg()
-
-                "inot" -> this.inot()
-                "lnot" -> this.lnot()
-
-                "pos" -> this.pos()
-
-                "iload" -> this.iload(opJson.getOrError(VAR_INDEX))
-                "lload" -> this.lload(opJson.getOrError(VAR_INDEX))
-                "fload" -> this.fload(opJson.getOrError(VAR_INDEX))
-                "dload" -> this.dload(opJson.getOrError(VAR_INDEX))
-                "aload" -> this.aload(opJson.getOrError(VAR_INDEX))
-
-                "ipush" -> this.ipush(opJson.getInteger(VALUE).toInt())
-                "lpush" -> this.lpush(opJson.getLong(VALUE).toLong())
-                "fpush" -> this.fpush(opJson.getFloat(VALUE).toFloat())
-                "dpush" -> this.dpush(opJson.getDouble(VALUE).toDouble())
-
-                "istore" -> this.istore(opJson.getOrError(VAR_INDEX))
-                "lstore" -> this.lstore(opJson.getOrError(VAR_INDEX))
-                "fstore" -> this.fstore(opJson.getOrError(VAR_INDEX))
-                "dstore" -> this.dstore(opJson.getOrError(VAR_INDEX))
-            }
+            OP_HANDLERS[opName]!!(this, opJson)
         }
     }
 

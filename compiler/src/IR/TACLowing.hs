@@ -16,7 +16,7 @@ import Numeric (readHex)
 
 import Lex.Token (Token, tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
-import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp)
+import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isCompareOp)
 import IR.TAC (IRInstr, IRAtom, TACM, IRStmt, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
     getVarStacks, setVarStacks, pushLoopPhis, popLoopPhis, getCurrentLoopPhis, getAtomTypes)
@@ -147,7 +147,7 @@ safeDouble pos (minD, maxD) raw = do
 
 -- | Lower a single expression into a TAC atom.
 --   Use lookupVarUse / lookupFunUse when you need resolved ids/types.
-atomLowing :: Expression -> TACM ([IRInstr], IRAtom)
+atomLowing :: Expression -> TACM ([IRStmt], IRAtom)
 atomLowing (AST.Error _ _) = error "this error is catching in semantic already"
 
 atomLowing (AST.IntConst value tok) = do
@@ -187,14 +187,14 @@ atomLowing (AST.Variable _ tok) = do
         -- 导入变量
         TEnv.VarImported _ clazz qname -> do
             nAtom <- newSubCVar clazz
-            return ([TAC.IGetStatic nAtom qname], nAtom)
+            return ([TAC.IRInstr (TAC.IGetStatic nAtom qname)], nAtom)
 
 atomLowing (AST.Qualified _ tokens) = do
     vinfo <- getVar (map tokenPos tokens)
     case vinfo of
         TEnv.VarImported _ clazz varName -> do
             nAtom <- newSubCVar clazz
-            return ([TAC.IGetStatic nAtom varName], nAtom)
+            return ([TAC.IRInstr (TAC.IGetStatic nAtom varName)], nAtom)
         _ -> error "qualified name is not an imported variable"
 
 atomLowing _ = error "other type is not allowed for IR atom"
@@ -206,21 +206,21 @@ lookupParamIndex atom =
     Map.foldrWithKey (\k v acc -> if v == atom then Just k else acc) Nothing
 
 
-castIfNeeded :: Class -> IRAtom -> Class -> TACM ([IRInstr], IRAtom)
+castIfNeeded :: Class -> IRAtom -> Class -> TACM ([IRStmt], IRAtom)
 castIfNeeded from atom to
     | from == to = return ([], atom)
     | otherwise = do
         castAtom <- newSubCVar to
-        return ([TAC.ICast castAtom (from, to) atom], castAtom)
+        return ([TAC.IRInstr (TAC.ICast castAtom (from, to) atom)], castAtom)
 
 -- return instruction and output atom eg: a = a + b => a1 = a0 + b0 return a1
--- warning [IRInstr] is reversed!
-exprLowing :: Expression -> TACM ([IRInstr], IRAtom)
+-- warning [IRStmt] is reversed!
+exprLowing :: Expression -> TACM ([IRStmt], IRAtom)
 exprLowing (AST.Cast (toClass, _) inner _) = do
     (instrs, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
     nAtom <- newSubCVar toClass
-    return (TAC.ICast nAtom (fromClass, toClass) oAtom : instrs, nAtom)
+    return (TAC.IRInstr (TAC.ICast nAtom (fromClass, toClass) oAtom) : instrs, nAtom)
 
 exprLowing (AST.Unary op inner _) = do
     (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
@@ -229,11 +229,11 @@ exprLowing (AST.Unary op inner _) = do
 
     if fromClass == toClass then do
         nAtom <- newSubCVar toClass
-        return (TAC.IUnary nAtom op oAtom : instr, nAtom)
+        return (TAC.IRInstr (TAC.IUnary nAtom op oAtom) : instr, nAtom)
     else do
         (castInstrs, castAtom) <- castIfNeeded fromClass oAtom toClass
         nAtom <- newSubCVar toClass
-        return (TAC.IUnary nAtom op castAtom : castInstrs ++ instr, nAtom)
+        return (TAC.IRInstr (TAC.IUnary nAtom op castAtom) : castInstrs ++ instr, nAtom)
 
 exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
     let pos = tokenPos tok
@@ -255,12 +255,12 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
 
             return $
                 if isStatic
-                    then (TAC.IPutStatic [realName] lhsAtom : TAC.IAssign lhsAtom rhsAtom : instrs, lhsAtom)
-                    else (TAC.IAssign lhsAtom rhsAtom : instrs, lhsAtom)
+                    then (TAC.IRInstr (TAC.IPutStatic [realName] lhsAtom) : TAC.IRInstr (TAC.IAssign lhsAtom rhsAtom) : instrs, lhsAtom)
+                    else (TAC.IRInstr (TAC.IAssign lhsAtom rhsAtom) : instrs, lhsAtom)
             
         TEnv.VarImported _ _ qname -> do
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-            return (TAC.IPutStatic qname rhsAtom : instrs, rhsAtom)
+            return (TAC.IRInstr (TAC.IPutStatic qname rhsAtom) : instrs, rhsAtom)
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -271,7 +271,7 @@ exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
             case vinfo of
                 TEnv.VarImported _ _ qname -> do
                     (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-                    return (TAC.IPutStatic qname rhsAtom : instrs, rhsAtom)
+                    return (TAC.IRInstr (TAC.IPutStatic qname rhsAtom) : instrs, rhsAtom)
                 _ -> error "assign lhs is not an imported qualified name"
 
 
@@ -288,8 +288,39 @@ exprLowing (AST.Binary op e1 e2 _) = do
 
     (cast1Instrs, atom1') <- castIfNeeded fromClass1 oAtom1 castClass
     (cast2Instrs, atom2') <- castIfNeeded fromClass2 oAtom2 castClass
-    nAtom <- newSubCVar resClass
-    return (TAC.IBinary nAtom op atom1' atom2' : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
+    if isCompareOp op then do
+        nAtom <- newSubCVar resClass
+        lTrue <- incBlockId
+        lFalse <- incBlockId
+        lJoin <- incBlockId
+
+        let jumpInstr = case op of
+                AST.Equal -> TAC.Ifeq atom1' atom2' lTrue
+                AST.NotEqual -> TAC.Ifne atom1' atom2' lTrue
+                AST.LessThan -> TAC.Iflt atom1' atom2' lTrue
+                AST.LessEqual -> TAC.Ifle atom1' atom2' lTrue
+                AST.GreaterThan -> TAC.Ifgt atom1' atom2' lTrue
+                AST.GreaterEqual -> TAC.Ifge atom1' atom2' lTrue
+                _ -> error "not a compare op"
+
+            trueBlock = TAC.IRBlockStmt (TAC.IRBlock (lTrue, [
+                TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC True)),
+                TAC.IRInstr (TAC.Jump lJoin)
+                ]))
+            falseBlock = TAC.IRBlockStmt (TAC.IRBlock (lFalse, [
+                TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC False)),
+                TAC.IRInstr (TAC.Jump lJoin)
+                ]))
+            phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lTrue, TAC.BoolC True), (lFalse, TAC.BoolC False)]))
+            joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+
+        let seqRev =
+                [joinBlock, falseBlock, trueBlock, TAC.IRInstr (TAC.Jump lFalse), TAC.IRInstr jumpInstr]
+                ++ cast2Instrs ++ instr2 ++ cast1Instrs ++ instr1
+        return (seqRev, nAtom)
+    else do
+        nAtom <- newSubCVar resClass
+        return (TAC.IRInstr (TAC.IBinary nAtom op atom1' atom2') : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
 
 exprLowing (AST.Call funName params) = do
     (argInstrs, argAtoms) <- lowerArgs params
@@ -306,16 +337,16 @@ exprLowing (AST.Call funName params) = do
             let instr = case qname of
                     [name] -> TAC.ICall dst name argAtoms
                     _ -> TAC.ICallStatic dst qname argAtoms
-            return (instr : argInstrs, dst)
+            return (TAC.IRInstr instr : argInstrs, dst)
         TEnv.FunImported _ qname sig -> do
             let retT = TEnv.funReturn sig
             dst <- newSubCVar retT
-            return (TAC.ICallStatic dst qname argAtoms : argInstrs, dst)
+            return (TAC.IRInstr (TAC.ICallStatic dst qname argAtoms) : argInstrs, dst)
     where
-        lowerArgs :: [Expression] -> TACM ([IRInstr], [IRAtom])
+        lowerArgs :: [Expression] -> TACM ([IRStmt], [IRAtom])
         lowerArgs = foldrM step ([], [])
             where
-                step :: Expression -> ([IRInstr], [IRAtom]) -> TACM ([IRInstr], [IRAtom])
+                step :: Expression -> ([IRStmt], [IRAtom]) -> TACM ([IRStmt], [IRAtom])
                 step p (instrsRest, atomsRest) = do
                     (instrsP, atomP) <- if AST.isAtom p then atomLowing p else exprLowing p
                     return (instrsRest ++ instrsP, atomP : atomsRest)
@@ -463,12 +494,12 @@ stmtsLowing ((AST.Command (AST.Return (Just e)) _):stmts) = do
     let setReturnStmt = TAC.IRInstr (TAC.SetIRet returnAtom)
     rest <- stmtsLowing stmts
     return $ concat [
-        fmap TAC.IRInstr (reverse setInstrs),
+        reverse setInstrs,
         [setReturnStmt, TAC.IRInstr (TAC.Jump retBId)],
         rest]
 
 stmtsLowing ((AST.Expr e):stmts) = let
-    exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return $ map TAC.IRInstr (reverse instrs) in do
+    exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return $ reverse instrs in do
         current <- exprLowing' e
         rest <- stmtsLowing stmts
         return $ current ++ rest
@@ -536,8 +567,8 @@ stmtsLowing ((AST.If e thenB elseB _):stmts) = do
     let joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoinID, phiInstrs ++ afterStmts))
 
     return $ concat [
-        fmap TAC.IRInstr (reverse condInstrs),
-        [TAC.IRInstr (TAC.ConJump condAtom lThenID), TAC.IRInstr (TAC.Jump lElseID)],
+        reverse condInstrs,
+        [TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThenID), TAC.IRInstr (TAC.Jump lElseID)],
         [thenBlock, elseBlock, joinBlock]]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (IRAtom, IRAtom, IRAtom))
@@ -615,8 +646,8 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
     let bodyBlock = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ backAssigns ++ [TAC.IRInstr (TAC.Jump l1ID)]))
     let headerBlock = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
             phiInstrs,
-            fmap TAC.IRInstr (reverse condInstrs),
-            [TAC.IRInstr (TAC.ConJump condAtom l2ID)],
+            reverse condInstrs,
+            [TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) l2ID)],
             elseStmts,
             [TAC.IRInstr (TAC.Jump l3ID)]]))
 
@@ -694,7 +725,12 @@ collectAtomTypes sig stmts = do
         atomsInInstr :: IRInstr -> [IRAtom]
         atomsInInstr instr = case instr of
             TAC.Jump _ -> []
-            TAC.ConJump cond _ -> [cond]
+            TAC.Ifeq a b _ -> [a, b]
+            TAC.Ifne a b _ -> [a, b]
+            TAC.Iflt a b _ -> [a, b]
+            TAC.Ifle a b _ -> [a, b]
+            TAC.Ifgt a b _ -> [a, b]
+            TAC.Ifge a b _ -> [a, b]
             TAC.SetIRet atom -> [atom]
             TAC.IReturn -> []
             TAC.Return -> []
@@ -758,7 +794,12 @@ collectAtomTypesStatic stmts = do
         atomsInInstr :: IRInstr -> [IRAtom]
         atomsInInstr instr = case instr of
             TAC.Jump _ -> []
-            TAC.ConJump cond _ -> [cond]
+            TAC.Ifeq a b _ -> [a, b]
+            TAC.Ifne a b _ -> [a, b]
+            TAC.Iflt a b _ -> [a, b]
+            TAC.Ifle a b _ -> [a, b]
+            TAC.Ifgt a b _ -> [a, b]
+            TAC.Ifge a b _ -> [a, b]
             TAC.SetIRet atom -> [atom]
             TAC.IReturn -> []
             TAC.Return -> []

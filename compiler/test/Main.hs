@@ -19,6 +19,8 @@ import Semantic.TypeEnvTest
 import Semantic.ReturnCheckTest
 import Semantic.SemanticCheckTest
 
+import IR.TACLowingTest
+
 import Util.BasicTest
 import Util.ExceptionTest
 import Util.FileHelperTest
@@ -37,4 +39,6 @@ main = defaultMain $ testGroup "xlang test" [
     
     Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
     Semantic.OpInferTest.tests, Semantic.TypeEnvTest.tests, Semantic.TypeCheckTest.tests,
-    Semantic.ReturnCheckTest.tests, Semantic.SemanticCheckTest.tests]
+    Semantic.ReturnCheckTest.tests, Semantic.SemanticCheckTest.tests,
+
+    IR.TACLowingTest.tests]

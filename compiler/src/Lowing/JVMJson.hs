@@ -171,6 +171,20 @@ opPrefix (Array _ _) = error "opPrefix: array type"
 opPrefix (Class _ _) = error "opPrefix: class type"
 opPrefix ErrorClass = error "opPrefix: error class"
 
+-- | Choose JVM cmp prefix for compare/jump ops.
+cmpPrefix :: Class -> String
+cmpPrefix cls = case cls of
+    Int64T -> "l"
+    Float32T -> "f"
+    Float64T -> "f"
+    Float128T -> "f"
+    Bool -> "i"
+    Char -> "i"
+    Int8T -> "i"
+    Int16T -> "i"
+    Int32T -> "i"
+    _ -> error ("cmpPrefix: unsupported type " ++ show cls)
+
 
 -- | Build JVM cast opcode name from (from,to) classes.
 castOpToJson :: (Class, Class) -> String
@@ -199,6 +213,18 @@ opToJSON (JVM.InvokeStatic qn sig) = object [
 opToJSON (JVM.Cast from to) = op0 $ castOpToJson (from, to)
 opToJSON (JVM.Goto bid) = object [opNameKey .= ("goto" :: String), blockIdKey .= bid]
 opToJSON (JVM.Ifne bid) = object [opNameKey .= ("ifne" :: String), blockIdKey .= bid]
+opToJSON (JVM.IfcmpEq cls bid) =
+    object [opNameKey .= (concat ["if_", cmpPrefix cls, "cmpeq"] :: String), blockIdKey .= bid]
+opToJSON (JVM.IfcmpNe cls bid) =
+    object [opNameKey .= (concat ["if_", cmpPrefix cls, "cmpne"] :: String), blockIdKey .= bid]
+opToJSON (JVM.IfcmpLt cls bid) =
+    object [opNameKey .= (concat ["if_", cmpPrefix cls, "cmplt"] :: String), blockIdKey .= bid]
+opToJSON (JVM.IfcmpLe cls bid) =
+    object [opNameKey .= (concat ["if_", cmpPrefix cls, "cmple"] :: String), blockIdKey .= bid]
+opToJSON (JVM.IfcmpGt cls bid) =
+    object [opNameKey .= (concat ["if_", cmpPrefix cls, "cmpgt"] :: String), blockIdKey .= bid]
+opToJSON (JVM.IfcmpGe cls bid) =
+    object [opNameKey .= (concat ["if_", cmpPrefix cls, "cmpge"] :: String), blockIdKey .= bid]
 opToJSON JVM.Return = op0 "return"
 opToJSON (JVM.ReturnWV t) = op0 (opPrefix t ++ "return")
 

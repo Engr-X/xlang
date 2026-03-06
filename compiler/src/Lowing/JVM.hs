@@ -40,6 +40,9 @@ data JOP =
     PutStatic Class QName |                 -- stack: ..., v -> ... (store static field)
     InvokeStatic QName FunSig |             -- stack: ..., args -> ..., ret (static call)
 
+    -- compare two values and jump
+    IfcmpEq Class Int | IfcmpNe Class Int | IfcmpLt Class Int | IfcmpLe Class Int | IfcmpGt Class Int | IfcmpGe Class Int |
+
     Ifne Int |                              -- stack: ..., v -> ... (jump if v /= 0)
     Goto Int |                              -- stack: ... -> ...
     Return |                                -- stack: ... -> ... (void return)

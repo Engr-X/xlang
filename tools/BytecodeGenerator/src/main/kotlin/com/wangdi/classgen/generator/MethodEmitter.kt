@@ -79,8 +79,59 @@ open class MethodEmitter(
         fun block(op: OpBlock): Builder = this.apply { this.innerAddOp(op) }
 
         fun goto(blockId: Int): Builder = this.apply { this.innerAddOp(Goto(mv, labels, blockId)) }
-        fun ifeq(blockId: Int): Builder = this.apply { this.innerAddOp(Ifeq(mv, labels, blockId)) }
-        fun ifne(blockId: Int): Builder = this.apply { this.innerAddOp(Ifne(mv, labels, blockId)) }
+
+        @Suppress("FunctionName")
+        fun if_icmpeq(blockId: Int): Builder = this.apply { this.innerAddOp(If_icmpeq(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_icmpne(blockId: Int): Builder = this.apply { this.innerAddOp(If_icmpne(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_icmplt(blockId: Int): Builder = this.apply { this.innerAddOp(If_icmplt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_icmple(blockId: Int): Builder = this.apply { this.innerAddOp(If_icmple(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_icmpgt(blockId: Int): Builder = this.apply { this.innerAddOp(If_icmpgt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_icmpge(blockId: Int): Builder = this.apply { this.innerAddOp(If_icmpge(mv, labels, blockId)) }
+
+        @Suppress("FunctionName")
+        fun if_lcmpeq(blockId: Int): Builder = this.apply { this.innerAddOp(If_lcmpeq(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_lcmpne(blockId: Int): Builder = this.apply { this.innerAddOp(If_lcmpne(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_lcmplt(blockId: Int): Builder = this.apply { this.innerAddOp(If_lcmplt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_lcmple(blockId: Int): Builder = this.apply { this.innerAddOp(If_lcmple(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_lcmpgt(blockId: Int): Builder = this.apply { this.innerAddOp(If_lcmpgt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_lcmpge(blockId: Int): Builder = this.apply { this.innerAddOp(If_lcmpge(mv, labels, blockId)) }
+
+        @Suppress("FunctionName")
+        fun if_fcmpeq(blockId: Int): Builder = this.apply { this.innerAddOp(If_fcmpeq(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_fcmpne(blockId: Int): Builder = this.apply { this.innerAddOp(If_fcmpne(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_fcmplt(blockId: Int): Builder = this.apply { this.innerAddOp(If_fcmplt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_fcmple(blockId: Int): Builder = this.apply { this.innerAddOp(If_fcmple(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_fcmpgt(blockId: Int): Builder = this.apply { this.innerAddOp(If_fcmpgt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_fcmpge(blockId: Int): Builder = this.apply { this.innerAddOp(If_fcmpge(mv, labels, blockId)) }
+
+        @Suppress("FunctionName")
+        fun if_dcmpeq(blockId: Int): Builder = this.apply { this.innerAddOp(If_dcmpeq(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_dcmpne(blockId: Int): Builder = this.apply { this.innerAddOp(If_dcmpne(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_dcmplt(blockId: Int): Builder = this.apply { this.innerAddOp(If_dcmplt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_dcmple(blockId: Int): Builder = this.apply { this.innerAddOp(If_dcmple(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_dcmpgt(blockId: Int): Builder = this.apply { this.innerAddOp(If_dcmpgt(mv, labels, blockId)) }
+        @Suppress("FunctionName")
+        fun if_dcmpge(blockId: Int): Builder = this.apply { this.innerAddOp(If_dcmpge(mv, labels, blockId)) }
+
 
         fun `return`(): Builder = this.apply { this.innerAddOp(Return(mv, labels)) }
         fun ireturn(): Builder = this.apply { this.innerAddOp(IReturn(mv, labels)) }

@@ -4,11 +4,23 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/../../compiler/cabal.project.local" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/cabal.project.local" afterDir="false" />
+    <list default="true" id="854fb58d-0772-454d-810c-42969e3bb64d" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/../../compiler/compiler.cabal" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/compiler.cabal" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/IR/TAC.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/IR/TAC.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/IR/TACLowing.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/IR/TACLowing.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/Lowing/JVM.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Lowing/JVM.hs" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMJson.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMJson.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/Xlang.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Xlang.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMLowing.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMLowing.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/test/Main.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/test/Main.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/project.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/project.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/JsonAdapter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/JsonAdapter.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/Control.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/Control.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/ValuePush.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/artifact/operation/ValuePush.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/MethodEmitter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/MethodEmitter.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -20,240 +32,32 @@
       <ProjectState />
     </projectState>
   </component>
-  <component name="ExternalProjectsManager">
-    <system id="GRADLE">
-      <state>
-        <task path="$PROJECT_DIR$">
-          <activation />
-        </task>
-        <projects_view>
-          <tree_state>
-            <expand>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="BytecodeGenerator" type="f1a62948:ProjectNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="BytecodeGenerator" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="BytecodeGenerator" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="build" type="c8890929:TasksNode$1" />
-              </path>
-              <path>
-                <item name="" type="6a2764b6:ExternalProjectsStructure$RootNode" />
-                <item name="BytecodeGenerator" type="f1a62948:ProjectNode" />
-                <item name="Tasks" type="e4a08cd1:TasksNode" />
-                <item name="verification" type="c8890929:TasksNode$1" />
-              </path>
-            </expand>
-            <select />
-          </tree_state>
-        </projects_view>
-      </state>
-    </system>
-  </component>
-  <component name="FileTemplateManagerImpl">
-    <option name="RECENT_TEMPLATES">
-      <list>
-        <option value="Kotlin Enum" />
-        <option value="Kotlin File" />
-        <option value="Class" />
-        <option value="Kotlin Class" />
-      </list>
-    </option>
-  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
   </component>
-  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="D:\Coding\compilers\buildTools\gradle-8.4\wrapper\dists\gradle-8.14-bin\38aieal9i53h9rfe7vjup95b9\gradle-8.14" javaHome="D:\Coding\compilers\jdk-17.0.10" gradleVersion="8.14" />
-  <component name="ProjectColorInfo">{
-  &quot;associatedIndex&quot;: 3
-}</component>
-  <component name="ProjectId" id="39z1GknzcRVBVXlj6q8zSnlx3ns" />
+  <component name="GradleScriptDefinitionsStorage" workingDir="$PROJECT_DIR$" gradleHome="C:\Users\Murphy\.gradle\wrapper\dists\gradle-8.14-bin\38aieal9i53h9rfe7vjup95b9\gradle-8.14" javaHome="D:\Coding\compilers\jdk-17.0.10" gradleVersion="8.14" />
+  <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
+  "associatedIndex": 3
+}]]></component>
+  <component name="ProjectId" id="3AY3xivKPmtvyPjiAbIM6JgYDAf" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Gradle.Build BytecodeGenerator.executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.BytecodeGenerator [:com.wangdi.classgen.Example.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.BytecodeGenerator [:com.wangdi.classgen.GenSquare.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.BytecodeGenerator [build].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.BytecodeGenerator [clean].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.BytecodeGenerator [test].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.classgen [:com.wangdi.classgen.ClassGeneratorKt.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.classgen [:com.wangdi.classgen.GenSquare.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.classgen [:com.wangdi.classgen.MainKt.main()].executor&quot;: &quot;Run&quot;,
-    &quot;Gradle.下载源代码.executor&quot;: &quot;Run&quot;,
-    &quot;Kotlin.MainKt (1).executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;D:/Coding/projects/Mixed/xlang/tools/BytecodeGenerator/build.gradle.kts&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;模块&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.15&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.inline.completion&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "to.speed.mode.migration.done": "true"
   }
-}</component>
-  <component name="RecentsManager">
-    <key name="K2MoveDeclarationsDialog.RECENT_PACKAGE_KEY">
-      <recent name="com.wangdi.classgen.generator" />
-      <recent name="com.wangdi.classgen.artifact" />
-      <recent name="com.wangdi.classgen.artifact.operation" />
-      <recent name="com.wangdi.classgen" />
-      <recent name="com.wangdi.classgen.base" />
-    </key>
-  </component>
-  <component name="RunManager" selected="Gradle.BytecodeGenerator [clean]">
-    <configuration name="BytecodeGenerator [build]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value="build" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>false</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="BytecodeGenerator [clean]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value="clean" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>false</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="BytecodeGenerator [test]" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
-      <ExternalSystemSettings>
-        <option name="executionName" />
-        <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="externalSystemIdString" value="GRADLE" />
-        <option name="scriptParameters" />
-        <option name="taskDescriptions">
-          <list />
-        </option>
-        <option name="taskNames">
-          <list>
-            <option value="test" />
-          </list>
-        </option>
-        <option name="vmOptions" />
-      </ExternalSystemSettings>
-      <ExternalSystemDebugServerProcess>true</ExternalSystemDebugServerProcess>
-      <ExternalSystemReattachDebugProcess>true</ExternalSystemReattachDebugProcess>
-      <ExternalSystemDebugDisabled>false</ExternalSystemDebugDisabled>
-      <DebugAllEnabled>false</DebugAllEnabled>
-      <RunAsTest>false</RunAsTest>
-      <GradleProfilingDisabled>false</GradleProfilingDisabled>
-      <GradleCoverageDisabled>false</GradleCoverageDisabled>
-      <method v="2" />
-    </configuration>
-    <configuration name="Example" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.Example" />
-      <module name="BytecodeGnerator.main" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="GenSquare (1)" type="JetRunConfigurationType" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="com.wangdi.classgen.GenSquare" />
-      <module name="BytecodeGnerator.main" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
-      <module name="classgen" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="RUN_TOOL" value="" />
-      <option name="SCRIPT_NAME" value="" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration default="true" type="Tox" factoryName="Tox">
-      <module name="classgen" />
-      <option name="ENV_FILES" value="" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="RUN_TOOL" value="" />
-      <method v="2" />
-    </configuration>
-    <recent_temporary>
-      <list>
-        <item itemvalue="Gradle.BytecodeGenerator [clean]" />
-        <item itemvalue="Gradle.BytecodeGenerator [test]" />
-        <item itemvalue="Gradle.BytecodeGenerator [build]" />
-        <item itemvalue="Kotlin.Example" />
-        <item itemvalue="Kotlin.GenSquare (1)" />
-      </list>
-    </recent_temporary>
-  </component>
+}]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -261,14 +65,13 @@
       </set>
     </attachedChunks>
   </component>
-  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="默认任务">
-      <changelist id="e8ac63c5-bb8e-475b-9b4b-84a9f4c9cd2e" name="更改" comment="" />
-      <created>1771683992201</created>
+      <changelist id="854fb58d-0772-454d-810c-42969e3bb64d" name="更改" comment="" />
+      <created>1772755924957</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1771683992201</updated>
+      <updated>1772755924957</updated>
     </task>
     <servers />
   </component>

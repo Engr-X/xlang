@@ -12,40 +12,48 @@ class IPush(
     private val value: Int
 ) : Instruction(mv, labels)
 {
-    override fun addOp(): MethodVisitor = this.mv.also {
-        when (this.value)
-        {
-            -1 -> it.visitInsn(Opcodes.ICONST_M1)
-            0 -> it.visitInsn(Opcodes.ICONST_0)
-            1 -> it.visitInsn(Opcodes.ICONST_1)
-            2 -> it.visitInsn(Opcodes.ICONST_2)
-            3 -> it.visitInsn(Opcodes.ICONST_3)
-            4 -> it.visitInsn(Opcodes.ICONST_4)
-            5 -> it.visitInsn(Opcodes.ICONST_5)
-            in Byte.MIN_VALUE..Byte.MAX_VALUE ->
-                it.visitIntInsn(Opcodes.BIPUSH, value)
-            in Short.MIN_VALUE..Short.MAX_VALUE ->
-                it.visitIntInsn(Opcodes.SIPUSH, value)
-            else ->
-                it.visitLdcInsn(value)
+    private companion object {
+        private val ICONST_TABLE: Map<Int, Int> = mutableMapOf(
+            -1 to Opcodes.ICONST_M1,
+            0 to Opcodes.ICONST_0,
+            1 to Opcodes.ICONST_1,
+            2 to Opcodes.ICONST_2,
+            3 to Opcodes.ICONST_3,
+            4 to Opcodes.ICONST_4,
+            5 to Opcodes.ICONST_5
+        )
+
+        private val ICONST_NAME_TAbBLE: Map<Int, String> = mapOf(
+            -1 to "iconst_m1",
+            0 to "iconst_0",
+            1 to "iconst_1",
+            2 to "iconst_2",
+            3 to "iconst_3",
+            4 to "iconst_4",
+            5 to "iconst_5"
+        )
+    }
+
+    override fun addOp(): MethodVisitor = this.mv.also { mv ->
+        ICONST_TABLE[this.value]?.let { opcode ->
+            mv.visitInsn(opcode)
+            return@also
+        }
+
+        when (this.value) {
+            in Byte.MIN_VALUE..Byte.MAX_VALUE -> mv.visitIntInsn(Opcodes.BIPUSH, this.value)
+            in Short.MIN_VALUE..Short.MAX_VALUE -> mv.visitIntInsn(Opcodes.SIPUSH, this.value)
+            else -> mv.visitLdcInsn(this.value)
         }
     }
 
     override fun toString(tabs: Int): String {
-        val op = when (this.value)
-        {
-            -1 -> "iconst_m1"
-            0 -> "iconst_0"
-            1 -> "iconst_1"
-            2 -> "iconst_2"
-            3 -> "iconst_3"
-            4 -> "iconst_4"
-            5 -> "iconst_5"
+        val op: String = ICONST_NAME_TAbBLE[this.value] ?: when (this.value) {
             in Byte.MIN_VALUE..Byte.MAX_VALUE -> "bipush ${this.value}"
             in Short.MIN_VALUE..Short.MAX_VALUE -> "sipush ${this.value}"
             else -> "ldc ${this.value}"
         }
-        return "${this.indent(tabs)}${op}"
+        return "${this.indent(tabs)}$op"
     }
 }
 
@@ -66,7 +74,7 @@ class LPush(
     }
 
     override fun toString(tabs: Int): String {
-        val op = when (this.value)
+        val op: String = when (this.value)
         {
             0L -> "lconst_0"
             1L -> "lconst_1"
@@ -95,7 +103,7 @@ class FPush(
     }
 
     override fun toString(tabs: Int): String {
-        val op = when (java.lang.Float.floatToIntBits(this.value))
+        val op: String = when (java.lang.Float.floatToIntBits(this.value))
         {
             java.lang.Float.floatToIntBits(0.0f) -> "fconst_0"
             java.lang.Float.floatToIntBits(1.0f) -> "fconst_1"
@@ -124,7 +132,7 @@ class DPush(
     }
 
     override fun toString(tabs: Int): String {
-        val op = when (java.lang.Double.doubleToLongBits(this.value))
+        val op: String = when (java.lang.Double.doubleToLongBits(this.value))
         {
             java.lang.Double.doubleToLongBits(0.0) -> "dconst_0"
             java.lang.Double.doubleToLongBits(1.0) -> "dconst_1"

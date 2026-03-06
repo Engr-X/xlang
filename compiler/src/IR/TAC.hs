@@ -468,7 +468,12 @@ getAtomType (Param index) = do
 
 data IRInstr
     = Jump Int                                      -- jump to intId
-    | ConJump IRAtom Int                            -- condition Jump by condition
+    | Ifeq IRAtom IRAtom Int                        -- if a == b then jump
+    | Ifne IRAtom IRAtom Int                        -- if a != b then jump
+    | Iflt IRAtom IRAtom Int                        -- if a < b then jump
+    | Ifle IRAtom IRAtom Int                        -- if a <= b then jump
+    | Ifgt IRAtom IRAtom Int                        -- if a > b then jump
+    | Ifge IRAtom IRAtom Int                        -- if a >= b then jump
 
     | SetIRet IRAtom                                -- set return value
     | IReturn                                       -- return with RetVar
@@ -494,7 +499,12 @@ data IRInstr
 prettyIRInstr :: Int -> IRInstr -> String
 prettyIRInstr n instr = replicate (n * 4) ' ' ++ case instr of
     Jump bid -> "goto .L" ++ show bid
-    ConJump cond t -> concat ["if ", prettyIRAtom cond, " goto .L" ++ show t]
+    Ifeq a b t -> concat ["if ", prettyIRAtom a, " == ", prettyIRAtom b, " goto .L" ++ show t]
+    Ifne a b t -> concat ["if ", prettyIRAtom a, " != ", prettyIRAtom b, " goto .L" ++ show t]
+    Iflt a b t -> concat ["if ", prettyIRAtom a, " < ", prettyIRAtom b, " goto .L" ++ show t]
+    Ifle a b t -> concat ["if ", prettyIRAtom a, " <= ", prettyIRAtom b, " goto .L" ++ show t]
+    Ifgt a b t -> concat ["if ", prettyIRAtom a, " > ", prettyIRAtom b, " goto .L" ++ show t]
+    Ifge a b t -> concat ["if ", prettyIRAtom a, " >= ", prettyIRAtom b, " goto .L" ++ show t]
     SetIRet atom -> "$ret = " ++ prettyIRAtom atom
     IReturn -> "ireturn"
     Return -> "return"
@@ -729,8 +739,9 @@ rmEBInStmts = fixpoint
         rmEmptyOnce :: [IRStmt] -> [IRStmt]
         rmEmptyOnce stmts =
             let redirectMap = buildRedirectMap stmts
+                unresolved = Set.fromList [bid | (bid, Nothing) <- Map.toList redirectMap]
                 rewritten = map (rewriteStmt redirectMap) stmts
-            in filter (not . isEmptyBlock) rewritten
+            in filter (not . isRemovableEmptyBlock unresolved) rewritten
 
         buildRedirectMap :: [IRStmt] -> Map Int (Maybe Int)
         buildRedirectMap = Map.fromList . go
@@ -755,16 +766,22 @@ rmEBInStmts = fixpoint
         rewriteInstr :: Map Int (Maybe Int) -> IRInstr -> IRInstr
         rewriteInstr redirectMap instr = case instr of
             Jump tgt -> Jump (redirect redirectMap tgt)
-            ConJump cond tgt -> ConJump cond (redirect redirectMap tgt)
+            Ifeq a b tgt -> Ifeq a b (redirect redirectMap tgt)
+            Ifne a b tgt -> Ifne a b (redirect redirectMap tgt)
+            Iflt a b tgt -> Iflt a b (redirect redirectMap tgt)
+            Ifle a b tgt -> Ifle a b (redirect redirectMap tgt)
+            Ifgt a b tgt -> Ifgt a b (redirect redirectMap tgt)
+            Ifge a b tgt -> Ifge a b (redirect redirectMap tgt)
             _ -> instr
 
         redirect :: Map Int (Maybe Int) -> Int -> Int
         redirect redirectMap tgt =
             case Map.lookup tgt redirectMap of
-                Nothing -> tgt
                 Just (Just newTgt) -> newTgt
-                Just Nothing -> error "invalid ir"
+                _ -> tgt
 
-        isEmptyBlock :: IRStmt -> Bool
-        isEmptyBlock (IRBlockStmt (IRBlock (_, []))) = True
-        isEmptyBlock _ = False
+        -- Keep empty blocks that have no resolvable successor to avoid dangling labels.
+        isRemovableEmptyBlock :: Set Int -> IRStmt -> Bool
+        isRemovableEmptyBlock unresolved (IRBlockStmt (IRBlock (bid, []))) =
+            not (Set.member bid unresolved)
+        isRemovableEmptyBlock _ _ = False

@@ -1,53 +1,9 @@
 <component name="ProjectDictionaryState">
   <dictionary name="project">
     <words>
-      <w>Clinit</w>
-      <w>Ifeq</w>
-      <w>Ifne</w>
-      <w>Insn</w>
-      <w>aconst</w>
-      <w>aload</w>
       <w>bipush</w>
-      <w>clinit</w>
-      <w>dadd</w>
-      <w>dconst</w>
-      <w>ddiv</w>
-      <w>dmul</w>
-      <w>dneg</w>
-      <w>dreturn</w>
-      <w>fadd</w>
-      <w>fconst</w>
-      <w>fdiv</w>
-      <w>fmul</w>
-      <w>fneg</w>
-      <w>fpush</w>
-      <w>freturn</w>
-      <w>getstatic</w>
       <w>iconst</w>
-      <w>ifeq</w>
-      <w>ifne</w>
-      <w>ineg</w>
-      <w>inits</w>
-      <w>invokespecial</w>
-      <w>invokestatic</w>
-      <w>invokevirtual</w>
-      <w>irem</w>
-      <w>ireturn</w>
-      <w>istore</w>
-      <w>ladd</w>
-      <w>lconst</w>
-      <w>lload</w>
-      <w>lmul</w>
-      <w>lneg</w>
-      <w>lpush</w>
-      <w>lrem</w>
-      <w>lreturn</w>
-      <w>lstore</w>
-      <w>lsub</w>
-      <w>lxor</w>
-      <w>putstatic</w>
       <w>sipush</w>
-      <w>uplus</w>
     </words>
   </dictionary>
 </component>

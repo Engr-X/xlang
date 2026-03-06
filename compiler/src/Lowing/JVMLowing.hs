@@ -44,9 +44,12 @@ lowerStmt stmt = case stmt of
 -- | Lower a single IR instruction into JVM ops (stack machine).
 lowerInstr :: IR.IRInstr -> State LowerState [JVM.JOP]
 lowerInstr (IR.Jump bid) = return  [JVM.Goto bid]
-lowerInstr (IR.ConJump cond bid) = do
-    condOps <- loadAtom cond
-    return  (condOps ++ [JVM.Ifne bid])
+lowerInstr (IR.Ifeq a b bid) = lowerCmp CmpEq a b bid
+lowerInstr (IR.Ifne a b bid) = lowerCmp CmpNe a b bid
+lowerInstr (IR.Iflt a b bid) = lowerCmp CmpLt a b bid
+lowerInstr (IR.Ifle a b bid) = lowerCmp CmpLe a b bid
+lowerInstr (IR.Ifgt a b bid) = lowerCmp CmpGt a b bid
+lowerInstr (IR.Ifge a b bid) = lowerCmp CmpGe a b bid
 lowerInstr (IR.SetIRet atom) = do
     ops <- loadAtom atom
     st <- get
@@ -120,6 +123,39 @@ lowerInstr (IR.IGetField {}) =
     error "IGetField is not supported yet"
 lowerInstr (IR.IPutField {}) =
     error "IPutField is not supported yet"
+
+
+data CmpKind = CmpEq | CmpNe | CmpLt | CmpLe | CmpGt | CmpGe
+
+lowerCmp :: CmpKind -> IR.IRAtom -> IR.IRAtom -> Int -> State LowerState [JVM.JOP]
+lowerCmp kind a b bid = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    clsA <- atomClass a
+    clsB <- atomClass b
+    let cmpCls = pickCmpClass clsA clsB
+        op = cmpOp kind cmpCls bid
+    return (aOps ++ bOps ++ [op])
+
+pickCmpClass :: Class -> Class -> Class
+pickCmpClass a b
+    | isFloatLike a || isFloatLike b = Float32T
+    | isLongLike a || isLongLike b = Int64T
+    | isIntLike a && isIntLike b = Int32T
+    | otherwise = error ("unsupported cmp types: " ++ show a ++ ", " ++ show b)
+    where
+        isFloatLike cls = cls `elem` [Float32T, Float64T, Float128T]
+        isLongLike cls = cls == Int64T
+        isIntLike cls = cls `elem` [Bool, Char, Int8T, Int16T, Int32T]
+
+cmpOp :: CmpKind -> Class -> Int -> JVM.JOP
+cmpOp kind cls bid = case kind of
+    CmpEq -> JVM.IfcmpEq cls bid
+    CmpNe -> JVM.IfcmpNe cls bid
+    CmpLt -> JVM.IfcmpLt cls bid
+    CmpLe -> JVM.IfcmpLe cls bid
+    CmpGt -> JVM.IfcmpGt cls bid
+    CmpGe -> JVM.IfcmpGe cls bid
 
 
 -- | Map unary IR operators to JVM ops; unsupported ops are errors.

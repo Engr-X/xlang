@@ -218,6 +218,7 @@ test-suite compiler-test
 
 
     other-modules:  
+        IR.TACLowingTest
         Lex.TokenPassTest
         Lex.TokenTest
         Lex.TokenizerTest
