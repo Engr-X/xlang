@@ -753,6 +753,14 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             "c = b + 1"
         ], Just (UE.undefinedIdentity "i"))] ++ [
         
+        testCase "15_void_param" $ do
+        let tokAdd = Lex.Ident "add" pos1
+            tokA = Lex.Ident "a" pos2
+            tokVoid = Lex.Ident "void" pos1
+            fun = AST.Function (AST.Void, [tokVoid]) (AST.Variable "add" tokAdd) [(AST.Void, "a", [tokA])] (AST.Multiple [])
+            prog = ([], [fun])
+        assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.voidParameterMsg "a")),
+        
         testCase "16" $ do
         eInit <- parseExprOrFail "i = 0"
         eInc <- parseExprOrFail "i = i + 1"

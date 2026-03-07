@@ -74,6 +74,7 @@ import qualified Util.Exception as UE
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 %right '='
+%right KW_IF
 %left '!=' '=='
 %left '>' '<'
 %left '+' '-'

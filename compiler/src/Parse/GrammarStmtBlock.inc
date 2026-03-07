@@ -72,7 +72,7 @@ FunctionStmt :: { Statement }
 Stmt :: { Statement }
     : KW_CONTINUE Sep       { Command Continue $1 }
     | KW_BREAK Sep          { Command Break $1 }
-    | KW_RETURN ';'         { Command (Return Nothing) $1 }
+    | KW_RETURN Sep         { Command (Return Nothing) $1 }
     | KW_RETURN Stmt        { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
 
     | Expr Sep              { Expr $1 }

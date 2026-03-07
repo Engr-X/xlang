@@ -157,6 +157,7 @@ data Expression =
     | Binary Operator Expression Expression Token
     | Call Expression [Expression]
     | CallT Expression [(Class, [Token])] [Expression]
+    | Ternary Expression (Expression, Expression) [Token]
     deriving (Eq, Show)
 
 
@@ -190,6 +191,10 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
                 typeArgsS = concat ["<", intercalate ", " (map (prettyClass . fst) ts), ">"]
                 argsS = intercalate ", " (map (prettyExpr' . Just) args)
             in concat [calleeS, typeArgsS, "(", argsS, ")"]
+        prettyExpr' (Just (Ternary cond (tExpr, fExpr) _)) =
+            concat [
+                prettyExpr' (Just tExpr), " if ", prettyExpr' (Just cond),
+                " else ", prettyExpr' (Just fExpr)]
 
 
 -- | Choose an anchor token for diagnostics.
@@ -210,6 +215,7 @@ exprTokens (Unary _ e t) = t : exprTokens e
 exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
 exprTokens (Call e1 es) = concatMap exprTokens (e1 : es)
 exprTokens (CallT e1 cts es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
+exprTokens (Ternary c (e1, e2) ts) = ts ++ exprTokens c ++ exprTokens e1 ++ exprTokens e2
 
 
 
@@ -225,6 +231,8 @@ flattenExpr (Just fatherE@(Call callee args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just fatherE@(CallT callee _ args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
+flattenExpr (Just fatherE@(Ternary c (e1, e2) _)) =
+    concat [[fatherE], flattenExpr (Just c), flattenExpr (Just e1), flattenExpr (Just e2)]
 flattenExpr (Just e) = [e]
 
 

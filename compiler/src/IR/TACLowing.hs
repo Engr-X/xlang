@@ -16,7 +16,7 @@ import Numeric (readHex)
 
 import Lex.Token (Token, tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
-import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isCompareOp)
+import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isBasicType, isCompareOp, promoteBasicType)
 import IR.TAC (IRInstr, IRAtom, TACM, IRStmt, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
     getVarStacks, setVarStacks, pushLoopPhis, popLoopPhis, getCurrentLoopPhis, getAtomTypes)
@@ -322,6 +322,42 @@ exprLowing (AST.Binary op e1 e2 _) = do
     else do
         nAtom <- newSubCVar resClass
         return (TAC.IRInstr (TAC.IBinary nAtom op atom1' atom2') : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
+
+exprLowing (AST.Ternary cond (thenE, elseE) _) = do
+    (condInstrs, condAtom) <- if AST.isAtom cond then atomLowing cond else exprLowing cond
+    (thenInstrs, thenAtom0) <- if AST.isAtom thenE then atomLowing thenE else exprLowing thenE
+    (elseInstrs, elseAtom0) <- if AST.isAtom elseE then atomLowing elseE else exprLowing elseE
+
+    thenClass <- getAtomType thenAtom0
+    elseClass <- getAtomType elseAtom0
+    let resClass
+            | thenClass == elseClass = thenClass
+            | isBasicType thenClass && isBasicType elseClass = promoteBasicType thenClass elseClass
+            | otherwise = error "ternary branches must be both basic or same type"
+
+    (thenCastInstrs, thenAtom) <- castIfNeeded thenClass thenAtom0 resClass
+    (elseCastInstrs, elseAtom) <- castIfNeeded elseClass elseAtom0 resClass
+
+    nAtom <- newSubCVar resClass
+    lThen <- incBlockId
+    lElse <- incBlockId
+    lJoin <- incBlockId
+
+    let thenBlock = TAC.IRBlockStmt (TAC.IRBlock (lThen,
+            reverse thenInstrs ++ thenCastInstrs ++ [
+                TAC.IRInstr (TAC.IAssign nAtom thenAtom),
+                TAC.IRInstr (TAC.Jump lJoin)]))
+        elseBlock = TAC.IRBlockStmt (TAC.IRBlock (lElse,
+            reverse elseInstrs ++ elseCastInstrs ++ [
+                TAC.IRInstr (TAC.IAssign nAtom elseAtom),
+                TAC.IRInstr (TAC.Jump lJoin)]))
+        phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lThen, thenAtom), (lElse, elseAtom)]))
+        joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+        seqRev = [joinBlock, elseBlock, thenBlock,
+            TAC.IRInstr (TAC.Jump lElse),
+            TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThen)] ++ condInstrs
+
+    return (seqRev, nAtom)
 
 exprLowing (AST.Call funName params) = do
     (argInstrs, argAtoms) <- lowerArgs params

@@ -26,6 +26,8 @@ import qualified Util.Exception as UE
     KW_FALSE            { t@(Lex.Ident "false" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
+    KW_IF               { t@(Lex.Ident "if" _) }
+    KW_ELSE             { t@(Lex.Ident "else" _) }
 
     identity            { t@(Lex.Ident _ _) }
     number              { t@(Lex.NumberConst _ _) }
@@ -55,6 +57,7 @@ import qualified Util.Exception as UE
     '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
 
 %right '='
+%right KW_IF
 %left '!=' '=='
 %left '>' '<'
 %left '+' '-'

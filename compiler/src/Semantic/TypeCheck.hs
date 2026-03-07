@@ -12,7 +12,7 @@ import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Oper
 import Parse.ParserBasic (AccessModified(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (augAssignOp, binaryOpCastType, iCast, inferBinaryOp, inferUnaryOp, isBasicType, widenedArgs)
+import Semantic.OpInfer (augAssignOp, binaryOpCastType, iCast, inferBinaryOp, inferUnaryOp, isBasicType, promoteBasicType, widenedArgs)
 import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable, defaultTypedImportEnv)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -220,6 +220,26 @@ inferExpr p _ _ e@(LongDoubleConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(CharConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(BoolConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(StringConst _ _) = inferLiteral p e
+
+inferExpr path packages envs e@(Ternary cond (thenE, elseE) _) = do
+    tCond <- inferExpr path packages envs cond
+    checkCondBool path (map Lex.tokenPos (exprTokens cond)) tCond
+
+    tThen <- inferExpr path packages envs thenE
+    tElse <- inferExpr path packages envs elseE
+    let pos = map Lex.tokenPos (exprTokens e)
+
+    if tThen == ErrorClass || tElse == ErrorClass then
+        pure ErrorClass
+    else if tThen == tElse then
+        pure tThen
+    else if isBasicType tThen && isBasicType tElse then do
+        let tRes = promoteBasicType tThen tElse
+        mapM_ addWarn (iCast path pos tThen tRes)
+        mapM_ addWarn (iCast path pos tElse tRes)
+        pure tRes
+    else
+        errClass $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass tThen) (prettyClass tElse))
 
 inferExpr path packages envs (Variable str tok) = do
     c <- get

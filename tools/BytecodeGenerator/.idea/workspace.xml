@@ -5,23 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="854fb58d-0772-454d-810c-42969e3bb64d" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/IR/Optimize.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/IR/Optimize.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/IR/TAC.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/IR/TAC.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/IR/TACLowing.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/IR/TACLowing.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/Lowing/JVM.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Lowing/JVM.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMJson.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMJson.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMLowing.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Lowing/JVMLowing.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../compiler/test/IR/TACLowingTest.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/test/IR/TACLowingTest.hs" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../libs/java/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/../../libs/java/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../../libs/java/src/main/kotlin/xlang/io/Console.kt" beforeDir="false" afterPath="$PROJECT_DIR$/../../libs/java/src/main/kotlin/xlang/io/Console.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/project.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/project.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/JsonAdapter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/JsonAdapter.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Main.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/Main.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassEmitter.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/kotlin/com/wangdi/classgen/generator/ClassEmitter.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/kotlin/com/wangdi/classgen/JsonAdapterTest.kt" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/kotlin/com/wangdi/classgen/JsonAdapterTest.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/Ir.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/debug.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/Parse/GrammarExpr.inc" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Parse/GrammarExpr.inc" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/Parse/ParseExpr.ypp" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Parse/ParseExpr.ypp" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/src/Parse/SyntaxTree.hs" beforeDir="false" afterPath="$PROJECT_DIR$/../../compiler/src/Parse/SyntaxTree.hs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/tmp_findprime.x" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/tmp_isprime.x" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../compiler/tmp_util.x" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

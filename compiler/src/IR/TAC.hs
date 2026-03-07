@@ -61,6 +61,13 @@ expandExpr (AST.Binary op a b tok) =
         (ss2, b') = expandExpr b
     in (ss1 ++ ss2, AST.Binary op a' b' tok)
 
+-- Ternary
+expandExpr (AST.Ternary c (a, b) toks) =
+    let (ssC, c') = expandExpr c
+        (ss1, a') = expandExpr a
+        (ss2, b') = expandExpr b
+    in (ssC ++ ss1 ++ ss2, AST.Ternary c' (a', b') toks)
+
 -- Calls
 expandExpr (AST.Call f args) =
     let (ssf, f') = expandExpr f

@@ -188,6 +188,10 @@ invalidExprStmtMsg = "invalid expression statement: expected assignment, call, o
 missingReturnMsg :: String -> String
 missingReturnMsg sig = "missing return statement: " ++ sig
 
+-- | Function parameter cannot be void.
+voidParameterMsg :: String -> String
+voidParameterMsg name = "parameter '" ++ name ++ "' cannot be void"
+
 
 -- | Illegal statement means that this one cannot 
 illegalStatementMsg :: String -> String -> String

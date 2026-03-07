@@ -80,36 +80,38 @@ Expr :: { Expression }
     | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
 
     -- 
-    | Expr '==' Expr            { Binary Equal $1 $3 $2 }
-    | Expr '==' error           { Error [$2] (expectedExpression 1 "==") }
+    | Expr '==' Expr                    { Binary Equal $1 $3 $2 }
+    | Expr '==' error                   { Error [$2] (expectedExpression 1 "==") }
 
-    | Expr '!=' Expr            { Binary NotEqual $1 $3 $2 }
-    | Expr '!=' error           { Error [$2] (expectedExpression 1 "!=") }
+    | Expr '!=' Expr                    { Binary NotEqual $1 $3 $2 }
+    | Expr '!=' error                   { Error [$2] (expectedExpression 1 "!=") }
 
-    | Expr '>' Expr             { Binary GreaterThan $1 $3 $2 }
-    | Expr '>' error            { Error [$2] (expectedExpression 1 ">") }
+    | Expr '>' Expr                     { Binary GreaterThan $1 $3 $2 }
+    | Expr '>' error                    { Error [$2] (expectedExpression 1 ">") }
 
-    | Expr '<' Expr             { Binary LessThan $1 $3 $2 }
-    | Expr '<' error            { Error [$2] (expectedExpression 1 "<") }
+    | Expr '<' Expr                     { Binary LessThan $1 $3 $2 }
+    | Expr '<' error                    { Error [$2] (expectedExpression 1 "<") }
 
     --
-    | Expr '+' Expr             { Binary Add $1 $3 $2 }
-    | Expr '+' error            { Error [$2] (expectedExpression 1 "+") }
+    | Expr '+' Expr                     { Binary Add $1 $3 $2 }
+    | Expr '+' error                    { Error [$2] (expectedExpression 1 "+") }
 
-    | Expr '-' Expr             { Binary Sub $1 $3 $2 }
-    | Expr '-' error            { Error [$2] (expectedExpression 1 "-") }
+    | Expr '-' Expr                     { Binary Sub $1 $3 $2 }
+    | Expr '-' error                    { Error [$2] (expectedExpression 1 "-") }
 
-    | Expr '*' Expr             { Binary Mul $1 $3 $2 }
-    | Expr '*' error            { Error [$2] (expectedExpression 1 "*") }
+    | Expr '*' Expr                     { Binary Mul $1 $3 $2 }
+    | Expr '*' error                    { Error [$2] (expectedExpression 1 "*") }
 
-    | Expr '/' Expr             { Binary Div $1 $3 $2 }
-    | Expr '/' error            { Error [$2] (expectedExpression 1 "/") }
+    | Expr '/' Expr                     { Binary Div $1 $3 $2 }
+    | Expr '/' error                    { Error [$2] (expectedExpression 1 "/") }
 
-    | Expr '%' Expr             { Binary Mod $1 $3 $2 }
-    | Expr '%' error            { Error [$2] (expectedExpression 1 "%") }
+    | Expr '%' Expr                     { Binary Mod $1 $3 $2 }
+    | Expr '%' error                    { Error [$2] (expectedExpression 1 "%") }
 
-    | Expr '**' Expr            { Binary Pow $1 $3 $2 }
-    | Expr '**' error           { Error [$2] (expectedExpression 1 "**") }
+    | Expr '**' Expr                    { Binary Pow $1 $3 $2 }
+    | Expr '**' error                   { Error [$2] (expectedExpression 1 "**") }
 
-    | Postfix                   { $1 }
+    | Expr KW_IF Expr KW_ELSE Expr %prec KW_IF  { Ternary $3 ($1, $5) [$2, $4] }
+
+    | Postfix                           { $1 }
     ;

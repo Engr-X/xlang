@@ -2,12 +2,12 @@ module Semantic.ContextCheck where
 
 import Semantic.NameEnv
 import Control.Monad (when)
-import Data.List (intercalate)
+import Data.List (intercalate, find)
 import Data.Map.Strict (Map)
 import Data.Maybe (listToMaybe, fromMaybe)
 import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
-import Lex.Token (tokenPos)
+import Lex.Token (Token, tokenPos)
 import Util.Type (Path, Position)
 import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
@@ -38,6 +38,7 @@ hasAssign = go
     go (AST.Cast _ x _) = go x
     go (AST.Call f args) = go f || any go args
     go (AST.CallT f _ args) = go f || any go args
+    go (AST.Ternary c (tExpr, fExpr) _) = go c || go tExpr || go fExpr
     -- Leaves
     go (AST.Error _ _) = False
     go (AST.IntConst _ _) = False
@@ -198,6 +199,10 @@ checkExpr p packages envs expr = case expr of
     -- recurse into children.
     AST.Cast _ e _ -> checkExpr p packages envs e
     AST.Unary _ e _ -> checkExpr p packages envs e
+    AST.Ternary c (tExpr, fExpr) _ -> do
+        checkExpr p packages envs c
+        checkExpr p packages envs tExpr
+        checkExpr p packages envs fExpr
 
     AST.Binary AST.Assign e1 e2 tok -> do
         checkExpr p packages envs e2
@@ -398,21 +403,28 @@ checkStmt p package envs stmt
             let parentCtrl = parentCtrlFor cState
             when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt')
                 (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState (fromMaybe InClass parentCtrl)))
+            case firstVoidParam params of
+                Nothing -> pure ()
+                Just (_, paramName, toks) ->
+                    addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks) (UE.voidParameterMsg paramName)
 
-            let depth0 = depth cState
-            let (varCounter', paramVars) = foldl addParam (varCounter cState, Map.empty) params
+            cBase <- get
+            let cStateBase = st cBase
+
+            let depth0 = depth cStateBase
+            let (varCounter', paramVars) = foldl addParam (varCounter cStateBase, Map.empty) params
                 addParam (vc, m) (_, name, toks) = case toks of
                     [] -> (vc, m)
                     (t:_) -> (succ vc, Map.insert name (vc, tokenPos t) m)
 
-            let newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
-            let cState' = cState {
+            let newScope = Scope { scopeId = scopeCounter cStateBase, sVars = paramVars, sFuncs = Map.empty }
+            let cState' = cStateBase {
                 depth = succ depth0,
                 varCounter = varCounter',
-                scopeCounter = succ $ scopeCounter cState,
-                ctrlStack = InFunction : ctrlStack cState,
-                scope = newScope : scope cState}
-            put $ c { st = cState' }
+                scopeCounter = succ $ scopeCounter cStateBase,
+                ctrlStack = InFunction : ctrlStack cStateBase,
+                scope = newScope : scope cStateBase}
+            put $ cBase { st = cState' }
 
             checkBlock p package envs body
 
@@ -421,6 +433,8 @@ checkStmt p package envs stmt
             let scope' = tail $ scope cState2
             let ctrls' = tail $ ctrlStack cState2
             put $ c2 { st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } }
+        firstVoidParam :: [(AST.Class, String, [Token])] -> Maybe (AST.Class, String, [Token])
+        firstVoidParam = find (\(clazz, _, _) -> clazz == AST.Void)
 
 
 -- | Check a single switch case (case/default).

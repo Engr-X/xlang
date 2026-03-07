@@ -274,4 +274,26 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
     )]
 
 tests :: TestTree
-tests = testGroup "Parse.ParseExpr" [lexparseExprTests]
+tests = testGroup "Parse.ParseExpr" [lexparseExprTests, ternaryParseTests]
+
+
+ternaryParseTests :: TestTree
+ternaryParseTests = testGroup "Parse.ParseExpr.ternary" [
+    testCase "ternary simple" $
+        case replLexparseExpr "a if b else c" of
+            Right (Ternary (Variable "b" _) (Variable "a" _, Variable "c" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "ternary in assignment rhs" $
+        case replLexparseExpr "x = a if b else c" of
+            Right (Binary Assign (Variable "x" _) (Ternary (Variable "b" _) (Variable "a" _, Variable "c" _) _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "ternary precedence below add" $
+        case replLexparseExpr "a + 1 if b else c + 2" of
+            Right (Ternary
+                (Variable "b" _)
+                (Binary Add (Variable "a" _) (IntConst "1" _) _, Binary Add (Variable "c" _) (IntConst "2" _) _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
