@@ -1,9 +1,0 @@
-pkgid: tasty-hunit-0.10.2
-component: ComponentLib
-src: 5af01fa7c1ef98b324da062e36f79986a8b1b83ff0cf6fd53f95d976b41e03f6
-pkg-config-deps: 
-deps: base-4.17.2.1, call-stack-0.4.0-350778ad77115abd3b46651a2f07f82a2e59b837, tasty-1.5.3-334008abf67288c22ea7d7eaf546a053b43d1405
-compilerid: ghc-9.4.8
-platform: x86_64-windows
-stripped-exe: False
-debug-info: 0

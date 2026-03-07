@@ -1,9 +1,0 @@
-pkgid: alex-3.5.4.0
-component: ComponentExe (UnqualComponentName "alex")
-src: a9ea70f2c4900e685312cf330d1fe955a3e8f00acd1328d463ae150481d28ade
-pkg-config-deps: 
-deps: array-0.5.4.0, base-4.17.2.1, containers-0.6.7, directory-1.3.7.1
-compilerid: ghc-9.4.8
-platform: x86_64-windows
-stripped-exe: False
-debug-info: 0

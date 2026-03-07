@@ -1,3 +1,0 @@
-Installing internal library grammar in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\happy-lib-2.2-ea07295d49d3cb59d839855fdcfa26a3309c0233\lib
-nWithHole.o )
-[2 of 2] Compiling Happy.Grammar    ( grammar\src\Happy\Grammar.lhs, dist\build\grammar\Happy\Grammar.o )

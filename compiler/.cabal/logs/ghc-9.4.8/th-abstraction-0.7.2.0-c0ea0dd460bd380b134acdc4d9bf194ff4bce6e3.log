@@ -1,4 +1,0 @@
-Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\th-abstraction-0.7.2.0-c0ea0dd460bd380b134acdc4d9bf194ff4bce6e3\lib
-atype\Internal.o )
-[2 of 3] Compiling Language.Haskell.TH.Datatype.TyVarBndr ( src\Language\Haskell\TH\Datatype\TyVarBndr.hs, dist\build\Language\Haskell\TH\Datatype\TyVarBndr.o )
-[3 of 3] Compiling Language.Haskell.TH.Datatype ( src\Language\Haskell\TH\Datatype.hs, dist\build\Language\Haskell\TH\Datatype.o )

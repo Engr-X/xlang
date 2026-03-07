@@ -1,7 +1,0 @@
-Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\indexed-trave_-0.1.4-9909f3937e287717957485aa445274d6afd21785\lib
-hcList.hs, dist\build\GhcList.o )
-[3 of 7] Compiling WithIndex        ( src\WithIndex.hs, dist\build\WithIndex.o )
-[4 of 7] Compiling Data.Traversable.WithIndex ( src\Data\Traversable\WithIndex.hs, dist\build\Data\Traversable\WithIndex.o )
-[5 of 7] Compiling Data.Functor.WithIndex ( src\Data\Functor\WithIndex.hs, dist\build\Data\Functor\WithIndex.o )
-[6 of 7] Compiling Data.Foldable1.WithIndex ( src\Data\Foldable1\WithIndex.hs, dist\build\Data\Foldable1\WithIndex.o )
-[7 of 7] Compiling Data.Foldable.WithIndex ( src\Data\Foldable\WithIndex.hs, dist\build\Data\Foldable\WithIndex.o )

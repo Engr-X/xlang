@@ -1,9 +1,0 @@
-pkgid: character-ps-0.1
-component: ComponentLib
-src: 22de71fde38b236d3e9168a832b5e1e75d1fb4f4028667bdf747b3b4c8c1529c
-pkg-config-deps: 
-deps: base-4.17.2.1
-compilerid: ghc-9.4.8
-platform: x86_64-windows
-stripped-exe: False
-debug-info: 0

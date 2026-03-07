@@ -1,9 +1,0 @@
-Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\unordered-con_-0.2.21-1fb444cb609ee62c2891491e46b5583b68062241\lib
-of 9] Compiling Data.HashMap.Internal.List ( Data\HashMap\Internal\List.hs, dist\build\Data\HashMap\Internal\List.o )
-[3 of 9] Compiling Data.HashMap.Internal ( Data\HashMap\Internal.hs, dist\build\Data\HashMap\Internal.o )
-[4 of 9] Compiling Data.HashMap.Internal.Debug ( Data\HashMap\Internal\Debug.hs, dist\build\Data\HashMap\Internal\Debug.o )
-[5 of 9] Compiling Data.HashMap.Internal.Strict ( Data\HashMap\Internal\Strict.hs, dist\build\Data\HashMap\Internal\Strict.o )
-[6 of 9] Compiling Data.HashSet.Internal ( Data\HashSet\Internal.hs, dist\build\Data\HashSet\Internal.o )
-[7 of 9] Compiling Data.HashSet     ( Data\HashSet.hs, dist\build\Data\HashSet.o )
-[8 of 9] Compiling Data.HashMap.Strict ( Data\HashMap\Strict.hs, dist\build\Data\HashMap\Strict.o )
-[9 of 9] Compiling Data.HashMap.Lazy ( Data\HashMap\Lazy.hs, dist\build\Data\HashMap\Lazy.o )

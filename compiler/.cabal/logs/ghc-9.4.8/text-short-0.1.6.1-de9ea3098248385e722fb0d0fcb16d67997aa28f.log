@@ -1,5 +1,0 @@
-Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\text-short-0.1.6.1-de9ea3098248385e722fb0d0fcb16d67997aa28f\lib
-t\Short\Internal.hs, dist\build\Data\Text\Short\Internal.o )
-[3 of 5] Compiling Data.Text.Short.Unsafe ( src\Data\Text\Short\Unsafe.hs, dist\build\Data\Text\Short\Unsafe.o )
-[4 of 5] Compiling Data.Text.Short  ( src\Data\Text\Short.hs, dist\build\Data\Text\Short.o )
-[5 of 5] Compiling Data.Text.Short.Partial ( src\Data\Text\Short\Partial.hs, dist\build\Data\Text\Short\Partial.o )

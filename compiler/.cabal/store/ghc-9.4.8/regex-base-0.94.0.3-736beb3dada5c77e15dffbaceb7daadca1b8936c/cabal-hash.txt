@@ -1,9 +1,0 @@
-pkgid: regex-base-0.94.0.3
-component: ComponentLib
-src: e8ca2dee598c790dd1c1c4359bdd1e495d9b881f5aa1f539c22f0dd5563747bf
-pkg-config-deps: 
-deps: array-0.5.4.0, base-4.17.2.1, bytestring-0.11.5.3, containers-0.6.7, text-2.0.2
-compilerid: ghc-9.4.8
-platform: x86_64-windows
-stripped-exe: False
-debug-info: 0
