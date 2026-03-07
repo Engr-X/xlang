@@ -102,9 +102,10 @@ lowerInstr (IR.IBinary dst op a b) = do
             return $ concat [aOps, bOps, [mkOp cls], dstOps]
 lowerInstr (IR.ICast dst (fromC, toC) atom) = do
     atomOps <- loadAtom atom
-    let castOp = JVM.Cast fromC toC
     dstOps <- storeAtom dst
-    return $ concat [atomOps, [castOp], dstOps]
+    if isNoOpCast fromC toC
+        then return (atomOps ++ dstOps)
+        else return (atomOps ++ [JVM.Cast fromC toC] ++ dstOps)
 lowerInstr (IR.ICall {}) = error "ICall is not supported; use ICallStatic"
 lowerInstr (IR.ICallStatic dst qname args) = do
     argOps <- loadArgs args
@@ -160,6 +161,23 @@ cmpOp kind cls bid = case kind of
     CmpLe -> JVM.IfcmpLe cls bid
     CmpGt -> JVM.IfcmpGt cls bid
     CmpGe -> JVM.IfcmpGe cls bid
+
+
+isNoOpCast :: Class -> Class -> Bool
+isNoOpCast fromC toC = jvmPrefix fromC == jvmPrefix toC
+    where
+        jvmPrefix :: Class -> Char
+        jvmPrefix cls = case cls of
+            Int8T -> 'i'
+            Int16T -> 'i'
+            Int32T -> 'i'
+            Bool -> 'i'
+            Char -> 'i'
+            Int64T -> 'l'
+            Float32T -> 'f'
+            Float64T -> 'd'
+            Float128T -> 'd'
+            _ -> error ("isNoOpCast: unsupported type " ++ show cls)
 
 
 -- | Map unary IR operators to JVM ops; unsupported ops are errors.

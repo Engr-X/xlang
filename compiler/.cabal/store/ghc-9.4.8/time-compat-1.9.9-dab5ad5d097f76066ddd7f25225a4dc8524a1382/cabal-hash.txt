@@ -1,0 +1,9 @@
+pkgid: time-compat-1.9.9
+component: ComponentLib
+src: 90fadded53cf9c15855eebf809e9536af8f85d00e32b82f7c8b506d2fadf7c25
+pkg-config-deps: 
+deps: base-4.17.2.1, base-orphans-0.9.4-db924352ef8e48bd61a01c307625d9a939bd244d, deepseq-1.4.8.0, hashable-1.4.7.0-55a0afc57081abc2b611fc3ff738d1b02781f142, template-haskell-2.19.0.0, time-1.12.2
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

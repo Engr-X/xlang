@@ -1,0 +1,4 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29754\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\contravariant-1.5.6-e6c8146acb0703186a2af4ba0e0c7f2682eb4fb0\lib
+ivisible.o )
+[2 of 3] Compiling Data.Functor.Contravariant.Compose ( src\Data\Functor\Contravariant\Compose.hs, dist\build\Data\Functor\Contravariant\Compose.o )
+[3 of 3] Compiling Data.Functor.Contravariant.Generic ( src\Data\Functor\Contravariant\Generic.hs, dist\build\Data\Functor\Contravariant\Generic.o )

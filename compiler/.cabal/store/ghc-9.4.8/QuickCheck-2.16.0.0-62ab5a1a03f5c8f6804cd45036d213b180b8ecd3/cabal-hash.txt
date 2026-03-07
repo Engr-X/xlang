@@ -1,0 +1,10 @@
+pkgid: QuickCheck-2.16.0.0
+component: ComponentLib
+src: 0b563fa6ea11653d76d57e96625f4a476e02b9fdaeba9c05d2ccc10d8da802c0
+pkg-config-deps: 
+deps: base-4.17.2.1, containers-0.6.7, deepseq-1.4.8.0, random-1.3.1-2184ad39c207b0b833cfcd07c8e403eba23bf487, splitmix-0.1.3.2-866972588b1f54e5e4220806d1bbd0ad016dfeef, template-haskell-2.19.0.0, transformers-0.5.6.2
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: -old-random +templatehaskell
+stripped-exe: False
+debug-info: 0

@@ -32,7 +32,9 @@ binOpInferTests = testGroup "Semantic.OpInfer.binOpInfer" $
         ("0", Equal, Int32T, Float64T, Just Bool),
         ("1", BitLShift, Int8T, Int16T, Just Int32T),
         ("2", BitOr, Bool, Bool, Just Bool),
-        ("3", Pow, Int32T, Int32T, Just Float64T)]
+        ("3", Pow, Int32T, Int32T, Just Float64T),
+        ("4", Mod, Bool, Int16T, Just Int32T),
+        ("5", Mod, Float32T, Int32T, Nothing)]
 
 
 inferBinaryOpTests :: TestTree
@@ -41,7 +43,8 @@ inferBinaryOpTests = testGroup "Semantic.OpInfer.inferBinaryOp" $
         ("0", Add, Int16T, Float64T, Float64T),
         ("1", BitAnd, Char, Int8T, Int32T),
         ("2", Pow, Float128T, Float128T, Float128T),
-        ("3", Mod, Int64T, Int16T, Int64T)]
+        ("3", Mod, Int64T, Int16T, Int64T),
+        ("4", Mod, Bool, Bool, Int32T)]
 
 
 augAssignOpTests :: TestTree

@@ -1,0 +1,21 @@
+Installing executable alex in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\alex-3.5.4.0-5c40c26c739eabdd9682f65da7120280a6796e71\bin
+Warning: The directory
+D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\alex-3.5.4.0-5c40c26c739eabdd9682f65da7120280a6796e71\bin
+is not in the system search path.
+et.hs, dist\build\alex\alex-tmp\Data\Ranged\RangedSet.o )
+[ 5 of 19] Compiling Data.Ranged      ( src\Data\Ranged.hs, dist\build\alex\alex-tmp\Data\Ranged.o )
+[ 6 of 19] Compiling Paths_alex       ( dist\build\alex\autogen\Paths_alex.hs, dist\build\alex\alex-tmp\Paths_alex.o )
+[ 7 of 19] Compiling UTF8             ( src\UTF8.hs, dist\build\alex\alex-tmp\UTF8.o )
+[ 8 of 19] Compiling CharSet          ( src\CharSet.hs, dist\build\alex\alex-tmp\CharSet.o )
+[ 9 of 19] Compiling Util             ( src\Util.hs, dist\build\alex\alex-tmp\Util.o )
+[10 of 19] Compiling AbsSyn           ( src\AbsSyn.hs, dist\build\alex\alex-tmp\AbsSyn.o )
+[11 of 19] Compiling ParseMonad       ( src\ParseMonad.hs, dist\build\alex\alex-tmp\ParseMonad.o )
+[12 of 19] Compiling Scan             ( src\Scan.hs, dist\build\alex\alex-tmp\Scan.o )
+[13 of 19] Compiling Parser           ( src\Parser.hs, dist\build\alex\alex-tmp\Parser.o )
+[14 of 19] Compiling Output           ( src\Output.hs, dist\build\alex\alex-tmp\Output.o )
+[15 of 19] Compiling NFA              ( src\NFA.hs, dist\build\alex\alex-tmp\NFA.o )
+[16 of 19] Compiling Info             ( src\Info.hs, dist\build\alex\alex-tmp\Info.o )
+[17 of 19] Compiling DFAMin           ( src\DFAMin.hs, dist\build\alex\alex-tmp\DFAMin.o )
+[18 of 19] Compiling DFA              ( src\DFA.hs, dist\build\alex\alex-tmp\DFA.o )
+[19 of 19] Compiling Main             ( src\Main.hs, dist\build\alex\alex-tmp\Main.o )
+[20 of 20] Linking dist\\build\\alex\\alex.exe

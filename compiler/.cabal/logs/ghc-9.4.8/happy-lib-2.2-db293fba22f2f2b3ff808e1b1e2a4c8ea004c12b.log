@@ -1,0 +1,13 @@
+Installing internal library frontend in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\happy-lib-2.2-db293fba22f2f2b3ff808e1b1e2a4c8ea004c12b\lib
+ompiling Happy.Frontend.Mangler.Monad ( frontend\src\Happy\Frontend\Mangler\Monad.lhs, dist\build\frontend\Happy\Frontend\Mangler\Monad.o )
+[ 3 of 13] Compiling Happy.Frontend.ParamRules ( frontend\src\Happy\Frontend\ParamRules.hs, dist\build\frontend\Happy\Frontend\ParamRules.o )
+[ 4 of 13] Compiling Happy.Frontend.ParseMonad.Class ( frontend\src\Happy\Frontend\ParseMonad\Class.hs, dist\build\frontend\Happy\Frontend\ParseMonad\Class.o )
+[ 5 of 13] Compiling Happy.Frontend.ParseMonad ( frontend\src\Happy\Frontend\ParseMonad.hs, dist\build\frontend\Happy\Frontend\ParseMonad.o )
+[ 6 of 13] Compiling Happy.Frontend.Lexer ( frontend\src\Happy\Frontend\Lexer.lhs, dist\build\frontend\Happy\Frontend\Lexer.o )
+[ 7 of 13] Compiling Happy.Frontend.AttrGrammar ( frontend\src\Happy\Frontend\AttrGrammar.lhs, dist\build\frontend\Happy\Frontend\AttrGrammar.o )
+[ 8 of 13] Compiling Happy.Frontend.AttrGrammar.Parser ( frontend\src\Happy\Frontend\AttrGrammar\Parser.hs, dist\build\frontend\Happy\Frontend\AttrGrammar\Parser.o )
+[ 9 of 13] Compiling Happy.Frontend.AttrGrammar.Mangler ( frontend\src\Happy\Frontend\AttrGrammar\Mangler.lhs, dist\build\frontend\Happy\Frontend\AttrGrammar\Mangler.o )
+[10 of 13] Compiling Happy.Frontend.Mangler ( frontend\src\Happy\Frontend\Mangler.lhs, dist\build\frontend\Happy\Frontend\Mangler.o )
+[11 of 13] Compiling Happy.Frontend.Parser ( frontend\src\Happy\Frontend\Parser.hs, dist\build\frontend\Happy\Frontend\Parser.o )
+[12 of 13] Compiling Happy.Frontend   ( frontend\src\Happy\Frontend.hs, dist\build\frontend\Happy\Frontend.o )
+[13 of 13] Compiling Happy.Frontend.PrettyGrammar ( frontend\src\Happy\Frontend\PrettyGrammar.hs, dist\build\frontend\Happy\Frontend\PrettyGrammar.o )

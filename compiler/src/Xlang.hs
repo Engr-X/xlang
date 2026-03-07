@@ -18,7 +18,7 @@ import qualified Util.FileHelper as FH
 
 
 bytecodegenFile :: String -> String
-bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeGenerator-1.0.jar"
+bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeGenerator-alpha.jar"
   where
     slash '\\' = '/'
     slash c = c
@@ -45,7 +45,8 @@ parseArgs = go defaultOptions
     go opts ("--target=jvm":xs) = go opts { optTarget = Just "jvm" } xs
     go opts ("--target":t:xs) = go opts { optTarget = Just t } xs
     go opts ("-c":path:xs) = go opts { optCompile = Just path } xs
-    go opts ("-debug":xs) = go opts { optDebug = True } xs
+    go opts ("-d":xs) = go opts { optDebug = True } xs
+    go opts ("--debug":xs) = go opts { optDebug = True } xs
     go opts (arg:_) = opts { optHelp = True, optError = Just ("unknown arg: " ++ arg) }
 
 
@@ -58,7 +59,7 @@ printHelp = putStrLn $ unlines [
     "Options:",
     "   --target=jvm     compile to JVM bytecode (required)",
     "   -c <file>        source file to compile",
-    "   -debug            write debug.json next to the source file",
+    "   -d, --debug      write debug.json next to the source file",
     "   -h, --help       show this help"
     ]
 

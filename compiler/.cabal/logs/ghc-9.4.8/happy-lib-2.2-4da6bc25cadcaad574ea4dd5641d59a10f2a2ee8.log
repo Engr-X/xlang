@@ -1,0 +1,6 @@
+Installing internal library tabular in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29753\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\happy-lib-2.2-4da6bc25cadcaad574ea4dd5641d59a10f2a2ee8\lib
+ Happy.Tabular.First ( tabular\src\Happy\Tabular\First.lhs, dist\build\tabular\Happy\Tabular\First.o )
+[3 of 6] Compiling Happy.Tabular.LALR ( tabular\src\Happy\Tabular\LALR.lhs, dist\build\tabular\Happy\Tabular\LALR.o )
+[4 of 6] Compiling Happy.Tabular.Info ( tabular\src\Happy\Tabular\Info.lhs, dist\build\tabular\Happy\Tabular\Info.o )
+[5 of 6] Compiling Happy.Tabular    ( tabular\src\Happy\Tabular.lhs, dist\build\tabular\Happy\Tabular.o )
+[6 of 6] Compiling Paths_happy_lib  ( dist\build\tabular\autogen\Paths_happy_lib.hs, dist\build\tabular\Paths_happy_lib.o )

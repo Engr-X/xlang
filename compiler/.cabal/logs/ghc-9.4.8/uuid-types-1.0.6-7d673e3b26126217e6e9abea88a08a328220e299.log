@@ -1,0 +1,19 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\uuid-types-1.0.6-7d673e3b26126217e6e9abea88a08a328220e299\lib
+2 of 3] Compiling Data.UUID.Types.Internal ( src\Data\UUID\Types\Internal.hs, dist\build\Data\UUID\Types\Internal.o )
+
+src\Data\UUID\Types\Internal.hs:49:1: warning: [-Wunused-imports]
+    The import of ¡®Control.Applicative¡¯ is redundant
+      except perhaps to import instances from ¡®Control.Applicative¡¯
+    To import instances alone, use: import Control.Applicative()
+   |
+49 | import           Control.Applicative              ((<*>))
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src\Data\UUID\Types\Internal.hs:55:1: warning: [-Wunused-imports]
+    The import of ¡®Data.Functor¡¯ is redundant
+      except perhaps to import instances from ¡®Data.Functor¡¯
+    To import instances alone, use: import Data.Functor()
+   |
+55 | import           Data.Functor                     ((<$>))
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[3 of 3] Compiling Data.UUID.Types  ( src\Data\UUID\Types.hs, dist\build\Data\UUID\Types.o )

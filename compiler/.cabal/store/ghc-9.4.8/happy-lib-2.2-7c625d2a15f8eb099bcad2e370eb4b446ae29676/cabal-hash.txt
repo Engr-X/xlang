@@ -1,0 +1,9 @@
+pkgid: happy-lib-2.2
+component: ComponentSubLib (UnqualComponentName "backend-lalr")
+src: d2e0662b12b52008787c380b94acd4f6ed0a0af04bb0d433ed8c4ac00f1e3003
+pkg-config-deps: 
+deps: array-0.5.4.0, base-4.17.2.1, happy-lib-2.2-4da6bc25cadcaad574ea4dd5641d59a10f2a2ee8, happy-lib-2.2-ea07295d49d3cb59d839855fdcfa26a3309c0233
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

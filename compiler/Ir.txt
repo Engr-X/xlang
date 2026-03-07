@@ -1,0 +1,110 @@
+public class Tmp_findprimeXl:
+    main: void main() @ Tmp_findprimeXl.main
+    static {}:
+    public static void findPrime(int, int):
+        .L1:
+            from$4$1 = param0
+            goto .L2
+        .L3:
+            if from$4$1 == 2 goto .L11
+            goto .L12
+        .L11:
+            #temp$2$0 = true
+            goto .L13
+        .L12:
+            #temp$2$0 = false
+        .L13:
+            if #temp$2$0 == 1 goto .L8
+            goto .L10
+        .L8:
+            #temp$3$0 = call xlang.io.ConsoleXl.putln(from$4$1)
+        .L10:
+            i$6$0 = 2
+            isPrime$7$0 = true
+        .L14:
+            isPrime$7$1 = isPrime$7$0
+            goto .L15
+        .L16:
+            #temp$5$0 = from$4$1 % i$6$0
+            if #temp$5$0 == 0 goto .L24
+            goto .L25
+        .L24:
+            #temp$6$0 = true
+            goto .L26
+        .L25:
+            #temp$6$0 = false
+        .L26:
+            if #temp$6$0 == 1 goto .L21
+            goto .L22
+        .L21:
+            isPrime$7$2 = false
+            isPrime$7$3 = isPrime$7$2
+            goto .L27
+        .L22:
+            isPrime$7$3 = isPrime$7$1
+        .L27:
+            isPrime$7$1 = isPrime$7$3
+        .L15:
+            if i$6$0 < from$4$1 goto .L18
+            goto .L19
+        .L18:
+            #temp$4$0 = true
+            goto .L20
+        .L19:
+            #temp$4$0 = false
+        .L20:
+            if #temp$4$0 == 1 goto .L16
+        .L17:
+            if isPrime$7$1 == 1 goto .L28
+            goto .L30
+        .L28:
+            #temp$7$0 = call xlang.io.ConsoleXl.putln(from$4$1)
+        .L30:
+            from$4$2 = from$4$1 + 1
+            from$4$3 = from$4$2
+        .L31:
+            from$4$1 = from$4$3
+        .L2:
+            if from$4$1 < param1 goto .L5
+            goto .L6
+        .L5:
+            #temp$1$0 = true
+            goto .L7
+        .L6:
+            #temp$1$0 = false
+        .L7:
+            if #temp$1$0 == 1 goto .L3
+        .L0:
+            return
+        type:
+            false: bool
+            true: bool
+            0: int
+            1: int
+            2: int
+            #temp$1$0: bool
+            #temp$2$0: bool
+            #temp$3$0: void
+            #temp$4$0: bool
+            #temp$5$0: int
+            #temp$6$0: bool
+            #temp$7$0: void
+            from$4$1: int
+            from$4$2: int
+            from$4$3: int
+            i$6$0: int
+            isPrime$7$0: bool
+            isPrime$7$1: bool
+            isPrime$7$2: bool
+            isPrime$7$3: bool
+            phi(.L1:param0, .L3:from$4$3): int
+            phi(.L5:true, .L6:false): bool
+            phi(.L11:true, .L12:false): bool
+            phi(.L14:isPrime$7$0, .L16:isPrime$7$3): bool
+            phi(.L18:true, .L19:false): bool
+            phi(.L21:isPrime$7$2, .L22:isPrime$7$1): bool
+            phi(.L24:true, .L25:false): bool
+            param0: int
+            param1: int
+    public static void main():
+        return

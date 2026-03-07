@@ -1,0 +1,10 @@
+pkgid: scientific-0.3.8.1
+component: ComponentLib
+src: ad3781be149dfc7936e62eb9c3ad78ded0e9985b4dae16d2f62d9ba957ccdcfe
+pkg-config-deps: 
+deps: base-4.17.2.1, binary-0.8.9.1, bytestring-0.11.5.3, containers-0.6.7, deepseq-1.4.8.0, hashable-1.4.7.0-55a0afc57081abc2b611fc3ff738d1b02781f142, integer-logar_-1.0.5-37697021b651fa7e52f259e13588d5efe1d328fe, primitive-0.9.1.0-118112174a6eedd04f29445bf962d8fe14c67a1f, template-haskell-2.19.0.0, text-2.0.2
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: -integer-simple
+stripped-exe: False
+debug-info: 0

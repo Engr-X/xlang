@@ -1,0 +1,3 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29753\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\splitmix-0.1.3.2-866972588b1f54e5e4220806d1bbd0ad016dfeef\lib
+ng System.Random.SplitMix ( src\System\Random\SplitMix.hs, dist\build\System\Random\SplitMix.o )
+[3 of 3] Compiling System.Random.SplitMix32 ( src\System\Random\SplitMix32.hs, dist\build\System\Random\SplitMix32.o )

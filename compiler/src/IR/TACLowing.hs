@@ -467,6 +467,27 @@ collectAssignKeysBlock (AST.Multiple ss) = do
                     _ -> return []
             _ -> return []
 
+appendAfterCond :: [IRStmt] -> [IRStmt] -> [IRStmt]
+appendAfterCond condStmts tailStmts = case reverse condStmts of
+    (TAC.IRBlockStmt (TAC.IRBlock (bid, body)) : rest) ->
+        reverse (TAC.IRBlockStmt (appendTail (TAC.IRBlock (bid, body)) tailStmts) : rest)
+    _ ->
+        dedupAppend condStmts tailStmts
+    where
+        appendTail :: TAC.IRBlock -> [IRStmt] -> TAC.IRBlock
+        appendTail (TAC.IRBlock (bid, body)) extra = case reverse body of
+            (TAC.IRBlockStmt blk : rest) ->
+                TAC.IRBlock (bid, reverse (TAC.IRBlockStmt (appendTail blk extra) : rest))
+            _ ->
+                TAC.IRBlock (bid, dedupAppend body extra)
+
+        dedupAppend :: [IRStmt] -> [IRStmt] -> [IRStmt]
+        dedupAppend base extra = case (reverse base, extra) of
+            (TAC.IRInstr (TAC.Jump a) : _, [TAC.IRInstr (TAC.Jump b)]) | a == b ->
+                base
+            _ ->
+                base ++ extra
+
 
 stmtsLowing :: [Statement] -> TACM [IRStmt]
 stmtsLowing [] = return []
@@ -510,6 +531,7 @@ stmtsLowing ((AST.BlockStmt b):stmts) = do
     rest <- stmtsLowing stmts
     return $ current ++ rest
 
+
 {-
 code:
     if cond
@@ -542,6 +564,9 @@ stmtsLowing ((AST.If e thenB elseB _):stmts) = do
     _preStacks <- getVarStacks
 
     (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
+    let condStmts = appendAfterCond (reverse condInstrs) [
+            TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThenID),
+            TAC.IRInstr (TAC.Jump lElseID)]
     condStacks <- getVarStacks
 
     thenStmts <- blockLowing $ fromMaybe (AST.Multiple []) thenB
@@ -563,14 +588,13 @@ stmtsLowing ((AST.If e thenB elseB _):stmts) = do
     let phiInstrs = map (\(dst, thenAtom, elseAtom) ->
             TAC.IRInstr (TAC.IAssign dst (TAC.Phi [(lThenID, thenAtom), (lElseID, elseAtom)]))) phiInfos
 
-    let thenBlock = TAC.IRBlockStmt (TAC.IRBlock (lThenID, thenStmts ++ thenAssigns ++ [TAC.IRInstr (TAC.Jump lJoinID)]))
-    let elseBlock = TAC.IRBlockStmt (TAC.IRBlock (lElseID, elseStmts ++ elseAssigns ++ [TAC.IRInstr (TAC.Jump lJoinID)]))
+    let thenTail = thenAssigns ++ [TAC.IRInstr (TAC.Jump lJoinID)]
+    let elseTail = elseAssigns ++ [TAC.IRInstr (TAC.Jump lJoinID)]
+    let thenBlock = TAC.IRBlockStmt (TAC.IRBlock (lThenID, appendAfterCond thenStmts thenTail))
+    let elseBlock = TAC.IRBlockStmt (TAC.IRBlock (lElseID, appendAfterCond elseStmts elseTail))
     let joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoinID, phiInstrs ++ afterStmts))
 
-    return $ concat [
-        reverse condInstrs,
-        [TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThenID), TAC.IRInstr (TAC.Jump lElseID)],
-        [thenBlock, elseBlock, joinBlock]]
+    return (condStmts ++ [thenBlock, elseBlock, joinBlock])
     where
         mkPhi :: Map VarKey [(Class, Int)] -> Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (IRAtom, IRAtom, IRAtom))
         mkPhi thenStacks elseStacks key = do
@@ -637,6 +661,11 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
         _ <- popLoopPhis
         return (bodyStmts', bodyStacks', elseStmts')
 
+    let condStmts = appendAfterCond (reverse condInstrs) (
+            [TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) l2ID)] ++
+            elseStmts ++
+            [TAC.IRInstr (TAC.Jump l3ID)])
+
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> TAC.IRInstr (TAC.IAssign dst preAtom)) phiInfos'
     let backAssigns = map (\(_, dst, _, bodyAtom) -> TAC.IRInstr (TAC.IAssign dst bodyAtom)) phiInfos'
@@ -644,13 +673,11 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
             TAC.IRInstr (TAC.IAssign dst (TAC.Phi [(l0ID, preAtom), (l2ID, bodyAtom)]))) phiInfos'
 
     let preBlock = TAC.IRBlockStmt (TAC.IRBlock (l0ID, preAssigns ++ [TAC.IRInstr (TAC.Jump l1ID)]))
-    let bodyBlock = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ backAssigns ++ [TAC.IRInstr (TAC.Jump l1ID)]))
-    let headerBlock = TAC.IRBlockStmt (TAC.IRBlock (l1ID, concat [
-            phiInstrs,
-            reverse condInstrs,
-            [TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) l2ID)],
-            elseStmts,
-            [TAC.IRInstr (TAC.Jump l3ID)]]))
+    let bodyTail = backAssigns ++ [TAC.IRInstr (TAC.Jump l1ID)]
+    l2TailID <- incBlockId
+    let bodyTailBlock = TAC.IRBlockStmt (TAC.IRBlock (l2TailID, bodyTail))
+    let bodyBlock = TAC.IRBlockStmt (TAC.IRBlock (l2ID, bodyStmts ++ [bodyTailBlock]))
+    let headerBlock = TAC.IRBlockStmt (TAC.IRBlock (l1ID, phiInstrs ++ condStmts))
 
     afterStmts <- stmtsLowing stmts
     let afterBlock = TAC.IRBlockStmt (TAC.IRBlock (l3ID, afterStmts))

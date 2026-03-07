@@ -1,0 +1,5 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29753\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\transformers-_-0.8-47fc9a5049066694627b03066963db56d59168cd\lib
+
+[2 of 4] Compiling Data.Functor.Classes.Generic.Internal ( generics\Data\Functor\Classes\Generic\Internal.hs, dist\build\Data\Functor\Classes\Generic\Internal.o )
+[3 of 4] Compiling Data.Functor.Classes.Generic ( generics\Data\Functor\Classes\Generic.hs, dist\build\Data\Functor\Classes\Generic.o )
+[4 of 4] Compiling Paths_transformers_compat ( dist\build\autogen\Paths_transformers_compat.hs, dist\build\Paths_transformers_compat.o )

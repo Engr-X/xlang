@@ -1,0 +1,10 @@
+pkgid: tasty-1.5.3
+component: ComponentLib
+src: 54a0c7b644813af871a3726ac8771b5e17b5158c792a7acf8f9e2d3ae9360780
+pkg-config-deps: 
+deps: ansi-terminal-1.1.5-1d3e0589234bd087daea5bab2e77a4cef0e8c285, base-4.17.2.1, containers-0.6.7, optparse-appl_-0.19.0.0-d0842735bfb1f4a6f6079b9ee3423da6b1ef8874, stm-2.5.1.0, tagged-0.8.10-818131de16fc7ef52aa88d3688baf7e9d5f555b5, transformers-0.5.6.2
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: +unix
+stripped-exe: False
+debug-info: 0

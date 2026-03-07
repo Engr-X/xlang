@@ -1,0 +1,5 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29753\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\integer-logar_-1.0.5-37697021b651fa7e52f259e13588d5efe1d328fe\lib
+
+[2 of 4] Compiling Math.NumberTheory.Logarithms ( src\Math\NumberTheory\Logarithms.hs, dist\build\Math\NumberTheory\Logarithms.o )
+[3 of 4] Compiling Math.NumberTheory.Powers.Integer ( src\Math\NumberTheory\Powers\Integer.hs, dist\build\Math\NumberTheory\Powers\Integer.o )
+[4 of 4] Compiling Math.NumberTheory.Powers.Natural ( src\Math\NumberTheory\Powers\Natural.hs, dist\build\Math\NumberTheory\Powers\Natural.o )

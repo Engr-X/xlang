@@ -1,0 +1,10 @@
+pkgid: semigroupoids-6.0.2
+component: ComponentLib
+src: e48258e49542245ef6c58d7f419a83d1d1ab91b013d92c3b5c8c7c048daaa12e
+pkg-config-deps: 
+deps: base-4.17.2.1, base-orphans-0.9.4-db924352ef8e48bd61a01c307625d9a939bd244d, bifunctors-5.6.3-3a16779744ad4e582b96b659d2a66d3e19302a06, comonad-5.0.10-f584f9779dbd480b09b52c9698880ec49c0dae7d, containers-0.6.7, contravariant-1.5.6-e6c8146acb0703186a2af4ba0e0c7f2682eb4fb0, foldable1-cla_-0.1.3-d5be3a5b6242548a3ad2d239895d644efe502f46, hashable-1.4.7.0-55a0afc57081abc2b611fc3ff738d1b02781f142, tagged-0.8.10-818131de16fc7ef52aa88d3688baf7e9d5f555b5, template-haskell-2.19.0.0, transformers-0.5.6.2, transformers-_-0.8-47fc9a5049066694627b03066963db56d59168cd, unordered-con_-0.2.21-1fb444cb609ee62c2891491e46b5583b68062241
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: +comonad +containers +contravariant +tagged +unordered-containers
+stripped-exe: False
+debug-info: 0

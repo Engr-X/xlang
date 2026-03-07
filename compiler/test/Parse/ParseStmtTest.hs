@@ -33,6 +33,15 @@ normalTests = testGroup "Parse.ParseStmt.lexparseStmt" $ map (\(n, src, expected
                     (mkSym Lex.Multiply 1 7 1))
                 (mkSym Lex.Plus 1 3 1))),
 
+        ("0a", "x = 5 % 2;", Right $ Expr (
+            Binary Assign
+                (Variable "x" (mkId "x" 1 1 1))
+                (Binary Mod
+                    (IntConst "5" (mkNum "5" 1 5 1))
+                    (IntConst "2" (mkNum "2" 1 9 1))
+                    (mkSym Lex.Modulo 1 7 1))
+                (mkSym Lex.Assign 1 3 1))),
+
         ("1", "{ 1 + 2; 3 * 4; }", Right $ BlockStmt (
             Multiple
             [Expr (Binary Add

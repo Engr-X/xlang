@@ -57,6 +57,7 @@ import qualified Util.Exception as UE
     '-'                 { t@(Lex.Symbol Lex.Minus _) }
     '*'                 { t@(Lex.Symbol Lex.Multiply _) }
     '/'                 { t@(Lex.Symbol Lex.Divide _) }
+    '%'                 { t@(Lex.Symbol Lex.Modulo _) }
     '**'                { t@(Lex.Symbol Lex.Power _) }
 
     '('                 { t@(Lex.Symbol Lex.LParen _) }
@@ -76,7 +77,7 @@ import qualified Util.Exception as UE
 %left '!=' '=='
 %left '>' '<'
 %left '+' '-'
-%left '*' '/'
+%left '*' '/' '%'
 %left '**'
 %right UPLUS UMINUS '!'
 

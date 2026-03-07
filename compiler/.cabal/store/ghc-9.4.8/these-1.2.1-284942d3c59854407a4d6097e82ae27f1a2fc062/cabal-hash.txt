@@ -1,0 +1,9 @@
+pkgid: these-1.2.1
+component: ComponentLib
+src: 17d6d933365edabf801a16842c1403bdd37cc5300faa2fcca980decdab22e4de
+pkg-config-deps: 
+deps: assoc-1.1.1-354da8048cf88bf088ffb25e6c6db4cc4589c8d5, base-4.17.2.1, binary-0.8.9.1, deepseq-1.4.8.0, foldable1-cla_-0.1.3-d5be3a5b6242548a3ad2d239895d644efe502f46, hashable-1.4.7.0-55a0afc57081abc2b611fc3ff738d1b02781f142
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

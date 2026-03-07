@@ -1,0 +1,57 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\QuickCheck-2.16.0.0-62ab5a1a03f5c8f6804cd45036d213b180b8ecd3\lib
+ing Test.QuickCheck.Random ( src\Test\QuickCheck\Random.hs, dist\build\Test\QuickCheck\Random.o )
+
+src\Test\QuickCheck\Random.hs:50:37: warning: [-Wdeprecations]
+    In the use of ¡®genShortByteString¡¯
+    (imported from System.Random, but defined in System.Random.Internal):
+    Deprecated: "In favor of `System.Random.uniformShortByteString`"
+   |
+50 |   genShortByteString n = wrapQCGen (genShortByteString n)
+   |                                     ^^^^^^^^^^^^^^^^^^
+
+src\Test\QuickCheck\Random.hs:83:16: warning: [-Wdeprecations]
+    In the use of ¡®split¡¯
+    (imported from System.Random, but defined in System.Random.Internal):
+    Deprecated: "In favor of `splitGen`"
+   |
+83 |   left = fst . split
+   |                ^^^^^
+
+src\Test\QuickCheck\Random.hs:84:17: warning: [-Wdeprecations]
+    In the use of ¡®split¡¯
+    (imported from System.Random, but defined in System.Random.Internal):
+    Deprecated: "In favor of `splitGen`"
+   |
+84 |   right = snd . split
+   |                 ^^^^^
+[ 3 of 17] Compiling Test.QuickCheck.Gen ( src\Test\QuickCheck\Gen.hs, dist\build\Test\QuickCheck\Gen.o )
+
+src\Test\QuickCheck\Gen.hs:92:12: warning: [-Wdeprecations]
+    In the use of ¡®split¡¯
+    (imported from System.Random, but defined in System.Random.Internal):
+    Deprecated: "In favor of `splitGen`"
+   |
+92 |       case split r of
+   |            ^^^^^
+[ 4 of 17] Compiling Test.QuickCheck.Gen.Unsafe ( src\Test\QuickCheck\Gen\Unsafe.hs, dist\build\Test\QuickCheck\Gen\Unsafe.o )
+[ 5 of 17] Compiling Test.QuickCheck.Arbitrary ( src\Test\QuickCheck\Arbitrary.hs, dist\build\Test\QuickCheck\Arbitrary.o )
+[ 6 of 17] Compiling Test.QuickCheck.Poly ( src\Test\QuickCheck\Poly.hs, dist\build\Test\QuickCheck\Poly.o )
+[ 7 of 17] Compiling Test.QuickCheck.Modifiers ( src\Test\QuickCheck\Modifiers.hs, dist\build\Test\QuickCheck\Modifiers.o )
+[ 8 of 17] Compiling Test.QuickCheck.Function ( src\Test\QuickCheck\Function.hs, dist\build\Test\QuickCheck\Function.o )
+[ 9 of 17] Compiling Test.QuickCheck.Text ( src\Test\QuickCheck\Text.hs, dist\build\Test\QuickCheck\Text.o )
+[10 of 17] Compiling Test.QuickCheck.State ( src\Test\QuickCheck\State.hs, dist\build\Test\QuickCheck\State.o )
+[11 of 17] Compiling Test.QuickCheck.Property ( src\Test\QuickCheck\Property.hs, dist\build\Test\QuickCheck\Property.o )
+[12 of 17] Compiling Test.QuickCheck.Test ( src\Test\QuickCheck\Test.hs, dist\build\Test\QuickCheck\Test.o )
+
+src\Test\QuickCheck\Test.hs:501:17: warning: [-Wdeprecations]
+    In the use of ¡®split¡¯
+    (imported from System.Random, but defined in System.Random.Internal):
+    Deprecated: "In favor of `splitGen`"
+    |
+501 |   (rnd1,rnd2) = split (randomSeed st)
+    |                 ^^^^^
+[13 of 17] Compiling Test.QuickCheck.Monoids ( src\Test\QuickCheck\Monoids.hs, dist\build\Test\QuickCheck\Monoids.o )
+[14 of 17] Compiling Test.QuickCheck.Monadic ( src\Test\QuickCheck\Monadic.hs, dist\build\Test\QuickCheck\Monadic.o )
+[15 of 17] Compiling Test.QuickCheck.All ( src\Test\QuickCheck\All.hs, dist\build\Test\QuickCheck\All.o )
+[16 of 17] Compiling Test.QuickCheck.Features ( src\Test\QuickCheck\Features.hs, dist\build\Test\QuickCheck\Features.o )
+[17 of 17] Compiling Test.QuickCheck  ( src\Test\QuickCheck.hs, dist\build\Test\QuickCheck.o )

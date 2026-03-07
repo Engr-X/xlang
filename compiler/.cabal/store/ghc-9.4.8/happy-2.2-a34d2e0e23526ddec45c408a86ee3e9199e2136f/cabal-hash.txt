@@ -1,0 +1,9 @@
+pkgid: happy-2.2
+component: ComponentExe (UnqualComponentName "happy")
+src: 2e9345c99a61bc29b5a1b9d5c1ea791cbea219499a4c01ed71f33c3af34a5eb0
+pkg-config-deps: 
+deps: base-4.17.2.1, happy-lib-2.2-6be59689c7dd7531cb39bbe6e0c757750f04397a
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

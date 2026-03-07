@@ -798,10 +798,15 @@ rmEBInStmts = fixpoint
             _ -> instr
 
         redirect :: Map Int (Maybe Int) -> Int -> Int
-        redirect redirectMap tgt =
-            case Map.lookup tgt redirectMap of
-                Just (Just newTgt) -> newTgt
-                _ -> tgt
+        redirect redirectMap tgt = go Set.empty tgt
+            where
+                go :: Set Int -> Int -> Int
+                go seen cur
+                    | Set.member cur seen = cur
+                    | otherwise =
+                        case Map.lookup cur redirectMap of
+                            Just (Just next) -> go (Set.insert cur seen) next
+                            _ -> cur
 
         -- Keep empty blocks that have no resolvable successor to avoid dangling labels.
         isRemovableEmptyBlock :: Set Int -> IRStmt -> Bool

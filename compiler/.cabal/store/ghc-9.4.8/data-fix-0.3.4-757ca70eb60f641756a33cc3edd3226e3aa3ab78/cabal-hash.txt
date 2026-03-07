@@ -1,0 +1,9 @@
+pkgid: data-fix-0.3.4
+component: ComponentLib
+src: 8df052d18c047ab9e9200536a8799b5af3997ebecbbb091a7384b6be8416ab37
+pkg-config-deps: 
+deps: base-4.17.2.1, deepseq-1.4.8.0, hashable-1.4.7.0-55a0afc57081abc2b611fc3ff738d1b02781f142
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

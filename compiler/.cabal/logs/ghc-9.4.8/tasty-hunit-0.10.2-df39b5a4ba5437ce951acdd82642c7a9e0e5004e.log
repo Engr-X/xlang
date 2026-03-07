@@ -1,0 +1,3 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\tasty-hunit-0.10.2-df39b5a4ba5437ce951acdd82642c7a9e0e5004e\lib
+Steps ( Test\Tasty\HUnit\Steps.hs, dist\build\Test\Tasty\HUnit\Steps.o )
+[3 of 3] Compiling Test.Tasty.HUnit ( Test\Tasty\HUnit.hs, dist\build\Test\Tasty\HUnit.o )

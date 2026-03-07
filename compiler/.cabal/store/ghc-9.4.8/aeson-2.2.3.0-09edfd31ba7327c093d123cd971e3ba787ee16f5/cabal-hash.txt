@@ -1,0 +1,10 @@
+pkgid: aeson-2.2.3.0
+component: ComponentLib
+src: daa25cf428256ad05d21f2bfa44077c1b14d6c784b7930a202ee901f11cc6baa
+pkg-config-deps: 
+deps: OneTuple-0.4.2.1-5a9305035f3a77f4021f4721fd853055ac6a5c74, QuickCheck-2.16.0.0-62ab5a1a03f5c8f6804cd45036d213b180b8ecd3, base-4.17.2.1, bytestring-0.11.5.3, character-ps-0.1-d758af87d45b551c6870a15386ce212c847b1177, containers-0.6.7, data-fix-0.3.4-757ca70eb60f641756a33cc3edd3226e3aa3ab78, deepseq-1.4.8.0, dlist-1.0-2a55380feb36a441645350a4a446aa8f698edaae, exceptions-0.10.5, generically-0.1.1-8e04a92dc1f73d40c317c0fd6259785e79b19f2c, ghc-prim-0.9.1, hashable-1.4.7.0-55a0afc57081abc2b611fc3ff738d1b02781f142, indexed-trave_-0.1.4-9909f3937e287717957485aa445274d6afd21785, integer-conve_-0.1.1-49d9ad1ff949859deff0acdb9cc6944b163542d7, integer-logar_-1.0.5-37697021b651fa7e52f259e13588d5efe1d328fe, network-uri-2.6.4.2-8c6147d68a63e3a4bb6e89e31405e803617b26a6, primitive-0.9.1.0-118112174a6eedd04f29445bf962d8fe14c67a1f, scientific-0.3.8.1-6f63c2b326da54e545f41e7a67b69a4bb4cedc2a, semialign-1.3.1-ab009588dd1330769ffda4c72cb8b7290a6519b1, strict-0.5.1-e5c6d5be8d05523722e91b58992bf7784afde195, tagged-0.8.10-818131de16fc7ef52aa88d3688baf7e9d5f555b5, template-haskell-2.19.0.0, text-2.0.2, text-iso8601-0.1.1-b46b88f96eca8271e18ed7aaa72fedc1bb7ed0a5, text-short-0.1.6.1-de9ea3098248385e722fb0d0fcb16d67997aa28f, th-abstraction-0.7.2.0-c0ea0dd460bd380b134acdc4d9bf194ff4bce6e3, these-1.2.1-284942d3c59854407a4d6097e82ae27f1a2fc062, time-1.12.2, time-compat-1.9.9-dab5ad5d097f76066ddd7f25225a4dc8524a1382, unordered-con_-0.2.21-1fb444cb609ee62c2891491e46b5583b68062241, uuid-types-1.0.6-7d673e3b26126217e6e9abea88a08a328220e299, vector-0.13.2.0-fa004ebf53c41a50cf732c0b172cc556c26788b8, witherable-0.5-7749b611c7e2efbf88d28b75a34f1aa538fe16e1
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: +ordered-keymap
+stripped-exe: False
+debug-info: 0

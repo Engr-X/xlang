@@ -1,0 +1,619 @@
+{
+    "classes": [
+        {
+            "access": [
+                "public"
+            ],
+            "attributes": [],
+            "class": [
+                "Tmp_findprimeXl"
+            ],
+            "clinit": {
+                "ops": []
+            },
+            "init": [],
+            "interfaces": [],
+            "jvm_target": 8,
+            "main_qname": [
+                "Tmp_findprimeXl",
+                "main"
+            ],
+            "main_type": 0,
+            "methods": [
+                {
+                    "access": [
+                        "public",
+                        "static"
+                    ],
+                    "name": "findPrime",
+                    "ops": [
+                        {
+                            "block_id": 1,
+                            "block_ops": [
+                                {
+                                    "index": 0,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 2,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 2,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 3,
+                            "block_ops": [
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 2
+                                },
+                                {
+                                    "block_id": 11,
+                                    "op_name": "if_icmpeq"
+                                },
+                                {
+                                    "block_id": 12,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 11,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "index": 3,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 13,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 12,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 0
+                                },
+                                {
+                                    "index": 3,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 13,
+                            "block_ops": [
+                                {
+                                    "index": 3,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "block_id": 8,
+                                    "op_name": "if_icmpeq"
+                                },
+                                {
+                                    "block_id": 10,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 8,
+                            "block_ops": [
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "full_name": [
+                                        "xlang",
+                                        "io",
+                                        "ConsoleXl",
+                                        "putln"
+                                    ],
+                                    "func_sig": {
+                                        "func_params": [
+                                            [
+                                                "int32"
+                                            ]
+                                        ],
+                                        "func_return": [
+                                            "void"
+                                        ]
+                                    },
+                                    "op_name": "invokestatic"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 10,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 2
+                                },
+                                {
+                                    "index": 4,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "index": 5,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 14,
+                            "block_ops": [
+                                {
+                                    "index": 5,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 6,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 15,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 16,
+                            "block_ops": [
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 4,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "irem"
+                                },
+                                {
+                                    "index": 7,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "index": 7,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 0
+                                },
+                                {
+                                    "block_id": 24,
+                                    "op_name": "if_icmpeq"
+                                },
+                                {
+                                    "block_id": 25,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 24,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "index": 8,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 26,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 25,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 0
+                                },
+                                {
+                                    "index": 8,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 26,
+                            "block_ops": [
+                                {
+                                    "index": 8,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "block_id": 21,
+                                    "op_name": "if_icmpeq"
+                                },
+                                {
+                                    "block_id": 22,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 21,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 0
+                                },
+                                {
+                                    "index": 9,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "index": 9,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 10,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 27,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 22,
+                            "block_ops": [
+                                {
+                                    "index": 6,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 10,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 27,
+                            "block_ops": [
+                                {
+                                    "index": 10,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 6,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 15,
+                            "block_ops": [
+                                {
+                                    "index": 4,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "block_id": 18,
+                                    "op_name": "if_icmplt"
+                                },
+                                {
+                                    "block_id": 19,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 18,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "index": 11,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 20,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 19,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 0
+                                },
+                                {
+                                    "index": 11,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 20,
+                            "block_ops": [
+                                {
+                                    "index": 11,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "block_id": 16,
+                                    "op_name": "if_icmpeq"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 17,
+                            "block_ops": [
+                                {
+                                    "index": 6,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "block_id": 28,
+                                    "op_name": "if_icmpeq"
+                                },
+                                {
+                                    "block_id": 30,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 28,
+                            "block_ops": [
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "full_name": [
+                                        "xlang",
+                                        "io",
+                                        "ConsoleXl",
+                                        "putln"
+                                    ],
+                                    "func_sig": {
+                                        "func_params": [
+                                            [
+                                                "int32"
+                                            ]
+                                        ],
+                                        "func_return": [
+                                            "void"
+                                        ]
+                                    },
+                                    "op_name": "invokestatic"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 30,
+                            "block_ops": [
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "op_name": "iadd"
+                                },
+                                {
+                                    "index": 12,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "index": 12,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 13,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 31,
+                            "block_ops": [
+                                {
+                                    "index": 13,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 2,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 2,
+                            "block_ops": [
+                                {
+                                    "index": 2,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "index": 1,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "block_id": 5,
+                                    "op_name": "if_icmplt"
+                                },
+                                {
+                                    "block_id": 6,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 5,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "index": 14,
+                                    "op_name": "istore"
+                                },
+                                {
+                                    "block_id": 7,
+                                    "op_name": "goto"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 6,
+                            "block_ops": [
+                                {
+                                    "op_name": "ipush",
+                                    "value": 0
+                                },
+                                {
+                                    "index": 14,
+                                    "op_name": "istore"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 7,
+                            "block_ops": [
+                                {
+                                    "index": 14,
+                                    "op_name": "iload"
+                                },
+                                {
+                                    "op_name": "ipush",
+                                    "value": 1
+                                },
+                                {
+                                    "block_id": 3,
+                                    "op_name": "if_icmpeq"
+                                }
+                            ],
+                            "op_name": "block"
+                        },
+                        {
+                            "block_id": 0,
+                            "block_ops": [
+                                {
+                                    "op_name": "return"
+                                }
+                            ],
+                            "op_name": "block"
+                        }
+                    ],
+                    "param_types": [
+                        [
+                            "int32"
+                        ],
+                        [
+                            "int32"
+                        ]
+                    ],
+                    "return": [
+                        "void"
+                    ]
+                },
+                {
+                    "access": [
+                        "public",
+                        "static"
+                    ],
+                    "name": "main",
+                    "ops": [
+                        {
+                            "op_name": "return"
+                        }
+                    ],
+                    "param_types": [],
+                    "return": [
+                        "void"
+                    ]
+                }
+            ],
+            "signature": [],
+            "super_class": []
+        }
+    ]
+}

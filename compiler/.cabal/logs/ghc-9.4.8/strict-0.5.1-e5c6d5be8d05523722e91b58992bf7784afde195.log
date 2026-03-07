@@ -1,0 +1,17 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\strict-0.5.1-e5c6d5be8d05523722e91b58992bf7784afde195\lib
+\Strict\Maybe.hs, dist\build\Data\Strict\Maybe.o )
+[3 of 7] Compiling Data.Strict.These ( src\Data\Strict\These.hs, dist\build\Data\Strict\These.o )
+[4 of 7] Compiling Data.Strict.Tuple ( src\Data\Strict\Tuple.hs, dist\build\Data\Strict\Tuple.o )
+
+src\Data\Strict\Tuple.hs:124:3: warning: [-Wnoncanonical-monoid-instances]
+    Noncanonical ¡®mappend¡¯ definition detected
+    in the instance declaration for ¡®Monoid (Pair a b)¡¯.
+    ¡®mappend¡¯ will eventually be removed in favour of ¡®(<>)¡¯
+    Either remove definition for ¡®mappend¡¯ (recommended) or define as ¡®mappend = (<>)¡¯
+    See also: https://gitlab.haskell.org/ghc/ghc/-/wikis/proposal/semigroup-monoid
+    |
+124 |   (x1 :!: y1) `mappend` (x2 :!: y2) = (x1 `mappend` x2) :!: (y1 `mappend` y2)
+    |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[5 of 7] Compiling Data.Strict.Classes ( src\Data\Strict\Classes.hs, dist\build\Data\Strict\Classes.o )
+[6 of 7] Compiling Data.Strict      ( src\Data\Strict.hs, dist\build\Data\Strict.o )
+[7 of 7] Compiling System.IO.Strict ( src\System\IO\Strict.hs, dist\build\System\IO\Strict.o )

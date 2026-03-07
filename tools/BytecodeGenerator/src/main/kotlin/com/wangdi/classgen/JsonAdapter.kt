@@ -262,6 +262,12 @@ class JsonAdapter(private val json: JSONObject)
             "irem" to { irem() },
             "lrem" to { lrem() },
 
+            // no-op casts kept for compatibility with older lowering output
+            "i2i" to { nop() },
+            "l2l" to { nop() },
+            "f2f" to { nop() },
+            "d2d" to { nop() },
+
             "i2l" to { i2l() },
             "i2f" to { i2f() },
             "i2d" to { i2d() },

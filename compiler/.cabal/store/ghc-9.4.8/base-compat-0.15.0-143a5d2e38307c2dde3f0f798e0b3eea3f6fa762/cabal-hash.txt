@@ -1,0 +1,9 @@
+pkgid: base-compat-0.15.0
+component: ComponentLib
+src: 59aa49d7779a20a808924690583653c2bdfb0e54b5162df80df5a81632824531
+pkg-config-deps: 
+deps: base-4.17.2.1, ghc-prim-0.9.1
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

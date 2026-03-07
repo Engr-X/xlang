@@ -1,0 +1,9 @@
+pkgid: generically-0.1.1
+component: ComponentLib
+src: 04c5a436bec4b041f71a733f56a1bd7f435f63dde8d3eb5c1f48d55b4dbc43cf
+pkg-config-deps: 
+deps: base-4.17.2.1, base-orphans-0.9.4-db924352ef8e48bd61a01c307625d9a939bd244d
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+stripped-exe: False
+debug-info: 0

@@ -1,0 +1,10 @@
+pkgid: transformers-compat-0.8
+component: ComponentLib
+src: f05c2145ee8d77ed773908d27a77c7f8be4d9419af90a757076b799c4a194da8
+pkg-config-deps: 
+deps: base-4.17.2.1, transformers-0.5.6.2
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: -five +five-three +generic-deriving +mtl
+stripped-exe: False
+debug-info: 0

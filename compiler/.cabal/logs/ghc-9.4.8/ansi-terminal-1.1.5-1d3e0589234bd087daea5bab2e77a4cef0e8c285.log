@@ -1,0 +1,6 @@
+Installing library in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\ansi-terminal-1.1.5-1d3e0589234bd087daea5bab2e77a4cef0e8c285\lib
+ndows\Win32\Types.o )
+[2 of 5] Compiling System.Console.ANSI.Windows.Win32.MinTTY ( dist\build\System\Console\ANSI\Windows\Win32\MinTTY.hs, dist\build\System\Console\ANSI\Windows\Win32\MinTTY.o )
+[3 of 5] Compiling System.Console.ANSI.Windows.Foreign ( win\System\Console\ANSI\Windows\Foreign.hs, dist\build\System\Console\ANSI\Windows\Foreign.o )
+[4 of 5] Compiling System.Console.ANSI.Internal ( win\System\Console\ANSI\Internal.hs, dist\build\System\Console\ANSI\Internal.o )
+[5 of 5] Compiling System.Console.ANSI ( src\System\Console\ANSI.hs, dist\build\System\Console\ANSI.o )

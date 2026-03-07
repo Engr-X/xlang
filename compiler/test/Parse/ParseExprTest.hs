@@ -45,6 +45,15 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
             (IntConst "5" $ mkNum "5" 1 21 1)
             (mkSym Lex.Divide 1 19 1)),
 
+    ("1a", "10 % 3 * 2", Right $
+        Binary Mul
+            (Binary Mod
+                (IntConst "10" $ mkNum "10" 1 1 2)
+                (IntConst "3" $ mkNum "3" 1 6 1)
+                (mkSym Lex.Modulo 1 4 1))
+            (IntConst "2" $ mkNum "2" 1 10 1)
+            (mkSym Lex.Multiply 1 8 1)),
+
     ("2", "-1 + +2 * -3", Right $ Binary Add
         (Unary UnaryMinus
             (IntConst "1" $ mkNum "1" 1 2 1)

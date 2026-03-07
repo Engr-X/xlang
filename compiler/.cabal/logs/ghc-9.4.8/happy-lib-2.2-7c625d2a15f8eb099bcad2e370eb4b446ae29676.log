@@ -1,0 +1,2 @@
+Installing internal library backend-lalr in D:\Coding\projects\Mixed\xlang\compiler\.cabal\store\ghc-9.4.8\incoming\new-29752\Coding\\projects\\Mixed\\xlang\\compiler\\.cabal\store\ghc-9.4.8\happy-lib-2.2-7c625d2a15f8eb099bcad2e370eb4b446ae29676\lib
+piling Happy.Backend.LALR.ProduceCode ( backend-lalr\src\Happy\Backend\LALR\ProduceCode.lhs, dist\build\backend-lalr\Happy\Backend\LALR\ProduceCode.o )

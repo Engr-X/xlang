@@ -1,0 +1,10 @@
+pkgid: foldable1-classes-compat-0.1.3
+component: ComponentLib
+src: 7701dca1ccfeb7a20a17693954508f1e6c73974d1b59fb1795da0742fb1ae8f9
+pkg-config-deps: 
+deps: base-4.17.2.1, containers-0.6.7, ghc-prim-0.9.1, tagged-0.8.10-818131de16fc7ef52aa88d3688baf7e9d5f555b5, transformers-0.5.6.2
+compilerid: ghc-9.4.8
+platform: x86_64-windows
+flags: +tagged
+stripped-exe: False
+debug-info: 0

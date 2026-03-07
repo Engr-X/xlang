@@ -1,0 +1,231 @@
+public class Tmp_crack4Xl:
+    main: void main() @ Tmp_crack4Xl.main
+    static {}:
+    public static void crack4(int):
+        found$9$0 = false
+        tries$10$0 = 0
+        a$11$0 = 0
+        .L1:
+            a$11$1 = a$11$0
+            found$9$1 = found$9$0
+            tries$10$1 = tries$10$0
+            goto .L2
+        .L3:
+            b$12$0 = 0
+        .L8:
+            b$12$1 = b$12$0
+            found$9$2 = found$9$1
+            tries$10$2 = tries$10$1
+            goto .L9
+        .L10:
+            c$13$0 = 0
+        .L15:
+            c$13$1 = c$13$0
+            found$9$3 = found$9$2
+            tries$10$3 = tries$10$2
+            goto .L16
+        .L17:
+            d$14$0 = 0
+        .L22:
+            d$14$1 = d$14$0
+            found$9$4 = found$9$3
+            tries$10$4 = tries$10$3
+            goto .L23
+        .L24:
+            guess$15$0 = a$11$1 * 1000
+            guess$15$1 = b$12$1 * 100
+            guess$15$2 = guess$15$0 + guess$15$1
+            guess$15$3 = c$13$1 * 10
+            guess$15$4 = guess$15$2 + guess$15$3
+            guess$15$5 = guess$15$4 + d$14$1
+            guess$15$6 = guess$15$5
+            tries$10$5 = tries$10$4 + 1
+            tries$10$6 = tries$10$5
+            if guess$15$6 == param0 goto .L32
+            goto .L33
+        .L32:
+            #temp$5$0 = true
+            goto .L34
+        .L33:
+            #temp$5$0 = false
+        .L34:
+            if #temp$5$0 == 1 goto .L29
+            goto .L30
+        .L29:
+            #temp$6$0 = call xlang.io.ConsoleXl.putln(guess$15$6)
+            #temp$7$0 = call xlang.io.ConsoleXl.putln(tries$10$6)
+            found$9$5 = true
+            found$9$6 = found$9$5
+            goto .L31
+        .L30:
+            found$9$6 = found$9$4
+        .L31:
+            d$14$2 = d$14$1 + 1
+            d$14$3 = d$14$2
+        .L35:
+            d$14$1 = d$14$3
+            found$9$4 = found$9$6
+            tries$10$4 = tries$10$6
+        .L23:
+            if d$14$1 < 10 goto .L26
+            goto .L27
+        .L26:
+            #temp$4$0 = true
+            goto .L28
+        .L27:
+            #temp$4$0 = false
+        .L28:
+            if #temp$4$0 == 1 goto .L24
+        .L25:
+            c$13$2 = c$13$1 + 1
+            c$13$3 = c$13$2
+        .L36:
+            c$13$1 = c$13$3
+            found$9$3 = found$9$4
+            tries$10$3 = tries$10$4
+        .L16:
+            if c$13$1 < 10 goto .L19
+            goto .L20
+        .L19:
+            #temp$3$0 = true
+            goto .L21
+        .L20:
+            #temp$3$0 = false
+        .L21:
+            if #temp$3$0 == 1 goto .L17
+        .L18:
+            b$12$2 = b$12$1 + 1
+            b$12$3 = b$12$2
+        .L37:
+            b$12$1 = b$12$3
+            found$9$2 = found$9$3
+            tries$10$2 = tries$10$3
+        .L9:
+            if b$12$1 < 10 goto .L12
+            goto .L13
+        .L12:
+            #temp$2$0 = true
+            goto .L14
+        .L13:
+            #temp$2$0 = false
+        .L14:
+            if #temp$2$0 == 1 goto .L10
+        .L11:
+            a$11$2 = a$11$1 + 1
+            a$11$3 = a$11$2
+        .L38:
+            a$11$1 = a$11$3
+            found$9$1 = found$9$2
+            tries$10$1 = tries$10$2
+        .L2:
+            if a$11$1 < 10 goto .L5
+            goto .L6
+        .L5:
+            #temp$1$0 = true
+            goto .L7
+        .L6:
+            #temp$1$0 = false
+        .L7:
+            if #temp$1$0 == 1 goto .L3
+        .L4:
+            #temp$8$0 = cast(bool->int) found$9$1
+            #temp$9$0 = cast(bool->int) false
+            if #temp$8$0 == #temp$9$0 goto .L42
+            goto .L43
+        .L42:
+            #temp$10$0 = true
+            goto .L44
+        .L43:
+            #temp$10$0 = false
+        .L44:
+            if #temp$10$0 == 1 goto .L39
+            goto .L0
+        .L39:
+            #temp$11$0 = -1
+            #temp$12$0 = call xlang.io.ConsoleXl.putln(#temp$11$0)
+        .L0:
+            return
+        type:
+            false: bool
+            true: bool
+            0: int
+            1: int
+            10: int
+            100: int
+            1000: int
+            #temp$1$0: bool
+            #temp$2$0: bool
+            #temp$3$0: bool
+            #temp$4$0: bool
+            #temp$5$0: bool
+            #temp$6$0: void
+            #temp$7$0: void
+            #temp$8$0: int
+            #temp$9$0: int
+            #temp$10$0: bool
+            #temp$11$0: int
+            #temp$12$0: void
+            a$11$0: int
+            a$11$1: int
+            a$11$2: int
+            a$11$3: int
+            b$12$0: int
+            b$12$1: int
+            b$12$2: int
+            b$12$3: int
+            c$13$0: int
+            c$13$1: int
+            c$13$2: int
+            c$13$3: int
+            d$14$0: int
+            d$14$1: int
+            d$14$2: int
+            d$14$3: int
+            found$9$0: bool
+            found$9$1: bool
+            found$9$2: bool
+            found$9$3: bool
+            found$9$4: bool
+            found$9$5: bool
+            found$9$6: bool
+            guess$15$0: int
+            guess$15$1: int
+            guess$15$2: int
+            guess$15$3: int
+            guess$15$4: int
+            guess$15$5: int
+            guess$15$6: int
+            tries$10$0: int
+            tries$10$1: int
+            tries$10$2: int
+            tries$10$3: int
+            tries$10$4: int
+            tries$10$5: int
+            tries$10$6: int
+            phi(.L1:a$11$0, .L3:a$11$3): int
+            phi(.L1:found$9$0, .L3:found$9$2): bool
+            phi(.L1:tries$10$0, .L3:tries$10$2): int
+            phi(.L5:true, .L6:false): bool
+            phi(.L8:b$12$0, .L10:b$12$3): int
+            phi(.L8:found$9$1, .L10:found$9$3): bool
+            phi(.L8:tries$10$1, .L10:tries$10$3): int
+            phi(.L12:true, .L13:false): bool
+            phi(.L15:c$13$0, .L17:c$13$3): int
+            phi(.L15:found$9$2, .L17:found$9$4): bool
+            phi(.L15:tries$10$2, .L17:tries$10$4): int
+            phi(.L19:true, .L20:false): bool
+            phi(.L22:d$14$0, .L24:d$14$3): int
+            phi(.L22:found$9$3, .L24:found$9$6): bool
+            phi(.L22:tries$10$3, .L24:tries$10$6): int
+            phi(.L26:true, .L27:false): bool
+            phi(.L29:found$9$5, .L30:found$9$4): bool
+            phi(.L32:true, .L33:false): bool
+            phi(.L42:true, .L43:false): bool
+            param0: int
+    public static void main():
+        #temp$13$0 = call Tmp_crack4Xl.crack4(9027)
+        .L45:
+            return
+        type:
+            9027: int
+            #temp$13$0: void

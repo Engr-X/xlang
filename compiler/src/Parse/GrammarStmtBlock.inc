@@ -70,8 +70,8 @@ FunctionStmt :: { Statement }
 
 -- assembled statement
 Stmt :: { Statement }
-    : KW_CONTINUE           { Command Continue $1 }
-    | KW_BREAK              { Command Break $1 }
+    : KW_CONTINUE Sep       { Command Continue $1 }
+    | KW_BREAK Sep          { Command Break $1 }
     | KW_RETURN ';'         { Command (Return Nothing) $1 }
     | KW_RETURN Stmt        { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
 
