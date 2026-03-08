@@ -153,6 +153,7 @@ fun main(args: Array<String>)
     val jsonText: String = opts.jsonText ?: readFile(opts.jsonPath!!)
 
     val classObjects: List<JSONObject> = parseClassObjects(jsonText)
+    
     classObjects.forEach { classJson ->
         JsonAdapter(classJson).getClassEmitter().save(opts.outDir)
     }

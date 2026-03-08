@@ -13,15 +13,16 @@ if not defined JOBS (
 )
 
 set "ROOT_DIR=%~dp0"
+if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 
-set "BUILD_DIR_ABS=%ROOT_DIR%%BUILD_DIR%"
-set "COMPILER_DIR=%ROOT_DIR%compiler"
+set "BUILD_DIR_ABS=%ROOT_DIR%\%BUILD_DIR%"
+set "COMPILER_DIR=%ROOT_DIR%\compiler"
 set "EXE=xlang"
 
-set "BYTECODEGEN_DIR=%ROOT_DIR%tools\BytecodeGenerator"
+set "BYTECODEGEN_DIR=%ROOT_DIR%\tools\BytecodeGenerator"
 set "TOOLS_OUT_DIR=%BUILD_DIR_ABS%\tools"
 
-set "JAVA_LIB_DIR=%ROOT_DIR%libs\java"
+set "JAVA_LIB_DIR=%ROOT_DIR%\libs\java"
 set "JAVA_LIB_OUT_DIR=%BUILD_DIR_ABS%\libs\java"
 
 set "GRADLE_USER_HOME=%BUILD_DIR_ABS%\.gradle-home"
@@ -37,6 +38,7 @@ if /I "%CMD%"=="compile" goto compile
 if /I "%CMD%"=="tools" goto tools
 if /I "%CMD%"=="java_lib" goto java_lib
 if /I "%CMD%"=="clean" goto clean
+if /I "%CMD%"=="clean_ide" goto clean_ide
 if /I "%CMD%"=="rebuild" goto rebuild
 if /I "%CMD%"=="-h" goto usage
 if /I "%CMD%"=="--help" goto usage
@@ -79,6 +81,7 @@ exit /b 0
 if not exist "%TOOLS_OUT_DIR%" mkdir "%TOOLS_OUT_DIR%" || exit /b 1
 
 pushd "%BYTECODEGEN_DIR%" >nul || exit /b 1
+set "GRADLE_USER_HOME=%GRADLE_USER_HOME%"
 call gradlew.bat build %GRADLE_ARGS%
 set "ERR=%ERRORLEVEL%"
 popd >nul
@@ -92,6 +95,7 @@ exit /b 0
 if not exist "%JAVA_LIB_OUT_DIR%" mkdir "%JAVA_LIB_OUT_DIR%" || exit /b 1
 
 pushd "%JAVA_LIB_DIR%" >nul || exit /b 1
+set "GRADLE_USER_HOME=%GRADLE_USER_HOME%"
 call gradlew.bat build %GRADLE_ARGS%
 set "ERR=%ERRORLEVEL%"
 popd >nul
@@ -102,18 +106,16 @@ echo [OK] java lib outputs copied to: %JAVA_LIB_OUT_DIR%\
 exit /b 0
 
 :clean
+echo [CLEAN] cabal clean in "%COMPILER_DIR%"
 pushd "%COMPILER_DIR%" >nul 2>nul
 if not errorlevel 1 (
-    cabal clean >nul 2>nul
+    cabal clean
     popd >nul
 )
 
+echo [CLEAN] gradle clean in "%BYTECODEGEN_DIR%"
 call :gradle_clean "%BYTECODEGEN_DIR%"
-call :gradle_clean "%JAVA_LIB_DIR%"
-
-if exist "%GRADLE_USER_HOME%\caches" rmdir /s /q "%GRADLE_USER_HOME%\caches"
-
-call :gradle_clean "%BYTECODEGEN_DIR%"
+echo [CLEAN] gradle clean in "%JAVA_LIB_DIR%"
 call :gradle_clean "%JAVA_LIB_DIR%"
 
 if exist "%BUILD_DIR_ABS%\tools" rmdir /s /q "%BUILD_DIR_ABS%\tools"
@@ -121,7 +123,25 @@ if exist "%BUILD_DIR_ABS%\libs" rmdir /s /q "%BUILD_DIR_ABS%\libs"
 if exist "%BUILD_DIR_ABS%\%EXE%" del /f /q "%BUILD_DIR_ABS%\%EXE%" >nul 2>nul
 del /f /q "%BUILD_DIR_ABS%\*.exe" >nul 2>nul
 
+call :clean_ide
+
 echo clean done
+exit /b 0
+
+:clean_ide
+if exist "%ROOT_DIR%\.vscode" rmdir /s /q "%ROOT_DIR%\.vscode"
+if exist "%ROOT_DIR%\.idea" rmdir /s /q "%ROOT_DIR%\.idea"
+
+if exist "%COMPILER_DIR%\.vscode" rmdir /s /q "%COMPILER_DIR%\.vscode"
+if exist "%COMPILER_DIR%\.idea" rmdir /s /q "%COMPILER_DIR%\.idea"
+
+if exist "%BYTECODEGEN_DIR%\.vscode" rmdir /s /q "%BYTECODEGEN_DIR%\.vscode"
+if exist "%BYTECODEGEN_DIR%\.idea" rmdir /s /q "%BYTECODEGEN_DIR%\.idea"
+
+if exist "%JAVA_LIB_DIR%\.vscode" rmdir /s /q "%JAVA_LIB_DIR%\.vscode"
+if exist "%JAVA_LIB_DIR%\.idea" rmdir /s /q "%JAVA_LIB_DIR%\.idea"
+
+echo [OK] removed .vscode/.idea under root/compiler/tools/libs
 exit /b 0
 
 :rebuild
@@ -136,16 +156,57 @@ if not exist "%GDIR%\gradlew.bat" exit /b 0
 pushd "%GDIR%" >nul 2>nul
 if errorlevel 1 exit /b 0
 
-call gradlew.bat --stop %GRADLE_ARGS% >nul 2>nul
-call gradlew.bat clean %GRADLE_ARGS% >nul 2>nul
+set "GRADLE_USER_HOME=%GRADLE_USER_HOME%"
+if "%CLEAN_VERBOSE%"=="1" (
+    call gradlew.bat --stop %GRADLE_ARGS%
+) else (
+    call gradlew.bat --stop %GRADLE_ARGS% >nul 2>nul
+)
+set "ERR1=%ERRORLEVEL%"
+if "%CLEAN_VERBOSE%"=="1" (
+    call gradlew.bat clean %GRADLE_ARGS%
+) else (
+    call gradlew.bat clean %GRADLE_ARGS% >nul 2>nul
+)
+set "ERR2=%ERRORLEVEL%"
+
+if "%ERR1%%ERR2%"=="00" (
+    popd >nul
+    exit /b 0
+)
+
+echo [INFO] retry gradle clean with fallback GRADLE_USER_HOME in "%GDIR%"
+set "OLD_GRADLE_USER_HOME=%GRADLE_USER_HOME%"
+set "GRADLE_USER_HOME=%TEMP%\\xlang-gradle-home"
+if not exist "%GRADLE_USER_HOME%" mkdir "%GRADLE_USER_HOME%" >nul 2>nul
+if "%CLEAN_VERBOSE%"=="1" (
+    call gradlew.bat --stop %GRADLE_ARGS%
+) else (
+    call gradlew.bat --stop %GRADLE_ARGS% >nul 2>nul
+)
+set "ERR1=%ERRORLEVEL%"
+if "%CLEAN_VERBOSE%"=="1" (
+    call gradlew.bat clean %GRADLE_ARGS%
+) else (
+    call gradlew.bat clean %GRADLE_ARGS% >nul 2>nul
+)
+set "ERR2=%ERRORLEVEL%"
+set "GRADLE_USER_HOME=%OLD_GRADLE_USER_HOME%"
+set "OLD_GRADLE_USER_HOME="
+
+if not "%ERR1%%ERR2%"=="00" (
+    if not "%ERR1%"=="0" echo [WARN] gradle --stop failed in "%GDIR%"
+    if not "%ERR2%"=="0" echo [WARN] gradle clean failed in "%GDIR%"
+)
 
 popd >nul
 exit /b 0
 
 :usage
-echo Usage: build.bat [all^|compile^|tools^|java_lib^|clean^|rebuild]
+echo Usage: build.bat [all^|compile^|tools^|java_lib^|clean^|clean_ide^|rebuild]
 echo.
 echo Env overrides:
 echo   BUILD_DIR=out   (default: build)
 echo   JOBS=24         (default: NUMBER_OF_PROCESSORS or 8)
+echo   CLEAN_VERBOSE=1 (show gradle clean output)
 exit /b 0

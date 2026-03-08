@@ -2,12 +2,14 @@ module Parse.SyntaxTree where
 
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
-import Data.Maybe (fromMaybe, catMaybes, isNothing)
+import Data.Maybe (listToMaybe, fromMaybe, catMaybes, isNothing)
+import Data.HashSet (HashSet)
+import Data.Hashable (Hashable(..))
 import Lex.Token (Token)
 import Util.Basic
 
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import qualified Data.HashSet as HashSet
 import qualified Lex.Token as Lex
 
 
@@ -103,7 +105,11 @@ data Operator =
     -- 13
     AddrOf | DeRef
    
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Enum, Show)
+
+
+instance Hashable Operator where
+    hashWithSalt salt = hashWithSalt salt . fromEnum
 
 
 operatorTextMap :: Map Operator String
@@ -511,8 +517,8 @@ isFunctionT (FunctionT {}) = True
 isFunctionT _ = False
 
 
-assignOps :: Set.Set Operator
-assignOps = Set.fromList [
+assignOps :: HashSet Operator
+assignOps = HashSet.fromList [
     Assign, BitLShiftAssign, BitRShiftAssign,
     BitOrAssign, BitXorAssign, BitXnorAssign,
     PlusAssign, MinusAssign,
@@ -522,7 +528,7 @@ assignOps = Set.fromList [
 
 -- | Check whether a statement is an assignment expression statement.
 isAssignment :: Statement -> Bool
-isAssignment (Expr (Binary op _ _ _)) = Set.member op assignOps
+isAssignment (Expr (Binary op _ _ _)) = HashSet.member op assignOps
 isAssignment _ = False
 
 
@@ -547,6 +553,14 @@ isImportDecl _ = False
 -- | Program representation.
 --   Consists of imported modules and a list of top-level statements.
 type Program = ([Declaration], [Statement])
+
+
+-- | Get the declared package path from a program header.
+--   Returns [] when no package declaration exists.
+--   If there are multiple package declarations, this returns the first one.
+--   Duplicate-package errors are handled in semantic checking.
+getPackage :: Program -> [String]
+getPackage (decls, _) = let package = filter isPackageDecl decls in maybe [] declPath (listToMaybe package)
 
 
 -- | Better toString value for program

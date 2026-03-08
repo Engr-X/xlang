@@ -28,7 +28,10 @@ abstract class ClassArtifact(
         this.init(cw)
         this.cw.visitEnd()
         val bytes: ByteArray = this.cw.toByteArray()
-        val absDir: Path = outDir.toAbsolutePath().normalize()
+        val absDir: Path = this.clazz.getPackage()
+            .fold(outDir) { acc, s -> acc.resolve(s) }
+            .toAbsolutePath()
+            .normalize()
         val outFile: Path = absDir.resolve("${this.clazz.getName()}.class")
         Files.createDirectories(outFile.parent)
         Files.write(outFile, bytes)

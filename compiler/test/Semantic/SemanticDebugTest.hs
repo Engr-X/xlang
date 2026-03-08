@@ -1,4 +1,4 @@
-module Semantic.SemanticCheckTest where
+module Semantic.SemanticDebugTest where
 
 import Control.Exception (finally)
 import Data.List (isInfixOf)
@@ -8,7 +8,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Type (Position, makePosition)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), Program, Operator(..), prettyExpr)
-import Semantic.SemanticCheck
+import Semantic.SemanticDebug
 import Semantic.ReturnCheck (funcSig)
 
 import qualified Lex.Token as Lex
@@ -77,7 +77,7 @@ assertErrs (Just msg) errs = case firstWhy errs of
 
 
 checkProgmTests :: TestTree
-checkProgmTests = testGroup "Semantic.SemanticCheck.checkProgm" $ map mkCase [
+checkProgmTests = testGroup "Semantic.SemanticDebug.checkProgm" $ map mkCase [
     ("0", progMissingReturn, Just (missingMsg Int32T (varExpr "f" pos2) [] Nothing)),
     ("1", progBadAssign, Just (UE.cannotAssignMsg (prettyExpr 0 (Just (IntConst "1" (tokNum "1" pos1)))))),
     ("2", progBadReturnType, Nothing),
@@ -118,7 +118,7 @@ checkProgmTests = testGroup "Semantic.SemanticCheck.checkProgm" $ map mkCase [
 
 
 dumpFullUseMapsTests :: TestTree
-dumpFullUseMapsTests = testGroup "Semantic.SemanticCheck.dumpFullUseMapsFromFile" $ map mkCase [
+dumpFullUseMapsTests = testGroup "Semantic.SemanticDebug.dumpFullUseMapsFromFile" $ map mkCase [
     ("0", Nothing, Nothing),
     ("1", Just "@", Nothing),
     ("2", Just "int f() { }", Nothing),
@@ -150,4 +150,4 @@ withTempFile content action = do
 
 
 tests :: TestTree
-tests = testGroup "Semantic.SemanticCheck" [checkProgmTests, dumpFullUseMapsTests]
+tests = testGroup "Semantic.SemanticDebug" [checkProgmTests, dumpFullUseMapsTests]

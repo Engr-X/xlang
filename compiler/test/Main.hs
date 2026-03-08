@@ -13,13 +13,12 @@ import Parse.ParseProgmTest
 
 import Semantic.NameEnvTest
 import Semantic.ContextCheckTest
+import Semantic.CheckProgramTest
 import Semantic.OpInferTest
 import Semantic.TypeCheckTest
 import Semantic.TypeEnvTest
 import Semantic.ReturnCheckTest
-import Semantic.SemanticCheckTest
-
-import IR.TACLowingTest
+import Semantic.SemanticDebugTest
 
 import Util.BasicTest
 import Util.ExceptionTest
@@ -33,12 +32,12 @@ main :: IO ()
 main = defaultMain $ testGroup "xlang test" [
     Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.FileHelperTest.tests,
     Lex.TokenTest.tests, Lex.TokenizerTest.tests, Lex.TokenPassTest.tests,
-    
+
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,
     Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,
-    
-    Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
-    Semantic.OpInferTest.tests, Semantic.TypeEnvTest.tests, Semantic.TypeCheckTest.tests,
-    Semantic.ReturnCheckTest.tests, Semantic.SemanticCheckTest.tests,
 
-    IR.TACLowingTest.tests]
+    Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
+    Semantic.CheckProgramTest.tests,
+    Semantic.OpInferTest.tests, Semantic.TypeEnvTest.tests, Semantic.TypeCheckTest.tests,
+    Semantic.ReturnCheckTest.tests, Semantic.SemanticDebugTest.tests
+    ]

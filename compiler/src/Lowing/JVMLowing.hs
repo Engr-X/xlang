@@ -378,3 +378,8 @@ jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs mainKind) =
 jvmProgmLowing :: IR.IRProgm -> [JVM.JClass]
 jvmProgmLowing (IR.IRProgm pkg classes) =
     map (jvmClassLowing pkg) classes
+
+
+-- | Lower IR programs into JVM classes.
+jvmProgmsLowing :: [IR.IRProgm] -> [JVM.JClass]
+jvmProgmsLowing = concatMap jvmProgmLowing

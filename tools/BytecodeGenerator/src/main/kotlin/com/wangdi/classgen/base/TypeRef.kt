@@ -16,4 +16,6 @@ class TypeRef(private val name: MutableList<String>)
     fun getName(): String = this.name.last()
 
     fun getFullName(separator: String): String = this.name.joinToString(separator = separator)
+
+    fun getPackage(): MutableList<String> = this.name.subList(0, this.name.lastIndex)
 }

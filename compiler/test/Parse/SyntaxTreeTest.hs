@@ -223,6 +223,22 @@ declPathTests = testGroup "Parse.SyntaxTree.declPath" $
         ("3", Import ["java", "util", "List"] [], ["java", "util", "List"])]
 
 
+getPackageTests :: TestTree
+getPackageTests = testGroup "Parse.SyntaxTree.getPackage" $
+    map (\(i, prog, out) -> testCase i $ getPackage prog @=? out) [
+        ("0", ([], []), []),
+        ("1", ([Package ["com", "wangdi"] []], []), ["com", "wangdi"]),
+        ("2", ([Import ["java", "util", "List"] []], []), []),
+        ("3",
+            ([
+                Package ["a", "b"] [],
+                Import ["x", "y"] [],
+                Package ["c", "d"] []
+             ], []),
+            ["a", "b"])
+        ]
+
+
 flattenProgramTests :: TestTree
 flattenProgramTests = testGroup "Parse.SyntaxTree.flattenProgram" $ map (\(i, inp, out) -> testCase i $ flattenProgram inp @=? out) [
     ("0", ([], []), []),
@@ -591,6 +607,6 @@ tests = testGroup "Parse.SyntaxTree" [
     isVariableTests, isAtomTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
-    
+     
     isPackageDeclTests, isImportDeclTests, isClassDeclarTests,
-    isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests]
+    isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests]
