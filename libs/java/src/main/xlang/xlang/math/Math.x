@@ -1,12 +1,13 @@
 package xlang.math
 
 
-E = 2.718281828459045
-
-PI = 3.141592653589793
-
-
-fun fib(index: int) -> long
+fun sign(x: int) -> byte
 {
-    return 10
+    if (x > 0)
+        return (1 as byte)
+
+    return (-1 as byte) if x < 0 else 0 as byte
 }
+
+fun power(a: double, b: double) = a ** b
+
