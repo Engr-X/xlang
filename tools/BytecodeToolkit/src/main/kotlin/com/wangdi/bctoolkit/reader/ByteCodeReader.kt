@@ -3,41 +3,81 @@ package com.wangdi.bctoolkit.reader
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
 
 
 class ByteCodeReader(bytes: ByteArray)
 {
+    companion object
+    {
+        private fun splitClassName(fullName: String): MutableList<String> = fullName.split(".").toMutableList()
+
+        private val ACCESS_VALUE_MAP: MutableList<Pair<Int, Access>> = mutableListOf(
+            Opcodes.ACC_PUBLIC to Access.Public,
+            Opcodes.ACC_PRIVATE to Access.Private,
+            Opcodes.ACC_PROTECTED to Access.Protected,
+
+            Opcodes.ACC_FINAL to Access.Final)
+    }
+
     private val reader: ClassReader = ClassReader(bytes)
 
     fun read(): JavaClass
     {
-        val visitor: ClassVisitor = object : ClassVisitor(Opcodes.ASM9) {
-            override fun visit(version: int, access: int, name: String, signature: String,
-                    superName: String, interfaces: Array<String>)
-            {
-                System.out.println("class = " + name);
-                System.out.println("access = " + access);
+        var className: MutableList<String> = mutableListOf()
+        var superClass: MutableList<String> = mutableListOf()
+        var interfaceClass: MutableList<MutableList<String>> = mutableListOf()
 
-                if ((access & Opcodes.ACC_PUBLIC) != 0) {
-                    System.out.println("public");
-                }
-                if ((access & Opcodes.ACC_FINAL) != 0) {
-                    System.out.println("final");
-                }
-                if ((access & Opcodes.ACC_ABSTRACT) != 0) {
-                    System.out.println("abstract");
-                }
-                if ((access & Opcodes.ACC_INTERFACE) != 0) {
-                    System.out.println("interface");
-                }
+        var accessList: MutableList<Access> = mutableListOf()
+
+        object : ClassVisitor(Opcodes.ASM9) {
+            override fun visit(
+                version: Int,
+                access: Int,
+                name: String,
+                signature: String,
+                superName: String,
+                interfaces: Array<String>)
+            {
+                className = splitClassName(name)
+                superClass = splitClassName(superName)
+                interfaceClass = interfaces.map { splitClassName(it) }.toMutableList()
+
+
+                accessList = ACCESS_VALUE_MAP
+                    .filterNot { (flag, _) -> (access and flag) == 0 }
+                    .map { it.second }
+                    .toMutableList()
             }
         }
+
+        val classRef = TypeRef(className)
+
+        return JavaClass(
+            JavaPackage(classRef.getPackage()),
+            accessList,
+            classRef.getName(),
+            superClass,
+            interfaceClass
+        )
     }
 
-    private fun getClassAccess(): MutableList<Access>
+    fun readFunction()
     {
-        val 
-
-        this.reader.accept( , 0);
+//        object : ClassVisitor(Opcodes.ASM9) {
+//
+//            override fun visitMethod(
+//                access: Int,
+//                name: String,
+//                descriptor: String,
+//                signature: String?,
+//                exceptions: Array<out String>?
+//            ): MethodVisitor?
+//            {
+//
+//            }
+//        }
     }
 }

@@ -152,5 +152,11 @@ normalTests = testGroup "Parse.ParseStmt.lexparseStmt" $ map (\(n, src, expected
                 (mkId "while" 1 1 5, Nothing))]
 
 
+valStmtTests :: TestTree
+valStmtTests = testCase "val_0" $
+    case replLexparseStmt "val pi = 3;" of
+        Right (DefineConst ["pi"] _ _) -> pure ()
+        other -> assertFailure ("expected DefineConst, got: " ++ show other)
+
 tests :: TestTree
-tests = testGroup "Parse.ParseStmt" [normalTests]
+tests = testGroup "Parse.ParseStmt" [normalTests, valStmtTests]

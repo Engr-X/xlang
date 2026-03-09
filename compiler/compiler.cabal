@@ -158,6 +158,8 @@ test-suite compiler-test
         Parse.ParseStmtTest
         Parse.ParseProgmTest
 
+        IR.LowingTest
+
         Semantic.NameEnvTest
         Semantic.ContextCheckTest
         Semantic.CheckProgramTest

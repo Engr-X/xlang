@@ -320,7 +320,8 @@ getStateDepthTests = testGroup "Semantic.ContextCheck.getStateDepth" $ map (\(na
 
 
 tests :: TestTree
-tests = testGroup "Semantic.NameEnv" [`r`n    forbiddenForTests, defineLocalVarTests, defineDeclaredVarTests, defineFuncTests,
+tests = testGroup "Semantic.NameEnv" [
+    forbiddenForTests, defineLocalVarTests, defineDeclaredVarTests, defineFuncTests,
     isVarDefineTests, isVarImportTests, isFuncDefineTests, isFunImportTests,
     getPackageNameTests, getStateDepthTests]
 

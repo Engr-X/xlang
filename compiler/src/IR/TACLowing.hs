@@ -175,7 +175,7 @@ atomLowing (AST.Variable _ tok) = do
     let pos = tokenPos tok
     vinfo <- getVar [pos]
     case vinfo of
-        -- 本地变量：取 VarId + 当前版本
+        -- ????????? VarId + ??????
         TEnv.VarLocal _ realName vid -> do
             (_, ver) <- peekVarStack (realName, vid)
             let atom = TAC.Var (realName, vid, ver)
@@ -185,7 +185,7 @@ atomLowing (AST.Variable _ tok) = do
                 Just idx -> return ([], TAC.Param idx)
                 Nothing -> return ([], atom)
 
-        -- 导入变量
+        -- ??????
         TEnv.VarImported _ clazz qname -> do
             nAtom <- newSubCVar clazz
             return ([TAC.IRInstr (TAC.IGetStatic nAtom qname)], nAtom)
@@ -438,6 +438,16 @@ collectAssignKeysBlock (AST.Multiple ss) = do
     where
         collectAssignKeysStmt :: Statement -> TACM [VarKey]
         collectAssignKeysStmt stmt = case stmt of
+            AST.DefineVar names rhs toks -> case (names, reverse toks) of
+                ([name], nameTok:_) ->
+                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+                _ ->
+                    collectAssignKeysExpr rhs
+            AST.DefineConst names rhs toks -> case (names, reverse toks) of
+                ([name], nameTok:_) ->
+                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+                _ ->
+                    collectAssignKeysExpr rhs
             AST.Expr e -> collectAssignKeysExpr e
             AST.Command (AST.Return (Just e)) _ -> collectAssignKeysExpr e
             AST.BlockStmt b -> collectAssignKeysBlock b
@@ -567,6 +577,33 @@ stmtsLowing ((AST.BlockStmt b):stmts) = do
     rest <- stmtsLowing stmts
     return $ current ++ rest
 
+stmtsLowing ((AST.DefineVar names rhs toks):stmts) = do
+    let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
+    current <- case (names, reverse toks) of
+        ([name], nameTok:_) ->
+            let assignTok = case toks of
+                    (_:tokEq:_) -> tokEq
+                    _ -> nameTok
+                assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhs assignTok
+            in exprLowing' assignExpr
+        _ ->
+            exprLowing' rhs
+    rest <- stmtsLowing stmts
+    return $ current ++ rest
+
+stmtsLowing ((AST.DefineConst names rhs toks):stmts) = do
+    let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
+    current <- case (names, reverse toks) of
+        ([name], nameTok:_) ->
+            let assignTok = case toks of
+                    (_:tokEq:_) -> tokEq
+                    _ -> nameTok
+                assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhs assignTok
+            in exprLowing' assignExpr
+        _ ->
+            exprLowing' rhs
+    rest <- stmtsLowing stmts
+    return $ current ++ rest
 
 {-
 code:
@@ -928,12 +965,13 @@ classStmtsLowing pkgSegs name stmts = do
     let (_, rest1) = partition AST.isFunctionT rest0
 
     let staticKeyMap = collectAssignKey rest1
+        constKeyMap = collectConstKey rest1
     staticKeys <- mapM resolveStaticKey (Map.toList staticKeyMap)
     addStaticVars staticKeys
 
     staticStmts0 <- stmtsLowing rest1
     staticAtomTypes <- collectAtomTypesStatic staticStmts0
-    staticFields <- mapM staticFieldFor staticKeys
+    staticFields <- mapM (staticFieldFor constKeyMap) staticKeys
     funcs0 <- mapM functionLowering funcDef
     let classQName = pkgSegs ++ [name]
         staticStmts = qualifyStmts classQName staticStmts0
@@ -951,12 +989,12 @@ classStmtsLowing pkgSegs name stmts = do
             case vinfo of
                 TEnv.VarLocal _ str vid -> return (str, vid)
                 _ -> error "collectAssignKey: this should be catched in Semantic"
-        staticFieldFor :: (String, Int) -> TACM (PB.Decl, Class, String)
-        staticFieldFor (varName, vid) = do
+        staticFieldFor :: Map String [Position] -> (String, Int) -> TACM (PB.Decl, Class, String)
+        staticFieldFor consts (varName, vid) = do
             (clazz, _) <- peekVarStack (varName, vid)
-            let declStatic = (PB.Public, [PB.Static]) -- TODO: use parsed modifiers
+            let flags = if Map.member varName consts then [PB.Static, PB.Final] else [PB.Static]
+                declStatic = (PB.Public, flags) -- TODO: use parsed modifiers
             return (declStatic, clazz, varName)
-
         qualifyFunction :: [String] -> TAC.IRFunction -> TAC.IRFunction
         qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes body) =
             TAC.IRFunction decl fname sig atomTypes (qualifyStmts cls body)
@@ -1080,7 +1118,27 @@ collectAssignKey = foldl step Map.empty
         step acc stmt = case stmt of
             AST.Expr (AST.Binary _ (AST.Variable name tok) _ _) ->
                 insertOnce name (tokenPos tok) acc
+            AST.DefineVar [name] _ toks ->
+                case reverse toks of
+                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
+                    [] -> acc
+            AST.DefineConst [name] _ toks ->
+                case reverse toks of
+                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
+                    [] -> acc
             _ -> acc
 
         insertOnce :: String -> Position -> Map String [Position] -> Map String [Position]
         insertOnce name pos = Map.insertWith (++) name [pos]
+
+
+collectConstKey :: [Statement] -> Map String [Position]
+collectConstKey = foldl step Map.empty
+    where
+        step :: Map String [Position] -> Statement -> Map String [Position]
+        step acc stmt = case stmt of
+            AST.DefineConst [name] _ toks ->
+                case reverse toks of
+                    (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
+                    [] -> acc
+            _ -> acc

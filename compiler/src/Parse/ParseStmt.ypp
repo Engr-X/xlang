@@ -27,7 +27,11 @@ import qualified Util.Exception as UE
     KW_FALSE            { t@(Lex.Ident "false" _) }
 
     KW_VAR              { t@(Lex.Ident "var" _) }
-    KW_VAL              { t@(Lex.Ident "var" _) }
+    KW_VAL              { t@(Lex.Ident "val" _) }
+
+    KW_PUBLIC           { t@(Lex.Ident "public" _) }
+    KW_PROTECTED        { t@(Lex.Ident "protected" _) }
+    KW_PRIVATE          { t@(Lex.Ident "private" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }

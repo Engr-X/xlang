@@ -77,6 +77,7 @@ Stmt :: { Statement }
 
     | Expr Sep                      { Expr $1 }
     | KW_VAR QName '=' Expr Sep     { DefineVar (fst $2) $4 ([$1, $3] ++ snd $2) }
+    | KW_VAL QName '=' Expr Sep     { DefineConst (fst $2) $4 ([$1, $3] ++ snd $2) }
     | Block Sep                     { BlockStmt $ fromMaybe (Multiple []) $1 }
     | IfStmt                        { $1 }
     | WhileStmt                     { $1 }
@@ -95,3 +96,5 @@ BlockLike :: { Block }
     | Block Sep                     { fromMaybe (Multiple []) $1 }
     | NL Block Sep                  { fromMaybe (Multiple []) $2 }
     ;
+
+

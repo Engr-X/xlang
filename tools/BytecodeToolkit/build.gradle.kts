@@ -21,12 +21,12 @@ kotlin {
 }
 
 application {
-    mainClass.set("com.wangdi.classgen.MainKt")
+    mainClass.set("com.wangdi.bctoolkit.MainKt")
 }
 
 tasks.jar {
     manifest {
-        attributes["Main-Class"] = "com.wangdi.classgen.MainKt"
+        attributes["Main-Class"] = "com.wangdi.bctoolkit.MainKt"
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })

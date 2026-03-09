@@ -430,7 +430,17 @@ collectTopLevelVars path pkg stmts ctx = mapMaybe one stmts >>= expandAlias
         varTypes = TC.tcVarTypes ctx
 
         one :: Statement -> Maybe (String, AST.Class, [Position])
-        one (Expr (Binary AST.Assign (Variable name tok) _ _)) =
+        one (Expr (Binary AST.Assign (Variable name tok) _ _)) = resolveByToken name tok
+        one (DefineVar [name] _ toks) = case reverse toks of
+            (nameTok:_) -> resolveByToken name nameTok
+            [] -> Nothing
+        one (DefineConst [name] _ toks) = case reverse toks of
+            (nameTok:_) -> resolveByToken name nameTok
+            [] -> Nothing
+        one _ = Nothing
+
+        resolveByToken :: String -> Lex.Token -> Maybe (String, AST.Class, [Position])
+        resolveByToken name tok =
             let pos = Lex.tokenPos tok
                 mCls = do
                     vid <- Map.lookup pos varUses
@@ -439,7 +449,6 @@ collectTopLevelVars path pkg stmts ctx = mapMaybe one stmts >>= expandAlias
             in case mCls of
                 Just cls -> Just (name, cls, [pos])
                 Nothing -> Nothing
-        one _ = Nothing
 
         expandAlias :: (String, AST.Class, [Position]) -> [(QName, QName, AST.Class, [Position])]
         expandAlias (name, cls, pos) =
@@ -483,3 +492,4 @@ prettyQName = intercalate "."
 safeHead :: [a] -> Maybe a
 safeHead [] = Nothing
 safeHead (x:_) = Just x
+

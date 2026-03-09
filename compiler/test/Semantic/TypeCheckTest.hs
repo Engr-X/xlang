@@ -794,7 +794,12 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "        return 1;",
         "}",
         "a = g();"
-    ], Nothing, noExtraTc)]
+    ], Nothing, noExtraTc),
+
+    ("16", unlines [
+        "val x = 1",
+        "x = 2"
+    ], Just (UE.immutableVariableMsg "x"), noExtraTc)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do
             prog <- parseProgmOrFail src
@@ -818,3 +823,4 @@ tests = testGroup "Semantic.TypeCheck" [
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
     inferExprTests, inferStmtTests, conditionBoolTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
+
