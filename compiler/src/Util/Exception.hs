@@ -17,9 +17,9 @@ import qualified Data.Text.Lazy.Encoding as DTL
 --
 -- This structure records:
 --
---   * 'filePath'       â€” the source file where the error occurred
---   * 'positions' â€” the line/column position of the error
---   * 'index'         â€” the absolute character index in the source
+--   * 'filePath'       â€?the source file where the error occurred
+--   * 'positions' â€?the line/column position of the error
+--   * 'index'         â€?the absolute character index in the source
 --
 -- It is designed to be embedded inside higher-level error types.
 data BasicError = BasicError {
@@ -217,9 +217,9 @@ loopCondAssignMsg =
 --
 -- This structure records:
 --
---   * 'filePath'       â€” the source file where the warning occurred
---   * 'positions' â€” the line/column position of the warning
---   * 'index'         â€” the absolute character index in the source
+--   * 'filePath'       â€?the source file where the warning occurred
+--   * 'positions' â€?the line/column position of the warning
+--   * 'index'         â€?the absolute character index in the source
 --
 -- It is designed to be embedded inside higher-level error types.
 type BasicWarning = BasicError
@@ -232,11 +232,11 @@ instance ToJSON BasicError
 -- This type represents all possible error categories that may occur during
 -- compilation, including:
 --
---   * 'None'        â€” no error
---   * 'Reading'  â€” file I/O failure
---   * 'Syntax' â€” syntax parsing error
---   * 'Lex' â€” lexical analysis error
---   * 'Parsing'â€” syntax parsing error
+--   * 'None'        â€?no error
+--   * 'Reading'  â€?file I/O failure
+--   * 'Syntax' â€?syntax parsing error
+--   * 'Lex' â€?lexical analysis error
+--   * 'Parsing'â€?syntax parsing error
 --
 -- Each error variant carries the minimum information required for reporting.
 data ErrorKind = None
@@ -253,9 +253,9 @@ data ErrorKind = None
 -- This type represents all possible warning categories that may occur during
 -- compilation, including:
 --
---  * 'Null'               â€” no warning
---  * 'OverflowWarning'    â€” numeric overflow warning
---  * 'UnderflowWarning'   â€” numeric underflow warning
+--  * 'Null'               â€?no warning
+--  * 'OverflowWarning'    â€?numeric overflow warning
+--  * 'UnderflowWarning'   â€?numeric underflow warning
 --
 -- Each warning variant carries the minimum information required for reporting.
 data Warning = Null
@@ -273,10 +273,10 @@ data Warning = Null
 --   * test assertions
 --
 -- ErrorKind code mapping:
---   * 0 â€” No error
---   * 1 â€” File read error
---   * 2 â€” Lex error
---   * 3 â€” Parser error
+--   * 0 â€?No error
+--   * 1 â€?File read error
+--   * 2 â€?Lex error
+--   * 3 â€?Parser error
 getErrorCode :: ErrorKind -> Int
 getErrorCode (Unkown _) = -1
 getErrorCode None = 0
@@ -320,3 +320,4 @@ errorToString :: ErrorKind -> String
 errorToString err = DText.unpack $ DTL.toStrict $ DTL.decodeUtf8 $ encodePretty $ object [
     "code"  .= getErrorCode err, 
     "error" .= getErrorMessage err]
+

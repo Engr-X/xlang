@@ -19,7 +19,7 @@ set "BUILD_DIR_ABS=%ROOT_DIR%\%BUILD_DIR%"
 set "COMPILER_DIR=%ROOT_DIR%\compiler"
 set "EXE=xlang"
 
-set "BYTECODEGEN_DIR=%ROOT_DIR%\tools\BytecodeGenerator"
+set "BYTECODEGEN_DIR=%ROOT_DIR%\tools\BytecodeToolkit"
 set "TOOLS_OUT_DIR=%BUILD_DIR_ABS%\tools"
 
 set "JAVA_LIB_DIR=%ROOT_DIR%\libs\java"

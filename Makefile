@@ -13,7 +13,7 @@ COMPILER_DIR := $(ROOT_DIR)/compiler
 EXE := xlang
 
 # Java tool (Gradle)
-BYTECODEGEN_DIR := $(ROOT_DIR)/tools/BytecodeGenerator
+BYTECODEGEN_DIR := $(ROOT_DIR)/tools/BytecodeToolkit
 TOOLS_OUT_DIR := $(BUILD_DIR_ABS)/tools
 
 # Java library project (Gradle)

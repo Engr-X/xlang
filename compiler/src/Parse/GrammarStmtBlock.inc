@@ -70,16 +70,17 @@ FunctionStmt :: { Statement }
 
 -- assembled statement
 Stmt :: { Statement }
-    : KW_CONTINUE Sep       { Command Continue $1 }
-    | KW_BREAK Sep          { Command Break $1 }
-    | KW_RETURN Sep         { Command (Return Nothing) $1 }
-    | KW_RETURN Stmt        { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
+    : KW_CONTINUE Sep           { Command Continue $1 }
+    | KW_BREAK Sep              { Command Break $1 }
+    | KW_RETURN Sep             { Command (Return Nothing) $1 }
+    | KW_RETURN Stmt            { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
 
-    | Expr Sep              { Expr $1 }
-    | Block Sep             { BlockStmt $ fromMaybe (Multiple []) $1 }
-    | IfStmt                { $1 }
-    | WhileStmt             { $1 }
-    | FunctionStmt          { $1 }
+    | Expr Sep                      { Expr $1 }
+    | KW_VAR QName '=' Expr Sep     { DefineVar (fst $2) $4 ([$1, $3] ++ snd $2) }
+    | Block Sep                     { BlockStmt $ fromMaybe (Multiple []) $1 }
+    | IfStmt                        { $1 }
+    | WhileStmt                     { $1 }
+    | FunctionStmt                  { $1 }
     ;
 
 

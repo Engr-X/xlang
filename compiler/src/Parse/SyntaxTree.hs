@@ -328,6 +328,7 @@ flattenCase (Just (Default b _)) = flattenBlock (Just b)
 --   Supports control flow constructs and expression statements.
 data Statement = 
     Command Command Token |
+    DefineVar [String] Expression [Token] | -- this must be [a] = 10, a.b = 10 is not alowed
     Expr Expression |
     BlockStmt Block |
     If Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (if keyword - maybe else)
@@ -346,6 +347,8 @@ data Statement =
 prettyStmt :: Int -> Maybe Statement -> String
 prettyStmt _ Nothing = "\n"
 prettyStmt n (Just (Command c _)) = prettyCmd n c
+prettyStmt n (Just (DefineVar names e _)) =
+    insertTab n ++ "var " ++ intercalate "." names ++ " = " ++ prettyExpr 0 (Just e) ++ "\n"
 prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
@@ -426,6 +429,7 @@ prettyStmtIO = pure . prettyStmt 0
 --   This includes tokens from nested expressions and blocks.
 stmtTokens :: Statement -> [Token]
 stmtTokens (Command _ t) = [t]
+stmtTokens (DefineVar _ e toks) = toks ++ exprTokens e
 stmtTokens (Expr e) = exprTokens e
 stmtTokens (BlockStmt b) = blockTokens (Just b)
 
@@ -459,6 +463,7 @@ stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
 flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
 flattenStatement (Just (Command _ _)) = []
+flattenStatement (Just (DefineVar _ e _)) = flattenExpr (Just e)
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)

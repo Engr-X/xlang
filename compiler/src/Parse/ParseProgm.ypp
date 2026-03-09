@@ -26,9 +26,12 @@ import qualified Util.FileHelper as FileHelper
     -- keywords (Ident)
     EOF                 { t@(Lex.EOF _) }
     NL                  { t@(Lex.TokenPass  _) }
-    
+
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
+
+    KW_VAR              { t@(Lex.Ident "var" _) }
+    KW_VAL              { t@(Lex.Ident "var" _) }
 
     KW_PACKAGE          { t@(Lex.Ident "package" _) }
     KW_IMPORT           { t@(Lex.Ident "import" _) }

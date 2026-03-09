@@ -2,12 +2,19 @@
 
 import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Control.Monad (when)
+import Control.Monad (when, void)
 import System.Environment (getArgs, getExecutablePath)
 import Data.Char (toLower)
 import Data.List (stripPrefix)
-import System.Directory (canonicalizePath, createDirectoryIfMissing)
+import System.Directory (
+    canonicalizePath,
+    createDirectoryIfMissing,
+    doesDirectoryExist,
+    removeFile,
+    removePathForcibly
+    )
 import System.FilePath (takeDirectory, (</>), takeExtension, isAbsolute)
+import System.IO.Error (catchIOError)
 import System.Process (callProcess)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -20,7 +27,7 @@ import qualified Util.FileHelper as FH
 
 
 bytecodegenFile :: String -> String
-bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeGenerator-alpha.jar"
+bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeToolkit-alpha.jar"
   where
     slash '\\' = '/'
     slash c = c
@@ -28,6 +35,7 @@ bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeGenerator-alpha.j
 
 data Options = Options {
     optHelp :: Bool,
+    optVersion :: Bool,
     optTarget :: Maybe String,
     optInputs :: [FilePath],
     optOutput :: Maybe FilePath,
@@ -37,7 +45,11 @@ data Options = Options {
 }
 
 defaultOptions :: Options
-defaultOptions = Options False Nothing [] Nothing "." False Nothing
+defaultOptions = Options False False Nothing [] Nothing "." False Nothing
+
+
+xlangVersion :: String
+xlangVersion = "alpha 0.0.0"
 
 
 parseArgs :: [String] -> Options
@@ -52,6 +64,8 @@ parseArgs = go defaultOptions
         go opts [] = opts
         go opts ("-h":_) = opts { optHelp = True }
         go opts ("--help":_) = opts { optHelp = True }
+        go opts ("-v":_) = opts { optVersion = True }
+        go opts ("--version":_) = opts { optVersion = True }
 
         go opts ("--target=jvm":xs) = go opts { optTarget = Just "jvm" } xs
         go opts ("--target":t:xs) = go opts { optTarget = Just t } xs
@@ -79,45 +93,97 @@ parseArgs = go defaultOptions
 printHelp :: IO ()
 printHelp = putStrLn $ unlines [
     "Usage:",
-    "   xlang --target=jvm <file.x> [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>] [--debug|-debug|-d]",
+    "   xlang --target=jvm <file.x> [more.x ...] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>] [--debug|-debug|-d]",
+    "   xlang -v | --version",
     "   xlang -h | --help",
     "",
     "Options:",
     "   --target=jvm     compile to JVM bytecode (required)",
-    "   <file.x>         source file to compile (currently one file only)",
+    "   <file.x>         source files to compile (one or more)",
     "   --root=<dir>     source root (preferred form), e.g. --root=./abcde",
     "   --root <dir>     source root (compatible form)",
     "   -r <dir>         source root (short form)",
-    "   -d <dir|jar>     output destination (jar is not supported yet)",
+    "   -d <dir|jar>     output directory or jar path",
+    "                    if .jar: classes are emitted to <root>/out, then packed",
+    "                    manifest includes: build by xlang",
     "   --debug|-debug   write debug.json and Ir.txt next to the source file",
     "   -d               debug shorthand when used without output directory",
+    "   -v, --version    print xlang version",
     "   -h, --help       show this help"
     ]
 
 
-compileJVM :: FilePath -> FilePath -> String -> Maybe FilePath -> Bool -> IO ()
-compileJVM jarPath rootPath srcPath mOutput debugOut = do
-    fileRes <- FH.readFile srcPath
-    case fileRes of
-        Left err -> putStrLn (UE.errorToString err)
-        Right code ->
-            case IR.codeToIRSingleWithRoot rootPath srcPath code of
-                Left errs -> mapM_ (putStrLn . UE.errorToString) errs
-                Right (ir, warns) -> do
+compileJVM :: FilePath -> FilePath -> [FilePath] -> Maybe FilePath -> Bool -> IO Bool
+compileJVM bytecodegenJar rootPath srcPaths mOutput debugOut = do
+    sourceRes <- mapM (\path -> do
+        fileRes <- FH.readFile path
+        pure (path, fileRes)) srcPaths
+    let readErrs = [err | (_, Left err) <- sourceRes]
+        sources = [(path, code) | (path, Right code) <- sourceRes]
+    if not (null readErrs)
+        then do
+            mapM_ (putStrLn . UE.errorToString) readErrs
+            pure False
+        else
+            case IR.codeToIRWithRoot rootPath sources of
+                Left errs -> do
+                    mapM_ (putStrLn . UE.errorToString) errs
+                    pure False
+                Right (irPairs, warns) -> do
                     mapM_ print warns
-                    let classes = JVML.jvmProgmLowing ir
+                    let total = length irPairs
+                    mapM_ (\(idx, (path, _)) ->
+                        putStrLn (concat ["[ ", show idx, "/", show total, " ]: compile ", path])) (zip [1 :: Int ..] irPairs)
+                    let irs = map snd irPairs
+                        classes = JVML.jvmProgmsLowing irs
                         jsonVal = JVMJson.jProgmToJSON 8 classes
                         jsonStr = BL.unpack (encode jsonVal)
+                        debugDir = case srcPaths of
+                            [one] -> takeDirectory one
+                            _ -> rootPath
                     when debugOut $
-                        BL.writeFile (takeDirectory srcPath </> "debug.json") (encodePretty jsonVal)
+                        BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
                     when debugOut $
-                        writeFile (takeDirectory srcPath </> "Ir.txt") (TAC.prettyIRProgm ir)
+                        writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
                     case mOutput of
                         Just outPath -> do
                             createDirectoryIfMissing True outPath
-                            callProcess "java" ["-jar", jarPath, "-s", jsonStr, "-o", outPath]
+                            callProcess "java" ["-jar", bytecodegenJar, "-s", jsonStr, "-o", outPath]
                         Nothing ->
-                            callProcess "java" ["-jar", jarPath, "-s", jsonStr]
+                            callProcess "java" ["-jar", bytecodegenJar, "-s", jsonStr]
+                    pure True
+
+
+writeJarFromDir :: FilePath -> FilePath -> IO ()
+writeJarFromDir classesDir jarOutput = do
+    let jarDir = takeDirectory jarOutput
+        manifestPath = jarDir </> ".xlang-manifest.mf"
+        manifestContent = unlines [
+            "Manifest-Version: 1.0",
+            "Built-By: xlang",
+            "Xlang-Info: build by xlang",
+            ""]
+    createDirectoryIfMissing True jarDir
+    writeFile manifestPath manifestContent
+    callProcess "jar" ["cfm", jarOutput, manifestPath, "-C", classesDir, "."]
+    removeFile manifestPath `catchIOError` (\_ -> pure ())
+
+
+compileJVMToJar :: FilePath -> FilePath -> [FilePath] -> FilePath -> Bool -> IO ()
+compileJVMToJar bytecodegenJar rootPath srcPaths jarOutput debugOut = do
+    let classesOut = rootPath </> "out"
+    existed <- doesDirectoryExist classesOut
+    when existed (removePathForcibly classesOut)
+    createDirectoryIfMissing True classesOut
+    putStrLn $ "[INFO] -d is jar; classes output dir: " ++ classesOut
+    ok <- compileJVM bytecodegenJar rootPath srcPaths (Just classesOut) debugOut
+    if ok
+        then do
+            writeJarFromDir classesOut jarOutput
+            putStrLn $ "[OK] jar generated: " ++ jarOutput
+            putStrLn "[DONE] jar packaging completed."
+        else
+            putStrLn "[ERROR] xlang compile failed; jar packaging skipped"
 
 
 isJarOutput :: FilePath -> Bool
@@ -132,36 +198,35 @@ resolveFromRoot rootDir path
 main :: IO ()
 main = do
     args <- getArgs
-    exePath <- getExecutablePath
-    absExePath <- canonicalizePath exePath
     let opts = parseArgs args
-    rootAbs <- canonicalizePath (optRoot opts)
-    let exeDir = takeDirectory absExePath
-        jarPath = bytecodegenFile exeDir
-        showHelp = optHelp opts || null args
     case optError opts of
         Just msg -> do
             putStrLn msg
             printHelp
         Nothing ->
-            if showHelp
+            if optVersion opts
+                then putStrLn xlangVersion
+                else if optHelp opts || null args
                 then printHelp
-                else case (optTarget opts, optInputs opts, optOutput opts) of
-                    (Just "jvm", [srcPath0], Just outPath0) ->
-                        let srcPath = resolveFromRoot rootAbs srcPath0
-                            outPath = resolveFromRoot rootAbs outPath0
-                        in
-                        if isJarOutput outPath
-                            then putStrLn "output to .jar is not supported yet; please use a directory path"
-                            else compileJVM jarPath rootAbs srcPath (Just outPath) (optDebug opts)
-                    (Just "jvm", [srcPath0], Nothing) ->
-                        let srcPath = resolveFromRoot rootAbs srcPath0
-                        in
-                        compileJVM jarPath rootAbs srcPath Nothing (optDebug opts)
-                    (Just "jvm", [], _) -> do
-                        putStrLn "missing input xlang file"
-                        printHelp
-                    (Just "jvm", _, _) -> do
-                        putStrLn "currently only one input xlang file is supported"
-                        printHelp
-                    _ -> printHelp
+                else do
+                    exePath <- getExecutablePath
+                    absExePath <- canonicalizePath exePath
+                    rootAbs <- canonicalizePath (optRoot opts)
+                    let exeDir = takeDirectory absExePath
+                        jarPath = bytecodegenFile exeDir
+                    case (optTarget opts, optInputs opts, optOutput opts) of
+                        (Just "jvm", [], _) -> do
+                            putStrLn "missing input xlang file"
+                            printHelp
+                        (Just "jvm", srcPath0s, Just outPath0) ->
+                            let srcPaths = map (resolveFromRoot rootAbs) srcPath0s
+                                outPath = resolveFromRoot rootAbs outPath0
+                            in
+                            if isJarOutput outPath
+                                then compileJVMToJar jarPath rootAbs srcPaths outPath (optDebug opts)
+                                else void (compileJVM jarPath rootAbs srcPaths (Just outPath) (optDebug opts))
+                        (Just "jvm", srcPath0s, Nothing) ->
+                            let srcPaths = map (resolveFromRoot rootAbs) srcPath0s
+                            in
+                            void (compileJVM jarPath rootAbs srcPaths Nothing (optDebug opts))
+                        _ -> printHelp

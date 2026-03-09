@@ -80,6 +80,51 @@ defineLocalVarTests = testGroup "Semantic.NameEnv.defineLocalVar" $ map (\(name,
         qualifiedErr = UE.Syntax $ UE.makeError "stdin" (map tokenPos [tokA, tokB]) UE.assignErrorMsg
 
 
+
+defineDeclaredVarTests :: TestTree
+defineDeclaredVarTests = testGroup "Semantic.NameEnv.defineDeclaredVar" $ map (\(name, varName, tok, st, out) ->
+    testCase name $ defineDeclaredVar "stdin" varName tok st @?= out) [
+    ("0", "x", tokX, stBase, Right stAfterNew),
+    ("1", "x", tokX, stExisting, Left dupErr),
+    ("2", "x", tokX, stOuter, Right stShadow)]
+    where
+        pos1, pos2 :: Position
+        pos1 = makePosition 1 1 1
+        pos2 = makePosition 2 1 1
+
+        tokX :: Token
+        tokX = Lex.Ident "x" pos1
+
+        emptyScope :: Scope
+        emptyScope = Scope { scopeId = 0, sVars = Map.empty, sFuncs = Map.empty }
+
+        stBase :: CheckState
+        stBase = CheckState 0 0 0 [] [emptyScope] []
+
+        stAfterNew :: CheckState
+        stAfterNew = stBase {
+            varCounter = 1,
+            scope = [emptyScope { sVars = Map.insert "x" (0, pos1) Map.empty }]
+        }
+
+        stExisting :: CheckState
+        stExisting = CheckState 0 10 0 [] [emptyScope { sVars = Map.insert "x" (5, pos2) Map.empty }] []
+
+        outerScope :: Scope
+        outerScope = Scope { scopeId = 1, sVars = Map.insert "x" (9, pos2) Map.empty, sFuncs = Map.empty }
+
+        stOuter :: CheckState
+        stOuter = CheckState 0 4 0 [] [emptyScope, outerScope] []
+
+        stShadow :: CheckState
+        stShadow = stOuter {
+            varCounter = 5,
+            scope = [emptyScope { sVars = Map.insert "x" (4, pos1) Map.empty }, outerScope]
+        }
+
+        dupErr :: UE.ErrorKind
+        dupErr = UE.Syntax $ UE.makeError "stdin" [pos1] (UE.multipleVariableDefMsg "x")
+
 defineFuncTests :: TestTree
 defineFuncTests = testGroup "Semantic.NameEnv.defineFunc" $ map (\(name, stmt, st, out) ->
     testCase name $ defineFunc "stdin" stmt st @?= out) [
@@ -275,7 +320,8 @@ getStateDepthTests = testGroup "Semantic.ContextCheck.getStateDepth" $ map (\(na
 
 
 tests :: TestTree
-tests = testGroup "Semantic.NameEnv" [
-    forbiddenForTests, defineLocalVarTests, defineFuncTests,
+tests = testGroup "Semantic.NameEnv" [`r`n    forbiddenForTests, defineLocalVarTests, defineDeclaredVarTests, defineFuncTests,
     isVarDefineTests, isVarImportTests, isFuncDefineTests, isFunImportTests,
     getPackageNameTests, getStateDepthTests]
+
+
