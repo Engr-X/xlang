@@ -438,16 +438,26 @@ collectAssignKeysBlock (AST.Multiple ss) = do
     where
         collectAssignKeysStmt :: Statement -> TACM [VarKey]
         collectAssignKeysStmt stmt = case stmt of
-            AST.DefineVar names rhs toks -> case (names, reverse toks) of
-                ([name], nameTok:_) ->
+            AST.DefField names mRhs toks -> case (names, mRhs, reverse toks) of
+                ([name], Just rhs, nameTok:_) ->
                     collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
                 _ ->
-                    collectAssignKeysExpr rhs
-            AST.DefineConst names rhs toks -> case (names, reverse toks) of
-                ([name], nameTok:_) ->
+                    maybe (return []) collectAssignKeysExpr mRhs
+            AST.DefConstField names mRhs toks -> case (names, mRhs, reverse toks) of
+                ([name], Just rhs, nameTok:_) ->
                     collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
                 _ ->
-                    collectAssignKeysExpr rhs
+                    maybe (return []) collectAssignKeysExpr mRhs
+            AST.DefVar names mRhs toks -> case (names, mRhs, reverse toks) of
+                ([name], Just rhs, nameTok:_) ->
+                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+                _ ->
+                    maybe (return []) collectAssignKeysExpr mRhs
+            AST.DefConstVar names mRhs toks -> case (names, mRhs, reverse toks) of
+                ([name], Just rhs, nameTok:_) ->
+                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+                _ ->
+                    maybe (return []) collectAssignKeysExpr mRhs
             AST.Expr e -> collectAssignKeysExpr e
             AST.Command (AST.Return (Just e)) _ -> collectAssignKeysExpr e
             AST.BlockStmt b -> collectAssignKeysBlock b
@@ -577,33 +587,44 @@ stmtsLowing ((AST.BlockStmt b):stmts) = do
     rest <- stmtsLowing stmts
     return $ current ++ rest
 
-stmtsLowing ((AST.DefineVar names rhs toks):stmts) = do
+stmtsLowing ((AST.DefField names mRhs toks):stmts) =
+    stmtsLowing ((AST.DefVar names mRhs toks):stmts)
+
+stmtsLowing ((AST.DefConstField names mRhs toks):stmts) =
+    stmtsLowing ((AST.DefConstVar names mRhs toks):stmts)
+
+stmtsLowing ((AST.DefVar names mRhs toks):stmts) = do
     let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
-    current <- case (names, reverse toks) of
-        ([name], nameTok:_) ->
+    current <- case (names, mRhs, reverse toks) of
+        ([name], Just rhs, nameTok:_) ->
             let assignTok = case toks of
                     (_:tokEq:_) -> tokEq
                     _ -> nameTok
                 assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhs assignTok
             in exprLowing' assignExpr
-        _ ->
+        (_, Just rhs, _) ->
             exprLowing' rhs
+        (_, Nothing, _) ->
+            return []
     rest <- stmtsLowing stmts
     return $ current ++ rest
 
-stmtsLowing ((AST.DefineConst names rhs toks):stmts) = do
+stmtsLowing ((AST.DefConstVar names mRhs toks):stmts) = do
     let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
-    current <- case (names, reverse toks) of
-        ([name], nameTok:_) ->
+    current <- case (names, mRhs, reverse toks) of
+        ([name], Just rhs, nameTok:_) ->
             let assignTok = case toks of
                     (_:tokEq:_) -> tokEq
                     _ -> nameTok
                 assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhs assignTok
             in exprLowing' assignExpr
-        _ ->
+        (_, Just rhs, _) ->
             exprLowing' rhs
+        (_, Nothing, _) ->
+            return []
     rest <- stmtsLowing stmts
     return $ current ++ rest
+
 
 {-
 code:
@@ -1118,11 +1139,19 @@ collectAssignKey = foldl step Map.empty
         step acc stmt = case stmt of
             AST.Expr (AST.Binary _ (AST.Variable name tok) _ _) ->
                 insertOnce name (tokenPos tok) acc
-            AST.DefineVar [name] _ toks ->
+            AST.DefField [name] _ toks ->
                 case reverse toks of
                     (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
                     [] -> acc
-            AST.DefineConst [name] _ toks ->
+            AST.DefConstField [name] _ toks ->
+                case reverse toks of
+                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
+                    [] -> acc
+            AST.DefVar [name] _ toks ->
+                case reverse toks of
+                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
+                    [] -> acc
+            AST.DefConstVar [name] _ toks ->
                 case reverse toks of
                     (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
                     [] -> acc
@@ -1137,8 +1166,16 @@ collectConstKey = foldl step Map.empty
     where
         step :: Map String [Position] -> Statement -> Map String [Position]
         step acc stmt = case stmt of
-            AST.DefineConst [name] _ toks ->
+            AST.DefConstField [name] _ toks ->
+                case reverse toks of
+                    (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
+                    [] -> acc
+            AST.DefConstVar [name] _ toks ->
                 case reverse toks of
                     (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
                     [] -> acc
             _ -> acc
+
+
+
+

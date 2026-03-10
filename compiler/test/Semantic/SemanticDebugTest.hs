@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Semantic.SemanticDebugTest where
 
 import Control.Exception (finally)
@@ -7,7 +9,7 @@ import System.IO (hClose, hPutStr, openTempFile)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Type (Position, makePosition)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), Program, Operator(..), prettyExpr)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), pattern Function, Program, Operator(..), prettyExpr)
 import Semantic.SemanticDebug
 import Semantic.ReturnCheck (funcSig)
 
@@ -151,3 +153,5 @@ withTempFile content action = do
 
 tests :: TestTree
 tests = testGroup "Semantic.SemanticDebug" [checkProgmTests, dumpFullUseMapsTests]
+
+

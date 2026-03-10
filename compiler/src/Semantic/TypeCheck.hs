@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Semantic.TypeCheck where
 
@@ -8,7 +9,7 @@ import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), SwitchCase(..), exprTokens, prettyClass, prettyExpr)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineDeclaredVar, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
@@ -636,6 +637,22 @@ lookupFun qname scopes = case find (Map.member qname) scopes of
 inferOptBlock :: Path -> QName -> [TypedImportEnv] -> Maybe Block -> TypeM ()
 inferOptBlock _ _ _ Nothing = pure ()
 inferOptBlock path packages envs (Just b) = withScope $ inferBlock path packages envs b
+-- | Extract common pieces from var/val declarations.
+defineDeclParts :: Statement -> Maybe (Bool, [String], Maybe Expression, [Lex.Token])
+defineDeclParts stmt = case stmt of
+    DefField names mRhs toks -> Just (False, names, mRhs, toks)
+    DefConstField names mRhs toks -> Just (True, names, mRhs, toks)
+    DefVar names mRhs toks -> Just (False, names, mRhs, toks)
+    DefConstVar names mRhs toks -> Just (True, names, mRhs, toks)
+    _ -> Nothing
+
+inferDefineStmtFromDecl :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
+inferDefineStmtFromDecl path packages envs stmt =
+    case defineDeclParts stmt of
+        Just (isConst, names, mRhs, toks) ->
+            inferDefineStmt path packages envs isConst names mRhs toks
+        Nothing ->
+            error "inferDefineStmtFromDecl: expected var/val declaration"
 
 
 -- | Infer types in a statement.
@@ -660,11 +677,17 @@ inferStmt path packages envs (Command (Return (Just e)) _) = do
         Just expected -> checkTypeCompat path pos expected t
 
 
-inferStmt path packages envs (DefineVar names rhs toks) =
-    inferDefineStmt path packages envs False names rhs toks
+inferStmt path packages envs stmt@(DefField _ _ _) =
+    inferDefineStmtFromDecl path packages envs stmt
 
-inferStmt path packages envs (DefineConst names rhs toks) =
-    inferDefineStmt path packages envs True names rhs toks
+inferStmt path packages envs stmt@(DefConstField _ _ _) =
+    inferDefineStmtFromDecl path packages envs stmt
+
+inferStmt path packages envs stmt@(DefVar _ _ _) =
+    inferDefineStmtFromDecl path packages envs stmt
+
+inferStmt path packages envs stmt@(DefConstVar _ _ _) =
+    inferDefineStmtFromDecl path packages envs stmt
 
 inferStmt path packages envs (Expr e) = void $ inferExpr path packages envs e
 inferStmt path packages envs (BlockStmt block) = withScope $ inferBlock path packages envs block
@@ -707,6 +730,7 @@ inferStmt path packages envs (DoWhile whileBlock e elseBlock _) = do
 inferStmt path packages envs (Switch e scs _) = do
     void $ inferExpr path packages envs e
     mapM_ (inferSwitchCase path packages envs) scs
+
 
 inferStmt path packages envs (Function (retT, _) _ params body) = do
     c <- get
@@ -781,11 +805,11 @@ inferDefineStmt ::
     [TypedImportEnv] ->
     Bool ->
     [String] ->
-    Expression ->
+    Maybe Expression ->
     [Lex.Token] ->
     TypeM ()
-inferDefineStmt path packages envs isConst names rhs toks = do
-    tRhs <- inferExpr path packages envs rhs
+inferDefineStmt path packages envs isConst names mRhs toks = do
+    mTRhs <- traverse (inferExpr path packages envs) mRhs
     let declFlags = if isConst then [Final] else []
 
     case names of
@@ -828,15 +852,19 @@ inferDefineStmt path packages envs isConst names rhs toks = do
                             Nothing ->
                                 modify $ \c0 -> c0 {
                                     tcCtx = (tcCtx c0) { CC.st = cState2 },
-                                    tcVarTypes = Map.insert vid (tRhs, defPos) (tcVarTypes c0) }
+                                    tcVarTypes = case mTRhs of
+                                        Just tRhs -> Map.insert vid (tRhs, defPos) (tcVarTypes c0)
+                                        Nothing -> tcVarTypes c0 }
                             Just (oldT, _) -> do
-                                checkTypeCompat path (map Lex.tokenPos toks) oldT tRhs
+                                case mTRhs of
+                                    Just tRhs -> checkTypeCompat path (map Lex.tokenPos toks) oldT tRhs
+                                    Nothing -> pure ()
                                 modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState2 } }
                     Nothing -> do
                         addErr $ UE.Syntax $ UE.makeError path [posTok] (UE.undefinedIdentity name)
                         modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState2 } }
             [] ->
-                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens rhs)) UE.internalErrorMsg
+                addErr $ UE.Syntax $ UE.makeError path (maybe (map Lex.tokenPos toks) (map Lex.tokenPos . exprTokens) mRhs) UE.internalErrorMsg
         _ ->
             addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.unsupportedErrorMsg
 
@@ -862,19 +890,22 @@ inferStmts path package envs stmts = do
     mapM_ preloadFun funDefs
     mapM_ (inferStmt path package envs) stmts
     where
+        functionSigParts :: Statement -> Maybe (Expression, [(Class, String, [Lex.Token])], Class, Maybe [(Class, [Lex.Token])])
+        functionSigParts stmt = case stmt of
+            Function (retT, _) name params _ -> Just (name, params, retT, Nothing)
+            FunctionT (retT, _) name tParams params _ -> Just (name, params, retT, Just tParams)
+            _ -> Nothing
+
         isFunctionStmt :: Statement -> Bool
-        isFunctionStmt Function {} = True
-        isFunctionStmt FunctionT {} = True
-        isFunctionStmt _ = False
+        isFunctionStmt stmt = case functionSigParts stmt of
+            Just _ -> True
+            Nothing -> False
 
         preloadFun :: Statement -> TypeM ()
-        preloadFun stmt = case stmt of
-            Function (retT, _) name params _ ->
-                addFunSig name params retT Nothing
-            FunctionT (retT, _) name _ params _ ->
-                addFunSig name params retT Nothing
-            _ -> pure ()
-
+        preloadFun stmt = case functionSigParts stmt of
+            Just (name, params, retT, mTParams) ->
+                addFunSig name params retT mTParams
+            Nothing -> pure ()
         addFunSig :: Expression -> [(Class, String, [Lex.Token])] -> Class -> Maybe [(Class, [Lex.Token])] -> TypeM ()
         addFunSig name params retT mTParams = case name of
             Variable s tok -> do
@@ -965,9 +996,6 @@ inferProgmWithCtx path packageName stmts st uses typedEnvs =
     in if null finalErrs
         then Right finalCtx
         else Left finalErrs
-
-
-
 
 
 

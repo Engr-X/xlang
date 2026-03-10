@@ -801,7 +801,20 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             body = AST.Multiple [doStmt, AST.Expr eA, AST.Expr eB, AST.Expr eC]
             fun = AST.Function (AST.Int32T, []) (AST.Variable "main" tokMain) [] body
             prog = ([], [fun])
-        assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.undefinedIdentity "i"))
+        assertCheckProgm (checkProgm "stdin" prog []) (Just (UE.undefinedIdentity "i")),
+
+        testCase "18_public_in_block_forbidden" $ do
+        let src = unlines
+                [ "{"
+                , "    public var x = 1"
+                , "}" ]
+        assertCheckProgm (checkProgmFromSrc src) (Just UE.publicScopeMsg),
+
+        testCase "19_public_top_level_allowed" $ do
+        let src = unlines
+                [ "public var x = 1"
+                , "y = x + 1" ]
+        assertCheckProgm (checkProgmFromSrc src) Nothing
     ])
     where
         mkCase (name, src, expected) =
@@ -845,6 +858,30 @@ forScopeTests = testGroup "Semantic.ContextCheck.forScope" [
                 ( Just (AST.Multiple []))
                 tokFor
 
+
+declKindLoweringTests :: TestTree
+declKindLoweringTests = testGroup "Semantic.ContextCheck.defKind" [
+    testCase "0_field_outside_class_requires_init" $ do
+        let tokVar = Lex.Ident "var" pos1
+            tokX = Lex.Ident "x" pos1
+            stmt = AST.DefField ["x"] Nothing [tokVar, tokX]
+            ctx0 = Ctx { st = stEmpty, errs = [], varUses = Map.empty }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
+        case errs ctx1 of
+            (UE.Syntax (UE.BasicError { UE.why = whyMsg }) : _) ->
+                whyMsg @?= UE.missingInitializerMsg "var" "x"
+            other ->
+                assertFailure ("unexpected errors: " ++ show other),
+
+    testCase "1_var_in_class_is_allowed" $ do
+        let tokVar = Lex.Ident "var" pos1
+            tokX = Lex.Ident "x" pos1
+            stmt = AST.DefVar ["x"] Nothing [tokVar, tokX]
+            st0 = stEmpty { ctrlStack = [InClass] }
+            ctx0 = Ctx { st = st0, errs = [], varUses = Map.empty }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
+        errs ctx1 @?= []
+    ]
 tests :: TestTree
 tests = testGroup "Semantic.ContextCheck" [
     hasAssignTests,
@@ -854,4 +891,4 @@ tests = testGroup "Semantic.ContextCheck" [
     isContinueValidTests, isBreakValidTests, isReturnValidTests,
     
     checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests, checkProgmTests,
-    forScopeTests]
+    declKindLoweringTests, forScopeTests]

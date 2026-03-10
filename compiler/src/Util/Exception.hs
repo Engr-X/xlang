@@ -44,10 +44,6 @@ makeError path pos reason = BasicError {filePath = path, positions = pos, why = 
 internalErrorMsg :: String
 internalErrorMsg = "internal error"
 
--- | Internal error: class scope exists but class type stack is empty
-missingClassTypeMsg :: String
-missingClassTypeMsg = "class scope exists but class type stack is empty"
-
 
 -- | this error refer to some sytax is not supported in current version, but it will support in latter version.
 unsupportedErrorMsg :: String
@@ -57,6 +53,10 @@ unsupportedErrorMsg = "syntax unsopported"
 -- | Error message for an undefined
 undefinedIdentity :: String -> String
 undefinedIdentity name = concat ["'", name, "' is not defined in this context."]
+
+-- | Error message for symbol visibility violation.
+notVisibleMsg :: String
+notVisibleMsg = "the value or function is not visible"
 
 
 -- | Error message for unsupported function name
@@ -81,10 +81,6 @@ invalidPackageNameMsg pkg = "invalid package name or package path mismatch: " ++
 multipleVariableDefMsg :: String -> String
 multipleVariableDefMsg varName = "multidefinition of var: " ++ varName
 
-
--- | Error message for multiple function definitions
-multipleFunctionDefMsg :: String -> String
-multipleFunctionDefMsg funcName = "multiple definitions of function: " ++ funcName
 
 -- | Error message for duplicate method signature.
 duplicateMethodMsg :: String -> String
@@ -116,10 +112,6 @@ unclosedCommentMsg :: String
 unclosedCommentMsg = "unterminated comment"
 
 
--- | Error message for a mismatched bracket
-mismatchedBracketMsg :: String
-mismatchedBracketMsg = "mismatched bracket"
-
 
 -- | assign error like this: 10 = a;
 assignErrorMsg :: String
@@ -142,6 +134,11 @@ thisAssignMsg = "`this` cannot be assigned"
 -- | cannot assign to immutable variable declared by `val`
 immutableVariableMsg :: String -> String
 immutableVariableMsg name = "immutable variable cannot be reassigned: " ++ name
+
+-- | declarations lowered to vars must have an initializer.
+missingInitializerMsg :: String -> String -> String
+missingInitializerMsg keyword name =
+    "'" ++ keyword ++ " " ++ name ++ "' requires an initializer"
 
 
 -- | implicit cast warning message
@@ -184,10 +181,6 @@ breakCtrlErrorMsg = "`break` can only be used inside a loop or a case"
 returnCtrlErrorMsg :: String
 returnCtrlErrorMsg = "`return` can only be used inside a function"
 
--- | Expecting a top level declaration (Kotlin-style message).
-expectTopLevelDeclMsg :: String
-expectTopLevelDeclMsg = "Expecting a top level declaration."
-
 -- | Invalid expression statement (only statement-expressions are allowed).
 invalidExprStmtMsg :: String
 invalidExprStmtMsg = "invalid expression statement: expected assignment, call, or ++/--"
@@ -200,6 +193,9 @@ missingReturnMsg sig = "missing return statement: " ++ sig
 voidParameterMsg :: String -> String
 voidParameterMsg name = "parameter '" ++ name ++ "' cannot be void"
 
+-- | `public` is only valid at top-level or class scope.
+publicScopeMsg :: String
+publicScopeMsg = "`public` is only allowed at top level or class scope"
 
 -- | Illegal statement means that this one cannot 
 illegalStatementMsg :: String -> String -> String
@@ -324,5 +320,3 @@ errorToString :: ErrorKind -> String
 errorToString err = DText.unpack $ DTL.toStrict $ DTL.decodeUtf8 $ encodePretty $ object [
     "code"  .= getErrorCode err, 
     "error" .= getErrorMessage err]
-
-

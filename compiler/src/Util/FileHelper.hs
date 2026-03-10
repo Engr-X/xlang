@@ -20,20 +20,6 @@ classifyError :: IOException -> UE.ErrorKind
 classifyError = UE.Reading . show
 
 
--- | Split a file content into lines and annotate each line with its line number.
---
--- This function:
---   * Removes carriage return characters ('\r') for cross-platform compatibility
---   * replace \t with 4 space
---
--- Useful for lexing, syntax highlighting, or line-based diagnostics.
-preprocess :: String -> String
-preprocess = concatMap replaceTab
-  where
-    replaceTab '\r' = ""
-    replaceTab '\t' = "    " 
-    replaceTab c = [c]
-
 
 -- | Safely read the contents of a file as a 'String'.
 --

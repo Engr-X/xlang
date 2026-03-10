@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Semantic.CheckProgram where
 
 import Control.Monad (foldM)
@@ -8,8 +10,9 @@ import Data.Map.Strict (Map)
 import Data.HashSet (HashSet)
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Ord (comparing)
-import Parse.SyntaxTree (Declaration(..), Expression(..), Program, Statement(..), declPath, isImportDecl, normalizeClass, getPackage)
-import Semantic.NameEnv (ImportEnv(..), QName, defaultImportEnv, getPackageName)
+import Parse.SyntaxTree (Declaration(..), Expression(..), Program, Statement(..), pattern Function, pattern FunctionT, declPath, isImportDecl, normalizeClass, getPackage)
+import Parse.ParserBasic (AccessModified(..))
+import Semantic.NameEnv (ImportEnv(..), QName, defaultImportEnv, getPackageName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
@@ -389,33 +392,64 @@ buildExport mi ctx =
             in Map.insertWith merge keyQn entry mp
 
 
+accessFromTokens :: [Lex.Token] -> AccessModified
+accessFromTokens toks = case toks of
+    (Lex.Ident "private" _ : _) -> Private
+    (Lex.Ident "protected" _ : _) -> Protected
+    (Lex.Ident "public" _ : _) -> Public
+    _ -> Public
+
+
+accessOfStmt :: Statement -> AccessModified
+accessOfStmt (DefField _ _ toks) = accessFromTokens toks
+accessOfStmt (DefConstField _ _ toks) = accessFromTokens toks
+accessOfStmt (DefVar _ _ toks) = accessFromTokens toks
+accessOfStmt (DefConstVar _ _ toks) = accessFromTokens toks
+accessOfStmt (Function (_, retToks) _ _ _) = accessFromTokens retToks
+accessOfStmt (FunctionT (_, retToks) _ _ _ _) = accessFromTokens retToks
+accessOfStmt _ = Public
+
+
+applyVisibilityKey :: AccessModified -> QName -> QName
+applyVisibilityKey Public qn = qn
+applyVisibilityKey _ qn = toHiddenQName qn
+
+
 collectFunctions :: Path -> QName -> [Statement] -> [(QName, QName, FunSig, [Position])]
 collectFunctions path pkg = concatMap one
     where
         one :: Statement -> [(QName, QName, FunSig, [Position])]
-        one (Function (retT, retToks) nameExpr params _) =
+        one stmt@(Function (retT, retToks) nameExpr params _) =
             let sig = FunSig {
                     funParams = map (normalizeClass . fst3) params,
                     funReturn = normalizeClass retT
                 }
                 pos = choosePos nameExpr retToks
+                access = accessOfStmt stmt
             in case nameExpr of
                 Variable name _ ->
                     let (fullQn, aliases) = symbolAliases path pkg name
-                    in [ (alias, fullQn, sig, pos) | alias <- aliases ]
-                Qualified names _ -> [ (names, names, sig, pos) ]
+                        keys = map (applyVisibilityKey access) aliases
+                    in [ (key, fullQn, sig, pos) | key <- keys ]
+                Qualified names _ ->
+                    let key = applyVisibilityKey access names
+                    in [ (key, names, sig, pos) ]
                 _ -> []
-        one (FunctionT (retT, retToks) nameExpr _ params _) =
+        one stmt@(FunctionT (retT, retToks) nameExpr _ params _) =
             let sig = FunSig {
                     funParams = map (normalizeClass . fst3) params,
                     funReturn = normalizeClass retT
                 }
                 pos = choosePos nameExpr retToks
+                access = accessOfStmt stmt
             in case nameExpr of
                 Variable name _ ->
                     let (fullQn, aliases) = symbolAliases path pkg name
-                    in [ (alias, fullQn, sig, pos) | alias <- aliases ]
-                Qualified names _ -> [ (names, names, sig, pos) ]
+                        keys = map (applyVisibilityKey access) aliases
+                    in [ (key, fullQn, sig, pos) | key <- keys ]
+                Qualified names _ ->
+                    let key = applyVisibilityKey access names
+                    in [ (key, names, sig, pos) ]
                 _ -> []
         one _ = []
 
@@ -429,31 +463,38 @@ collectTopLevelVars path pkg stmts ctx = mapMaybe one stmts >>= expandAlias
         varUses = CC.varUses (TC.tcCtx ctx)
         varTypes = TC.tcVarTypes ctx
 
-        one :: Statement -> Maybe (String, AST.Class, [Position])
-        one (Expr (Binary AST.Assign (Variable name tok) _ _)) = resolveByToken name tok
-        one (DefineVar [name] _ toks) = case reverse toks of
-            (nameTok:_) -> resolveByToken name nameTok
+        one :: Statement -> Maybe (AccessModified, String, AST.Class, [Position])
+        one (Expr (Binary AST.Assign (Variable name tok) _ _)) = resolveByToken Public name tok
+        one stmt@(DefField [name] _ toks) = case reverse toks of
+            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
             [] -> Nothing
-        one (DefineConst [name] _ toks) = case reverse toks of
-            (nameTok:_) -> resolveByToken name nameTok
+        one stmt@(DefConstField [name] _ toks) = case reverse toks of
+            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
+            [] -> Nothing
+        one stmt@(DefVar [name] _ toks) = case reverse toks of
+            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
+            [] -> Nothing
+        one stmt@(DefConstVar [name] _ toks) = case reverse toks of
+            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
             [] -> Nothing
         one _ = Nothing
 
-        resolveByToken :: String -> Lex.Token -> Maybe (String, AST.Class, [Position])
-        resolveByToken name tok =
+        resolveByToken :: AccessModified -> String -> Lex.Token -> Maybe (AccessModified, String, AST.Class, [Position])
+        resolveByToken access name tok =
             let pos = Lex.tokenPos tok
                 mCls = do
                     vid <- Map.lookup pos varUses
                     (cls, _) <- Map.lookup vid varTypes
                     pure cls
             in case mCls of
-                Just cls -> Just (name, cls, [pos])
+                Just cls -> Just (access, name, cls, [pos])
                 Nothing -> Nothing
 
-        expandAlias :: (String, AST.Class, [Position]) -> [(QName, QName, AST.Class, [Position])]
-        expandAlias (name, cls, pos) =
+        expandAlias :: (AccessModified, String, AST.Class, [Position]) -> [(QName, QName, AST.Class, [Position])]
+        expandAlias (access, name, cls, pos) =
             let (fullQn, aliases) = symbolAliases path pkg name
-            in [ (alias, fullQn, cls, pos) | alias <- aliases ]
+                keys = map (applyVisibilityKey access) aliases
+            in [ (key, fullQn, cls, pos) | key <- keys ]
 
 
 symbolAliases :: Path -> QName -> String -> (QName, [QName])

@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Semantic.TypeCheckTest where
 
@@ -10,7 +11,7 @@ import Util.Type (Position, makePosition)
 import Parse.ParseExpr (replLexparseExpr)
 import Parse.ParseStmt (replLexparseStmt)
 import Parse.ParseProgm (replLexparseProgm)
-import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), SwitchCase(..), prettyClass)
+import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), pattern Function, SwitchCase(..), prettyClass)
 import Semantic.TypeCheck
 import Semantic.NameEnv (CheckState(..), ImportEnv(..), QName, Scope(..), VarId, lookupVarId)
 import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable)
@@ -823,4 +824,5 @@ tests = testGroup "Semantic.TypeCheck" [
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
     inferExprTests, inferStmtTests, conditionBoolTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
+
 

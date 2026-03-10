@@ -1,3 +1,6 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Parse.SyntaxTree where
 
 import Data.List (intercalate)
@@ -49,6 +52,30 @@ prettyClass (Class ss args) =
 --   Used for statements such as return, break, and continue.
 data Command = Continue | Break | Return (Maybe Expression)
     deriving (Eq, Show)
+
+
+methodView :: Statement -> Maybe ((Class, [Token]), Expression, [(Class, String, [Token])], Block)
+methodView (InstanceMethod ret name params body) = Just (ret, name, params, body)
+methodView (StaticMethod ret name params body) = Just (ret, name, params, body)
+methodView _ = Nothing
+
+
+methodTView :: Statement -> Maybe ((Class, [Token]), Expression, [(Class, [Token])], [(Class, String, [Token])], Block)
+methodTView (InstanceMethodT ret name gens params body) = Just (ret, name, gens, params, body)
+methodTView (StaticMethodT ret name gens params body) = Just (ret, name, gens, params, body)
+methodTView _ = Nothing
+
+
+pattern Function :: (Class, [Token]) -> Expression -> [(Class, String, [Token])] -> Block -> Statement
+pattern Function ret name params body <- (methodView -> Just (ret, name, params, body))
+    where
+        Function ret name params body = StaticMethod ret name params body
+
+
+pattern FunctionT :: (Class, [Token]) -> Expression -> [(Class, [Token])] -> [(Class, String, [Token])] -> Block -> Statement
+pattern FunctionT ret name gens params body <- (methodTView -> Just (ret, name, gens, params, body))
+    where
+        FunctionT ret name gens params body = StaticMethodT ret name gens params body
 
 
 -- pretty toString method for command
@@ -328,8 +355,13 @@ flattenCase (Just (Default b _)) = flattenBlock (Just b)
 --   Supports control flow constructs and expression statements.
 data Statement = 
     Command Command Token |
-    DefineVar [String] Expression [Token] | -- this must be [a] = 10, a.b = 10 is not alowed
-    DefineConst [String] Expression [Token] | -- this must be [a] = 10, a.b = 10 is not alowed
+
+    DefField [String] (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
+    DefConstField [String] (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
+    
+    DefVar [String] (Maybe Expression) [Token] | -- this is for static var
+    DefConstVar [String] (Maybe Expression) [Token] | -- this is for static var
+
 
     Expr Expression |
     BlockStmt Block |
@@ -338,21 +370,43 @@ data Statement =
     While Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- while else -- (while keyword - maybe else keyword)
     DoWhile (Maybe Block) Expression (Maybe Block) (Token, Token, Maybe Token) | -- (do keyword, while keyword, maybe else keyword)
     Switch Expression [SwitchCase] Token | -- (switch keyword)
-    Function (Class, [Token]) Expression [(Class, String, [Token])] Block |
+
+    InstanceMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
+    StaticMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
+
+
     -- function: return_type + pos, name, params + position, body
-    FunctionT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
+    InstanceMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block | 
+    StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
     -- template function: return_type + pos, name, template params + position, params + position, body
     deriving (Eq, Show)
 
+{-# COMPLETE Command, DefField, DefConstField, DefVar, DefConstVar, Expr, BlockStmt, If, For, While, DoWhile, Switch, Function, FunctionT #-}
 
 -- beter toString for string instance
 prettyStmt :: Int -> Maybe Statement -> String
 prettyStmt _ Nothing = "\n"
 prettyStmt n (Just (Command c _)) = prettyCmd n c
-prettyStmt n (Just (DefineVar names e _)) =
-    insertTab n ++ "var " ++ intercalate "." names ++ " = " ++ prettyExpr 0 (Just e) ++ "\n"
-prettyStmt n (Just (DefineConst names e _)) =
-    insertTab n ++ "val " ++ intercalate "." names ++ " = " ++ prettyExpr 0 (Just e) ++ "\n"
+prettyStmt n (Just (DefField names me _)) =
+    let rhs = case me of
+            Just e -> " = " ++ prettyExpr 0 (Just e)
+            Nothing -> ""
+    in insertTab n ++ "var " ++ intercalate "." names ++ rhs ++ "\n"
+prettyStmt n (Just (DefConstField names me _)) =
+    let rhs = case me of
+            Just e -> " = " ++ prettyExpr 0 (Just e)
+            Nothing -> ""
+    in insertTab n ++ "val " ++ intercalate "." names ++ rhs ++ "\n"
+prettyStmt n (Just (DefVar names me _)) =
+    let rhs = case me of
+            Just e -> " = " ++ prettyExpr 0 (Just e)
+            Nothing -> ""
+    in insertTab n ++ "var " ++ intercalate "." names ++ rhs ++ "\n"
+prettyStmt n (Just (DefConstVar names me _)) =
+    let rhs = case me of
+            Just e -> " = " ++ prettyExpr 0 (Just e)
+            Nothing -> ""
+    in insertTab n ++ "val " ++ intercalate "." names ++ rhs ++ "\n"
 prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
@@ -400,6 +454,7 @@ prettyStmt n (Just (Switch e xs _)) = let space = insertTab n in unlines
     [concat [space, "switch(", prettyExpr n (Just e), ")"], space ++ "{", concatMap (prettySwitchCase (n + 1)) xs, space ++ "}" ]
 
 
+
 prettyStmt n (Just (Function (retC, _) functionName params b)) =
     let space = insertTab n
         prettyOneParam :: (Class, String, [Token]) -> String
@@ -433,8 +488,10 @@ prettyStmtIO = pure . prettyStmt 0
 --   This includes tokens from nested expressions and blocks.
 stmtTokens :: Statement -> [Token]
 stmtTokens (Command _ t) = [t]
-stmtTokens (DefineVar _ e toks) = toks ++ exprTokens e
-stmtTokens (DefineConst _ e toks) = toks ++ exprTokens e
+stmtTokens (DefField _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefConstField _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefVar _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefConstVar _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (Expr e) = exprTokens e
 stmtTokens (BlockStmt b) = blockTokens (Just b)
 
@@ -455,6 +512,7 @@ stmtTokens (DoWhile b1 e b2 (doTok, whileTok, elseTok)) = concat [
 
 stmtTokens (Switch e scs switchTok) = concat [[switchTok], exprTokens e, concatMap switchCaseTokens scs]
 
+
 stmtTokens (Function (_, retToks) name params b) = concat [
     retToks, exprTokens name,
     concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
@@ -468,8 +526,10 @@ stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
 flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
 flattenStatement (Just (Command _ _)) = []
-flattenStatement (Just (DefineVar _ e _)) = flattenExpr (Just e)
-flattenStatement (Just (DefineConst _ e _)) = flattenExpr (Just e)
+flattenStatement (Just (DefField _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefConstField _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefVar _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefConstVar _ me _)) = maybe [] (flattenExpr . Just) me
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)
@@ -683,6 +743,12 @@ charVal _ = error "charVal: expected CharConst token"
 strVal :: Token -> String
 strVal (Lex.StrConst s _) = s
 strVal _ = error "strVal: expected StrConst token"
+
+
+
+
+
+
 
 
 

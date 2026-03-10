@@ -16,6 +16,13 @@ import qualified Util.Exception as UE
 data AccessModified = Private | Protected | Public
     deriving (Eq, Ord, Show)
 
+type AccessOp = Maybe AccessModified
+
+
+accessOpToAccess :: AccessOp -> AccessModified
+accessOpToAccess = fromMaybe Public
+
+
 prettyAccess :: AccessModified -> String
 prettyAccess Private = "private"
 prettyAccess Protected = "protected"

@@ -20,10 +20,6 @@ data LowerState = LowerState {
     retLocal :: Maybe Int
 }
 
--- | Backward-compatible name (typo-friendly).
-jvmCIinitLowing :: IR.StaticInit -> Map IR.IRAtom Class -> JVM.JClinit
-jvmCIinitLowing = jvmClinitLowing
-
 
 -- | Lower a list of IR statements into JVM command stream.
 jvmLowerStmts :: [IR.IRStmt] -> State LowerState [JVM.JCommand]

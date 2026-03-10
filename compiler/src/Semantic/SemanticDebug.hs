@@ -49,14 +49,8 @@ dumpFullUseMapsFromFile path = do
                 Right ctx -> pure $ renderUseMaps ctx
 
 
--- | Read multiple files, run cross-file semantic checks (imports/cycles), and print use maps.
-dumpFullUseMapsFromFiles :: [Path] -> IO ()
-dumpFullUseMapsFromFiles paths = do
-    out <- dumpFullUseMapsFromFilesText paths
-    putStr out
-
-
--- | Like 'dumpFullUseMapsFromFiles', but returns the whole output as a string.
+-- | Read multiple files, run cross-file semantic checks (imports/cycles),
+--   and return use-map output as text.
 dumpFullUseMapsFromFilesText :: [Path] -> IO String
 dumpFullUseMapsFromFilesText [] = pure ""
 dumpFullUseMapsFromFilesText paths = do
@@ -169,5 +163,3 @@ renderDecl (acc, flags) =
 
 prettyQName :: [String] -> String
 prettyQName = intercalate "."
-
-

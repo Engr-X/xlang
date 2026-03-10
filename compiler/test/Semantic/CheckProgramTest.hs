@@ -1,11 +1,13 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Semantic.CheckProgramTest where
 
 import Data.Graph (SCC(..))
 import Data.List (isInfixOf)
 import Data.Map.Strict (Map)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Declaration(..), Expression(..), Operator(..), Program, Statement(..))
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Declaration(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT)
 import Semantic.CheckProgram
-import Semantic.NameEnv (ImportEnv(..), QName)
+import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -530,7 +532,22 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
             }
         case checkOneProgram "a.x" prog [ien] [ten] of
             Right _ -> pure ()
-            Left e -> assertFailure ("expected Right, got Left: " ++ show e))
+            Left e -> assertFailure ("expected Right, got Left: " ++ show e)),
+
+    ("4", do
+        let prog = mkProgram [] [] [assignStmt "b" (varExpr "a" 2) 2]
+            ien = IEnv "dep.x" (Map.fromList [(toHiddenQName ["a"], [pos 2])]) Map.empty
+        assertLeftWith (checkOneProgram "a.x" prog [ien] []) $ \errs ->
+            assertBool "must report not visible for imported variable"
+                (any ((== UE.notVisibleMsg) . errWhy) errs)),
+
+    ("5", do
+        let callStmt = Expr (Binary Assign (varExpr "b" 1) (Call (varExpr "f" 2) []) (symTok Lex.Assign 3))
+            prog = mkProgram [] [] [callStmt]
+            ien = IEnv "dep.x" Map.empty (Map.fromList [(toHiddenQName ["f"], [pos 2])])
+        assertLeftWith (checkOneProgram "a.x" prog [ien] []) $ \errs ->
+            assertBool "must report not visible for imported function"
+                (any ((== UE.notVisibleMsg) . errWhy) errs))
     ]
 
 
@@ -755,3 +772,4 @@ tests = testGroup "Semantic.CheckProgram" [
     collectFunctionsTests,
     collectTopLevelVarsTests
     ]
+

@@ -4,11 +4,11 @@ import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
 
 
-class JavaField(
+class JavaMethod(
     private val belong: JavaClass,
     private val access: Set<Access>,
-    private val type: TypeRef,
     private val name: String,
+    private val funSignature: Pair<TypeRef, MutableList<TypeRef>>
 )
 {
     fun isStatic(): Boolean = this.access.contains(Access.Static)

@@ -1,7 +1,9 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Semantic.ReturnCheck where
 
 import Data.List (intercalate)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression, Program, Statement(..), SwitchCase(..), exprTokens, prettyClass)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression, Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
 
@@ -136,3 +138,4 @@ caseReturns (Default b _) = blockReturns b
 isDefaultCase :: SwitchCase -> Bool
 isDefaultCase (Default {}) = True
 isDefaultCase _ = False
+

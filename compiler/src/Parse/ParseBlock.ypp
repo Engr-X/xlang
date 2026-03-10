@@ -43,7 +43,7 @@ import qualified Util.Exception as UE
     KW_CONTINUE         { t@(Lex.Ident "continue" _) }
     KW_RETURN           { t@(Lex.Ident "return" _) }
 
-    KW_FUNC             { t@(Lex.Ident "def" _) }
+    KW_FUNC             { t@(Lex.Ident "fun" _) }
 
 
     -- literals / identifiers

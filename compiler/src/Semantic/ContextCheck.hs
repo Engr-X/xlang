@@ -1,10 +1,10 @@
 module Semantic.ContextCheck where
 
 import Semantic.NameEnv
-import Control.Monad (when)
+import Control.Monad (when, unless)
 import Data.List (intercalate, find)
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing)
 import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (Token, tokenPos)
@@ -13,6 +13,7 @@ import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, contin
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
+import qualified Lex.Token as Lex
 import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
 
@@ -104,11 +105,43 @@ putState :: CheckState -> CheckM ()
 putState s = modify $ \c -> c { st = s }
 
 
+-- | Extract common pieces from function-like statements.
+functionLikeParts :: Statement -> Maybe ([Token], [(AST.Class, String, [Token])], Block)
+functionLikeParts stmt = case stmt of
+    AST.Function (_, toks) _ params b -> Just (toks, params, b)
+    AST.FunctionT (_, toks) _ _ params b -> Just (toks, params, b)
+    _ -> Nothing
+
 -- | Predicate: is this statement a function definition?
 isFunction :: Statement -> Bool
-isFunction AST.Function {} = True
-isFunction AST.FunctionT {} = True
-isFunction _ = False
+isFunction stmt = case functionLikeParts stmt of
+    Just _ -> True
+    Nothing -> False
+
+-- | Extract common pieces from var/val declarations.
+declLikeParts :: Statement -> Maybe (Bool, Bool, [String], Maybe Expression, [Token])
+declLikeParts stmt = case stmt of
+    AST.DefField names mRhs toks -> Just (True, False, names, mRhs, toks)
+    AST.DefConstField names mRhs toks -> Just (True, True, names, mRhs, toks)
+    AST.DefVar names mRhs toks -> Just (False, False, names, mRhs, toks)
+    AST.DefConstVar names mRhs toks -> Just (False, True, names, mRhs, toks)
+    _ -> Nothing
+isPublicDecl :: [Token] -> Bool
+isPublicDecl (Lex.Ident "public" _ : _) = True
+isPublicDecl _ = False
+
+
+validateDeclAccess :: Path -> [Token] -> CheckM ()
+validateDeclAccess _ toks
+    | not (isPublicDecl toks) = pure ()
+validateDeclAccess p toks = do
+    c <- get
+    let parentCtrl = parentCtrlFor (st c)
+        valid = case parentCtrl of
+            Nothing -> True
+            Just InClass -> True
+            _ -> False
+    unless valid $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos (take 1 toks)) UE.publicScopeMsg
 
 
 -- | Push a control-flow context for the duration of an action, then pop it.
@@ -176,7 +209,9 @@ checkExpr p packages envs expr = case expr of
                                 let uses' = Map.insert (tokenPos tok) vid (varUses c)
                                 put $ c { varUses = uses' }
                             Nothing -> pure ()
-                    else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+                    else case lookupHiddenVarPos (packages ++ [name]) envs of
+                        Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
+                        Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
     AST.Qualified names tokens -> do
         c <- get
@@ -193,7 +228,9 @@ checkExpr p packages envs expr = case expr of
             -- non-this qualified name is resolved only through imports.
             _ -> if isVarImport names envs
                     then pure ()
-                    else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                    else case lookupHiddenVarPos names envs of
+                        Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                        Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
                     
 
     -- recurse into children.
@@ -248,7 +285,9 @@ checkExpr p packages envs expr = case expr of
                     c <- get
                     let cState = st c
                     if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs then pure ()
-                    else addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+                    else case lookupHiddenFunPos (packages ++ [name]) envs of
+                        Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
+                        Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
                 AST.Qualified names tokens -> do
                     c <- get
@@ -263,13 +302,53 @@ checkExpr p packages envs expr = case expr of
                                 else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                         -- non-this qualified name is resolved only through imports.
-                        _ -> if isFunImport names envs then pure ()
-                             else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                        _ -> if isFunImport names envs
+                                then pure ()
+                                else case lookupHiddenFunPos names envs of
+                                    Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                    Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
 
                 other -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens other) invalidFunctionName
 
             mapM_ (checkExpr p packages envs) args
 
+
+
+checkDefDecl :: Path -> QName -> [ImportEnv] -> Bool -> Bool -> [String] -> Maybe Expression -> [Token] -> CheckM ()
+checkDefDecl p package envs isFieldDecl isConstDecl names mRhs toks = do
+    validateDeclAccess p toks
+    c0 <- get
+    let parentCtrl = parentCtrlFor (st c0)
+        shouldBeVar = parentCtrl /= Just InClass
+
+    when (isFieldDecl && shouldBeVar && isNothing mRhs) $
+        let nameText = case names of
+                [name] -> name
+                _ -> intercalate "." names
+            pos = case reverse toks of
+                (nameTok:_) -> [tokenPos nameTok]
+                [] -> map tokenPos toks
+            keyword = if isConstDecl then "val" else "var"
+        in addErr $ UE.Syntax $ UE.makeError p pos (UE.missingInitializerMsg keyword nameText)
+
+    for_ mRhs (checkExpr p package envs)
+
+    case names of
+        [name] -> case reverse toks of
+            (nameTok:_) -> do
+                c <- get
+                let cState = st c
+                case defineDeclaredVar p name nameTok cState of
+                    Left err -> addErr err
+                    Right cState' -> case lookupVarId name cState' of
+                        Just (vid, _) -> do
+                            let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
+                            put $ c { st = cState', varUses = uses' }
+                        Nothing -> put $ c { st = cState' }
+            [] ->
+                let errPos = maybe (map tokenPos toks) (map tokenPos . exprTokens) mRhs
+                in addErr $ UE.Syntax $ UE.makeError p errPos UE.internalErrorMsg
+        _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks) UE.unsupportedErrorMsg
 
 
 -- | Continue is valid only inside loops.
@@ -306,40 +385,9 @@ checkStmt p package envs (AST.Command cmd token) = do
         AST.Return mExpr ->
             if isReturnValid ctrls then let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] returnCtrlErrorMsg
-checkStmt p package envs (AST.DefineVar names rhs toks) = do
-    checkExpr p package envs rhs
-    case names of
-        [name] -> case reverse toks of
-            (nameTok:_) -> do
-                c <- get
-                let cState = st c
-                case defineDeclaredVar p name nameTok cState of
-                    Left err -> addErr err
-                    Right cState' -> case lookupVarId name cState' of
-                        Just (vid, _) -> do
-                            let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
-                            put $ c { st = cState', varUses = uses' }
-                        Nothing -> put $ c { st = cState' }
-            [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos (exprTokens rhs)) UE.internalErrorMsg
-        _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks) UE.unsupportedErrorMsg
-
-checkStmt p package envs (AST.DefineConst names rhs toks) = do
-    checkExpr p package envs rhs
-    case names of
-        [name] -> case reverse toks of
-            (nameTok:_) -> do
-                c <- get
-                let cState = st c
-                case defineDeclaredVar p name nameTok cState of
-                    Left err -> addErr err
-                    Right cState' -> case lookupVarId name cState' of
-                        Just (vid, _) -> do
-                            let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
-                            put $ c { st = cState', varUses = uses' }
-                        Nothing -> put $ c { st = cState' }
-            [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos (exprTokens rhs)) UE.internalErrorMsg
-        _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks) UE.unsupportedErrorMsg
-
+checkStmt p package envs stmt
+    | Just (isFieldDecl, isConstDecl, names, mRhs, toks) <- declLikeParts stmt =
+        checkDefDecl p package envs isFieldDecl isConstDecl names mRhs toks
 checkStmt p package envs (AST.Expr e) = do
     if not (isStmtExpr e)
         then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
@@ -424,18 +472,17 @@ checkStmt p package envs stmt@(AST.Switch e scs _) = do
 
 
 -- function
-checkStmt p package envs stmt
-    | AST.Function _ _ params body <- stmt =
-        checkFunctionStmt stmt params body
-    | AST.FunctionT _ _ _ params body <- stmt =
-        checkFunctionStmt stmt params body
+checkStmt p package envs stmt = case functionLikeParts stmt of
+    Nothing -> pure ()
+    Just (declToks, params, body) -> checkFunctionStmt declToks params body
     where
-        -- | Common handler for function-like statements (Function / FunctionT).
-        checkFunctionStmt stmt' params body = do
+        checkFunctionStmt :: [Token] -> [(AST.Class, String, [Token])] -> Block -> CheckM ()
+        checkFunctionStmt declToks params body = do
+            validateDeclAccess p declToks
             c <- get
             let cState = st c
             let parentCtrl = parentCtrlFor cState
-            when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt')
+            when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
                 (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState (fromMaybe InClass parentCtrl)))
             case firstVoidParam params of
                 Nothing -> pure ()
@@ -457,7 +504,7 @@ checkStmt p package envs stmt
                 varCounter = varCounter',
                 scopeCounter = succ $ scopeCounter cStateBase,
                 ctrlStack = InFunction : ctrlStack cStateBase,
-                scope = newScope : scope cStateBase}
+                scope = newScope : scope cStateBase }
             put $ cBase { st = cState' }
 
             checkBlock p package envs body
@@ -467,6 +514,7 @@ checkStmt p package envs stmt
             let scope' = tail $ scope cState2
             let ctrls' = tail $ ctrlStack cState2
             put $ c2 { st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } }
+
         firstVoidParam :: [(AST.Class, String, [Token])] -> Maybe (AST.Class, String, [Token])
         firstVoidParam = find (\(clazz, _, _) -> clazz == AST.Void)
 

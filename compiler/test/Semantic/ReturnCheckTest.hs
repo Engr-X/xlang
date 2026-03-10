@@ -1,9 +1,11 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Semantic.ReturnCheckTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Type (Position, makePosition)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), SwitchCase(..))
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Statement(..), pattern Function, SwitchCase(..))
 import Semantic.ReturnCheck
 
 import qualified Lex.Token as Lex
@@ -284,3 +286,5 @@ tests = testGroup "Semantic.ReturnCheck" [
     blockReturnsTests, stmtsReturnTests, stmtReturnsTests, blockReturnsMaybeTests,
     switchReturnsTests, caseReturnsTests, isDefaultCaseTests
     ]
+
+
