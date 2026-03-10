@@ -10,6 +10,10 @@ import qualified IR.TAC as IR
 import qualified Lowing.JVM as JVM
 import qualified Semantic.TypeEnv as TEnv
 
+ownerTypeToString :: IR.IRMemberType -> String
+ownerTypeToString IR.MemberClass = "class"
+ownerTypeToString IR.MemberClassWrapped = "class-wrapped"
+
 
 data LowerState = LowerState {
     nextLocal :: Int,
@@ -302,7 +306,7 @@ atomToConst _ = Nothing
 
 -- | Lower a single IR function into JVM commands with a fresh local mapping.
 jvmLowingFun :: IR.IRFunction -> JVM.JFunction
-jvmLowingFun (IR.IRFunction decl name sig atomT body) =
+jvmLowingFun (IR.IRFunction decl name sig atomT body ownerType) =
     let (paramSlotMap, nextAfterParams) = buildParamSlots (TEnv.funParams sig)
         retLocalSlot = case TEnv.funReturn sig of
             Void -> Nothing
@@ -321,7 +325,7 @@ jvmLowingFun (IR.IRFunction decl name sig atomT body) =
             retLocal = retLocalSlot
         }
         (cmds, _) = runState (jvmLowerStmts body) initState
-    in JVM.JFunction decl name sig cmds
+    in JVM.JFunction decl name sig (ownerTypeToString ownerType) cmds
 
 
 -- | Lower a static initializer into JVM <clinit> commands.
@@ -363,7 +367,7 @@ jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs mainKind) =
     let qname = if null pkg then [name] else pkg ++ [name]
         extendQ = []
         interfaces = []
-        fields = map (\(d, cls, fname) -> JVM.JField d cls fname) attrs
+        fields = map (\(d, cls, fname, ownerType) -> JVM.JField d cls fname (ownerTypeToString ownerType)) attrs
         clinit = jvmClinitLowing sInit atomT
         inits = []
         methods = map jvmLowingFun funs

@@ -556,14 +556,27 @@ prettyStmt n (IRInstr instr) = prettyIRInstr n instr ++ "\n"
 prettyStmt n (IRBlockStmt blk) = prettyIRBlock n blk
 
 
-type Attribute = (Decl, Class, String)
+-- | Origin kind for members in IR:
+--   class         -> declared in a real class body
+--   class-wrapped -> top-level declarations wrapped into a synthetic class
+data IRMemberType
+    = MemberClass
+    | MemberClassWrapped
+    deriving (Eq, Ord, Show)
+
+prettyIRMemberType :: IRMemberType -> String
+prettyIRMemberType MemberClass = "class"
+prettyIRMemberType MemberClassWrapped = "class-wrapped"
+
+type Attribute = (Decl, Class, String, IRMemberType)
 
 prettyAttribute :: Int -> Attribute -> String
-prettyAttribute n (decl, cls, name) =
+prettyAttribute n (decl, cls, name, memberType) =
     let indent = replicate (n * 4) ' '
         declS = prettyDecl decl
         prefix = if null declS then "" else declS ++ " "
-    in concat [indent, prefix, AST.prettyClass cls, " ", name]
+        typeS = "[" ++ prettyIRMemberType memberType ++ "] "
+    in concat [indent, typeS, prefix, AST.prettyClass cls, " ", name]
 
 -- | Function definition: access, name, signature, body.
 data IRFunction
@@ -574,16 +587,18 @@ data IRFunction
         (Map IRAtom Class) -- ^ atom -> type map
 
         [IRStmt]       -- ^ function body
+        IRMemberType   -- ^ origin kind: class / class-wrapped
     deriving (Eq, Show)
 
 prettyIRFunction :: Int -> IRFunction -> String
-prettyIRFunction n (IRFunction decl name sig atomTypes body) =
+prettyIRFunction n (IRFunction decl name sig atomTypes body memberType) =
     let indent = replicate (n * 4) ' '
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
         retS = AST.prettyClass (TEnv.funReturn sig)
         paramS = intercalate ", " (map AST.prettyClass (TEnv.funParams sig))
-        header = concat [indent, declPrefix, retS, " ", name, "(", paramS, "):\n"]
+        typeS = "[" ++ prettyIRMemberType memberType ++ "] "
+        header = concat [indent, typeS, declPrefix, retS, " ", name, "(", paramS, "):\n"]
         bodyS = concatMap (prettyStmt (n + 1)) body
         typesS = prettyTypeMap (n + 1) atomTypes
     in header ++ bodyS ++ typesS
@@ -683,8 +698,8 @@ flattenIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainK
     IRClass decl name fields (StaticInit (flattenTopStmts stmts)) atomTypes (map flattenIRFunction funs) mainKind
 
 flattenIRFunction :: IRFunction -> IRFunction
-flattenIRFunction (IRFunction acc name sig atomTypes stmts) =
-    IRFunction acc name sig atomTypes (flattenTopStmts stmts)
+flattenIRFunction (IRFunction acc name sig atomTypes stmts memberType) =
+    IRFunction acc name sig atomTypes (flattenTopStmts stmts) memberType
 
 flattenTopStmts :: [IRStmt] -> [IRStmt]
 flattenTopStmts [] = []
@@ -720,8 +735,8 @@ pruneIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKin
     IRClass decl name fields (StaticInit (pruneTopStmts stmts)) atomTypes (map pruneIRFunction funs) mainKind
 
 pruneIRFunction :: IRFunction -> IRFunction
-pruneIRFunction (IRFunction acc name sig atomTypes stmts) =
-    IRFunction acc name sig atomTypes (pruneTopStmts stmts)
+pruneIRFunction (IRFunction acc name sig atomTypes stmts memberType) =
+    IRFunction acc name sig atomTypes (pruneTopStmts stmts) memberType
 
 pruneTopStmts :: [IRStmt] -> [IRStmt]
 pruneTopStmts [] = []
@@ -751,8 +766,8 @@ rmEBInClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind
     IRClass decl name fields (StaticInit (rmEBInStmts stmts)) atomTypes (map rmEBInFunc funs) mainKind
 
 rmEBInFunc :: IRFunction -> IRFunction
-rmEBInFunc (IRFunction acc name sig atomTypes stmts) =
-    IRFunction acc name sig atomTypes (unwrapSingleBlock (rmEBInStmts stmts))
+rmEBInFunc (IRFunction acc name sig atomTypes stmts memberType) =
+    IRFunction acc name sig atomTypes (unwrapSingleBlock (rmEBInStmts stmts)) memberType
     where
         unwrapSingleBlock :: [IRStmt] -> [IRStmt]
         unwrapSingleBlock [IRBlockStmt (IRBlock (_, stmts'))] = stmts'

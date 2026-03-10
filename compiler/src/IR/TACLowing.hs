@@ -186,16 +186,16 @@ atomLowing (AST.Variable _ tok) = do
                 Nothing -> return ([], atom)
 
         -- ??????
-        TEnv.VarImported _ clazz qname -> do
+        TEnv.VarImported _ clazz _ fullQname -> do
             nAtom <- newSubCVar clazz
-            return ([TAC.IRInstr (TAC.IGetStatic nAtom qname)], nAtom)
+            return ([TAC.IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
 
 atomLowing (AST.Qualified _ tokens) = do
     vinfo <- getVar (map tokenPos tokens)
     case vinfo of
-        TEnv.VarImported _ clazz varName -> do
+        TEnv.VarImported _ clazz _ fullQname -> do
             nAtom <- newSubCVar clazz
-            return ([TAC.IRInstr (TAC.IGetStatic nAtom varName)], nAtom)
+            return ([TAC.IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
         _ -> error "qualified name is not an imported variable"
 
 atomLowing _ = error "other type is not allowed for IR atom"
@@ -259,9 +259,9 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
                     then (TAC.IRInstr (TAC.IPutStatic [realName] lhsAtom) : TAC.IRInstr (TAC.IAssign lhsAtom rhsAtom) : instrs, lhsAtom)
                     else (TAC.IRInstr (TAC.IAssign lhsAtom rhsAtom) : instrs, lhsAtom)
             
-        TEnv.VarImported _ _ qname -> do
+        TEnv.VarImported _ _ _ fullQname -> do
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-            return (TAC.IRInstr (TAC.IPutStatic qname rhsAtom) : instrs, rhsAtom)
+            return (TAC.IRInstr (TAC.IPutStatic fullQname rhsAtom) : instrs, rhsAtom)
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -270,9 +270,9 @@ exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
         _ -> do
             vinfo <- getVar (map tokenPos toks)
             case vinfo of
-                TEnv.VarImported _ _ qname -> do
+                TEnv.VarImported _ _ _ fullQname -> do
                     (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-                    return (TAC.IRInstr (TAC.IPutStatic qname rhsAtom) : instrs, rhsAtom)
+                    return (TAC.IRInstr (TAC.IPutStatic fullQname rhsAtom) : instrs, rhsAtom)
                 _ -> error "assign lhs is not an imported qualified name"
 
 
@@ -375,10 +375,10 @@ exprLowing (AST.Call funName params) = do
                     [name] -> TAC.ICall dst name argAtoms
                     _ -> TAC.ICallStatic dst qname argAtoms
             return (TAC.IRInstr instr : argInstrs, dst)
-        TEnv.FunImported _ qname sig -> do
+        TEnv.FunImported _ _ fullQname sig -> do
             let retT = TEnv.funReturn sig
             dst <- newSubCVar retT
-            return (TAC.IRInstr (TAC.ICallStatic dst qname argAtoms) : argInstrs, dst)
+            return (TAC.IRInstr (TAC.ICallStatic dst fullQname argAtoms) : argInstrs, dst)
     where
         lowerArgs :: [Expression] -> TACM ([IRStmt], [IRAtom])
         lowerArgs = foldrM step ([], [])
@@ -957,7 +957,7 @@ functionLowering (AST.Function (clazz, _) (AST.Variable funName _) args functB) 
     atomTypes <- collectAtomTypes funSig (funStmts ++ [retBlock])
 
     let decl = (PB.Public, [PB.Static]) -- default: public static
-    return $ TAC.IRFunction decl funName funSig atomTypes (funStmts ++ [retBlock])
+    return $ TAC.IRFunction decl funName funSig atomTypes (funStmts ++ [retBlock]) TAC.MemberClassWrapped
         
     where
         loadArgs :: (Class, String, [Token]) -> TACM IRAtom
@@ -1010,15 +1010,15 @@ classStmtsLowing pkgSegs name stmts = do
             case vinfo of
                 TEnv.VarLocal _ str vid -> return (str, vid)
                 _ -> error "collectAssignKey: this should be catched in Semantic"
-        staticFieldFor :: Map String [Position] -> (String, Int) -> TACM (PB.Decl, Class, String)
+        staticFieldFor :: Map String [Position] -> (String, Int) -> TACM (PB.Decl, Class, String, TAC.IRMemberType)
         staticFieldFor consts (varName, vid) = do
             (clazz, _) <- peekVarStack (varName, vid)
             let flags = if Map.member varName consts then [PB.Static, PB.Final] else [PB.Static]
                 declStatic = (PB.Public, flags) -- TODO: use parsed modifiers
-            return (declStatic, clazz, varName)
+            return (declStatic, clazz, varName, TAC.MemberClassWrapped)
         qualifyFunction :: [String] -> TAC.IRFunction -> TAC.IRFunction
-        qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes body) =
-            TAC.IRFunction decl fname sig atomTypes (qualifyStmts cls body)
+        qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes body memberType) =
+            TAC.IRFunction decl fname sig atomTypes (qualifyStmts cls body) memberType
 
         qualifyStmts :: [String] -> [TAC.IRStmt] -> [TAC.IRStmt]
         qualifyStmts cls = map (qualifyStmt cls)
@@ -1063,7 +1063,7 @@ detectMainKind classQName = foldl' pick TAC.NoMain . map classify
         rank (TAC.MainVoidArgs _) = 4
 
         classify :: IRFunction -> TAC.MainKind
-        classify (TAC.IRFunction _ "main" sig _ _) =
+        classify (TAC.IRFunction _ "main" sig _ _ _) =
             case (TEnv.funReturn sig, TEnv.funParams sig) of
                 (Int32T, []) -> TAC.MainInt mainQName
                 (Void, []) -> TAC.MainVoid mainQName
@@ -1097,7 +1097,7 @@ progmLowing path (decls, stmts) =
         pkgSegs = case filter AST.isPackageDecl decls of
             (d:_) -> AST.declPath d
             [] -> []
-        mainClassName = toMainClassName path
+        mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls, stmts))
         action = do
             classIRs <- mapM classLowing classStmts
             extraIRs <- if null otherStmts
@@ -1108,7 +1108,7 @@ progmLowing path (decls, stmts) =
         let st0 = TAC.mkTACState Map.empty Map.empty -- TODO: pass semantic var/fun uses
         in evalState (TAC.runTACM action) st0
     where
-        -- | Build synthetic class name from file name: MainXl style.
+        -- | Build synthetic class name from file name: MainX style.
         toMainClassName :: Path -> String
         toMainClassName p =
             let fileName = takeFileName p
@@ -1116,7 +1116,7 @@ progmLowing path (decls, stmts) =
                 cap = case base of
                     [] -> "Main"
                     (c:cs) -> toUpper c : cs
-            in cap ++ "Xl"
+            in cap ++ "X"
         -- | Extract file name from a path (no path module dependency).
         takeFileName :: FilePath -> FilePath
         takeFileName p =
@@ -1175,6 +1175,8 @@ collectConstKey = foldl step Map.empty
                     (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
                     [] -> acc
             _ -> acc
+
+
 
 
 

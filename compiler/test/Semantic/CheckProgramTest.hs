@@ -32,6 +32,10 @@ numTok :: String -> Int -> Lex.Token
 numTok s n = Lex.NumberConst s (pos n)
 
 
+strTok :: String -> Int -> Lex.Token
+strTok s n = Lex.StrConst s (pos n)
+
+
 symTok :: Lex.Symbol -> Int -> Lex.Token
 symTok s n = Lex.Symbol s (pos n)
 
@@ -417,38 +421,38 @@ symbolAliasesTests :: TestTree
 symbolAliasesTests = mkGroup "Semantic.CheckProgram.symbolAliases" [
     ("0", do
         let (fullQn, aliases) = symbolAliases "src/m1.x" ["com", "wd"] "a"
-        fullQn @?= ["com", "wd", "M1Xl", "a"]
+        fullQn @?= ["com", "wd", "M1X", "a"]
         HashSet.fromList aliases @?=
-            HashSet.fromList [["com", "wd", "a"], ["com", "wd", "M1Xl", "a"], ["a"], ["M1Xl", "a"]]),
+            HashSet.fromList [["com", "wd", "a"], ["com", "wd", "M1X", "a"], ["a"], ["M1X", "a"]]),
 
     ("1", do
         let (_, aliases) = symbolAliases "f1.x" [] "a"
-        HashSet.fromList aliases @?= HashSet.fromList [["a"], ["F1Xl", "a"]]),
+        HashSet.fromList aliases @?= HashSet.fromList [["a"], ["F1X", "a"]]),
 
     ("2", do
         let (fullQn, aliases) = symbolAliases "folder/util" ["p"] "x"
-        fullQn @?= ["p", "UtilXl", "x"]
-        assertBool "contains file alias" (["UtilXl", "x"] `elem` aliases)),
+        fullQn @?= ["p", "UtilX", "x"]
+        assertBool "contains file alias" (["UtilX", "x"] `elem` aliases)),
 
     ("3", do
         let (fullQn, _) = symbolAliases "" ["p"] "v"
-        fullQn @?= ["p", "MainXl", "v"])
+        fullQn @?= ["p", "MainX", "v"])
     ]
 
 
 fileClassNameTests :: TestTree
 fileClassNameTests = mkGroup "Semantic.CheckProgram.fileClassName" [
     ("0", do
-        fileClassName "foo.x" @?= "FooXl"),
+        fileClassName "foo.x" @?= "FooX"),
 
     ("1", do
-        fileClassName "src/pkg/main.x" @?= "MainXl"),
+        fileClassName "src/pkg/main.x" @?= "MainX"),
 
     ("2", do
-        fileClassName "src\\pkg\\test_file.x" @?= "Test_fileXl"),
+        fileClassName "src\\pkg\\test_file.x" @?= "Test_fileX"),
 
     ("3", do
-        fileClassName "" @?= "MainXl")
+        fileClassName "" @?= "MainX")
     ]
 
 
@@ -528,7 +532,7 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
         let prog = mkProgram [] [] [assignStmt "b" (varExpr "a" 2) 2]
             ien = IEnv "dep.x" (Map.fromList [(["a"], [pos 2])]) Map.empty
             ten = (emptyTypedImportEnv "dep.x") {
-                tVars = Map.fromList [(["a"], (Int32T, [pos 2], ["dep", "DepXl", "a"]))]
+                tVars = Map.fromList [(["a"], (Int32T, [pos 2], ["dep", "DepX", "a"]))]
             }
         case checkOneProgram "a.x" prog [ien] [ten] of
             Right _ -> pure ()
@@ -574,6 +578,14 @@ checkProgmTests = mkGroup "Semantic.CheckProgram.checkProgm" [
         assertLeftWith (checkProgm "." files) $ \errs ->
             assertBool "must report circular import"
                 (any (isInfixOf "circular import detected" . errWhy) errs))
+    ,
+
+    ("4", do
+        let decls = [JavaName "A" (strTok "A" 1), JavaName "B" (strTok "B" 2)]
+            files = [("a.x", (decls, []))]
+        assertLeftWith (checkProgm "." files) $ \errs ->
+            assertBool "must report duplicate javaname"
+                (any ((== UE.multipleJavaNameMsg) . errWhy) errs))
     ]
 
 
@@ -683,7 +695,18 @@ buildExportTests = mkGroup "Semantic.CheckProgram.buildExport" [
             me = buildExport mi ctx
         case Map.lookup ["a"] (tVars (meTypedEnv me)) of
             Nothing -> assertFailure "missing var alias in typed export"
-            Just (_, _, full) -> full @?= ["p", "M4Xl", "a"])
+            Just (_, _, full) -> full @?= ["p", "M4X", "a"])
+    ,
+
+    ("4", do
+        let path = "m5.x"
+            prog = ([mkPackageDecl ["p"] 1, JavaName "MyUtils" (strTok "MyUtils" 2)], [assignStmt "a" (intExpr 1 3) 3])
+            mi = mustRight (toModuleInfo (path, prog))
+            ctx = mustRight (checkOneProgram path prog [] [])
+            me = buildExport mi ctx
+        case Map.lookup ["a"] (tVars (meTypedEnv me)) of
+            Nothing -> assertFailure "missing var alias in typed export"
+            Just (_, _, full) -> full @?= ["p", "MyUtils", "a"])
     ]
 
 
@@ -694,7 +717,7 @@ collectFunctionsTests = mkGroup "Semantic.CheckProgram.collectFunctions" [
             fulls = HashSet.fromList (map (\(_, qn, _, _) -> qn) out)
             keys = HashSet.fromList (map (\(k, _, _, _) -> k) out)
         HashSet.size fulls @?= 1
-        HashSet.member ["p", "M1Xl", "f"] fulls @?= True
+        HashSet.member ["p", "M1X", "f"] fulls @?= True
         HashSet.size keys @?= 4),
 
     ("1", do

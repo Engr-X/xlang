@@ -32,7 +32,7 @@ abstract class ClassArtifact(
             .fold(outDir) { acc, s -> acc.resolve(s) }
             .toAbsolutePath()
             .normalize()
-        val outFile: Path = absDir.resolve("${this.clazz.getName()}.class")
+        val outFile: Path = absDir.resolve("${this.clazz.getLastName()}.class")
         Files.createDirectories(outFile.parent)
         Files.write(outFile, bytes)
     }

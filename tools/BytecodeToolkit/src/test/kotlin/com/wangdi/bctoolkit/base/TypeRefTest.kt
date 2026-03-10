@@ -9,7 +9,7 @@ class TypeRefTest
     fun safeCreateEmptyUsesObject()
     {
         val ref: TypeRef = TypeRef.safeCreate(mutableListOf())
-        assertEquals("Object", ref.getName())
+        assertEquals("Object", ref.getLastName())
         assertEquals("java/lang/Object", ref.getFullName("/"))
     }
 
@@ -17,7 +17,7 @@ class TypeRefTest
     fun safeCreateNonEmptyKeepsParts()
     {
         val ref: TypeRef = TypeRef.safeCreate(mutableListOf("a", "b"))
-        assertEquals("b", ref.getName())
+        assertEquals("b", ref.getLastName())
         assertEquals("a.b", ref.getFullName("."))
     }
 
@@ -25,7 +25,7 @@ class TypeRefTest
     fun getNameReturnsLastPart()
     {
         val ref = TypeRef("x", "y", "Z")
-        assertEquals("Z", ref.getName())
+        assertEquals("Z", ref.getLastName())
     }
 
     @Test

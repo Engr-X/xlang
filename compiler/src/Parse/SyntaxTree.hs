@@ -559,7 +559,8 @@ flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flatte
 -- | The declaration of a program, especially import and module
 data Declaration = 
     Package [String] [Token] |
-    Import [String] [Token]
+    Import [String] [Token] |
+    JavaName String Token
     deriving (Eq, Show)
 
 
@@ -567,6 +568,7 @@ data Declaration =
 prettyDeclaration :: Declaration -> String
 prettyDeclaration (Package ss _) = "package " ++ intercalate "." ss
 prettyDeclaration (Import ss _) = "Import " ++ intercalate "." ss
+prettyDeclaration (JavaName s _) = "javaname " ++ show s
 
 
 -- | Check whether a statement is a class declaration.
@@ -607,6 +609,7 @@ isAssignment _ = False
 declPath :: Declaration -> [String]
 declPath (Package segs _) = segs
 declPath (Import  segs _) = segs 
+declPath (JavaName _ _) = []
 
 
 -- | Check whether a declaration is a package declaration.
@@ -621,6 +624,12 @@ isImportDecl (Import _ _) = True
 isImportDecl _ = False
 
 
+-- | Check whether a declaration is a javaname declaration.
+isJavaNameDecl :: Declaration -> Bool
+isJavaNameDecl (JavaName _ _) = True
+isJavaNameDecl _ = False
+
+
 -- | Program representation.
 --   Consists of imported modules and a list of top-level statements.
 type Program = ([Declaration], [Statement])
@@ -632,6 +641,13 @@ type Program = ([Declaration], [Statement])
 --   Duplicate-package errors are handled in semantic checking.
 getPackage :: Program -> [String]
 getPackage (decls, _) = let package = filter isPackageDecl decls in maybe [] declPath (listToMaybe package)
+
+
+-- | Get the optional declared javaname from a program header.
+--   Returns the first declaration if multiple exist; duplicate checking
+--   belongs to semantic validation.
+getJavaName :: Program -> Maybe String
+getJavaName (decls, _) = listToMaybe [name | JavaName name _ <- decls]
 
 
 -- | Better toString value for program

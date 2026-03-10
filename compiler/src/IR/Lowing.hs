@@ -1,4 +1,5 @@
 module IR.Lowing (
+    codeToIRWithRootAndDeps,
     codeToIRWithRoot,
     codeToIR,
     codeToIRSingleWithRoot,
@@ -10,14 +11,16 @@ import Control.Monad.State.Strict (runState)
 import Data.Char (toUpper)
 import Data.Either (lefts, rights)
 import Data.List (partition)
+import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
 import Lex.Tokenizer (tokenizeWithNL)
 import Parse.ParseProgm (parseProgm)
 import Parse.ParserBasic (toException)
 import Parse.SyntaxTree (Program, getErrorProgram)
-import Semantic.CheckProgram (checkProgm)
+import Semantic.CheckProgram (checkProgmWithDeps)
+import Semantic.NameEnv (ImportEnv)
 import Semantic.TypeCheck (tcFullFunUses, tcFullVarUses, tcWarnings)
-import Semantic.TypeEnv (FullFunctionTable, FullVarTable)
+import Semantic.TypeEnv (FullFunctionTable, FullVarTable, TypedImportEnv)
 import Util.Exception (ErrorKind, Warning)
 import Util.Type (Path, Position)
 
@@ -32,13 +35,23 @@ import qualified Util.Exception as UE
 
 -- | Parse, semantically check, and lower source files under an explicit source root.
 codeToIRWithRoot :: Path -> [(Path, String)] -> Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning])
-codeToIRWithRoot root files =
+codeToIRWithRoot = codeToIRWithRootAndDeps [] []
+
+
+-- | Parse, semantically check, and lower source files with extra imported envs.
+codeToIRWithRootAndDeps ::
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Path ->
+    [(Path, String)] ->
+    Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning])
+codeToIRWithRootAndDeps depImportEnvs depTypedEnvs root files =
     let parsed = map parseOne files
         parseErrs = concat (lefts parsed)
         progms = rights parsed
     in if not (null parseErrs)
         then Left parseErrs
-        else case checkProgm root progms of
+        else case checkProgmWithDeps root depImportEnvs depTypedEnvs progms of
             Left errs -> Left errs
             Right ctxs ->
                 let ctxMap = Map.fromList ctxs
@@ -111,7 +124,7 @@ lowerWithUses path (decls, stmts) vUses fUses =
         pkgSegs = case filter AST.isPackageDecl decls of
             (d:_) -> AST.declPath d
             [] -> []
-        mainClassName = toMainClassName path
+        mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls, stmts))
         action = do
             classIRs <- mapM Low.classLowing classStmts
             extraIRs <- if null otherStmts
@@ -132,7 +145,7 @@ lowerWithUses path (decls, stmts) vUses fUses =
                 cap = case base of
                     [] -> "Main"
                     (c:cs) -> toUpper c : cs
-            in cap ++ "Xl"
+            in cap ++ "X"
 
         -- | Cross-platform file-name extraction without depending on System.FilePath.
         takeFileName :: FilePath -> FilePath

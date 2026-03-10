@@ -11,8 +11,11 @@ import Test.Tasty.HUnit
 import qualified Util.Exception as UE
 
 
-findAttr :: String -> [((a, [DeclFlag]), Class, String)] -> Maybe ((a, [DeclFlag]), Class, String)
-findAttr name = find (\(_, _, attrName) -> attrName == name)
+findAttr ::
+    String ->
+    [((a, [DeclFlag]), Class, String, b)] ->
+    Maybe ((a, [DeclFlag]), Class, String, b)
+findAttr name = find (\(_, _, attrName, _) -> attrName == name)
 
 
 firstWhy :: [UE.ErrorKind] -> Maybe String
@@ -35,13 +38,13 @@ topLevelValFinalTests = testGroup "IR.Lowing.topLevelValFinal" $ map (uncurry te
             Right (IRProgm _ [IRClass _ _ attrs _ _ _ _], _) -> do
                 case findAttr "pi" attrs of
                     Nothing -> assertFailure "missing field: pi"
-                    Just ((_, flags), cls, _) -> do
+                    Just ((_, flags), cls, _, _) -> do
                         cls @?= Float64T
                         assertBool "pi should be static" (Static `elem` flags)
                         assertBool "pi should be final" (Final `elem` flags)
                 case findAttr "n" attrs of
                     Nothing -> assertFailure "missing field: n"
-                    Just ((_, flags), cls, _) -> do
+                    Just ((_, flags), cls, _, _) -> do
                         cls @?= Int32T
                         assertBool "n should be static" (Static `elem` flags)
                         assertBool "n should not be final" (Final `notElem` flags)

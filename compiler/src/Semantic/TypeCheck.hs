@@ -289,7 +289,7 @@ inferExpr path packages envs (Variable str tok) = do
                         case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
                             -- ????????????????????
                             Just (t, _, full) -> do
-                                recordVarUse [pos] (VarImported defaultDeclFlags t full)
+                                recordVarUse [pos] (VarImported defaultDeclFlags t qn full)
                                 pure t
 
                             -- ????????ContextCheck ????????
@@ -312,7 +312,7 @@ inferExpr path _ envs (Qualified names toks) = do
         -- 1) ??????/?????????????
         _ -> case getImportedVarType names envs of
             Just (t, full) -> do
-                recordVarUse posAll (VarImported defaultDeclFlags t full)
+                recordVarUse posAll (VarImported defaultDeclFlags t names full)
                 pure t
 
             -- 2) ??????????????????????????
@@ -478,21 +478,20 @@ inferExpr path packages envs e@(Call callee args) = do
     let TypeCtx{tcFunScopes = fScopes} = c
     let callPos = map Lex.tokenPos (exprTokens e)
 
-    -- ????????????????
     argTs0 <- mapM (inferExpr path packages envs) args
     let argInfos = zip argTs0 (map (map Lex.tokenPos . exprTokens) args)
 
     case callee of
-        -- ???????????f(...)
         Variable name tok -> do
             let qLocal = [name]
             let qImport = packages ++ [name]
-            let importEntries = concatMap (maybe [] (\(sigs, _, full) -> [(full, sigs)]) . Map.lookup qImport . tFuncs) envs
+            let importEntries =
+                    concatMap
+                        (maybe [] (\(sigs, _, full) -> [(qImport, full, sigs)]) . Map.lookup qImport . tFuncs)
+                        envs
             resolveScopedCall qLocal name fScopes importEntries [Lex.tokenPos tok] callPos argInfos
 
-        -- ??????????????this.xxx ???????????
         Qualified names toks -> case names of
-            -- this.xxx(...) -> ????????????????
             ("this":fname:_) -> case tcClassStack c of
                 [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity "this")
                 (ClassDef _ _ classFuns : _) -> do
@@ -500,17 +499,24 @@ inferExpr path packages envs e@(Call callee args) = do
                     let namePoses = map Lex.tokenPos toks
                     applyMatches callPos namePoses fname argInfos (FunLocal defaultDecl [fname]) sigs
 
-            -- ????????-> ??????/????????
             _ -> do
-                let sigs = concatMap (maybe [] (\(sigs', _, _) -> sigs') . Map.lookup names . tFuncs) envs
+                let importEntries =
+                        concatMap
+                            (maybe [] (\(sigs', _, full) -> [(names, full, sigs')]) . Map.lookup names . tFuncs)
+                            envs
                 let namePoses = map Lex.tokenPos toks
-                applyMatches callPos namePoses (intercalate "." names) argInfos (FunImported defaultDeclFlags names) sigs
+                resolveImportedCall names (intercalate "." names) importEntries namePoses callPos argInfos
 
-        -- ??????????????? -> ????????
         _ -> errClass $ UE.Syntax $ UE.makeError path callPos UE.invalidFunctionName
-    where
-        -- ??????????????????????widenedArgs????
-        applyMatches :: [Position] -> [Position] -> String -> [(Class, [Position])] -> (FunSig -> FullFunctionTable) -> [FunSig] -> TypeM Class
+  where
+        applyMatches ::
+            [Position] ->
+            [Position] ->
+            String ->
+            [(Class, [Position])] ->
+            (FunSig -> FullFunctionTable) ->
+            [FunSig] ->
+            TypeM Class
         applyMatches callPos _ funName _ _ [] =
             errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
         applyMatches callPos namePoses _ argInfos mkEntry sigs@(_ : _) = do
@@ -523,48 +529,67 @@ inferExpr path packages envs e@(Call callee args) = do
 
         addWarns = mapM_ addWarn
 
-        -- | Resolve a call by searching scopes from inner to outer.
-        --   If a scope has the name but no matching signature, fall through.
-        --   Ambiguous matches are reported immediately.
+        resolveImportedCall ::
+            QName ->
+            String ->
+            [(QName, QName, [FunSig])] ->
+            [Position] ->
+            [Position] ->
+            [(Class, [Position])] ->
+            TypeM Class
+        resolveImportedCall usedName funName importEntries namePos callPos argInfos =
+            let importSigs = concatMap third importEntries
+                findImportNames sig = fmap (\(used, full, _) -> (used, full)) (find (elem sig . third) importEntries)
+            in case importSigs of
+                [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
+                _ -> do
+                    res <- matchInSigs importSigs callPos argInfos
+                    case res of
+                        Right sig -> do
+                            let (usedQn, fullQn) = fromMaybe (usedName, usedName) (findImportNames sig)
+                            recordFunUse namePos (FunImported defaultDeclFlags usedQn fullQn sig)
+                            pure $ funReturn sig
+                        Left err -> errClass err
+
         resolveScopedCall ::
             QName ->
             String ->
             [FunTable] ->
-            [(QName, [FunSig])] ->
+            [(QName, QName, [FunSig])] ->
             [Position] ->
             [Position] ->
             [(Class, [Position])] ->
             TypeM Class
         resolveScopedCall qname funName scopes importEntries namePos callPos argInfos =
             go scopes Nothing
-            where
-                importSigs = concatMap snd importEntries
-                findImportQName sig = fmap fst (find (elem sig . snd) importEntries)
-                go [] lastErr = case importSigs of
-                    [] -> case lastErr of
-                        Just err -> errClass err
-                        Nothing -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
-                    _ -> do
-                        res <- matchInSigs importSigs callPos argInfos
-                        case res of
-                            Right sig -> do
-                                let qn = fromMaybe qname (findImportQName sig)
-                                recordFunUse namePos (FunImported defaultDeclFlags qn sig)
-                                pure $ funReturn sig
-                            Left err -> errClass err
-                go (m:rest) lastErr = do
-                    let sigs = lookupFun qname [m]
-                    if null sigs then
-                        go rest lastErr
-                    else do
-                        res <- matchInSigs sigs callPos argInfos
-                        case res of
-                            Right sig -> do
-                                recordFunUse namePos (FunLocal defaultDecl (qualifyLocal funName) sig)
-                                pure $ funReturn sig
-                            Left err ->
-                                if isAmbiguous err then errClass err
-                                else go rest (Just err)
+          where
+            importSigs = concatMap third importEntries
+            findImportNames sig = fmap (\(used, full, _) -> (used, full)) (find (elem sig . third) importEntries)
+            go [] lastErr = case importSigs of
+                [] -> case lastErr of
+                    Just err -> errClass err
+                    Nothing -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
+                _ -> do
+                    res <- matchInSigs importSigs callPos argInfos
+                    case res of
+                        Right sig -> do
+                            let (usedQn, fullQn) = fromMaybe (qname, qname) (findImportNames sig)
+                            recordFunUse namePos (FunImported defaultDeclFlags usedQn fullQn sig)
+                            pure $ funReturn sig
+                        Left err -> errClass err
+            go (m:rest) lastErr = do
+                let sigs = lookupFun qname [m]
+                if null sigs then
+                    go rest lastErr
+                else do
+                    res <- matchInSigs sigs callPos argInfos
+                    case res of
+                        Right sig -> do
+                            recordFunUse namePos (FunLocal defaultDecl (qualifyLocal funName) sig)
+                            pure $ funReturn sig
+                        Left err ->
+                            if isAmbiguous err then errClass err
+                            else go rest (Just err)
 
         matchInSigs ::
             [FunSig] ->
@@ -587,6 +612,9 @@ inferExpr path packages envs e@(Call callee args) = do
             if null packages
                 then [name]
                 else packages ++ [name]
+
+        third :: (a, b, c) -> c
+        third (_, _, c) = c
 
 inferExpr path _ _ e@(CallT {}) =
     errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens e)) UE.unsupportedErrorMsg
@@ -677,16 +705,16 @@ inferStmt path packages envs (Command (Return (Just e)) _) = do
         Just expected -> checkTypeCompat path pos expected t
 
 
-inferStmt path packages envs stmt@(DefField _ _ _) =
+inferStmt path packages envs stmt@(DefField {}) =
     inferDefineStmtFromDecl path packages envs stmt
 
-inferStmt path packages envs stmt@(DefConstField _ _ _) =
+inferStmt path packages envs stmt@(DefConstField {}) =
     inferDefineStmtFromDecl path packages envs stmt
 
-inferStmt path packages envs stmt@(DefVar _ _ _) =
+inferStmt path packages envs stmt@(DefVar {}) =
     inferDefineStmtFromDecl path packages envs stmt
 
-inferStmt path packages envs stmt@(DefConstVar _ _ _) =
+inferStmt path packages envs stmt@(DefConstVar {}) =
     inferDefineStmtFromDecl path packages envs stmt
 
 inferStmt path packages envs (Expr e) = void $ inferExpr path packages envs e
@@ -810,7 +838,7 @@ inferDefineStmt ::
     TypeM ()
 inferDefineStmt path packages envs isConst names mRhs toks = do
     mTRhs <- traverse (inferExpr path packages envs) mRhs
-    let declFlags = if isConst then [Final] else []
+    let declFlags = ([Final | isConst])
 
     case names of
         [name] -> case reverse toks of
@@ -856,9 +884,7 @@ inferDefineStmt path packages envs isConst names mRhs toks = do
                                         Just tRhs -> Map.insert vid (tRhs, defPos) (tcVarTypes c0)
                                         Nothing -> tcVarTypes c0 }
                             Just (oldT, _) -> do
-                                case mTRhs of
-                                    Just tRhs -> checkTypeCompat path (map Lex.tokenPos toks) oldT tRhs
-                                    Nothing -> pure ()
+                                for_ mTRhs (checkTypeCompat path (map Lex.tokenPos toks) oldT)
                                 modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState2 } }
                     Nothing -> do
                         addErr $ UE.Syntax $ UE.makeError path [posTok] (UE.undefinedIdentity name)

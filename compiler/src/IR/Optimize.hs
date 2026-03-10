@@ -17,8 +17,8 @@ stripPhiClass (IRClass decl name fields (TAC.StaticInit stmts) atomTypes funs ma
 
 
 stripPhiFunction :: IRFunction -> IRFunction
-stripPhiFunction (IRFunction acc name sig atomTypes stmts) =
-    IRFunction acc name sig atomTypes (stripPhiStmts stmts)
+stripPhiFunction (IRFunction acc name sig atomTypes stmts memberType) =
+    IRFunction acc name sig atomTypes (stripPhiStmts stmts) memberType
 
 
 stripPhiStmts :: [IRStmt] -> [IRStmt]

@@ -63,14 +63,14 @@ data TypedImportEnv = TIEnv {
 -- | Full variable usage table (local or imported).
 data FullVarTable
     = VarLocal Decl String VarId
-    | VarImported DeclFlags Class QName
+    | VarImported DeclFlags Class QName QName
     deriving (Eq, Show)
     
 
 -- | Full function usage table (local or imported).
 data FullFunctionTable
     = FunLocal Decl QName FunSig
-    | FunImported DeclFlags QName FunSig
+    | FunImported DeclFlags QName QName FunSig
     deriving (Eq, Show)
 
 

@@ -10,7 +10,7 @@ import Data.Map.Strict (Map)
 import Data.HashSet (HashSet)
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Ord (comparing)
-import Parse.SyntaxTree (Declaration(..), Expression(..), Program, Statement(..), pattern Function, pattern FunctionT, declPath, isImportDecl, normalizeClass, getPackage)
+import Parse.SyntaxTree (Declaration(..), Expression(..), Program, Statement(..), pattern Function, pattern FunctionT, declPath, getJavaName, getPackage, isImportDecl, normalizeClass)
 import Parse.ParserBasic (AccessModified(..))
 import Semantic.NameEnv (ImportEnv(..), QName, defaultImportEnv, getPackageName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
@@ -96,15 +96,34 @@ checkPackageDecl root fp@(fullPath, prog@(decls, _))
             (Package _ toks:_) -> map Lex.tokenPos toks
             _ -> []
 
+checkJavaNameDecl :: (Path, Program) -> Either [ErrorKind] ()
+checkJavaNameDecl (fullPath, (decls, _)) =
+    case [tok | JavaName _ tok <- decls] of
+        [] -> Right ()
+        [_] -> Right ()
+        (_:dups) ->
+            Left [UE.Syntax (UE.makeError fullPath [Lex.tokenPos tok] UE.multipleJavaNameMsg) | tok <- dups]
+
 
 checkProgm :: Path -> [(Path, Program)] -> Either [ErrorKind] [(Path, TC.TypeCtx)]
-checkProgm root files = do
+checkProgm root = checkProgmWithDeps root [] []
+
+
+checkProgmWithDeps ::
+    Path ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    [(Path, Program)] ->
+    Either [ErrorKind] [(Path, TC.TypeCtx)]
+checkProgmWithDeps root extImportEnvs extTypedEnvs files = do
     mapM_ (checkPackageDecl root) files
+    mapM_ checkJavaNameDecl files
     modules <- traverse toModuleInfo files
 
     let pkgMap = groupByPackage modules
+        extPkgs = externalPackages extTypedEnvs
 
-    owners <- resolveAllImports pkgMap modules
+    owners <- resolveAllImportsWithExternal pkgMap extPkgs modules
 
     let depMap = buildDepMap pkgMap owners
         cycErrs = cycleErrors pkgMap depMap
@@ -113,7 +132,7 @@ checkProgm root files = do
         then Left cycErrs
         else do
             order <- topoOrder depMap (Map.keys pkgMap)
-            checked <- foldM (checkPackage pkgMap depMap) Map.empty order
+            checked <- foldM (checkPackageWithDeps pkgMap depMap extImportEnvs extTypedEnvs) Map.empty order
             traverse (toResult checked) files
     where
         toResult :: Map QName CheckedPackage -> (Path, Program) -> Either [ErrorKind] (Path, TC.TypeCtx)
@@ -150,20 +169,51 @@ resolveAllImports ::
     Map QName [ModuleInfo] ->
     [ModuleInfo] ->
     Either [ErrorKind] (Map (Path, QName) QName)
-resolveAllImports pkgMap mods =
+resolveAllImports pkgMap = resolveAllImportsWithExternal pkgMap HashSet.empty
+
+
+resolveAllImportsWithExternal ::
+    Map QName [ModuleInfo] ->
+    HashSet QName ->
+    [ModuleInfo] ->
+    Either [ErrorKind] (Map (Path, QName) QName)
+resolveAllImportsWithExternal pkgMap extPkgs mods =
     let imports = [(miPath m, importQn, pos)
             | m <- mods, (importQn, pos) <- miImports m]
 
         foldOne (errs0, acc) (ownerPath, importQn, pos) =
             case resolveImportOwner (Map.keys pkgMap) importQn of
-                Nothing ->
-                    let msg = UE.undefinedIdentity (prettyQName importQn)
-                    in (UE.Syntax (UE.makeError ownerPath pos msg) : errs0, acc)
                 Just depPkg -> (errs0, Map.insert (ownerPath, importQn) depPkg acc)
+                Nothing ->
+                    if isExternalImport extPkgs importQn
+                        then (errs0, acc)
+                        else
+                            let msg = UE.undefinedIdentity (prettyQName importQn)
+                            in (UE.Syntax (UE.makeError ownerPath pos msg) : errs0, acc)
 
         (errsRev, owners) = foldl' foldOne ([], Map.empty) imports
         errs = reverse errsRev
     in if null errs then Right owners else Left errs
+
+
+isExternalImport :: HashSet QName -> QName -> Bool
+isExternalImport extPkgs importQn =
+    any (`isPrefixOf` importQn) (HashSet.toList extPkgs)
+
+
+externalPackages :: [TypedImportEnv] -> HashSet QName
+externalPackages envs =
+    HashSet.fromList (concatMap fromEnv envs)
+    where
+        fromEnv :: TypedImportEnv -> [QName]
+        fromEnv env =
+            mapMaybe pkgFromFull (map (\(_, _, full) -> full) (Map.elems (tVars env)))
+            ++ mapMaybe pkgFromFull (map (\(_, _, full) -> full) (Map.elems (tFuncs env)))
+
+        pkgFromFull :: QName -> Maybe QName
+        pkgFromFull full
+            | length full >= 2 = Just (take (length full - 2) full)
+            | otherwise = Nothing
 
 
 resolveImportOwner :: [QName] -> QName -> Maybe QName
@@ -248,14 +298,25 @@ checkPackage ::
     Map QName CheckedPackage ->
     QName ->
     Either [ErrorKind] (Map QName CheckedPackage)
-checkPackage pkgMap depMap checked pkg =
+checkPackage pkgMap depMap = checkPackageWithDeps pkgMap depMap [] []
+
+
+checkPackageWithDeps ::
+    Map QName [ModuleInfo] ->
+    Map QName [QName] ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Map QName CheckedPackage ->
+    QName ->
+    Either [ErrorKind] (Map QName CheckedPackage)
+checkPackageWithDeps pkgMap depMap extImportEnvs extTypedEnvs checked pkg =
     case Map.lookup pkg pkgMap of
         Nothing -> Left [UE.Syntax (UE.makeError "<internal>" [] UE.internalErrorMsg)]
         Just mods0 -> do
             let mods = sortOn miPath mods0
                 depPkgs = Map.findWithDefault [] pkg depMap
-                depImportEnvs = mapMaybe (fmap cpImportEnv . (`Map.lookup` checked)) depPkgs
-                depTypedEnvs = mapMaybe (fmap cpTypedEnv . (`Map.lookup` checked)) depPkgs
+                depImportEnvs = mapMaybe (fmap cpImportEnv . (`Map.lookup` checked)) depPkgs ++ extImportEnvs
+                depTypedEnvs = mapMaybe (fmap cpTypedEnv . (`Map.lookup` checked)) depPkgs ++ extTypedEnvs
                 seedPath = maybe "<pkg>" miPath (safeHead mods)
                 seedImport = IEnv { file = seedPath, iVars = Map.empty, iFuncs = Map.empty }
                 seedTyped = emptyTypedImportEnv seedPath
@@ -337,27 +398,121 @@ mergeTypedEnv a b =
             in (sigs, poses, full)
 
 
+importDeclPackages :: [Declaration] -> [QName]
+importDeclPackages decls =
+    HashSet.toList $ HashSet.fromList [declPath d | d@(Import _ _) <- decls, isImportDecl d]
+
+
+splitHiddenQName :: QName -> (Bool, QName)
+splitHiddenQName ("$hidden$" : rest) = (True, rest)
+splitHiddenQName qn = (False, qn)
+
+
+aliasTargetsForImport :: QName -> QName -> [QName]
+aliasTargetsForImport currentPkg remainder =
+    HashSet.toList $ HashSet.fromList (remainder : scoped)
+  where
+    scoped
+        | length remainder == 1 = [currentPkg ++ remainder]
+        | otherwise = []
+
+
+expandImportEnvByImports :: QName -> [QName] -> ImportEnv -> ImportEnv
+expandImportEnvByImports currentPkg imports env =
+    env {
+        iVars = expandMap (iVars env),
+        iFuncs = expandMap (iFuncs env)
+    }
+  where
+    expandMap :: Map QName [Position] -> Map QName [Position]
+    expandMap mp =
+        let entries = Map.toList mp
+            aliases =
+                [ (aliasKey, positions)
+                | (keyQn, positions) <- entries
+                , let (isHidden, payload) = splitHiddenQName keyQn
+                , importQn <- imports
+                , Just remainder <- [stripPrefix importQn payload]
+                , not (null remainder)
+                , alias <- aliasTargetsForImport currentPkg remainder
+                , let aliasKey = if isHidden then toHiddenQName alias else alias
+                ]
+        in foldl' (\acc (k, v) -> Map.insertWith (++) k v acc) mp aliases
+
+
+expandTypedImportEnvByImports :: QName -> [QName] -> TypedImportEnv -> TypedImportEnv
+expandTypedImportEnvByImports currentPkg imports env =
+    env {
+        tVars = expandVarMap (tVars env),
+        tFuncs = expandFunMap (tFuncs env)
+    }
+  where
+    expandVarMap :: Map QName (AST.Class, [Position], QName) -> Map QName (AST.Class, [Position], QName)
+    expandVarMap mp =
+        let entries = Map.toList mp
+            aliases =
+                [ (aliasKey, entry)
+                | (keyQn, entry) <- entries
+                , let (isHidden, payload) = splitHiddenQName keyQn
+                , importQn <- imports
+                , Just remainder <- [stripPrefix importQn payload]
+                , not (null remainder)
+                , alias <- aliasTargetsForImport currentPkg remainder
+                , let aliasKey = if isHidden then toHiddenQName alias else alias
+                ]
+            keepOld :: (AST.Class, [Position], QName) -> (AST.Class, [Position], QName) -> (AST.Class, [Position], QName)
+            keepOld _ old = old
+        in foldl' (\acc (k, v) -> Map.insertWith keepOld k v acc) mp aliases
+
+    expandFunMap :: Map QName ([FunSig], [Position], QName) -> Map QName ([FunSig], [Position], QName)
+    expandFunMap mp =
+        let entries = Map.toList mp
+            aliases =
+                [ (aliasKey, entry)
+                | (keyQn, entry) <- entries
+                , let (isHidden, payload) = splitHiddenQName keyQn
+                , importQn <- imports
+                , Just remainder <- [stripPrefix importQn payload]
+                , not (null remainder)
+                , alias <- aliasTargetsForImport currentPkg remainder
+                , let aliasKey = if isHidden then toHiddenQName alias else alias
+                ]
+            mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
+            mergeFunEntry (newSigs, newPos, newFull) (oldSigs, oldPos, oldFull) =
+                let sigs = oldSigs ++ filter (`notElem` oldSigs) newSigs
+                    poses = oldPos ++ newPos
+                    full = if null oldFull then newFull else oldFull
+                in (sigs, poses, full)
+        in foldl' (\acc (k, v) -> Map.insertWith mergeFunEntry k v acc) mp aliases
+
+
 checkOneProgram :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
 checkOneProgram path prog@(decls, stmts) importEnvs typedEnvs =
     case RC.returnCheckProg path prog of
         Left errs -> Left errs
         Right () -> do
             packageName <- getPackageName path decls
-            let importEnvs0 = defaultImportEnv path : importEnvs
+            let importedPkgs = importDeclPackages decls
+                importEnvs0 =
+                    defaultImportEnv path :
+                    map (expandImportEnvByImports packageName importedPkgs) importEnvs
+                typedEnvs0 =
+                    map (expandTypedImportEnvByImports packageName importedPkgs) typedEnvs
             case CC.checkProgmWithUses path prog importEnvs0 of
                 Left errs -> Left errs
                 Right (st, uses) ->
-                    TC.inferProgmWithCtx path packageName stmts st uses typedEnvs
+                    TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
 
 
 buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport
 buildExport mi ctx =
     let path = miPath mi
         pkg = miPkg mi
-        (_, stmts) = miProg mi
+        prog@(_, stmts) = miProg mi
+        wrapperClass = fromMaybe (fileClassName path) (getJavaName prog)
 
-        funDecls = collectFunctions path pkg stmts
-        varDecls = collectTopLevelVars path pkg stmts ctx
+        funDecls = collectFunctionsWithClass wrapperClass pkg stmts
+        varDecls = collectTopLevelVarsWithClass wrapperClass pkg stmts ctx
 
         iVarsMap = Map.fromListWith (++) [(keyQn, pos) | (keyQn, _, _, pos) <- varDecls]
         iFuncsMap = Map.fromListWith (++) [(keyQn, pos) | (keyQn, _, _, pos) <- funDecls]
@@ -416,7 +571,11 @@ applyVisibilityKey _ qn = toHiddenQName qn
 
 
 collectFunctions :: Path -> QName -> [Statement] -> [(QName, QName, FunSig, [Position])]
-collectFunctions path pkg = concatMap one
+collectFunctions path pkg = collectFunctionsWithClass (fileClassName path) pkg
+
+
+collectFunctionsWithClass :: String -> QName -> [Statement] -> [(QName, QName, FunSig, [Position])]
+collectFunctionsWithClass fileCls pkg = concatMap one
     where
         one :: Statement -> [(QName, QName, FunSig, [Position])]
         one stmt@(Function (retT, retToks) nameExpr params _) =
@@ -428,7 +587,7 @@ collectFunctions path pkg = concatMap one
                 access = accessOfStmt stmt
             in case nameExpr of
                 Variable name _ ->
-                    let (fullQn, aliases) = symbolAliases path pkg name
+                    let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
                         keys = map (applyVisibilityKey access) aliases
                     in [ (key, fullQn, sig, pos) | key <- keys ]
                 Qualified names _ ->
@@ -444,7 +603,7 @@ collectFunctions path pkg = concatMap one
                 access = accessOfStmt stmt
             in case nameExpr of
                 Variable name _ ->
-                    let (fullQn, aliases) = symbolAliases path pkg name
+                    let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
                         keys = map (applyVisibilityKey access) aliases
                     in [ (key, fullQn, sig, pos) | key <- keys ]
                 Qualified names _ ->
@@ -458,7 +617,11 @@ collectFunctions path pkg = concatMap one
 
 
 collectTopLevelVars :: Path -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
-collectTopLevelVars path pkg stmts ctx = mapMaybe one stmts >>= expandAlias
+collectTopLevelVars path pkg stmts ctx = collectTopLevelVarsWithClass (fileClassName path) pkg stmts ctx
+
+
+collectTopLevelVarsWithClass :: String -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
+collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one stmts >>= expandAlias
     where
         varUses = CC.varUses (TC.tcCtx ctx)
         varTypes = TC.tcVarTypes ctx
@@ -492,15 +655,18 @@ collectTopLevelVars path pkg stmts ctx = mapMaybe one stmts >>= expandAlias
 
         expandAlias :: (AccessModified, String, AST.Class, [Position]) -> [(QName, QName, AST.Class, [Position])]
         expandAlias (access, name, cls, pos) =
-            let (fullQn, aliases) = symbolAliases path pkg name
+            let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
                 keys = map (applyVisibilityKey access) aliases
             in [ (key, fullQn, cls, pos) | key <- keys ]
 
 
 symbolAliases :: Path -> QName -> String -> (QName, [QName])
-symbolAliases path pkg name =
-    let fileCls = fileClassName path
-        fullQn = pkg ++ [fileCls, name]
+symbolAliases path pkg name = symbolAliasesWithClass (fileClassName path) pkg name
+
+
+symbolAliasesWithClass :: String -> QName -> String -> (QName, [QName])
+symbolAliasesWithClass fileCls pkg name =
+    let fullQn = pkg ++ [fileCls, name]
         qPkg = pkg ++ [name]
         qPkgFile = fullQn
         qBare = [name]
@@ -516,8 +682,8 @@ fileClassName path =
     let fileName = reverse (takeWhile (\c -> c /= '/' && c /= '\\') (reverse path))
         base = takeWhile (/= '.') fileName
     in case base of
-        [] -> "MainXl"
-        (c:cs) -> toUpper c : cs ++ "Xl"
+        [] -> "MainX"
+        (c:cs) -> toUpper c : cs ++ "X"
 
 
 choosePos :: Expression -> [Lex.Token] -> [Position]

@@ -4,6 +4,7 @@ import com.wangdi.bctoolkit.artifact.Emitter
 import com.wangdi.bctoolkit.artifact.operation.*
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
+import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
 
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Label
@@ -19,6 +20,8 @@ open class MethodEmitter(
     private val exceptions: MutableList<Type> = mutableListOf(),
 ) : Emitter()
 {
+    private var ownerType: String = OwnerTypeMetadata.CLASS
+
     protected val operations: MutableList<Instruction> = mutableListOf()
 
     open inner class Builder
@@ -206,10 +209,14 @@ open class MethodEmitter(
 
     fun addOp(op: Instruction): MethodEmitter = this.apply { this.operations.add(op) }
 
+    fun setOwnerType(type: String): MethodEmitter =
+        this.apply { this.ownerType = OwnerTypeMetadata.normalize(type) }
+
     private fun getDescription(): String =
         "(${this.funParams.second.joinToString(separator = "") { it.getName() }})${this.funParams.first.getName()}"
 
     override fun generate(): Emitter = this.apply {
+        OwnerTypeMetadata.write(this.mv, this.ownerType)
         this.mv.visitCode()
         this.operations.forEach { it.addOp() }
         this.mv.visitMaxs(0, 0)

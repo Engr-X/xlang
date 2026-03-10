@@ -75,22 +75,22 @@ forbiddenFor (Just parent) current = HashSet.member current (Map.findWithDefault
 
 
 -- | A single lexical scope (no parent pointer; use the scope stack).
-data Scope = Scope
-    { scopeId :: ScopeId
-    , sVars :: Map String (VarId, Position)
-    , sFuncs :: Map QName [Position]
+data Scope = Scope {
+    scopeId :: ScopeId,
+    sVars :: Map String (VarId, Position),
+    sFuncs :: Map QName [Position]
     }
     deriving (Eq, Show)
 
 
 -- | Mutable checking state for semantic passes.
-data CheckState = CheckState
-    { depth :: Int
-    , varCounter :: Int
-    , scopeCounter :: Int
-    , ctrlStack :: [CtrlState]
-    , scope :: [Scope]
-    , classScope :: [Scope]
+data CheckState = CheckState {
+    depth :: Int,
+    varCounter :: Int,
+    scopeCounter :: Int,
+    ctrlStack :: [CtrlState],
+    scope :: [Scope],
+    classScope :: [Scope]
     }
     deriving (Eq, Show)
 
@@ -101,11 +101,10 @@ lookupVarId name st = listToMaybe $ mapMaybe (Map.lookup name . sVars) (scope st
 
 
 -- | Import NameEnv for a single file.
-data ImportEnv = IEnv
-    { file :: Path
-    , iVars :: Map QName [Position]
-    , iFuncs :: Map QName [Position]
-    }
+data ImportEnv = IEnv {
+    file :: Path,
+    iVars :: Map QName [Position],
+    iFuncs :: Map QName [Position]}
     deriving (Eq, Show)
 
 
@@ -230,6 +229,7 @@ getPackageName p ds = case filter AST.isPackageDecl ds of
         declPos :: Declaration -> [Token]
         declPos (AST.Package _ tokens) = tokens
         declPos (AST.Import _ tokens) = tokens
+        declPos (AST.JavaName _ token) = [token]
 
 
 -- | Get the current lexical depth.

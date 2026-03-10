@@ -220,7 +220,8 @@ declPathTests = testGroup "Parse.SyntaxTree.declPath" $
         ("0", Package ["a"] [], ["a"]),
         ("1", Package ["java", "lang", "util"] [], ["java", "lang", "util"]),
         ("2", Import ["math"] [], ["math"]),
-        ("3", Import ["java", "util", "List"] [], ["java", "util", "List"])]
+        ("3", Import ["java", "util", "List"] [], ["java", "util", "List"]),
+        ("4", JavaName "Utils" (mkIdD "Utils"), [])]
 
 
 getPackageTests :: TestTree
@@ -595,7 +596,8 @@ prettyDeclarationTests = testGroup "Parse.SyntaxTree.prettyDeclaration" $
         ("0", Package [] [], "package "),
         ("1", Package ["a"] [], "package a"),
         ("2", Import [] [], "Import "),
-        ("3", Import ["a","b","c"] [], "Import a.b.c")]
+        ("3", Import ["a","b","c"] [], "Import a.b.c"),
+        ("4", JavaName "MyUtils" (mkIdD "MyUtils"), "javaname \"MyUtils\"")]
 
 
 

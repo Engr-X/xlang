@@ -13,9 +13,13 @@ class TypeRef(private val name: MutableList<String>)
         fun safeCreate(name: MutableList<String>): TypeRef = if (name.isEmpty()) TypeRef("java", "lang", "Object") else TypeRef(name)
     }
 
-    fun getName(): String = this.name.last()
+    fun getName(): List<String> = this.name.toMutableList()
+
+    fun getLastName(): String = this.name.last()
 
     fun getFullName(separator: String): String = this.name.joinToString(separator = separator)
 
     fun getPackage(): MutableList<String> = this.name.subList(0, this.name.lastIndex)
+
+    override fun toString(): String = this.name.joinToString(separator = ".")
 }

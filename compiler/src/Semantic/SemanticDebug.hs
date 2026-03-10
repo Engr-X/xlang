@@ -108,10 +108,13 @@ renderVarEntry ctx (pos, entry) = case entry of
                 Just (cls, _) -> prettyClass cls
                 Nothing -> "<unknown>"
         in concat [name, "@", show vid, "(local", declPart, ": ", show pos, "): ", tyS]
-    VarImported flags cls qname ->
+    VarImported flags cls usedQname fullQname ->
         let flagS = renderFlags flags
             flagPart = if null flagS then "" else " " ++ flagS
-        in concat [prettyQName qname, "(", show pos, "): ", prettyClass cls, flagPart]
+            usedS = prettyQName usedQname
+            fullS = prettyQName fullQname
+            nameS = if usedQname == fullQname then fullS else usedS ++ " -> " ++ fullS
+        in concat [nameS, "(", show pos, "): ", prettyClass cls, flagPart]
 
 
 renderFunEntries :: Map [Position] FullFunctionTable -> [String]
@@ -123,7 +126,11 @@ renderFunEntries mp =
 renderFunEntry :: ([Position], FullFunctionTable) -> String
 renderFunEntry (pos, entry) = case entry of
     FunLocal decl qname sig -> formatFunDecl decl qname sig pos
-    FunImported flags qname sig -> formatFunFlags flags (prettyQName qname) sig pos
+    FunImported flags usedQname fullQname sig ->
+        let usedS = prettyQName usedQname
+            fullS = prettyQName fullQname
+            nameS = if usedQname == fullQname then fullS else usedS ++ " -> " ++ fullS
+        in formatFunFlags flags nameS sig pos
 
 
 formatFunDecl :: Decl -> QName -> FunSig -> [Position] -> String
@@ -163,3 +170,4 @@ renderDecl (acc, flags) =
 
 prettyQName :: [String] -> String
 prettyQName = intercalate "."
+

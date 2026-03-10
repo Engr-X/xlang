@@ -57,6 +57,9 @@ paramTypesKey = Key.fromString "param_types"
 methodOpsKey :: Key
 methodOpsKey = Key.fromString "ops"
 
+ownerTypeKey :: Key
+ownerTypeKey = Key.fromString "owner_type"
+
 blockIdKey :: Key
 blockIdKey = Key.fromString "block_id"
 
@@ -293,7 +296,8 @@ jCommandToJSON (JVM.Label (bid, cmds)) =
 
 -- | Encode a JVM function into JSON.
 jFunctionToJSON :: JVM.JFunction -> Value
-jFunctionToJSON (JVM.JFunction decl fname sig body) = object [
+jFunctionToJSON (JVM.JFunction decl fname sig ownerType body) = object [
+    ownerTypeKey .= ownerType,
     accessKey .= declToAccessList decl,
     nameKey .= fname,
     returnKey .= typeToQName (funReturn sig),
@@ -303,7 +307,8 @@ jFunctionToJSON (JVM.JFunction decl fname sig body) = object [
 
 -- | Encode a JVM field into JSON.
 jFieldToJSON :: JVM.JField -> Value
-jFieldToJSON (JVM.JField decl cls name) = object [
+jFieldToJSON (JVM.JField decl cls name ownerType) = object [
+    ownerTypeKey .= ownerType,
     accessKey .= declToAccessList decl,
     attributeNameKey .= name,
     attributeTypeKey .= typeToQName cls,

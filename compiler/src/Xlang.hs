@@ -4,24 +4,27 @@ import Control.Monad (void, when)
 import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Char (toLower)
-import Data.List (stripPrefix)
+import Data.List (foldl', sort, stripPrefix)
 import System.Directory (
     canonicalizePath,
     createDirectoryIfMissing,
     doesDirectoryExist,
+    listDirectory,
     removeFile,
     removePathForcibly
     )
 import System.Environment (getArgs, getExecutablePath)
-import System.FilePath ((</>), isAbsolute, takeDirectory, takeExtension)
+import System.FilePath ((</>), isAbsolute, normalise, takeDirectory, takeExtension)
 import System.IO.Error (catchIOError)
 import System.Process (callProcess)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
+import qualified Data.Map.Strict as Map
 import qualified IR.Lowing as IR
 import qualified IR.TAC as TAC
 import qualified Lowing.JVMLowing as JVML
 import qualified Lowing.JVMJson as JVMJson
+import qualified Semantic.LibLoader as LibLoader
 import qualified Util.Exception as UE
 import qualified Util.FileHelper as FH
 
@@ -38,6 +41,7 @@ data Options = Options {
     optVersion :: Bool,
     optTarget :: Maybe String,
     optInputs :: [FilePath],
+    optLibs :: [FilePath],
     optOutput :: Maybe FilePath,
     optRoot :: FilePath,
     optDebug :: Bool,
@@ -51,6 +55,7 @@ defaultOptions = Options {
     optVersion = False,
     optTarget = Nothing,
     optInputs = [],
+    optLibs = [],
     optOutput = Nothing,
     optRoot = ".", 
     optDebug = False,
@@ -94,6 +99,12 @@ parseArgs = go defaultOptions
     go opts ("-c" : src : xs) = go (addInput opts src) xs
     go opts ["-c"] = opts {optHelp = True, optError = Just "missing value for -c"}
 
+    go opts ("-lib" : xs) =
+        let (libs, rest) = span isLikelyPath xs
+        in if null libs
+            then opts {optHelp = True, optError = Just "missing value(s) for -lib"}
+            else go opts {optLibs = optLibs opts ++ libs} rest
+
     -- Kotlin style output: -d <dir|jar>. Keep "-d" alone as debug shorthand.
     go opts ("-d" : out : xs)
         | isLikelyPath out = go opts {optOutput = Just out} xs
@@ -110,30 +121,28 @@ parseArgs = go defaultOptions
 
 
 printHelp :: IO ()
-printHelp =
-    putStrLn
-        ( unlines
-            [ "Usage:"
-            , "   xlang --target=jvm <file.x|file.xl|file.xlang> [more files ...] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>] [--debug|-debug|-d]"
-            , "   xlang -v | --version"
-            , "   xlang -h | --help"
-            , ""
-            , "Options:"
-            , "   --target=jvm     compile to JVM bytecode (required)"
-            , "   <file.*>         source files to compile (extensions: .x/.xl/.xlang)"
-            , "   -c <file.*>      compatibility alias for one input file"
-            , "   --root=<dir>     source root (preferred form), e.g. --root=./abcde"
-            , "   --root <dir>     source root (compatible form)"
-            , "   -r <dir>         source root (short form)"
-            , "   -d <dir|jar>     output directory or jar path"
-            , "                    if .jar: classes are emitted to <root>/out, then packed"
-            , "                    manifest includes: build by xlang"
-            , "   --debug|-debug   write debug.json and Ir.txt next to source(s)"
-            , "   -d               debug shorthand when used without output path"
-            , "   -v, --version    print xlang version"
-            , "   -h, --help       show this help"
-            ]
-        )
+printHelp = putStrLn $ unlines [
+    "Usage:",
+    "   xlang --target=jvm <file.x|file.xl|file.xlang> [more files ...] [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>] [--debug|-debug|-d]",
+    "   xlang -v | --version",
+    "   xlang -h | --help",
+    "",
+    "Options:",
+    "   --target=jvm     compile to JVM bytecode (required)",
+    "   <file.*>         source files to compile (extensions: .x/.xl/.xlang)",
+    "   -c <file.*>      compatibility alias for one input file",
+    "   --root=<dir>     source root (preferred form), e.g. --root=./abcde",
+    "   --root <dir>     source root (compatible form)",
+    "   -r <dir>         source root (short form)",
+    "   -lib <files...>  external libs (.class/.jar), e.g. -lib a.jar b.class",
+    "                    plus default: all .jar under <xlang.exe dir>/libs (recursive)",
+    "   -d <dir|jar>     output directory or jar path",
+    "                    if .jar: classes are emitted to <root>/out, then packed",
+    "                    manifest includes: build by xlang",
+    "   --debug|-debug   write debug.json and Ir.txt next to source(s)",
+    "   -d               debug shorthand when used without output path",
+    "   -v, --version    print xlang version",
+    "   -h, --help       show this help"]
 
 
 resolveFromRoot :: FilePath -> FilePath -> FilePath
@@ -158,15 +167,58 @@ invalidSourceFiles :: [FilePath] -> [FilePath]
 invalidSourceFiles = filter (not . isAllowedSourceFile)
 
 
-compileJVM :: FilePath -> FilePath -> [FilePath] -> Maybe FilePath -> Bool -> IO Bool
-compileJVM toolkitJar rootPath srcPaths mOutput debugOut = do
-    sourceRes <-
-        mapM
-            (\path -> do
-                fileRes <- FH.readFile path
-                pure (path, fileRes)
-            )
-            srcPaths
+allowedLibExtensions :: [String]
+allowedLibExtensions = [".class", ".jar"]
+
+
+isAllowedLibFile :: FilePath -> Bool
+isAllowedLibFile path = map toLower (takeExtension path) `elem` allowedLibExtensions
+
+
+invalidLibFiles :: [FilePath] -> [FilePath]
+invalidLibFiles = filter (not . isAllowedLibFile)
+
+libRefKey :: FilePath -> String
+libRefKey = map toLower . normalise
+
+
+duplicateLibRefs :: [FilePath] -> [FilePath]
+duplicateLibRefs paths =
+    let buckets = foldl' insertOne Map.empty paths
+    in sort [head refs | refs <- Map.elems buckets, length refs > 1]
+  where
+    insertOne mp ref = Map.insertWith (++) (libRefKey ref) [ref] mp
+
+
+
+findDefaultLibJars :: FilePath -> IO [FilePath]
+findDefaultLibJars exeDir = do
+    let libsDir = exeDir </> "libs"
+    exists <- doesDirectoryExist libsDir
+    if not exists
+        then pure []
+        else sort <$> collect libsDir
+  where
+    collect :: FilePath -> IO [FilePath]
+    collect dir = do
+        names <- listDirectory dir
+        concat <$> mapM
+            (\name -> do
+                let path = dir </> name
+                isDir <- doesDirectoryExist path
+                if isDir
+                    then collect path
+                    else pure [path | map toLower (takeExtension path) == ".jar"])
+            names
+
+
+compileJVM :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO Bool
+compileJVM toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
+    sourceRes <- mapM
+        (\path -> do
+            fileRes <- FH.readFile path
+            pure (path, fileRes))
+        srcPaths
 
     let readErrs = [err | (_, Left err) <- sourceRes]
         sources = [(path, code) | (path, Right code) <- sourceRes]
@@ -176,52 +228,57 @@ compileJVM toolkitJar rootPath srcPaths mOutput debugOut = do
             mapM_ (putStrLn . UE.errorToString) readErrs
             pure False
         else
-            case IR.codeToIRWithRoot rootPath sources of
-                Left errs -> do
-                    mapM_ (putStrLn . UE.errorToString) errs
-                    pure False
-                Right (irPairs, warns) -> do
-                    mapM_ print warns
+            do
+                libsRes <- LibLoader.loadLibEnvs toolkitJar libPaths
+                case libsRes of
+                    Left errs -> do
+                        mapM_ (putStrLn . UE.errorToString) errs
+                        pure False
+                    Right (depImportEnvs, depTypedEnvs) ->
+                        case IR.codeToIRWithRootAndDeps depImportEnvs depTypedEnvs rootPath sources of
+                            Left errs -> do
+                                mapM_ (putStrLn . UE.errorToString) errs
+                                pure False
+                            Right (irPairs, warns) -> do
+                                mapM_ print warns
 
-                    let total = length irPairs
-                    mapM_
-                        (\(idx, (path, _)) ->
-                            putStrLn (concat ["[", show idx, "/", show total, "] compile ", path, ","])
-                        )
-                        (zip [1 :: Int ..] irPairs)
+                                let total = length irPairs
+                                mapM_
+                                    (\(idx, (path, _)) ->
+                                        putStrLn (concat ["[", show idx, "/", show total, "] compile ", path, ","])
+                                    )
+                                    (zip [1 :: Int ..] irPairs)
 
-                    let irs = map snd irPairs
-                        classes = JVML.jvmProgmsLowing irs
-                        jsonVal = JVMJson.jProgmToJSON 8 classes
-                        jsonStr = BL.unpack (encode jsonVal)
-                        debugDir = case srcPaths of
-                            [one] -> takeDirectory one
-                            _ -> rootPath
+                                let irs = map snd irPairs
+                                    classes = JVML.jvmProgmsLowing irs
+                                    jsonVal = JVMJson.jProgmToJSON 8 classes
+                                    jsonStr = BL.unpack (encode jsonVal)
+                                    debugDir = case srcPaths of
+                                        [one] -> takeDirectory one
+                                        _ -> rootPath
 
-                    when debugOut $ BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
-                    when debugOut $ writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
+                                when debugOut $ BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
+                                when debugOut $ writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
 
-                    case mOutput of
-                        Just outPath -> do
-                            createDirectoryIfMissing True outPath
-                            callProcess "java" ["-jar", toolkitJar, "-s", jsonStr, "-o", outPath]
-                        Nothing ->
-                            callProcess "java" ["-jar", toolkitJar, "-s", jsonStr]
+                                case mOutput of
+                                    Just outPath -> do
+                                        createDirectoryIfMissing True outPath
+                                        callProcess "java" ["-jar", toolkitJar, "-s", jsonStr, "-o", outPath]
+                                    Nothing ->
+                                        callProcess "java" ["-jar", toolkitJar, "-s", jsonStr]
 
-                    pure True
+                                pure True
 
 
 writeJarFromDir :: FilePath -> FilePath -> IO ()
 writeJarFromDir classesDir jarOutput = do
     let jarDir = takeDirectory jarOutput
         manifestPath = jarDir </> ".xlang-manifest.mf"
-        manifestContent =
-            unlines
-                [ "Manifest-Version: 1.0"
-                , "Built-By: xlang"
-                , "Xlang-Info: build by xlang"
-                , ""
-                ]
+        manifestContent = unlines [
+            "Manifest-Version: 1.0",
+            "Built-By: xlang",
+            "Xlang-Info: build by xlang",
+            ""]
 
     createDirectoryIfMissing True jarDir
     writeFile manifestPath manifestContent
@@ -229,8 +286,8 @@ writeJarFromDir classesDir jarOutput = do
     removeFile manifestPath `catchIOError` (\_ -> pure ())
 
 
-compileJVMToJar :: FilePath -> FilePath -> [FilePath] -> FilePath -> Bool -> IO ()
-compileJVMToJar toolkitJar rootPath srcPaths jarOutput debugOut = do
+compileJVMToJar :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> IO ()
+compileJVMToJar toolkitJar rootPath srcPaths libPaths jarOutput debugOut = do
     let classesOut = rootPath </> "out"
 
     existed <- doesDirectoryExist classesOut
@@ -239,7 +296,7 @@ compileJVMToJar toolkitJar rootPath srcPaths jarOutput debugOut = do
     createDirectoryIfMissing True classesOut
     putStrLn ("[INFO] -d is jar; classes output dir: " ++ classesOut)
 
-    ok <- compileJVM toolkitJar rootPath srcPaths (Just classesOut) debugOut
+    ok <- compileJVM toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
     if ok
         then do
             writeJarFromDir classesOut jarOutput
@@ -265,9 +322,16 @@ main = do
                 rootAbs <- canonicalizePath (optRoot opts)
 
                 let exeDir = takeDirectory absExePath
-                    toolkitJar = bytecodegenFile exeDir
+                defaultLibJars <- findDefaultLibJars exeDir
+
+                let toolkitJar = bytecodegenFile exeDir
                     srcPaths = map (resolveFromRoot rootAbs) (optInputs opts)
+                    userLibPaths = map (resolveFromRoot rootAbs) (optLibs opts)
+                    combinedLibPaths = userLibPaths ++ defaultLibJars
+                    duplicateLibs = duplicateLibRefs combinedLibPaths
+                    libPaths = combinedLibPaths
                     invalidInputs = invalidSourceFiles srcPaths
+                    invalidLibs = invalidLibFiles userLibPaths
 
                 case (optTarget opts, srcPaths, optOutput opts) of
                     (Just "jvm", [], _) -> do
@@ -277,17 +341,24 @@ main = do
                         putStrLn "invalid source file extension; only .x, .xl, .xlang are allowed"
                         mapM_ (\p -> putStrLn ("  - " ++ p)) invalidInputs
                         printHelp
+                    (Just "jvm", _, _) | not (null duplicateLibs) -> do
+                        putStrLn "duplicate library reference detected"
+                        mapM_ (\p -> putStrLn ("  - " ++ p)) duplicateLibs
+                        printHelp
+                    (Just "jvm", _, _) | not (null invalidLibs) -> do
+                        putStrLn "invalid -lib extension; only .class and .jar are allowed"
+                        mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
+                        printHelp
                     (Just "jvm", _, Just outPath0) -> do
                         let outPath = resolveFromRoot rootAbs outPath0
                         if isJarOutput outPath
-                            then compileJVMToJar toolkitJar rootAbs srcPaths outPath (optDebug opts)
-                            else void (compileJVM toolkitJar rootAbs srcPaths (Just outPath) (optDebug opts))
+                            then compileJVMToJar toolkitJar rootAbs srcPaths libPaths outPath (optDebug opts)
+                            else void (compileJVM toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
                     (Just "jvm", _, Nothing) ->
-                        void (compileJVM toolkitJar rootAbs srcPaths Nothing (optDebug opts))
+                        void (compileJVM toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
                     (Just _, _, _) -> do
                         putStrLn "unsupported target"
                         printHelp
                     _ -> do
                         putStrLn "missing --target"
                         printHelp
-

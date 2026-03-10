@@ -60,6 +60,7 @@ library
         Semantic.ReturnCheck
         Semantic.SemanticDebug
         Semantic.CheckProgram
+        Semantic.LibLoader
 
         IR.TAC
         IR.TACLowing

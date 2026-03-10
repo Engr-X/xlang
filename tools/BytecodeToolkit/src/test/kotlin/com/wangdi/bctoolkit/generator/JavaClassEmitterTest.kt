@@ -3,10 +3,16 @@ package com.wangdi.bctoolkit.generator
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
 import com.wangdi.bctoolkit.base.TypeRef
+import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.FieldVisitor
 import org.objectweb.asm.Opcodes
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class JavaClassEmitterTest
@@ -60,5 +66,60 @@ class JavaClassEmitterTest
         val outDir: Path = Files.createTempDirectory("bcg-test-d")
         emitter.save(outDir)
         assertTrue(Files.exists(outDir.resolve("TestD.class")))
+    }
+
+    @Test
+    fun fieldWritesOwnerTypeMetadata()
+    {
+        val emitter = ClassEmitter(
+            Opcodes.V1_8,
+            mutableListOf(Access.Public, Access.Super),
+            TypeRef("TestMetaF")
+        )
+
+        emitter.addAttribute(
+            AttributeGenerator(
+                emitter.getCW(),
+                mutableListOf(Access.Public, Access.Static),
+                "f",
+                Type.INT32
+            ).setOwnerType("class-wrapped")
+        )
+
+        val outDir: Path = Files.createTempDirectory("bcg-test-meta-f")
+        emitter.save(outDir)
+
+        var ownerType: String? = null
+        val classBytes = Files.readAllBytes(outDir.resolve("TestMetaF.class"))
+        val reader = ClassReader(classBytes)
+        val visitor = object : ClassVisitor(Opcodes.ASM9)
+        {
+            override fun visitField(
+                access: Int,
+                name: String?,
+                descriptor: String?,
+                signature: String?,
+                value: Any?
+            ): FieldVisitor?
+            {
+                if (name != "f")
+                    return super.visitField(access, name, descriptor, signature, value)
+
+                return object : FieldVisitor(Opcodes.ASM9)
+                {
+                    override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
+                    {
+                        if (!OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
+                            return super.visitAnnotation(descriptor, visible)
+
+                        return OwnerTypeMetadata.reader(OwnerTypeMetadata.CLASS) { parsed -> ownerType = parsed }
+                    }
+                }
+            }
+        }
+
+        reader.accept(visitor, 0)
+
+        assertEquals(OwnerTypeMetadata.WRAPPED_CLASS, ownerType)
     }
 }

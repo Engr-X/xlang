@@ -39,6 +39,7 @@ import qualified Util.FileHelper as FileHelper
 
     KW_PACKAGE          { t@(Lex.Ident "package" _) }
     KW_IMPORT           { t@(Lex.Ident "import" _) }
+    KW_JAVANAME         { t@(Lex.Ident "javaname" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }

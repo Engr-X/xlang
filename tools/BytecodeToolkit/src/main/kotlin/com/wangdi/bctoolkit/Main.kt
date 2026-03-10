@@ -2,16 +2,24 @@ package com.wangdi.bctoolkit
 
 import com.alibaba.fastjson2.JSONArray
 import com.alibaba.fastjson2.JSONObject
+import com.wangdi.bctoolkit.reader.ByteCodeReader
+import com.wangdi.bctoolkit.reader.JavaClassDto
 
 import java.io.File
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.charset.StandardCharsets
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 
 private data class ArgContext(
     var jsonText: String? = null,
     var jsonPath: Path? = null,
-    var outDir: Path = Paths.get("."),
+    var readPath: Path? = null,
+    var outPath: Path? = null,
     var showHelp: Boolean = false,
     val args: MutableList<String>,
 )
@@ -19,9 +27,19 @@ private data class ArgContext(
 private data class Options(
     val jsonText: String?,
     val jsonPath: Path?,
-    val outDir: Path,
+    val readPath: Path?,
+    val outPath: Path?,
     val showHelp: Boolean
 )
+
+@Serializable
+private data class ClassesEnvelope(
+    val classes: List<JavaClassDto>)
+
+private val prettyJson: Json = Json {
+    prettyPrint = true
+    prettyPrintIndent = "    "
+}
 
 private fun readFile(path: Path): String = File(path.toString()).readText()
 
@@ -59,14 +77,24 @@ private val handlers: Map<String, (ArgContext, Int) -> Int> = mapOf(
         ctx.jsonPath = Paths.get(value)
         i + 2
     },
+    "-r" to { ctx, i ->
+        val value = nextValue(ctx, i) ?: return@to ctx.args.size
+        ctx.readPath = Paths.get(value)
+        i + 2
+    },
+    "--read" to { ctx, i ->
+        val value = nextValue(ctx, i) ?: return@to ctx.args.size
+        ctx.readPath = Paths.get(value)
+        i + 2
+    },
     "-o" to { ctx, i ->
         val value = nextValue(ctx, i) ?: return@to ctx.args.size
-        ctx.outDir = Paths.get(value)
+        ctx.outPath = Paths.get(value)
         i + 2
     },
     "--out" to { ctx, i ->
         val value = nextValue(ctx, i) ?: return@to ctx.args.size
-        ctx.outDir = Paths.get(value)
+        ctx.outPath = Paths.get(value)
         i + 2
     }
 )
@@ -94,23 +122,37 @@ private fun parseArgs(args: Array<String>): Options
             break
     }
 
-    return Options(ctx.jsonText, ctx.jsonPath, ctx.outDir, ctx.showHelp)
+    return Options(ctx.jsonText, ctx.jsonPath, ctx.readPath, ctx.outPath, ctx.showHelp)
 }
 
 private fun printHelp()
 {
     val usage = """
         Usage:
-            --string (-s) <json>            JSON string input (wrap in quotes)
-            --file (-f) <path>              JSON file path
-            --out (-o) <dir>                Output directory (default: .)
-            --help (-h)                     Show help
+            write mode (json -> class):
+                --string (-s) <json>            JSON string input (wrap in quotes)
+                --file (-f) <path>              JSON file path
+                --out (-o) <dir>                Output directory (default: .)
+
+            read mode (class -> json):
+                --read (-r) <file.class|file.jar|file.jmod>
+                                                Input class/jar/jmod file
+                --out (-o) <file.json>          Write pretty JSON to file (optional)
+                                                If omitted, print pretty JSON to stdout
+                                                Output shape: {"classes":[...]}
+
+            --help (-h)                         Show help
 
         Examples:
             --string '{"class":["Square"],"methods":[]}'
             --string '{"classes":[{"class":["Square"],"methods":[]}]}'
             --file examples/Example.json
             --file examples/Example.json --out .
+            --read out/Square.class
+            --read out/Square.class --out square.json
+            --read out/app.jar
+            --read out/app.jar --out app.json
+            --read C:/Java/jmods/java.base.jmod --out java.base.json
     """.trimIndent()
     println(usage)
 }
@@ -133,13 +175,49 @@ private fun parseClassObjects(jsonText: String): List<JSONObject>
     }
 }
 
+private fun readOneClass(path: Path): JavaClassDto
+{
+    return ByteCodeReader.readClass(path).toDto()
+}
+
+private fun readFromJar(path: Path): List<JavaClassDto>
+{
+    return ByteCodeReader.readJar(path).map { it.toDto() }
+}
+
+private fun readFromJmod(path: Path): List<JavaClassDto>
+{
+    return ByteCodeReader.readJmod(path).map { it.toDto() }
+}
+
+private fun readClassDtos(path: Path): List<JavaClassDto>
+{
+    val fileName = path.fileName?.toString()?.lowercase() ?: ""
+
+    return when
+    {
+        fileName.endsWith(".class") -> listOf(readOneClass(path))
+        fileName.endsWith(".jar") -> readFromJar(path)
+        fileName.endsWith(".jmod") -> readFromJmod(path)
+        else -> throw IllegalArgumentException("Unsupported --read input: '$path' (only .class, .jar, or .jmod)")
+    }
+}
+
 fun main(args: Array<String>)
 {
-    kotlin.math.E
     val opts: Options = parseArgs(args)
+    val writeMode: Boolean = opts.jsonText != null || opts.jsonPath != null
+    val readMode: Boolean = opts.readPath != null
 
-    if (opts.showHelp || (opts.jsonText == null && opts.jsonPath == null))
+    if (opts.showHelp || (!writeMode && !readMode))
     {
+        printHelp()
+        return
+    }
+
+    if (writeMode && readMode)
+    {
+        System.err.println("Only one mode is allowed at a time: write mode (-s/-f) or read mode (-r).")
         printHelp()
         return
     }
@@ -151,11 +229,29 @@ fun main(args: Array<String>)
         return
     }
 
+    if (readMode)
+    {
+        val readPath: Path = opts.readPath!!
+        val classes = readClassDtos(readPath)
+        val jsonText = prettyJson.encodeToString(ClassesEnvelope(classes))
+
+        if (opts.outPath != null)
+        {
+            val outFile = opts.outPath.toAbsolutePath().normalize()
+            outFile.parent?.let { Files.createDirectories(it) }
+            Files.write(outFile, jsonText.toByteArray(StandardCharsets.UTF_8))
+        }
+        else
+            println(jsonText)
+        return
+    }
+
     val jsonText: String = opts.jsonText ?: readFile(opts.jsonPath!!)
+    val outDir: Path = opts.outPath ?: Paths.get(".")
 
     val classObjects: List<JSONObject> = parseClassObjects(jsonText)
 
     classObjects.forEach { classJson ->
-        JsonAdapter(classJson).getClassEmitter().save(opts.outDir)
+        JsonAdapter(classJson).getClassEmitter().save(outDir)
     }
 }

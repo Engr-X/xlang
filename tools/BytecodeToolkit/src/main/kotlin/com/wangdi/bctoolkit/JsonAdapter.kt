@@ -11,6 +11,7 @@ import com.wangdi.bctoolkit.generator.AttributeGenerator
 import com.wangdi.bctoolkit.generator.ClassEmitter
 import com.wangdi.bctoolkit.generator.ClinitEmitter
 import com.wangdi.bctoolkit.generator.MethodEmitter
+import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
 
 import org.objectweb.asm.Opcodes
 
@@ -48,6 +49,7 @@ class JsonAdapter(private val json: JSONObject)
         private const val ATTRIBUTE_VALUE = "attr_value"
 
         private const val VAR_INDEX = "index"
+        private const val OWNER_TYPE = "owner_type"
         private const val VALUE = "value"
 
         private const val METHOD_NAME = "name"
@@ -466,13 +468,14 @@ class JsonAdapter(private val json: JSONObject)
 
             val name: String = attrJson.getOrError(ATTRIBUTE_NAME)
             val type: Type = parseType(attrJson.getOrError(ATTRIBUTE_TYPE))
+            val ownerType: String = OwnerTypeMetadata.normalize(attrJson.getString(OWNER_TYPE))
 
             val signatureRaw: String = attrJson.getString(SIGNATURE_KEY)
             val signature: String? = signatureRaw.takeIf { it.isNotBlank() }
 
             val value: Any? = attrJson.get(ATTRIBUTE_VALUE)
 
-            ce.addAttribute(AttributeGenerator(ce.getCW(), access, name, type, signature, value))
+            ce.addAttribute(AttributeGenerator(ce.getCW(), access, name, type, signature, value).setOwnerType(ownerType))
         }
     }
 
@@ -488,6 +491,7 @@ class JsonAdapter(private val json: JSONObject)
                 ?: throw ClassCastException("methods item must be JSONObject, but was ${item::class.java.name}")
 
             val access: MutableList<Access> = parseAccessList(methodJson)
+            val ownerType: String = OwnerTypeMetadata.normalize(methodJson.getString(OWNER_TYPE))
             val name: String = methodJson.getString(METHOD_NAME)
             val returnType: Type = parseType(methodJson.getOrError(METHOD_RETURN))
             val paramTypes: MutableList<Type> =
@@ -509,7 +513,7 @@ class JsonAdapter(private val json: JSONObject)
                 builder.addOp(opJson)
             }
             builder.build()
-            ce.addMethod(method)
+            ce.addMethod(method.setOwnerType(ownerType))
         }
     }
 

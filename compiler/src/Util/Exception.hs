@@ -72,6 +72,10 @@ ambiguousCallMsg = "ambiguous call"
 multiplePackageMsg :: String
 multiplePackageMsg = "multiple package declarations" 
 
+-- | Error message for multiple javaname declarations
+multipleJavaNameMsg :: String
+multipleJavaNameMsg = "multiple javaname declarations"
+
 -- | Error message for invalid package declaration/path relation.
 invalidPackageNameMsg :: String -> String
 invalidPackageNameMsg pkg = "invalid package name or package path mismatch: " ++ pkg
