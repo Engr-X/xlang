@@ -18,6 +18,8 @@ import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
 import System.Exit (ExitCode(..))
+import System.FilePath (takeExtension)
+import System.IO.Error (catchIOError)
 import System.Process (readProcessWithExitCode)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -118,22 +120,37 @@ loadLibEnvsWithJobs jobs toolkitJar libPaths = do
 
 
 loadOne :: FilePath -> Path -> IO (Either [ErrorKind] (ImportEnv, TypedImportEnv))
-loadOne toolkitJar libPath = do
-    (ec, out, errText) <- readProcessWithExitCode "java" ["-jar", toolkitJar, "--read", libPath] ""
-    case ec of
-        ExitSuccess ->
-            case eitherDecode (BL.pack out) of
-                Left e ->
-                    pure $ Left [mkSyntax libPath ("failed to parse lib metadata json: " ++ e)]
-                Right env ->
-                    pure $ Right (buildEnv libPath env)
-        ExitFailure code ->
-            let details = trim (if null errText then out else errText)
-                msg = "failed to read library metadata (exit " ++ show code ++ "): " ++ details
-            in pure $ Left [mkSyntax libPath msg]
-    where
-        trim :: String -> String
-        trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
+loadOne toolkitJar libPath
+    | isJsonLibPath libPath = do
+        fileRes <- (Right <$> BL.readFile libPath) `catchIOError` (pure . Left . show)
+        case fileRes of
+            Left readErr ->
+                pure $ Left [mkSyntax libPath ("failed to read lib metadata json file: " ++ readErr)]
+            Right bytes ->
+                case eitherDecode bytes of
+                    Left e ->
+                        pure $ Left [mkSyntax libPath ("failed to parse lib metadata json: " ++ e)]
+                    Right env ->
+                        pure $ Right (buildEnv libPath env)
+    | otherwise = do
+        (ec, out, errText) <- readProcessWithExitCode "java" ["-jar", toolkitJar, "--read", libPath] ""
+        case ec of
+            ExitSuccess ->
+                case eitherDecode (BL.pack out) of
+                    Left e ->
+                        pure $ Left [mkSyntax libPath ("failed to parse lib metadata json: " ++ e)]
+                    Right env ->
+                        pure $ Right (buildEnv libPath env)
+            ExitFailure code ->
+                let details = trim (if null errText then out else errText)
+                    msg = "failed to read library metadata (exit " ++ show code ++ "): " ++ details
+                in pure $ Left [mkSyntax libPath msg]
+  where
+    isJsonLibPath :: Path -> Bool
+    isJsonLibPath path = map toLower (takeExtension path) == ".json"
+
+    trim :: String -> String
+    trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
 
 
 buildEnv :: Path -> LibEnvelope -> (ImportEnv, TypedImportEnv)
@@ -247,3 +264,5 @@ normalizePrimitive raw = case map toLower raw of
 
 mkSyntax :: Path -> String -> ErrorKind
 mkSyntax path msg = UE.Syntax (UE.makeError path [] msg)
+
+

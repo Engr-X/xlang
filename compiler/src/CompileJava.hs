@@ -5,6 +5,7 @@ module CompileJava (
     invalidLibFiles,
     duplicateLibRefs,
     findDefaultLibJars,
+    findDefaultNativeJsons,
     compileJVM,
     compileJVMToJar
 ) where
@@ -74,7 +75,7 @@ invalidSourceFiles = filter (not . isAllowedSourceFile)
 
 
 allowedLibExtensions :: [String]
-allowedLibExtensions = [".class", ".jar"]
+allowedLibExtensions = [".class", ".jar", ".json"]
 
 
 isAllowedLibFile :: FilePath -> Bool
@@ -162,6 +163,26 @@ findDefaultLibJars exeDir = do
             names
 
 
+findDefaultNativeJsons :: FilePath -> IO [FilePath]
+findDefaultNativeJsons exeDir = do
+    let nativeDir = exeDir </> "libs" </> "java-native"
+    exists <- doesDirectoryExist nativeDir
+    if not exists
+        then pure []
+        else sort <$> collect nativeDir
+  where
+    collect :: FilePath -> IO [FilePath]
+    collect dir = do
+        names <- listDirectory dir
+        concat <$> mapM
+            (\name -> do
+                let path = dir </> name
+                isDir <- doesDirectoryExist path
+                if isDir
+                    then collect path
+                    else pure [path | map toLower (takeExtension path) == ".json"])
+            names
+
 compileJVM :: Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO (Maybe [TAC.IRProgm])
 compileJVM jobs toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
     sourceRes <- mapConcurrentlyLimit jobs
@@ -195,7 +216,7 @@ compileJVM jobs toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
                                 let total = length irPairs
                                 mapM_
                                     (\(idx, (path, _)) ->
-                                        putStrLn (concat ["[ ", show idx, "/", show total, " ]: compile ", path, ","])
+                                        putStrLn (concat ["[", show idx, " / ", show total, "]: compile ", path, ","])
                                     )
                                     (zip [1 :: Int ..] irPairs)
 
@@ -298,4 +319,7 @@ compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRunt
             putStrLn ("[DONE] jar generated: " ++ jarOutput)
         Nothing ->
             putStrLn "[ERROR] xlang compile failed; jar packaging skipped"
+
+
+
 
