@@ -1,32 +1,13 @@
 module Xlang where
 
-import Control.Monad (void, when)
-import Data.Aeson (encode)
-import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Char (toLower)
-import Data.List (foldl', sort, stripPrefix)
-import System.Directory (
-    canonicalizePath,
-    createDirectoryIfMissing,
-    doesDirectoryExist,
-    listDirectory,
-    removeFile,
-    removePathForcibly
-    )
+import Control.Monad (void)
+import Data.List (stripPrefix)
+import GHC.Conc (setNumCapabilities)
+import System.Directory (canonicalizePath)
 import System.Environment (getArgs, getExecutablePath)
-import System.FilePath ((</>), isAbsolute, normalise, takeDirectory, takeExtension)
-import System.IO.Error (catchIOError)
-import System.Process (callProcess)
+import System.FilePath (takeDirectory)
 
-import qualified Data.ByteString.Lazy.Char8 as BL
-import qualified Data.Map.Strict as Map
-import qualified IR.Lowing as IR
-import qualified IR.TAC as TAC
-import qualified Lowing.JVMLowing as JVML
-import qualified Lowing.JVMJson as JVMJson
-import qualified Semantic.LibLoader as LibLoader
-import qualified Util.Exception as UE
-import qualified Util.FileHelper as FH
+import qualified CompileJava as CJ
 
 
 bytecodegenFile :: FilePath -> FilePath
@@ -43,7 +24,9 @@ data Options = Options {
     optInputs :: [FilePath],
     optLibs :: [FilePath],
     optOutput :: Maybe FilePath,
+    optIncludeRuntime :: Bool,
     optRoot :: FilePath,
+    optJobs :: Int,
     optDebug :: Bool,
     optError :: Maybe String
     }
@@ -57,7 +40,9 @@ defaultOptions = Options {
     optInputs = [],
     optLibs = [],
     optOutput = Nothing,
-    optRoot = ".", 
+    optIncludeRuntime = False,
+    optRoot = ".",
+    optJobs = 1,
     optDebug = False,
     optError = Nothing}
 
@@ -75,6 +60,19 @@ parseArgs = go defaultOptions
     isLikelyPath :: String -> Bool
     isLikelyPath s = not (null s) && head s /= '-'
 
+    parsePositiveInt :: String -> Maybe Int
+    parsePositiveInt raw = case reads raw of
+        [(n, "")] | n > 0 -> Just n
+        _ -> Nothing
+
+    parseJobsValue :: String -> Options -> [String] -> Options
+    parseJobsValue raw opts xs = case parsePositiveInt raw of
+        Just n -> go opts {optJobs = n} xs
+        Nothing -> opts {
+            optHelp = True,
+            optError = Just "invalid value for -j/--jobs; expected positive integer"
+        }
+
     go :: Options -> [String] -> Options
     go opts [] = opts
 
@@ -88,12 +86,20 @@ parseArgs = go defaultOptions
     go opts ["--target"] = opts {optHelp = True, optError = Just "missing value for --target"}
 
     go opts (arg : xs)
+        | Just jobsRaw <- stripPrefix "--jobs=" arg =
+            parseJobsValue jobsRaw opts xs
         | Just rootDir <- stripPrefix "--root=" arg =
             go opts {optRoot = rootDir} xs
+
     go opts ("--root" : rootDir : xs) = go opts {optRoot = rootDir} xs
     go opts ("-r" : rootDir : xs) = go opts {optRoot = rootDir} xs
     go opts ["--root"] = opts {optHelp = True, optError = Just "missing value for --root"}
     go opts ["-r"] = opts {optHelp = True, optError = Just "missing value for -r"}
+
+    go opts ("-j" : n : xs) = parseJobsValue n opts xs
+    go opts ("--jobs" : n : xs) = parseJobsValue n opts xs
+    go opts ["-j"] = opts {optHelp = True, optError = Just "missing value for -j"}
+    go opts ["--jobs"] = opts {optHelp = True, optError = Just "missing value for --jobs"}
 
     -- Compatibility: old style "-c file.x"
     go opts ("-c" : src : xs) = go (addInput opts src) xs
@@ -111,6 +117,10 @@ parseArgs = go defaultOptions
         | otherwise = go opts {optDebug = True} (out : xs)
     go opts ["-d"] = go opts {optDebug = True} []
 
+    go opts ("--include-runtime" : xs) = go opts {optIncludeRuntime = True} xs
+    go opts ("--imclude-runtime" : xs) = go opts {optIncludeRuntime = True} xs
+    go opts ("-include-runtime" : xs) = go opts {optIncludeRuntime = True} xs
+
     go opts ("--debug" : xs) = go opts {optDebug = True} xs
     go opts ("-debug" : xs) = go opts {optDebug = True} xs
 
@@ -123,7 +133,9 @@ parseArgs = go defaultOptions
 printHelp :: IO ()
 printHelp = putStrLn $ unlines [
     "Usage:",
-    "   xlang --target=jvm <file.x|file.xl|file.xlang> [more files ...] [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>] [--debug|-debug|-d]",
+    "   xlang --target=jvm <file.x|file.xl|file.xlang> [more files ...]",
+    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>]",
+    "         [-d <dir|jar>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
     "   xlang -v | --version",
     "   xlang -h | --help",
     "",
@@ -134,174 +146,21 @@ printHelp = putStrLn $ unlines [
     "   --root=<dir>     source root (preferred form), e.g. --root=./abcde",
     "   --root <dir>     source root (compatible form)",
     "   -r <dir>         source root (short form)",
+    "   -j <n>, --jobs <n>",
+    "                    use n worker threads",
+    "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
     "   -lib <files...>  external libs (.class/.jar), e.g. -lib a.jar b.class",
     "                    plus default: all .jar under <xlang.exe dir>/libs (recursive)",
     "   -d <dir|jar>     output directory or jar path",
     "                    if .jar: classes are emitted to <root>/out, then packed",
     "                    manifest includes: build by xlang",
+    "   --include-runtime",
+    "   -include-runtime  merge all -lib files and default <xlang.exe>/libs jars into output jar",
+    "                    requires: -d <something>.jar",
     "   --debug|-debug   write debug.json and Ir.txt next to source(s)",
     "   -d               debug shorthand when used without output path",
     "   -v, --version    print xlang version",
     "   -h, --help       show this help"]
-
-
-resolveFromRoot :: FilePath -> FilePath -> FilePath
-resolveFromRoot rootDir path
-    | isAbsolute path = path
-    | otherwise = rootDir </> path
-
-
-isJarOutput :: FilePath -> Bool
-isJarOutput outPath = map toLower (takeExtension outPath) == ".jar"
-
-
-allowedSourceExtensions :: [String]
-allowedSourceExtensions = [".x", ".xl", ".xlang"]
-
-
-isAllowedSourceFile :: FilePath -> Bool
-isAllowedSourceFile path = map toLower (takeExtension path) `elem` allowedSourceExtensions
-
-
-invalidSourceFiles :: [FilePath] -> [FilePath]
-invalidSourceFiles = filter (not . isAllowedSourceFile)
-
-
-allowedLibExtensions :: [String]
-allowedLibExtensions = [".class", ".jar"]
-
-
-isAllowedLibFile :: FilePath -> Bool
-isAllowedLibFile path = map toLower (takeExtension path) `elem` allowedLibExtensions
-
-
-invalidLibFiles :: [FilePath] -> [FilePath]
-invalidLibFiles = filter (not . isAllowedLibFile)
-
-libRefKey :: FilePath -> String
-libRefKey = map toLower . normalise
-
-
-duplicateLibRefs :: [FilePath] -> [FilePath]
-duplicateLibRefs paths =
-    let buckets = foldl' insertOne Map.empty paths
-    in sort [head refs | refs <- Map.elems buckets, length refs > 1]
-  where
-    insertOne mp ref = Map.insertWith (++) (libRefKey ref) [ref] mp
-
-
-
-findDefaultLibJars :: FilePath -> IO [FilePath]
-findDefaultLibJars exeDir = do
-    let libsDir = exeDir </> "libs"
-    exists <- doesDirectoryExist libsDir
-    if not exists
-        then pure []
-        else sort <$> collect libsDir
-  where
-    collect :: FilePath -> IO [FilePath]
-    collect dir = do
-        names <- listDirectory dir
-        concat <$> mapM
-            (\name -> do
-                let path = dir </> name
-                isDir <- doesDirectoryExist path
-                if isDir
-                    then collect path
-                    else pure [path | map toLower (takeExtension path) == ".jar"])
-            names
-
-
-compileJVM :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO Bool
-compileJVM toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
-    sourceRes <- mapM
-        (\path -> do
-            fileRes <- FH.readFile path
-            pure (path, fileRes))
-        srcPaths
-
-    let readErrs = [err | (_, Left err) <- sourceRes]
-        sources = [(path, code) | (path, Right code) <- sourceRes]
-
-    if not (null readErrs)
-        then do
-            mapM_ (putStrLn . UE.errorToString) readErrs
-            pure False
-        else
-            do
-                libsRes <- LibLoader.loadLibEnvs toolkitJar libPaths
-                case libsRes of
-                    Left errs -> do
-                        mapM_ (putStrLn . UE.errorToString) errs
-                        pure False
-                    Right (depImportEnvs, depTypedEnvs) ->
-                        case IR.codeToIRWithRootAndDeps depImportEnvs depTypedEnvs rootPath sources of
-                            Left errs -> do
-                                mapM_ (putStrLn . UE.errorToString) errs
-                                pure False
-                            Right (irPairs, warns) -> do
-                                mapM_ print warns
-
-                                let total = length irPairs
-                                mapM_
-                                    (\(idx, (path, _)) ->
-                                        putStrLn (concat ["[", show idx, "/", show total, "] compile ", path, ","])
-                                    )
-                                    (zip [1 :: Int ..] irPairs)
-
-                                let irs = map snd irPairs
-                                    classes = JVML.jvmProgmsLowing irs
-                                    jsonVal = JVMJson.jProgmToJSON 8 classes
-                                    jsonStr = BL.unpack (encode jsonVal)
-                                    debugDir = case srcPaths of
-                                        [one] -> takeDirectory one
-                                        _ -> rootPath
-
-                                when debugOut $ BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
-                                when debugOut $ writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
-
-                                case mOutput of
-                                    Just outPath -> do
-                                        createDirectoryIfMissing True outPath
-                                        callProcess "java" ["-jar", toolkitJar, "-s", jsonStr, "-o", outPath]
-                                    Nothing ->
-                                        callProcess "java" ["-jar", toolkitJar, "-s", jsonStr]
-
-                                pure True
-
-
-writeJarFromDir :: FilePath -> FilePath -> IO ()
-writeJarFromDir classesDir jarOutput = do
-    let jarDir = takeDirectory jarOutput
-        manifestPath = jarDir </> ".xlang-manifest.mf"
-        manifestContent = unlines [
-            "Manifest-Version: 1.0",
-            "Built-By: xlang",
-            "Xlang-Info: build by xlang",
-            ""]
-
-    createDirectoryIfMissing True jarDir
-    writeFile manifestPath manifestContent
-    callProcess "jar" ["cfm", jarOutput, manifestPath, "-C", classesDir, "."]
-    removeFile manifestPath `catchIOError` (\_ -> pure ())
-
-
-compileJVMToJar :: FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> IO ()
-compileJVMToJar toolkitJar rootPath srcPaths libPaths jarOutput debugOut = do
-    let classesOut = rootPath </> "out"
-
-    existed <- doesDirectoryExist classesOut
-    when existed (removePathForcibly classesOut)
-
-    createDirectoryIfMissing True classesOut
-    putStrLn ("[INFO] -d is jar; classes output dir: " ++ classesOut)
-
-    ok <- compileJVM toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
-    if ok
-        then do
-            writeJarFromDir classesOut jarOutput
-            putStrLn ("[DONE] jar generated: " ++ jarOutput)
-        else putStrLn "[ERROR] xlang compile failed; jar packaging skipped"
 
 
 main :: IO ()
@@ -321,17 +180,21 @@ main = do
                 absExePath <- canonicalizePath exePath
                 rootAbs <- canonicalizePath (optRoot opts)
 
+                setNumCapabilities (optJobs opts)
+
                 let exeDir = takeDirectory absExePath
-                defaultLibJars <- findDefaultLibJars exeDir
+                defaultLibJars <- CJ.findDefaultLibJars exeDir
 
                 let toolkitJar = bytecodegenFile exeDir
-                    srcPaths = map (resolveFromRoot rootAbs) (optInputs opts)
-                    userLibPaths = map (resolveFromRoot rootAbs) (optLibs opts)
+                    srcPaths = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
+                    userLibPaths = map (CJ.resolveFromRoot rootAbs) (optLibs opts)
                     combinedLibPaths = userLibPaths ++ defaultLibJars
-                    duplicateLibs = duplicateLibRefs combinedLibPaths
+                    duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
                     libPaths = combinedLibPaths
-                    invalidInputs = invalidSourceFiles srcPaths
-                    invalidLibs = invalidLibFiles userLibPaths
+                    invalidInputs = CJ.invalidSourceFiles srcPaths
+                    invalidLibs = CJ.invalidLibFiles userLibPaths
+                    includeRuntime = optIncludeRuntime opts
+                    jobs = optJobs opts
 
                 case (optTarget opts, srcPaths, optOutput opts) of
                     (Just "jvm", [], _) -> do
@@ -350,12 +213,20 @@ main = do
                         mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
                         printHelp
                     (Just "jvm", _, Just outPath0) -> do
-                        let outPath = resolveFromRoot rootAbs outPath0
-                        if isJarOutput outPath
-                            then compileJVMToJar toolkitJar rootAbs srcPaths libPaths outPath (optDebug opts)
-                            else void (compileJVM toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
+                        let outPath = CJ.resolveFromRoot rootAbs outPath0
+                        if includeRuntime && not (CJ.isJarOutput outPath)
+                            then do
+                                putStrLn "cannot use -include-runtime with classes output type; expected a .jar"
+                                printHelp
+                            else if CJ.isJarOutput outPath
+                                then CJ.compileJVMToJar jobs toolkitJar rootAbs srcPaths libPaths outPath includeRuntime (optDebug opts)
+                                else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
                     (Just "jvm", _, Nothing) ->
-                        void (compileJVM toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
+                        if includeRuntime
+                            then do
+                                putStrLn "cannot use -include-runtime without -d <output>.jar"
+                                printHelp
+                            else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
                     (Just _, _, _) -> do
                         putStrLn "unsupported target"
                         printHelp

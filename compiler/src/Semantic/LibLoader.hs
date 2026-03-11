@@ -1,9 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Semantic.LibLoader (
-    loadLibEnvs
+    loadLibEnvs,
+    loadLibEnvsWithJobs
 ) where
 
+import Control.Concurrent.Async (forConcurrently)
+import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
+import Control.Exception (bracket_)
 import Data.Aeson (FromJSON(..), Value(Object), (.:), (.:?), (.!=), withObject, eitherDecode)
 import Data.Char (toLower)
 import Data.List (foldl', nub)
@@ -19,6 +23,15 @@ import System.Process (readProcessWithExitCode)
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.Map.Strict as Map
 import qualified Util.Exception as UE
+
+
+mapConcurrentlyLimit :: Int -> (a -> IO b) -> [a] -> IO [b]
+mapConcurrentlyLimit jobs action xs
+    | jobs <= 1 = mapM action xs
+    | otherwise = do
+        sem <- newQSem jobs
+        forConcurrently xs $ \x ->
+            bracket_ (waitQSem sem) (signalQSem sem) (action x)
 
 
 data LibEnvelope = LibEnvelope [LibClass]
@@ -88,9 +101,13 @@ instance FromJSON LibMethod where
 
 
 loadLibEnvs :: FilePath -> [Path] -> IO (Either [ErrorKind] ([ImportEnv], [TypedImportEnv]))
-loadLibEnvs _ [] = pure (Right ([], []))
-loadLibEnvs toolkitJar libPaths = do
-    loaded <- mapM (loadOne toolkitJar) libPaths
+loadLibEnvs = loadLibEnvsWithJobs 1
+
+
+loadLibEnvsWithJobs :: Int -> FilePath -> [Path] -> IO (Either [ErrorKind] ([ImportEnv], [TypedImportEnv]))
+loadLibEnvsWithJobs _ _ [] = pure (Right ([], []))
+loadLibEnvsWithJobs jobs toolkitJar libPaths = do
+    loaded <- mapConcurrentlyLimit jobs (loadOne toolkitJar) libPaths
     let errs = concat [es | Left es <- loaded]
         ok = [x | Right x <- loaded]
     if null errs

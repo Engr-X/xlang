@@ -492,7 +492,7 @@ checkOneProgram path prog@(decls, stmts) importEnvs typedEnvs =
         Left errs -> Left errs
         Right () -> do
             packageName <- getPackageName path decls
-            let importedPkgs = importDeclPackages decls
+            let importedPkgs = dedupQNames (defaultImportedPackages ++ importDeclPackages decls)
                 importEnvs0 =
                     defaultImportEnv path :
                     map (expandImportEnvByImports packageName importedPkgs) importEnvs
@@ -502,6 +502,12 @@ checkOneProgram path prog@(decls, stmts) importEnvs typedEnvs =
                 Left errs -> Left errs
                 Right (st, uses) ->
                     TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
+    where
+        defaultImportedPackages :: [QName]
+        defaultImportedPackages = [["xlang", "io"]]
+
+        dedupQNames :: [QName] -> [QName]
+        dedupQNames = HashSet.toList . HashSet.fromList
 
 
 buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport

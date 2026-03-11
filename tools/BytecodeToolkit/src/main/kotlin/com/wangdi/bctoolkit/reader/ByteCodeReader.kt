@@ -24,17 +24,33 @@ class ByteCodeReader(bytes: ByteArray)
 
         private fun readArchiveClasses(
             path: Path,
-            classEntryFilter: (String) -> Boolean
+            classEntryFilter: (String) -> Boolean,
+            onProgress: ((Int, Int, String) -> Unit)? = null
         ): List<JavaClass>
         {
             val classes = mutableListOf<JavaClass>()
+
             JarFile(path.toFile()).use { jar ->
+                val entryNames = mutableListOf<String>()
                 val entries = jar.entries()
+
                 while (entries.hasMoreElements())
                 {
                     val entry = entries.nextElement()
-                    if (entry.isDirectory || !classEntryFilter(entry.name))
-                        continue
+                    if (!entry.isDirectory && classEntryFilter(entry.name))
+                        entryNames.add(entry.name)
+                }
+
+                entryNames.sort()
+
+                val total = entryNames.size
+
+                entryNames.forEachIndexed { index, entryName ->
+                    onProgress?.invoke(index + 1, total, "${path}!/$entryName")
+
+                    val entry = jar.getJarEntry(entryName)
+                        ?: throw IllegalStateException("Archive entry disappeared while reading: $entryName")
+
                     jar.getInputStream(entry).use { input ->
                         classes.add(ByteCodeReader(input.readBytes()).read())
                     }
@@ -44,13 +60,19 @@ class ByteCodeReader(bytes: ByteArray)
             return classes.sortedWith(compareBy({ it.toDto().packagePath.joinToString(".") }, { it.getName() }))
         }
 
-        fun readJar(path: Path): List<JavaClass>
-            = readArchiveClasses(path) { entryName -> entryName.endsWith(".class") }
+        fun readJar(
+            path: Path,
+            onProgress: ((Int, Int, String) -> Unit)? = null
+        ): List<JavaClass> =
+            readArchiveClasses(path, { entryName -> entryName.endsWith(".class") }, onProgress)
 
-        fun readJmod(path: Path): List<JavaClass>
-            = readArchiveClasses(path) { entryName ->
+        fun readJmod(
+            path: Path,
+            onProgress: ((Int, Int, String) -> Unit)? = null
+        ): List<JavaClass> =
+            readArchiveClasses(path, { entryName ->
                 entryName.startsWith("classes/") && entryName.endsWith(".class")
-            }
+            }, onProgress)
 
         private fun splitClassName(fullName: String): MutableList<String> = fullName.split("/").toMutableList()
 

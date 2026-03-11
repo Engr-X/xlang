@@ -35,7 +35,7 @@ library
 
     exposed-modules:
         Xlang
-
+        CompileJava
         Util.Basic
         Util.Type
         Util.FileHelper
@@ -70,7 +70,6 @@ library
         Lowing.JVM
         Lowing.JVMJson
         Lowing.JVMLowing
-
     autogen-modules:
         Parse.ParseExpr
         Parse.ParseStmt
@@ -91,6 +90,7 @@ library
         directory,
         filepath,
         mtl,
+        async,
         regex-base,
         regex-tdfa
 
@@ -115,7 +115,7 @@ executable xlang
     import:           warnings
 
     main-is:          src/Xlang.hs
-    ghc-options:      -main-is Xlang.main
+    ghc-options:      -main-is Xlang.main -threaded -rtsopts
 
     build-depends:
         base >=4.17.2.1,
@@ -132,6 +132,7 @@ executable xlang
         directory,
         filepath,
         mtl,
+        async,
         regex-base,
         regex-tdfa
 
@@ -184,6 +185,7 @@ test-suite compiler-test
         containers,
         unordered-containers,
         mtl,
+        async,
         directory,
         tasty,
         tasty-hunit,
@@ -202,3 +204,8 @@ test-suite compiler-test
                             src/Parse/ParseBlock.y,
                             src/Parse/ParseProgm.y
     x-happy-output-dir:     src/Parse
+
+
+
+
+
