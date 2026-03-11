@@ -30,8 +30,104 @@ set "GRADLE_ARGS=--console=plain --no-daemon"
 
 if not defined TERM set "TERM=dumb"
 
-set "CMD=%~1"
-if "%CMD%"=="" set "CMD=all"
+set "CMD="
+set "SHOW_HELP=0"
+set "ARG_ERROR="
+
+:parse_args
+if "%~1"=="" goto parse_done
+set "ARG=%~1"
+
+if /I "%ARG%"=="-h" (
+    set "SHOW_HELP=1"
+    shift
+    goto parse_args
+)
+if /I "%ARG%"=="--help" (
+    set "SHOW_HELP=1"
+    shift
+    goto parse_args
+)
+if /I "%ARG%"=="help" (
+    set "SHOW_HELP=1"
+    shift
+    goto parse_args
+)
+
+if /I "%ARG%"=="all"       call :set_cmd all       || goto parse_fail
+if /I "%ARG%"=="build"     call :set_cmd build     || goto parse_fail
+if /I "%ARG%"=="compile"   call :set_cmd compile   || goto parse_fail
+if /I "%ARG%"=="tools"     call :set_cmd tools     || goto parse_fail
+if /I "%ARG%"=="java_lib"  call :set_cmd java_lib  || goto parse_fail
+if /I "%ARG%"=="clean"     call :set_cmd clean     || goto parse_fail
+if /I "%ARG%"=="clean_ide" call :set_cmd clean_ide || goto parse_fail
+if /I "%ARG%"=="rebuild"   call :set_cmd rebuild   || goto parse_fail
+if /I "%ARG%"=="all"       (shift & goto parse_args)
+if /I "%ARG%"=="build"     (shift & goto parse_args)
+if /I "%ARG%"=="compile"   (shift & goto parse_args)
+if /I "%ARG%"=="tools"     (shift & goto parse_args)
+if /I "%ARG%"=="java_lib"  (shift & goto parse_args)
+if /I "%ARG%"=="clean"     (shift & goto parse_args)
+if /I "%ARG%"=="clean_ide" (shift & goto parse_args)
+if /I "%ARG%"=="rebuild"   (shift & goto parse_args)
+
+if /I "%ARG%"=="-j" (
+    if "%~2"=="" (
+        set "ARG_ERROR=missing value for -j"
+        goto parse_fail
+    )
+    set "JOBS=%~2"
+    call :validate_jobs "%JOBS%" || (
+        set "ARG_ERROR=invalid jobs value: %JOBS%"
+        goto parse_fail
+    )
+    shift
+    shift
+    goto parse_args
+)
+
+if /I "%ARG:~0,2%"=="-j" (
+    set "JOBS=%ARG:~2%"
+    call :validate_jobs "%JOBS%" || (
+        set "ARG_ERROR=invalid jobs value: %JOBS%"
+        goto parse_fail
+    )
+    shift
+    goto parse_args
+)
+
+if /I "%ARG%"=="--jobs" (
+    if "%~2"=="" (
+        set "ARG_ERROR=missing value for --jobs"
+        goto parse_fail
+    )
+    set "JOBS=%~2"
+    call :validate_jobs "%JOBS%" || (
+        set "ARG_ERROR=invalid jobs value: %JOBS%"
+        goto parse_fail
+    )
+    shift
+    shift
+    goto parse_args
+)
+
+if /I "%ARG:~0,7%"=="--jobs=" (
+    set "JOBS=%ARG:~7%"
+    call :validate_jobs "%JOBS%" || (
+        set "ARG_ERROR=invalid jobs value: %JOBS%"
+        goto parse_fail
+    )
+    shift
+    goto parse_args
+)
+
+set "ARG_ERROR=Unknown argument: %ARG%"
+goto parse_fail
+
+:parse_done
+if "%SHOW_HELP%"=="1" goto usage
+if not defined CMD set "CMD=all"
+if /I "%CMD%"=="build" set "CMD=all"
 
 if /I "%CMD%"=="all" goto all
 if /I "%CMD%"=="compile" goto compile
@@ -40,11 +136,12 @@ if /I "%CMD%"=="java_lib" goto java_lib
 if /I "%CMD%"=="clean" goto clean
 if /I "%CMD%"=="clean_ide" goto clean_ide
 if /I "%CMD%"=="rebuild" goto rebuild
-if /I "%CMD%"=="-h" goto usage
-if /I "%CMD%"=="--help" goto usage
-if /I "%CMD%"=="help" goto usage
 
-echo Unknown command: %CMD%
+set "ARG_ERROR=Unknown command: %CMD%"
+goto parse_fail
+
+:parse_fail
+if defined ARG_ERROR echo %ARG_ERROR%
 call :usage
 exit /b 2
 
@@ -82,7 +179,7 @@ if not exist "%TOOLS_OUT_DIR%" mkdir "%TOOLS_OUT_DIR%" || exit /b 1
 
 pushd "%BYTECODEGEN_DIR%" >nul || exit /b 1
 set "GRADLE_USER_HOME=%GRADLE_USER_HOME%"
-call gradlew.bat build %GRADLE_ARGS%
+call gradlew.bat build -PxlangJobs=%JOBS% %GRADLE_ARGS%
 set "ERR=%ERRORLEVEL%"
 popd >nul
 if not "%ERR%"=="0" exit /b %ERR%
@@ -96,7 +193,7 @@ if not exist "%JAVA_LIB_OUT_DIR%" mkdir "%JAVA_LIB_OUT_DIR%" || exit /b 1
 
 pushd "%JAVA_LIB_DIR%" >nul || exit /b 1
 set "GRADLE_USER_HOME=%GRADLE_USER_HOME%"
-call gradlew.bat build %GRADLE_ARGS%
+call gradlew.bat build -PxlangJobs=%JOBS% %GRADLE_ARGS%
 set "ERR=%ERRORLEVEL%"
 popd >nul
 if not "%ERR%"=="0" exit /b %ERR%
@@ -203,10 +300,25 @@ popd >nul
 exit /b 0
 
 :usage
-echo Usage: build.bat [all^|compile^|tools^|java_lib^|clean^|clean_ide^|rebuild]
+echo Usage: build.bat [all^|build^|compile^|tools^|java_lib^|clean^|clean_ide^|rebuild] [-jN ^| -j N ^| --jobs=N ^| --jobs N]
 echo.
 echo Env overrides:
 echo   BUILD_DIR=out   (default: build)
 echo   JOBS=24         (default: NUMBER_OF_PROCESSORS or 8)
 echo   CLEAN_VERBOSE=1 (show gradle clean output)
+exit /b 0
+
+:set_cmd
+if not defined CMD (
+    set "CMD=%~1"
+    exit /b 0
+)
+if /I "%CMD%"=="%~1" exit /b 0
+set "ARG_ERROR=multiple commands provided: %CMD% and %~1"
+exit /b 1
+
+:validate_jobs
+set "JOBS_CAND=%~1"
+echo %JOBS_CAND%| findstr /r "^[1-9][0-9]*$" >nul
+if errorlevel 1 exit /b 1
 exit /b 0

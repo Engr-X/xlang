@@ -250,19 +250,33 @@ writeJarFromDir :: FilePath -> FilePath -> Maybe [String] -> IO ()
 writeJarFromDir classesDir jarOutput mMainClass = do
     let jarDir = takeDirectory jarOutput
         manifestPath = jarDir </> ".xlang-manifest.mf"
-        mainClassLines = case mMainClass of
-            Just qn -> ["Main-Class: " ++ intercalate "." qn]
-            Nothing -> []
-        manifestContent = unlines (
-            ["Manifest-Version: 1.0", "Built-By: xlang", "Xlang-Info: build by xlang"]
-            ++ mainClassLines
-            ++ [""])
 
     createDirectoryIfMissing True jarDir
-    writeFile manifestPath manifestContent
+    writeFile manifestPath (renderManifest mMainClass)
     callProcess "jar" ["cfm", jarOutput, manifestPath, "-C", classesDir, "."]
     removeFile manifestPath `catchIOError` (\_ -> pure ())
 
+
+renderManifest :: Maybe [String] -> String
+renderManifest mMainClass =
+    let mainClassLines = case mMainClass of
+            Just qn -> ["Main-Class: " ++ intercalate "." qn]
+            Nothing -> []
+    in unlines (
+        ["Manifest-Version: 1.0", "Built-By: xlang", "Xlang-Info: build by xlang"]
+        ++ mainClassLines
+        ++ [""])
+
+
+ensureJarManifest :: FilePath -> Maybe [String] -> IO ()
+ensureJarManifest jarOutput mMainClass = do
+    let jarDir = takeDirectory jarOutput
+        manifestPath = jarDir </> ".xlang-manifest.mf"
+
+    createDirectoryIfMissing True jarDir
+    writeFile manifestPath (renderManifest mMainClass)
+    callProcess "jar" ["ufm", jarOutput, manifestPath]
+    removeFile manifestPath `catchIOError` (\_ -> pure ())
 
 isOutsideRootRelative :: FilePath -> Bool
 isOutsideRootRelative relPath =
@@ -295,8 +309,8 @@ mergeLibsIntoJar rootPath libPaths jarOutput = do
             _ -> pure ()
 
 
-compileJVMToJar :: Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> IO ()
-compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRuntime debugOut = do
+compileJVMToJar :: Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> Maybe [String] -> IO ()
+compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRuntime debugOut mMainClassOverride = do
     let classesOut = rootPath </> "out"
 
     existed <- doesDirectoryExist classesOut
@@ -308,17 +322,26 @@ compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRunt
     mIrs <- compileJVM jobs toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
     case mIrs of
         Just irs -> do
-            let mMainClass = selectJarMainClass irs
+            let mMainClassAuto = selectJarMainClass irs
+                mMainClass = case mMainClassOverride of
+                    Just qn -> Just qn
+                    Nothing -> mMainClassAuto
             writeJarFromDir classesOut jarOutput mMainClass
-            case mMainClass of
-                Just qn -> putStrLn ("[INFO] manifest Main-Class: " ++ intercalate "." qn)
-                Nothing -> putStrLn "[WARN] no wrapped-class main found; jar has no Main-Class"
+            case mMainClassOverride of
+                Just qn -> putStrLn ("[INFO] manifest Main-Class (override): " ++ intercalate "." qn)
+                Nothing ->
+                    case mMainClass of
+                        Just qn -> putStrLn ("[INFO] manifest Main-Class: " ++ intercalate "." qn)
+                        Nothing -> putStrLn "[WARN] no wrapped-class main found; jar has no Main-Class"
             when includeRuntime $ do
                 putStrLn ("[INFO] include-runtime: merging " ++ show (length libPaths) ++ " lib(s) into jar")
                 mergeLibsIntoJar rootPath libPaths jarOutput
+            ensureJarManifest jarOutput mMainClass
             putStrLn ("[DONE] jar generated: " ++ jarOutput)
         Nothing ->
             putStrLn "[ERROR] xlang compile failed; jar packaging skipped"
+
+
 
 
 

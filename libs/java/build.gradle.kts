@@ -24,6 +24,9 @@ val xlangOutDir = layout.buildDirectory.dir("generated/xlang/classes")
 val xlangExe = providers.gradleProperty("xlangExe")
     .orElse(repoRoot.resolve("build/xlang.exe").absolutePath)
 
+val xlangJobs = providers.gradleProperty("xlangJobs")
+    .orElse("1")
+
 val xlangFiles = fileTree(xlangSourceRoot) {
     include("**/*.x")
 }
@@ -34,6 +37,7 @@ val compileXlang = tasks.register("compileXlang") {
 
     inputs.files(xlangFiles).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.property("xlangExe", xlangExe)
+    inputs.property("xlangJobs", xlangJobs)
     outputs.dir(xlangOutDir)
 
     doLast {
@@ -49,22 +53,28 @@ val compileXlang = tasks.register("compileXlang") {
         if (outDir.exists()) outDir.deleteRecursively()
         outDir.mkdirs()
 
-        if (xlangFiles.isEmpty) {
-            logger.lifecycle("[xlang] no .x files under ${xlangSourceRoot.absolutePath}")
-        }
+        val jobs = xlangJobs.get().toIntOrNull()?.takeIf { it > 0 }
+            ?: throw GradleException("invalid xlangJobs: '${xlangJobs.get()}', expected positive integer")
 
-        xlangFiles.files.sorted().forEach { src ->
-            val rel = src.relativeTo(xlangSourceRoot).invariantSeparatorsPath
-            logger.lifecycle("[xlang] compiling $rel")
+        val relFiles = xlangFiles.files
+            .sorted()
+            .map { it.relativeTo(xlangSourceRoot).invariantSeparatorsPath }
+
+        if (relFiles.isEmpty()) {
+            logger.lifecycle("[xlang] no .x files under ${xlangSourceRoot.absolutePath}")
+        } else {
+            logger.lifecycle("[xlang] compiling ${relFiles.size} file(s) with -j$jobs")
+            val args = mutableListOf(
+                exe.absolutePath,
+                "--target=jvm",
+                "--root=${xlangSourceRoot.absolutePath}"
+            )
+            args.addAll(relFiles)
+            args.addAll(listOf("-d", outDir.absolutePath, "-j$jobs"))
+
             project.exec {
                 workingDir = repoRoot
-                commandLine(
-                    exe.absolutePath,
-                    "--target=jvm",
-                    "--root=${xlangSourceRoot.absolutePath}",
-                    rel,
-                    "-d", outDir.absolutePath
-                )
+                commandLine(args)
             }
         }
     }
@@ -85,3 +95,4 @@ kotlin {
 tasks.test {
     useJUnitPlatform()
 }
+

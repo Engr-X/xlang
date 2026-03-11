@@ -1,8 +1,10 @@
 module Xlang where
 
 import Control.Monad (void)
+import Data.Char (isDigit)
 import Data.List (stripPrefix)
 import Data.Map.Strict (Map)
+import Data.Maybe (isJust)
 import GHC.Conc (setNumCapabilities)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, listDirectory)
 import System.Environment (getArgs, getExecutablePath)
@@ -25,6 +27,7 @@ data Options = Options {
     optHelp :: Bool,
     optVersion :: Bool,
     optDownload :: Maybe Int,
+    optMainEntry :: Maybe [String],
     optTarget :: Maybe String,
     optInputs :: [FilePath],
     optLibs :: [FilePath],
@@ -42,6 +45,7 @@ defaultOptions = Options {
     optHelp = False,
     optVersion = False,
     optDownload = Nothing,
+    optMainEntry = Nothing,
     optTarget = Nothing,
     optInputs = [],
     optLibs = [],
@@ -127,6 +131,23 @@ ensureDefaultJdkMetadata exeDir = do
             putStrLn "[INFO] java-native metadata not found; auto download jdk 8 metadata"
             downloadJdkMetadata exeDir 8
 
+splitOnDot :: String -> [String]
+splitOnDot s =
+    case break (== '.') s of
+        (a, []) -> [a]
+        (a, _ : rest) -> a : splitOnDot rest
+
+
+parseMainEntryClass :: String -> Either String [String]
+parseMainEntryClass raw =
+    let segs = splitOnDot raw
+    in if null raw || any null segs
+        then Left "invalid --main format; expected: com.wangdi.MainKt.main"
+        else
+            case reverse segs of
+                ("main" : revCls) | not (null revCls) -> Right (reverse revCls)
+                _ -> Right segs
+
 parseArgs :: [String] -> Options
 parseArgs = go defaultOptions
     where
@@ -157,6 +178,12 @@ parseArgs = go defaultOptions
                 optError = Just "invalid value for -download/--download; expected positive integer"
             }
 
+        parseMainValue :: String -> Options -> [String] -> Options
+        parseMainValue raw opts xs =
+            case parseMainEntryClass raw of
+                Left msg -> opts {optHelp = True, optError = Just msg}
+                Right qn -> go opts {optMainEntry = Just qn} xs
+
         go :: Options -> [String] -> Options
         go opts [] = opts
 
@@ -172,13 +199,18 @@ parseArgs = go defaultOptions
         go opts (arg : xs)
             | Just jobsRaw <- stripPrefix "--jobs=" arg =
                 parseJobsValue jobsRaw opts xs
+            | Just jobsRaw <- stripPrefix "-j=" arg =
+                parseJobsValue jobsRaw opts xs
+            | Just jobsRaw <- stripPrefix "-j" arg, not (null jobsRaw), all isDigit jobsRaw =
+                parseJobsValue jobsRaw opts xs
             | Just verRaw <- stripPrefix "-download=" arg =
                 parseDownloadValue verRaw opts xs
             | Just verRaw <- stripPrefix "--download=" arg =
                 parseDownloadValue verRaw opts xs
+            | Just mainRaw <- stripPrefix "--main=" arg =
+                parseMainValue mainRaw opts xs
             | Just rootDir <- stripPrefix "--root=" arg =
                 go opts {optRoot = rootDir} xs
-
         go opts ("--root" : rootDir : xs) = go opts {optRoot = rootDir} xs
         go opts ("-r" : rootDir : xs) = go opts {optRoot = rootDir} xs
         go opts ["--root"] = opts {optHelp = True, optError = Just "missing value for --root"}
@@ -193,6 +225,9 @@ parseArgs = go defaultOptions
         go opts ("--download" : n : xs) = parseDownloadValue n opts xs
         go opts ["-download"] = opts {optHelp = True, optError = Just "missing value for -download"}
         go opts ["--download"] = opts {optHelp = True, optError = Just "missing value for --download"}
+
+        go opts ("--main" : v : xs) = parseMainValue v opts xs
+        go opts ["--main"] = opts {optHelp = True, optError = Just "missing value for --main"}
 
         -- Compatibility: old style "-c file.x"
         go opts ("-c" : src : xs) = go (addInput opts src) xs
@@ -227,8 +262,8 @@ printHelp :: IO ()
 printHelp = putStrLn $ unlines [
     "Usage:",
     "   xlang --target=jvm <file.x|file.xl|file.xlang> [more files ...]",
-    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>]",
-    "         [-d <dir|jar>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
+    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>]",
+    "         [--main=<qname.main>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
     "",
     "   xlang -v | --version",
     "   xlang -h | --help",
@@ -244,11 +279,14 @@ printHelp = putStrLn $ unlines [
     "   --root=<dir>     source root (preferred form), e.g. --root=./abcde",
     "   --root <dir>     source root (compatible form)",
     "   -r <dir>         source root (short form)",
-    "   -j <n>, --jobs <n>",
+    "   -j<n>, -j <n>, --jobs <n>, --jobs=<n>",
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
     "   -lib <files...>  external libs (.class/.jar/.json), e.g. -lib a.jar b.class c.json",
     "                    plus default: all .jar under <xlang.exe dir>/libs and all .json under <xlang.exe dir>/libs/java-native",
+    "   --main=<qname.main>",
+    "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
+    "                    class-only is also accepted: --main=com.wangdi.MainKt",
     "   -d <dir|jar>     output directory or jar path",
     "                    if .jar: classes are emitted to <root>/out, then packed",
     "                    manifest includes: build by xlang",
@@ -299,6 +337,7 @@ main = do
                             invalidLibs = CJ.invalidLibFiles userLibPaths
                             includeRuntime = optIncludeRuntime opts
                             jobs = optJobs opts
+                            mMainClassOverride = optMainEntry opts
 
                         case (optTarget opts, srcPaths, optOutput opts) of
                             (Just "jvm", [], _) -> do
@@ -322,21 +361,37 @@ main = do
                                     then do
                                         putStrLn "cannot use -include-runtime with classes output type; expected a .jar"
                                         printHelp
-                                    else if CJ.isJarOutput outPath
-                                        then CJ.compileJVMToJar jobs toolkitJar rootAbs srcPaths libPaths outPath includeRuntime (optDebug opts)
+                                    else if not (CJ.isJarOutput outPath) && isJust mMainClassOverride
+                                        then do
+                                            putStrLn "--main is only valid when -d points to a .jar output"
+                                            printHelp
+                                        else if CJ.isJarOutput outPath
+                                        then CJ.compileJVMToJar jobs toolkitJar rootAbs srcPaths libPaths outPath includeRuntime (optDebug opts) mMainClassOverride
                                         else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
                             (Just "jvm", _, Nothing) ->
                                 if includeRuntime
                                     then do
                                         putStrLn "cannot use -include-runtime without -d <output>.jar"
                                         printHelp
-                                    else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
+                                    else if isJust mMainClassOverride
+                                        then do
+                                            putStrLn "--main is only valid with -d <output>.jar"
+                                            printHelp
+                                        else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
                             (Just _, _, _) -> do
                                 putStrLn "unsupported target"
                                 printHelp
                             _ -> do
                                 putStrLn "missing --target"
                                 printHelp
+
+
+
+
+
+
+
+
 
 
 
