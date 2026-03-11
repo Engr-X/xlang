@@ -1,0 +1,8 @@
+import xlang.math
+
+
+int main()
+{
+    putln(MathX.sign(10))
+    return 0
+}

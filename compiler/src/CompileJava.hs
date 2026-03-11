@@ -12,7 +12,7 @@ module CompileJava (
 
 import Control.Concurrent.Async (forConcurrently)
 import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
-import Control.Exception (bracket_)
+import Control.Exception (bracket_, finally)
 import Control.Monad (when)
 import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -98,13 +98,19 @@ duplicateLibRefs paths =
     insertOne mp ref = Map.insertWith (++) (libRefKey ref) [ref] mp
 
 
+normalizeMainClassQName :: [String] -> [String]
+normalizeMainClassQName qn = case reverse qn of
+    ("main" : revCls) | not (null revCls) -> reverse revCls
+    _ -> qn
+
+
 mainQNameFromKind :: TAC.MainKind -> Maybe [String]
 mainQNameFromKind kind = case kind of
     TAC.NoMain -> Nothing
-    TAC.MainInt qn -> Just qn
-    TAC.MainVoid qn -> Just qn
-    TAC.MainIntArgs qn -> Just qn
-    TAC.MainVoidArgs qn -> Just qn
+    TAC.MainInt qn -> Just (normalizeMainClassQName qn)
+    TAC.MainVoid qn -> Just (normalizeMainClassQName qn)
+    TAC.MainIntArgs qn -> Just (normalizeMainClassQName qn)
+    TAC.MainVoidArgs qn -> Just (normalizeMainClassQName qn)
 
 
 isWrappedMainFunction :: TAC.IRFunction -> Bool
@@ -260,7 +266,7 @@ writeJarFromDir classesDir jarOutput mMainClass = do
 renderManifest :: Maybe [String] -> String
 renderManifest mMainClass =
     let mainClassLines = case mMainClass of
-            Just qn -> ["Main-Class: " ++ intercalate "." qn]
+            Just qn -> ["Main-Class: " ++ intercalate "." (normalizeMainClassQName qn)]
             Nothing -> []
     in unlines (
         ["Manifest-Version: 1.0", "Built-By: xlang", "Xlang-Info: build by xlang"]
@@ -312,37 +318,33 @@ mergeLibsIntoJar rootPath libPaths jarOutput = do
 compileJVMToJar :: Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> Maybe [String] -> IO ()
 compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRuntime debugOut mMainClassOverride = do
     let classesOut = rootPath </> "out"
+        cleanupOut = do
+            exists <- doesDirectoryExist classesOut
+            when exists (removePathForcibly classesOut `catchIOError` (\_ -> pure ()))
 
-    existed <- doesDirectoryExist classesOut
-    when existed (removePathForcibly classesOut)
-
+    cleanupOut
     createDirectoryIfMissing True classesOut
     putStrLn ("[INFO] -d is jar; classes output dir: " ++ classesOut)
 
-    mIrs <- compileJVM jobs toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
-    case mIrs of
-        Just irs -> do
-            let mMainClassAuto = selectJarMainClass irs
-                mMainClass = case mMainClassOverride of
-                    Just qn -> Just qn
-                    Nothing -> mMainClassAuto
-            writeJarFromDir classesOut jarOutput mMainClass
-            case mMainClassOverride of
-                Just qn -> putStrLn ("[INFO] manifest Main-Class (override): " ++ intercalate "." qn)
-                Nothing ->
-                    case mMainClass of
-                        Just qn -> putStrLn ("[INFO] manifest Main-Class: " ++ intercalate "." qn)
-                        Nothing -> putStrLn "[WARN] no wrapped-class main found; jar has no Main-Class"
-            when includeRuntime $ do
-                putStrLn ("[INFO] include-runtime: merging " ++ show (length libPaths) ++ " lib(s) into jar")
-                mergeLibsIntoJar rootPath libPaths jarOutput
-            ensureJarManifest jarOutput mMainClass
-            putStrLn ("[DONE] jar generated: " ++ jarOutput)
-        Nothing ->
-            putStrLn "[ERROR] xlang compile failed; jar packaging skipped"
-
-
-
-
-
-
+    (`finally` cleanupOut) $ do
+        mIrs <- compileJVM jobs toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
+        case mIrs of
+            Just irs -> do
+                let mMainClassAuto = selectJarMainClass irs
+                    mMainClass = case mMainClassOverride of
+                        Just qn -> Just (normalizeMainClassQName qn)
+                        Nothing -> mMainClassAuto
+                writeJarFromDir classesOut jarOutput mMainClass
+                case mMainClassOverride of
+                    Just qn -> putStrLn ("[INFO] manifest Main-Class (override): " ++ intercalate "." (normalizeMainClassQName qn))
+                    Nothing ->
+                        case mMainClass of
+                            Just qn -> putStrLn ("[INFO] manifest Main-Class: " ++ intercalate "." qn)
+                            Nothing -> putStrLn "[WARN] no wrapped-class main found; jar has no Main-Class"
+                when includeRuntime $ do
+                    putStrLn ("[INFO] include-runtime: merging " ++ show (length libPaths) ++ " lib(s) into jar")
+                    mergeLibsIntoJar rootPath libPaths jarOutput
+                ensureJarManifest jarOutput mMainClass
+                putStrLn ("[DONE] jar generated: " ++ jarOutput)
+            Nothing ->
+                putStrLn "[ERROR] xlang compile failed; jar packaging skipped"

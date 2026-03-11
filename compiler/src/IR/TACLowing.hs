@@ -343,21 +343,24 @@ exprLowing (AST.Ternary cond (thenE, elseE) _) = do
     lElse <- incBlockId
     lJoin <- incBlockId
 
-    let thenBlock = TAC.IRBlockStmt (TAC.IRBlock (lThen,
-            reverse thenInstrs ++ thenCastInstrs ++ [
+    let condStmts = appendAfterCond (reverse condInstrs) [
+            TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThen),
+            TAC.IRInstr (TAC.Jump lElse)]
+        thenBody = appendAfterCond (reverse thenInstrs) (
+            thenCastInstrs ++ [
                 TAC.IRInstr (TAC.IAssign nAtom thenAtom),
-                TAC.IRInstr (TAC.Jump lJoin)]))
-        elseBlock = TAC.IRBlockStmt (TAC.IRBlock (lElse,
-            reverse elseInstrs ++ elseCastInstrs ++ [
+                TAC.IRInstr (TAC.Jump lJoin)])
+        elseBody = appendAfterCond (reverse elseInstrs) (
+            elseCastInstrs ++ [
                 TAC.IRInstr (TAC.IAssign nAtom elseAtom),
-                TAC.IRInstr (TAC.Jump lJoin)]))
+                TAC.IRInstr (TAC.Jump lJoin)])
+        thenBlock = TAC.IRBlockStmt (TAC.IRBlock (lThen, thenBody))
+        elseBlock = TAC.IRBlockStmt (TAC.IRBlock (lElse, elseBody))
         phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lThen, thenAtom), (lElse, elseAtom)]))
         joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
-        seqRev = [joinBlock, elseBlock, thenBlock,
-            TAC.IRInstr (TAC.Jump lElse),
-            TAC.IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThen)] ++ condInstrs
+        seqFwd = condStmts ++ [thenBlock, elseBlock, joinBlock]
 
-    return (seqRev, nAtom)
+    return (reverse seqFwd, nAtom)
 
 exprLowing (AST.Call funName params) = do
     (argInstrs, argAtoms) <- lowerArgs params
@@ -570,22 +573,21 @@ stmtsLowing ((AST.Command (AST.Return (Just e)) _):stmts) = do
     (_, retBId, _) <- getCurrentFun
     (setInstrs, returnAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
     let setReturnStmt = TAC.IRInstr (TAC.SetIRet returnAtom)
+        retStmts = appendAfterCond (reverse setInstrs)
+            [setReturnStmt, TAC.IRInstr (TAC.Jump retBId)]
     rest <- stmtsLowing stmts
-    return $ concat [
-        reverse setInstrs,
-        [setReturnStmt, TAC.IRInstr (TAC.Jump retBId)],
-        rest]
+    return $ appendAfterCond retStmts rest
 
 stmtsLowing ((AST.Expr e):stmts) = let
     exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return $ reverse instrs in do
         current <- exprLowing' e
         rest <- stmtsLowing stmts
-        return $ current ++ rest
+        return $ appendAfterCond current rest
 
 stmtsLowing ((AST.BlockStmt b):stmts) = do
     current <- blockLowing b
     rest <- stmtsLowing stmts
-    return $ current ++ rest
+    return $ appendAfterCond current rest
 
 stmtsLowing ((AST.DefField names mRhs toks):stmts) =
     stmtsLowing ((AST.DefVar names mRhs toks):stmts)
@@ -607,7 +609,7 @@ stmtsLowing ((AST.DefVar names mRhs toks):stmts) = do
         (_, Nothing, _) ->
             return []
     rest <- stmtsLowing stmts
-    return $ current ++ rest
+    return $ appendAfterCond current rest
 
 stmtsLowing ((AST.DefConstVar names mRhs toks):stmts) = do
     let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
@@ -623,7 +625,7 @@ stmtsLowing ((AST.DefConstVar names mRhs toks):stmts) = do
         (_, Nothing, _) ->
             return []
     rest <- stmtsLowing stmts
-    return $ current ++ rest
+    return $ appendAfterCond current rest
 
 
 {-

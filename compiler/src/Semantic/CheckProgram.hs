@@ -504,7 +504,7 @@ checkOneProgram path prog@(decls, stmts) importEnvs typedEnvs =
                     TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
     where
         defaultImportedPackages :: [QName]
-        defaultImportedPackages = [["xlang", "io"]]
+        defaultImportedPackages = [["xlang", "io"], ["java", "lang"]]
 
         dedupQNames :: [QName] -> [QName]
         dedupQNames = HashSet.toList . HashSet.fromList

@@ -1,15 +1,9 @@
-package com.wangdi.bctoolkit.meta
+package xlang.annotation
 
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.FieldVisitor
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
-import org.objectweb.asm.Type as AsmType
-
-
-@Target(AnnotationTarget.FIELD, AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.BINARY)
-annotation class Metadata(val value: String)
 
 
 object OwnerTypeMetadata
@@ -20,7 +14,10 @@ object OwnerTypeMetadata
     private const val CLASS_WRAPPED_ALIAS: String = "class-wrapped"
     private const val VALUE_KEY: String = "value"
 
-    val DESC: String = AsmType.getDescriptor(Metadata::class.java)
+    private const val DESC_CURRENT: String = "Lxlang/annotation/Metadata;"
+    private const val DESC_LEGACY: String = "Lcom/wangdi/bctoolkit/meta/Metadata;"
+
+    val DESC: String = DESC_CURRENT
 
     fun normalize(raw: String?): String = when (raw?.trim()?.lowercase())
     {
@@ -29,7 +26,8 @@ object OwnerTypeMetadata
         else -> throw IllegalArgumentException("Unknown owner_type: $raw")
     }
 
-    fun isOwnerTypeDescriptor(desc: String?): Boolean = desc == DESC
+    fun isOwnerTypeDescriptor(desc: String?): Boolean =
+        desc == DESC_CURRENT || desc == DESC_LEGACY
 
     fun visitAnnotationValue(name: String?, value: Any?, currentValue: String): String
     {
@@ -41,21 +39,20 @@ object OwnerTypeMetadata
 
     fun write(fieldVisitor: FieldVisitor, ownerType: String)
     {
-        val av = fieldVisitor.visitAnnotation(DESC, false) ?: return
+        val av = fieldVisitor.visitAnnotation(DESC_CURRENT, false) ?: return
         av.visit(VALUE_KEY, normalize(ownerType))
         av.visitEnd()
     }
 
     fun write(methodVisitor: MethodVisitor, ownerType: String)
     {
-        val av = methodVisitor.visitAnnotation(DESC, false) ?: return
+        val av = methodVisitor.visitAnnotation(DESC_CURRENT, false) ?: return
         av.visit(VALUE_KEY, normalize(ownerType))
         av.visitEnd()
     }
 
     fun reader(initialValue: String, onValue: (String) -> Unit): AnnotationVisitor =
-        object : AnnotationVisitor(Opcodes.ASM9)
-        {
+        object : AnnotationVisitor(Opcodes.ASM9) {
             private var current: String = normalize(initialValue)
 
             override fun visit(name: String?, value: Any?)
@@ -69,3 +66,4 @@ object OwnerTypeMetadata
             }
         }
 }
+

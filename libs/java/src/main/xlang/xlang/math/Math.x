@@ -16,3 +16,4 @@ fun sign(x: int) -> byte
 
 fun power(a: double, b: double) -> double = a ** b
 
+fun fib(x: int) -> long = (x as long) if x < 2 else (fib(x - 1) + fib(x - 2))

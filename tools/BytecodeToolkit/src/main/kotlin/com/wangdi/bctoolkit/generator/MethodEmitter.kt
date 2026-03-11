@@ -4,7 +4,7 @@ import com.wangdi.bctoolkit.artifact.Emitter
 import com.wangdi.bctoolkit.artifact.operation.*
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
-import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import xlang.annotation.OwnerTypeMetadata
 
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Label
@@ -223,3 +223,4 @@ open class MethodEmitter(
         this.mv.visitEnd()
     }
 }
+

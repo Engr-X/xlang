@@ -1,5 +1,6 @@
 package com.wangdi.bctoolkit.generator
 
+import com.wangdi.bctoolkit.artifact.Emitter
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
 
@@ -24,4 +25,11 @@ class ClinitEmitter(
             return layout
         }
     }
+
+    override fun generate(): Emitter = this.apply {
+        // JVM requires <clinit>()V to terminate with RETURN on all fall-through paths.
+        this.Builder().`return`().build()
+        super.generate()
+    }
 }
+

@@ -2,7 +2,7 @@ module IR.LowingTest where
 
 import Data.List (find)
 import IR.Lowing (codeToIRSingleWithRoot)
-import IR.TAC (IRClass (..), IRProgm (..))
+import IR.TAC (IRBlock (..), IRClass (..), IRFunction (..), IRInstr (..), IRProgm (..), IRStmt (..))
 import Parse.ParserBasic (DeclFlag (..))
 import Parse.SyntaxTree (Class (..))
 import Test.Tasty
@@ -89,7 +89,46 @@ topLevelValFinalTests = testGroup "IR.Lowing.topLevelValFinal" $ map (uncurry te
             Right _ -> assertFailure "expected duplicate-variable error"
     )]
 
+ternaryControlFlowTests :: TestTree
+ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
+    testCase "return-ternary dispatch stays in block join" $ do
+        let src = unlines [
+                "int f(int x) {",
+                "    return -1 if x < 0 else 0",
+                "}"
+                ]
+            isTopIfeq instr = case instr of
+                Ifeq {} -> True
+                _ -> False
+            isTopSetRet instr = case instr of
+                SetIRet {} -> True
+                _ -> False
+            stmtHasIfeq stmt = case stmt of
+                IRInstr (Ifeq {}) -> True
+                _ -> False
+            stmtHasSetRet stmt = case stmt of
+                IRInstr (SetIRet {}) -> True
+                _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "f" _ _ stmts _] _], _) -> do
+                let topInstrs = [instr | IRInstr instr <- stmts]
+                    blockBodies = [body | IRBlockStmt (IRBlock (_, body)) <- stmts]
+                    topHasIfeq = any isTopIfeq topInstrs
+                    topHasSetRet = any isTopSetRet topInstrs
+                    blockHasIfeq = any (any stmtHasIfeq) blockBodies
+                    blockHasSetRet = any (any stmtHasSetRet) blockBodies
+
+                assertBool "top-level Ifeq should not appear for ternary return" (not topHasIfeq)
+                assertBool "top-level SetIRet should not appear for ternary return" (not topHasSetRet)
+                assertBool "a block should contain ternary branch Ifeq" blockHasIfeq
+                assertBool "a block should contain SetIRet after ternary join" blockHasSetRet
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+
 
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
-    topLevelValFinalTests]
+    topLevelValFinalTests,
+    ternaryControlFlowTests]

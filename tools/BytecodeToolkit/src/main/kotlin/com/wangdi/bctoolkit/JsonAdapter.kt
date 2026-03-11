@@ -11,7 +11,7 @@ import com.wangdi.bctoolkit.generator.AttributeGenerator
 import com.wangdi.bctoolkit.generator.ClassEmitter
 import com.wangdi.bctoolkit.generator.ClinitEmitter
 import com.wangdi.bctoolkit.generator.MethodEmitter
-import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import xlang.annotation.OwnerTypeMetadata
 
 import org.objectweb.asm.Opcodes
 
@@ -634,3 +634,4 @@ class JsonAdapter(private val json: JSONObject)
         ce.addMethod(mainMethod)
     }
 }
+

@@ -2,7 +2,7 @@ package com.wangdi.bctoolkit.reader
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import xlang.annotation.OwnerTypeMetadata
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -35,3 +35,4 @@ data class JavaFieldDto(
     val type: List<String>,
     val name: String,
     @SerialName("owner_type") val ownerType: String)
+

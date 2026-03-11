@@ -2,7 +2,7 @@ package com.wangdi.bctoolkit.generator
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
-import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import xlang.annotation.OwnerTypeMetadata
 import org.objectweb.asm.ClassWriter
 
 
@@ -34,3 +34,4 @@ class AttributeGenerator(
         fv.visitEnd()
     }
 }
+

@@ -552,6 +552,20 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
         assertLeftWith (checkOneProgram "a.x" prog [ien] []) $ \errs ->
             assertBool "must report not visible for imported function"
                 (any ((== UE.notVisibleMsg) . errWhy) errs))
+    ,
+
+    ("6", do
+        let callStmt = Expr (Binary Assign (varExpr "b" 1) (Call (varExpr "abs" 2) [intExpr 1 3]) (symTok Lex.Assign 4))
+            prog = mkProgram [] [] [callStmt]
+            ien = IEnv "java-base.x" Map.empty (Map.fromList [(["java", "lang", "abs"], [pos 2])])
+            ten = (emptyTypedImportEnv "java-base.x") {
+                tFuncs = Map.fromList [
+                    (["java", "lang", "abs"], ([FunSig [Int32T] Int32T], [pos 2], ["java", "lang", "MathX", "abs"]))
+                    ]
+            }
+        case checkOneProgram "a.x" prog [ien] [ten] of
+            Right _ -> pure ()
+            Left e -> assertFailure ("expected Right, got Left: " ++ show e))
     ]
 
 

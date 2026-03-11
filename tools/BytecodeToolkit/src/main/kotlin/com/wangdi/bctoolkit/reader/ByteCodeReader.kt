@@ -2,7 +2,7 @@ package com.wangdi.bctoolkit.reader
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import xlang.annotation.OwnerTypeMetadata
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.jar.JarFile

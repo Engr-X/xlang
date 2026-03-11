@@ -3,7 +3,7 @@ package com.wangdi.bctoolkit.generator
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
 import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.meta.OwnerTypeMetadata
+import xlang.annotation.OwnerTypeMetadata
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.ClassReader
 import org.objectweb.asm.ClassVisitor
@@ -123,3 +123,4 @@ class JavaClassEmitterTest
         assertEquals(OwnerTypeMetadata.WRAPPED_CLASS, ownerType)
     }
 }
+
