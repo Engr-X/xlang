@@ -1,10 +1,14 @@
 /*
-loop examples
+Loop examples.
+循环示例.
 
 1) while with block
-2) while also supports ':' single-line style: while cond: statement
+2) while single-line with ':'
+1) while 代码块; 2) while 单行 ':' 写法.
 3) continue / break
-4) while ... else (else also supports single-line ':')
+3) continue / break
+4) while ... else
+4) while ... else
 */
 
 int main()
@@ -12,18 +16,21 @@ int main()
     var i: int = 0
     var sum: int = 0
 
-    // 1) while with block + continue
+    // while block + continue
+    // while 代码块 + continue
     while i < 5 {
         i = i + 1
         if i == 3: continue
         sum = sum + i
     }
 
-    // 2) while with ':' single-line style
+    // while single-line style
+    // while 单行写法
     var x: int = 0
     while x < 3: x = x + 1
 
-    // 3) break
+    // break
+    // break
     var n: int = 0
     while n < 10 {
         n = n + 1
@@ -31,7 +38,8 @@ int main()
         sum = sum + n
     }
 
-    // 4) while ... else
+    // while ... else
+    // while ... else
     var cond: bool = false
     while cond {
         sum = sum + 100

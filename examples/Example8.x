@@ -1,18 +1,27 @@
 /*
-function declaration styles
+Function declaration styles.
+函数声明风格.
 
-1) modern style (recommended):
-   fun name(params) -> returnType { ... }
+1) Modern style (recommended):
+1) 现代风格(推荐):
+fun name(params) -> returnType { ... }
+fun name(params) -> returnType { ... }
 
-2) classic style (C/Java-like):
-   returnType name(params) { ... }
+2) Classic style (C/Java-like):
+2) 经典风格(C/Java 类似):
+returnType name(params) { ... }
+returnType name(params) { ... }
 
-3) syntax sugar:
-   - single-statement body can use ':'
-   - single-expression return can use '= expr'
+3) Syntax sugar:
+3) 语法糖:
+- single statement body can use ':'
+- 单语句函数体可用 ':'
+- single expression return can use '= expr'
+- 单表达式返回可用 '= expr'
 */
 
-// 1) modern style
+// 1) Modern style
+// 1) 现代风格
 fun add(a: int, b: int) -> int
 {
     return a + b
@@ -20,7 +29,8 @@ fun add(a: int, b: int) -> int
 
 fun maxOf(a: int, b: int) -> int: return a if a > b else b
 
-// 2) classic style
+// 2) Classic style
+// 2) 经典风格
 int sub(int a, int b)
 {
     return a - b
@@ -28,7 +38,8 @@ int sub(int a, int b)
 
 int neg(int x): return -x
 
-// 3) syntax sugar
+// 3) Syntax sugar
+// 3) 语法糖
 fun square(a: int) -> int = a * a
 int cube(int a) = a * a * a
 

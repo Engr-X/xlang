@@ -1,23 +1,33 @@
 /*
-first xlang program.
-it will print string "Hello, World!"
+First xlang program.
+第一个 xlang 程序.
 
-semicolon notes:
-1) end-of-line semicolon is optional
-2) on the same line, ';' can be used as a statement separator
+It prints "Hello, World!".
+它会输出 "Hello, World!".
+
+Semicolon notes:
+分号说明:
+1) End-of-line semicolon is optional.
+1) 行尾分号可省略.
+2) On the same line, ';' can separate statements.
+2) 同一行里 ';' 可以分隔多个语句.
 */
 
 main() -> void
 {
     // Output "Hello, World!"
+    // 输出 "Hello, World!"
     putln("Hello, World!")
 
-    // same-line separator example:
+    // Same-line separator example:
+    // 同行分隔示例:
+    // putln("A"); putln("B")
     // putln("A"); putln("B")
 }
 
 /*
-If you like java or c style, this version is also acceptable
+If you prefer Java/C style, this version is also accepted.
+如果你更喜欢 Java/C 风格, 也可以写成下面这样.
 
 void main()
 {

@@ -1,16 +1,19 @@
 /*
-access keywords: public / private
+Access keywords: public / private.
+访问控制关键字: public / private.
 
-1) public:
-   symbol can be accessed from outside (default is public if omitted).
+1) public: visible outside.
+1) public: 对外可见.
+If omitted, default is public.
+如果省略, 默认就是 public.
 
-2) private:
-   symbol is intended for internal use in current scope/module.
+2) private: internal use in current scope/module.
+2) private: 仅当前作用域/模块内部使用.
 */
 
 public val apiVersion: int = 1
 private var internalCounter: int = 0
-val defaultPublicValue: int = 42 // no `public` keyword, still public by default
+val defaultPublicValue: int = 42
 
 public fun inc() -> void
 {

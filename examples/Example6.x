@@ -1,15 +1,21 @@
 /*
-if statement examples
+if statement examples.
+if 语句示例.
 
-1) single statement style:
-   if condition: statement
+1) Single statement style:
+1) 单语句风格:
+if cond: statement
+if cond: statement
 
-2) if + else (single statement with ':'):
-   if condition: statement
-   else: statement
+2) if + else single statement:
+2) if + else 单语句:
+if cond: statement
+if cond: statement
+else: statement
+else: statement
 
-3) multi-statement style (use block):
-   if condition { ... } else { ... }
+3) Block style for multiple statements.
+3) 多语句代码块风格.
 */
 
 void main()
@@ -18,14 +24,17 @@ void main()
     var passed: bool = false
     var level: String = "none"
 
-    // 1) single statement after ':'
+    // single statement after ':'
+    // ':' 后单语句
     if score > 59: passed = true
 
-    // 2) if + else with single statement
+    // if + else single statement
+    // if + else 单语句
     if score > 89: level = "A"
     else: level = "B"
 
-    // 3) block style for multiple statements
+    // block style
+    // 代码块风格
     if score > 100 {
         level = "S"
         passed = true
@@ -33,7 +42,8 @@ void main()
         level = "normal"
     }
 
-    // 4) nested if in else block
+    // nested if
+    // 嵌套 if
     if score > 89: level = "A"
     else {
         if score > 79: level = "B"
