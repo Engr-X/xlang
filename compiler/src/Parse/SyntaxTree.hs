@@ -69,13 +69,13 @@ methodTView _ = Nothing
 pattern Function :: (Class, [Token]) -> Expression -> [(Class, String, [Token])] -> Block -> Statement
 pattern Function ret name params body <- (methodView -> Just (ret, name, params, body))
     where
-        Function ret name params body = StaticMethod ret name params body
+        Function ret name params body = InstanceMethod ret name params body
 
 
 pattern FunctionT :: (Class, [Token]) -> Expression -> [(Class, [Token])] -> [(Class, String, [Token])] -> Block -> Statement
 pattern FunctionT ret name gens params body <- (methodTView -> Just (ret, name, gens, params, body))
     where
-        FunctionT ret name gens params body = StaticMethodT ret name gens params body
+        FunctionT ret name gens params body = InstanceMethodT ret name gens params body
 
 
 -- pretty toString method for command
@@ -356,11 +356,11 @@ flattenCase (Just (Default b _)) = flattenBlock (Just b)
 data Statement = 
     Command Command Token |
 
-    DefField [String] (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
-    DefConstField [String] (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
+    DefField [String] (Maybe Class) (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
+    DefConstField [String] (Maybe Class) (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
     
-    DefVar [String] (Maybe Expression) [Token] | -- this is for static var
-    DefConstVar [String] (Maybe Expression) [Token] | -- this is for static var
+    DefVar [String] (Maybe Class) (Maybe Expression) [Token] | -- this is for static var
+    DefConstVar [String] (Maybe Class) (Maybe Expression) [Token] | -- this is for static var
 
 
     Expr Expression |
@@ -387,26 +387,34 @@ data Statement =
 prettyStmt :: Int -> Maybe Statement -> String
 prettyStmt _ Nothing = "\n"
 prettyStmt n (Just (Command c _)) = prettyCmd n c
-prettyStmt n (Just (DefField names me _)) =
-    let rhs = case me of
+prettyStmt n (Just (DefField names mTy me _)) =
+    let
+        tyS = maybe "" (\c -> ": " ++ prettyClass c) mTy
+        rhs = case me of
             Just e -> " = " ++ prettyExpr 0 (Just e)
             Nothing -> ""
-    in insertTab n ++ "var " ++ intercalate "." names ++ rhs ++ "\n"
-prettyStmt n (Just (DefConstField names me _)) =
-    let rhs = case me of
+    in insertTab n ++ "var " ++ intercalate "." names ++ tyS ++ rhs ++ "\n"
+prettyStmt n (Just (DefConstField names mTy me _)) =
+    let
+        tyS = maybe "" (\c -> ": " ++ prettyClass c) mTy
+        rhs = case me of
             Just e -> " = " ++ prettyExpr 0 (Just e)
             Nothing -> ""
-    in insertTab n ++ "val " ++ intercalate "." names ++ rhs ++ "\n"
-prettyStmt n (Just (DefVar names me _)) =
-    let rhs = case me of
+    in insertTab n ++ "val " ++ intercalate "." names ++ tyS ++ rhs ++ "\n"
+prettyStmt n (Just (DefVar names mTy me _)) =
+    let
+        tyS = maybe "" (\c -> ": " ++ prettyClass c) mTy
+        rhs = case me of
             Just e -> " = " ++ prettyExpr 0 (Just e)
             Nothing -> ""
-    in insertTab n ++ "var " ++ intercalate "." names ++ rhs ++ "\n"
-prettyStmt n (Just (DefConstVar names me _)) =
-    let rhs = case me of
+    in insertTab n ++ "var " ++ intercalate "." names ++ tyS ++ rhs ++ "\n"
+prettyStmt n (Just (DefConstVar names mTy me _)) =
+    let
+        tyS = maybe "" (\c -> ": " ++ prettyClass c) mTy
+        rhs = case me of
             Just e -> " = " ++ prettyExpr 0 (Just e)
             Nothing -> ""
-    in insertTab n ++ "val " ++ intercalate "." names ++ rhs ++ "\n"
+    in insertTab n ++ "val " ++ intercalate "." names ++ tyS ++ rhs ++ "\n"
 prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
@@ -488,10 +496,10 @@ prettyStmtIO = pure . prettyStmt 0
 --   This includes tokens from nested expressions and blocks.
 stmtTokens :: Statement -> [Token]
 stmtTokens (Command _ t) = [t]
-stmtTokens (DefField _ me toks) = toks ++ maybe [] exprTokens me
-stmtTokens (DefConstField _ me toks) = toks ++ maybe [] exprTokens me
-stmtTokens (DefVar _ me toks) = toks ++ maybe [] exprTokens me
-stmtTokens (DefConstVar _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefField _ _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefConstField _ _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefVar _ _ me toks) = toks ++ maybe [] exprTokens me
+stmtTokens (DefConstVar _ _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (Expr e) = exprTokens e
 stmtTokens (BlockStmt b) = blockTokens (Just b)
 
@@ -526,10 +534,10 @@ stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
 flattenStatement :: Maybe Statement -> [Expression]
 flattenStatement Nothing = []
 flattenStatement (Just (Command _ _)) = []
-flattenStatement (Just (DefField _ me _)) = maybe [] (flattenExpr . Just) me
-flattenStatement (Just (DefConstField _ me _)) = maybe [] (flattenExpr . Just) me
-flattenStatement (Just (DefVar _ me _)) = maybe [] (flattenExpr . Just) me
-flattenStatement (Just (DefConstVar _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefField _ _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefConstField _ _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefVar _ _ me _)) = maybe [] (flattenExpr . Just) me
+flattenStatement (Just (DefConstVar _ _ me _)) = maybe [] (flattenExpr . Just) me
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)
@@ -635,6 +643,21 @@ isJavaNameDecl _ = False
 type Program = ([Declaration], [Statement])
 
 
+-- | Promote top-level declarations into static form.
+--   - top-level instance functions -> static functions
+--   - top-level fields/const-fields -> static vars/const-vars
+--   Nested declarations in blocks are left unchanged.
+promoteTopLevelFunctions :: Program -> Program
+promoteTopLevelFunctions (decls, stmts) = (decls, map promote stmts)
+    where
+        promote :: Statement -> Statement
+        promote (DefField names mTy rhs toks) = DefVar names mTy rhs toks
+        promote (DefConstField names mTy rhs toks) = DefConstVar names mTy rhs toks
+        promote (InstanceMethod ret name params body) = StaticMethod ret name params body
+        promote (InstanceMethodT ret name gens params body) = StaticMethodT ret name gens params body
+        promote stmt = stmt
+
+
 -- | Get the declared package path from a program header.
 --   Returns [] when no package declaration exists.
 --   If there are multiple package declarations, this returns the first one.
@@ -685,7 +708,6 @@ classesMap = Map.fromList [
     ("float128", Float128T),
     
     ("char", Char),
-    ("string", Class ["java", "lang", "String"] []),
     ("String", Class ["java", "lang", "String"] []),
     ("void", Void)]
 

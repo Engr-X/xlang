@@ -1,6 +1,8 @@
 Decl :: { Declaration }
     : KW_PACKAGE QName Sep      { let (ss, ts) = $2 in Package (reverse ss) (reverse ts) }
     | KW_IMPORT QName Sep       { let (ss, ts) = $2 in Import (reverse ss) (reverse ts) }
+    | KW_IMPORT QName '.' '*' Sep
+                                { let (ss, ts) = $2 in Import (reverse ss ++ ["*"]) (reverse ts ++ [$3, $4]) }
     | KW_JAVANAME string Sep    { JavaName (strVal $2) $2 }
     ;
 

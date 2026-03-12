@@ -1,5 +1,6 @@
 module IR.LowingTest where
 
+import Control.Exception (SomeException, evaluate, try)
 import Data.Aeson (encode)
 import Data.List (find, isInfixOf)
 import IR.Lowing (codeToIRSingleWithRoot)
@@ -213,9 +214,50 @@ stringLiteralLoweringTests = testGroup "IR.Lowing.stringLiteral" [
     ]
 
 
+staticFieldReadLoweringTests :: TestTree
+staticFieldReadLoweringTests = testGroup "IR.Lowing.staticFieldRead" [
+    testCase "top-level static read in function lowers to getstatic" $ do
+        let src = unlines [
+                "int a = 10",
+                "int main() {",
+                "    return a",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (ir@(IRProgm _ _), _) -> do
+                let classes = jvmProgmLowing ir
+                    jsonText = BL.unpack (encode (jProgmToJSON 8 classes))
+                assertBool "json should include getstatic for top-level field read" ("\"op_name\":\"getstatic\"" `isInfixOf` jsonText)
+                assertBool "json should reference MainX.a in getstatic" ("\"attr_name\":[\"MainX\",\"a\"]" `isInfixOf` jsonText)
+    ]
+
+float128JvmRejectTests :: TestTree
+float128JvmRejectTests = testGroup "IR.Lowing.float128JvmReject" [
+    testCase "jvm lowering rejects float128 (native only)" $ do
+        let src = unlines [
+                "float128 a = 1",
+                "int main() {",
+                "    return 0",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (ir@(IRProgm _ _), _) -> do
+                res <- try (evaluate (length (jvmProgmLowing ir))) :: IO (Either SomeException Int)
+                case res of
+                    Left ex ->
+                        assertBool "error should mention float128 is native-only"
+                            ("float128 is native-only" `isInfixOf` show ex)
+                    Right _ -> assertFailure "expected jvm lowering to reject float128"
+    ]
+
+
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
     callArgCastTests,
     ternaryControlFlowTests,
-    stringLiteralLoweringTests]
+    stringLiteralLoweringTests,
+    staticFieldReadLoweringTests,
+    float128JvmRejectTests]

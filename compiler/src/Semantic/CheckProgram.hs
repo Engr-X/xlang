@@ -398,9 +398,117 @@ mergeTypedEnv a b =
             in (sigs, poses, full)
 
 
-importDeclPackages :: [Declaration] -> [QName]
-importDeclPackages decls =
-    HashSet.toList $ HashSet.fromList [declPath d | d@(Import _ _) <- decls, isImportDecl d]
+data ImportSpec
+    = ImportClass QName
+    | ImportWildcard QName
+    deriving (Eq, Show)
+
+
+isWildcardImportPath :: QName -> Bool
+isWildcardImportPath qn = not (null qn) && last qn == "*"
+
+
+toImportSpec :: QName -> ImportSpec
+toImportSpec qn
+    | isWildcardImportPath qn = ImportWildcard (init qn)
+    | otherwise = ImportClass qn
+
+
+importDeclSpecs :: [Declaration] -> [(ImportSpec, [Position])]
+importDeclSpecs decls =
+    [ (toImportSpec qn, map Lex.tokenPos toks)
+    | d <- decls
+    , isImportDecl d
+    , let qn = declPath d
+    , let toks = case d of
+            Import _ ts -> ts
+            _ -> []
+    ]
+
+
+dedupImportSpecs :: [ImportSpec] -> [ImportSpec]
+dedupImportSpecs = reverse . foldl' step []
+  where
+    step :: [ImportSpec] -> ImportSpec -> [ImportSpec]
+    step acc spec
+        | spec `elem` acc = acc
+        | otherwise = spec : acc
+
+
+collectFullQNames :: [TypedImportEnv] -> [QName]
+collectFullQNames envs =
+    HashSet.toList $ HashSet.fromList $
+        concatMap oneEnv envs
+  where
+    oneEnv :: TypedImportEnv -> [QName]
+    oneEnv env =
+        map (\(_, _, full) -> full) (Map.elems (tVars env))
+        ++ map (\(_, _, full) -> full) (Map.elems (tFuncs env))
+
+
+splitFullQName :: QName -> Maybe (QName, String, String)
+splitFullQName full
+    | length full < 2 = Nothing
+    | otherwise =
+        let member = last full
+            owner = init full
+            cls = last owner
+            pkg = init owner
+        in Just (pkg, cls, member)
+
+
+classExistsInEnvs :: [QName] -> QName -> Bool
+classExistsInEnvs fulls classQn =
+    any matches fulls
+  where
+    matches :: QName -> Bool
+    matches full = case splitFullQName full of
+        Just (pkg, cls, _) -> pkg ++ [cls] == classQn
+        Nothing -> False
+
+
+packageExistsInEnvs :: [QName] -> QName -> Bool
+packageExistsInEnvs fulls pkgQn =
+    any matches fulls
+  where
+    matches :: QName -> Bool
+    matches full = case splitFullQName full of
+        Just (pkg, _, _) -> pkgQn `isPrefixOf` pkg
+        Nothing -> False
+
+
+validateImportDeclSpecs ::
+    Path ->
+    [TypedImportEnv] ->
+    [(ImportSpec, [Position])] ->
+    Either [ErrorKind] [ImportSpec]
+validateImportDeclSpecs path typedEnvs specsWithPos =
+    let fulls = collectFullQNames typedEnvs
+        (errsRev, specsRev) = foldl' (step fulls) ([], []) specsWithPos
+        errs = reverse errsRev
+    in if null errs
+        then Right (dedupImportSpecs (reverse specsRev))
+        else Left errs
+  where
+    step ::
+        [QName] ->
+        ([ErrorKind], [ImportSpec]) ->
+        (ImportSpec, [Position]) ->
+        ([ErrorKind], [ImportSpec])
+    step fulls (errs, accSpecs) (spec, pos) = case spec of
+        ImportClass qn ->
+            if classExistsInEnvs fulls qn
+                then (errs, spec : accSpecs)
+                else
+                    let msg = UE.invalidImportDeclMsg (prettyQName qn)
+                    in (UE.Syntax (UE.makeError path pos msg) : errs, accSpecs)
+        ImportWildcard pkgQn ->
+            if packageExistsInEnvs fulls pkgQn
+                then (errs, spec : accSpecs)
+                else
+                    let target = if null pkgQn then "*" else prettyQName pkgQn ++ ".*"
+                        msg = UE.undefinedIdentity target
+                    in (UE.Syntax (UE.makeError path pos msg) : errs, accSpecs)
 
 
 splitHiddenQName :: QName -> (Bool, QName)
@@ -408,40 +516,37 @@ splitHiddenQName ("$hidden$" : rest) = (True, rest)
 splitHiddenQName qn = (False, qn)
 
 
-aliasTargetsForImport :: QName -> QName -> [QName]
-aliasTargetsForImport currentPkg remainder =
-    HashSet.toList $ HashSet.fromList (remainder : scoped)
+matchesImportSpec :: ImportSpec -> QName -> Bool
+matchesImportSpec spec full = case splitFullQName full of
+    Nothing -> False
+    Just (pkg, cls, _) -> case spec of
+        ImportClass classQn -> classQn == pkg ++ [cls]
+        ImportWildcard pkgQn -> pkgQn `isPrefixOf` pkg
+
+
+isTopLevelAliasPayload :: QName -> QName -> Bool
+isTopLevelAliasPayload payload full = case splitFullQName full of
+    Just (pkg, _, member) -> payload == pkg ++ [member]
+    Nothing -> False
+
+
+aliasTargetsForSpec :: QName -> Bool -> QName -> [QName]
+aliasTargetsForSpec currentPkg isTopLevel full = case splitFullQName full of
+    Nothing -> [full]
+    Just (_, cls, member) ->
+        let shortClass = [cls, member]
+            samePkgTopLevel =
+                if isTopLevel
+                    then [currentPkg ++ [member]]
+                    else []
+        in dedupQNames (full : shortClass : samePkgTopLevel)
   where
-    scoped
-        | length remainder == 1 = [currentPkg ++ remainder]
-        | otherwise = []
+    dedupQNames :: [QName] -> [QName]
+    dedupQNames = HashSet.toList . HashSet.fromList
 
 
-expandImportEnvByImports :: QName -> [QName] -> ImportEnv -> ImportEnv
-expandImportEnvByImports currentPkg imports env =
-    env {
-        iVars = expandMap (iVars env),
-        iFuncs = expandMap (iFuncs env)
-    }
-  where
-    expandMap :: Map QName [Position] -> Map QName [Position]
-    expandMap mp =
-        let entries = Map.toList mp
-            aliases =
-                [ (aliasKey, positions)
-                | (keyQn, positions) <- entries
-                , let (isHidden, payload) = splitHiddenQName keyQn
-                , importQn <- imports
-                , Just remainder <- [stripPrefix importQn payload]
-                , not (null remainder)
-                , alias <- aliasTargetsForImport currentPkg remainder
-                , let aliasKey = if isHidden then toHiddenQName alias else alias
-                ]
-        in foldl' (\acc (k, v) -> Map.insertWith (++) k v acc) mp aliases
-
-
-expandTypedImportEnvByImports :: QName -> [QName] -> TypedImportEnv -> TypedImportEnv
-expandTypedImportEnvByImports currentPkg imports env =
+expandTypedImportEnvBySpecs :: QName -> [ImportSpec] -> TypedImportEnv -> TypedImportEnv
+expandTypedImportEnvBySpecs currentPkg specs env =
     env {
         tVars = expandVarMap (tVars env),
         tFuncs = expandFunMap (tFuncs env)
@@ -450,31 +555,39 @@ expandTypedImportEnvByImports currentPkg imports env =
     expandVarMap :: Map QName (AST.Class, [Position], QName) -> Map QName (AST.Class, [Position], QName)
     expandVarMap mp =
         let entries = Map.toList mp
+            topLevels = HashSet.fromList
+                [ fullQn
+                | (keyQn, (_, _, fullQn)) <- entries
+                , let (_, payload) = splitHiddenQName keyQn
+                , isTopLevelAliasPayload payload fullQn
+                ]
             aliases =
                 [ (aliasKey, entry)
                 | (keyQn, entry) <- entries
-                , let (isHidden, payload) = splitHiddenQName keyQn
-                , importQn <- imports
-                , Just remainder <- [stripPrefix importQn payload]
-                , not (null remainder)
-                , alias <- aliasTargetsForImport currentPkg remainder
+                , let (isHidden, _) = splitHiddenQName keyQn
+                , any (`matchesImportSpec` fullFromEntry entry) specs
+                , alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry)
                 , let aliasKey = if isHidden then toHiddenQName alias else alias
                 ]
             keepOld :: (AST.Class, [Position], QName) -> (AST.Class, [Position], QName) -> (AST.Class, [Position], QName)
             keepOld _ old = old
-        in foldl' (\acc (k, v) -> Map.insertWith keepOld k v acc) mp aliases
+        in foldl' (\acc (k, v) -> Map.insertWith keepOld k v acc) Map.empty aliases
 
     expandFunMap :: Map QName ([FunSig], [Position], QName) -> Map QName ([FunSig], [Position], QName)
     expandFunMap mp =
         let entries = Map.toList mp
+            topLevels = HashSet.fromList
+                [ fullQn
+                | (keyQn, (_, _, fullQn)) <- entries
+                , let (_, payload) = splitHiddenQName keyQn
+                , isTopLevelAliasPayload payload fullQn
+                ]
             aliases =
                 [ (aliasKey, entry)
                 | (keyQn, entry) <- entries
-                , let (isHidden, payload) = splitHiddenQName keyQn
-                , importQn <- imports
-                , Just remainder <- [stripPrefix importQn payload]
-                , not (null remainder)
-                , alias <- aliasTargetsForImport currentPkg remainder
+                , let (isHidden, _) = splitHiddenQName keyQn
+                , any (`matchesImportSpec` fullFromEntry entry) specs
+                , alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry)
                 , let aliasKey = if isHidden then toHiddenQName alias else alias
                 ]
             mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
@@ -483,31 +596,44 @@ expandTypedImportEnvByImports currentPkg imports env =
                     poses = oldPos ++ newPos
                     full = if null oldFull then newFull else oldFull
                 in (sigs, poses, full)
-        in foldl' (\acc (k, v) -> Map.insertWith mergeFunEntry k v acc) mp aliases
+        in foldl' (\acc (k, v) -> Map.insertWith mergeFunEntry k v acc) Map.empty aliases
+
+    fullFromEntry :: (a, b, QName) -> QName
+    fullFromEntry (_, _, full) = full
+
+
+typedToImportEnv :: TypedImportEnv -> ImportEnv
+typedToImportEnv env =
+    IEnv {
+        file = tFile env,
+        iVars = Map.map (\(_, pos, _) -> pos) (tVars env),
+        iFuncs = Map.map (\(_, pos, _) -> pos) (tFuncs env)
+    }
 
 
 checkOneProgram :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
-checkOneProgram path prog@(decls, stmts) importEnvs typedEnvs =
+checkOneProgram path prog0 importEnvs typedEnvs =
+    let prog@(decls, stmts) = AST.promoteTopLevelFunctions prog0
+    in
     case RC.returnCheckProg path prog of
         Left errs -> Left errs
         Right () -> do
             packageName <- getPackageName path decls
-            let importedPkgs = dedupQNames (defaultImportedPackages ++ importDeclPackages decls)
-                importEnvs0 =
-                    defaultImportEnv path :
-                    map (expandImportEnvByImports packageName importedPkgs) importEnvs
+            importedDeclSpecs <- validateImportDeclSpecs path typedEnvs (importDeclSpecs decls)
+            let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
                 typedEnvs0 =
-                    map (expandTypedImportEnvByImports packageName importedPkgs) typedEnvs
+                    map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
+                importEnvs0 =
+                    if null typedEnvs
+                        then defaultImportEnv path : importEnvs
+                        else defaultImportEnv path : map typedToImportEnv typedEnvs0
             case CC.checkProgmWithUses path prog importEnvs0 of
                 Left errs -> Left errs
                 Right (st, uses) ->
                     TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
     where
-        defaultImportedPackages :: [QName]
-        defaultImportedPackages = [["xlang", "io"], ["java", "lang"]]
-
-        dedupQNames :: [QName] -> [QName]
-        dedupQNames = HashSet.toList . HashSet.fromList
+        defaultImportedSpecs :: [ImportSpec]
+        defaultImportedSpecs = [ImportWildcard ["xlang", "io"], ImportWildcard ["java", "lang"]]
 
 
 buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport
@@ -562,10 +688,10 @@ accessFromTokens toks = case toks of
 
 
 accessOfStmt :: Statement -> AccessModified
-accessOfStmt (DefField _ _ toks) = accessFromTokens toks
-accessOfStmt (DefConstField _ _ toks) = accessFromTokens toks
-accessOfStmt (DefVar _ _ toks) = accessFromTokens toks
-accessOfStmt (DefConstVar _ _ toks) = accessFromTokens toks
+accessOfStmt (DefField _ _ _ toks) = accessFromTokens toks
+accessOfStmt (DefConstField _ _ _ toks) = accessFromTokens toks
+accessOfStmt (DefVar _ _ _ toks) = accessFromTokens toks
+accessOfStmt (DefConstVar _ _ _ toks) = accessFromTokens toks
 accessOfStmt (Function (_, retToks) _ _ _) = accessFromTokens retToks
 accessOfStmt (FunctionT (_, retToks) _ _ _ _) = accessFromTokens retToks
 accessOfStmt _ = Public
@@ -634,16 +760,16 @@ collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one stmts >>= expa
 
         one :: Statement -> Maybe (AccessModified, String, AST.Class, [Position])
         one (Expr (Binary AST.Assign (Variable name tok) _ _)) = resolveByToken Public name tok
-        one stmt@(DefField [name] _ toks) = case reverse toks of
+        one stmt@(DefField [name] _ _ toks) = case reverse toks of
             (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
             [] -> Nothing
-        one stmt@(DefConstField [name] _ toks) = case reverse toks of
+        one stmt@(DefConstField [name] _ _ toks) = case reverse toks of
             (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
             [] -> Nothing
-        one stmt@(DefVar [name] _ toks) = case reverse toks of
+        one stmt@(DefVar [name] _ _ toks) = case reverse toks of
             (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
             [] -> Nothing
-        one stmt@(DefConstVar [name] _ toks) = case reverse toks of
+        one stmt@(DefConstVar [name] _ _ toks) = case reverse toks of
             (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
             [] -> Nothing
         one _ = Nothing

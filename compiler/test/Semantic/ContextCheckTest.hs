@@ -864,7 +864,7 @@ declKindLoweringTests = testGroup "Semantic.ContextCheck.defKind" [
     testCase "0_field_outside_class_requires_init" $ do
         let tokVar = Lex.Ident "var" pos1
             tokX = Lex.Ident "x" pos1
-            stmt = AST.DefField ["x"] Nothing [tokVar, tokX]
+            stmt = AST.DefField ["x"] Nothing Nothing [tokVar, tokX]
             ctx0 = Ctx { st = stEmpty, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
         case errs ctx1 of
@@ -876,7 +876,7 @@ declKindLoweringTests = testGroup "Semantic.ContextCheck.defKind" [
     testCase "1_var_in_class_is_allowed" $ do
         let tokVar = Lex.Ident "var" pos1
             tokX = Lex.Ident "x" pos1
-            stmt = AST.DefVar ["x"] Nothing [tokVar, tokX]
+            stmt = AST.DefVar ["x"] Nothing Nothing [tokVar, tokX]
             st0 = stEmpty { ctrlStack = [InClass] }
             ctx0 = Ctx { st = st0, errs = [], varUses = Map.empty }
             (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0

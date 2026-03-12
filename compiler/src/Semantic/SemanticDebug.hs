@@ -12,6 +12,7 @@ import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
+import qualified Parse.SyntaxTree as AST
 import qualified Semantic.CheckProgram as CP
 import qualified Semantic.ContextCheck as CC
 import qualified Semantic.ReturnCheck as RC
@@ -23,7 +24,8 @@ import qualified Util.FileHelper as FileHelper
 -- | Unified semantic checking pipeline for IR consumers.
 --   Runs ReturnCheck, then ContextCheck, then TypeCheck.
 checkProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
-checkProgm path prog@(decls, stmts) importEnvs typedEnvs = do
+checkProgm path prog0 importEnvs typedEnvs = do
+    let prog@(decls, stmts) = AST.promoteTopLevelFunctions prog0
     case RC.returnCheckProg path prog of
         Left errs -> Left errs
         Right () -> do

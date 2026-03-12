@@ -9,7 +9,7 @@ import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr, promoteTopLevelFunctions)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineDeclaredVar, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
@@ -677,19 +677,19 @@ inferOptBlock :: Path -> QName -> [TypedImportEnv] -> Maybe Block -> TypeM ()
 inferOptBlock _ _ _ Nothing = pure ()
 inferOptBlock path packages envs (Just b) = withScope $ inferBlock path packages envs b
 -- | Extract common pieces from var/val declarations.
-defineDeclParts :: Statement -> Maybe (Bool, [String], Maybe Expression, [Lex.Token])
+defineDeclParts :: Statement -> Maybe (Bool, [String], Maybe Class, Maybe Expression, [Lex.Token])
 defineDeclParts stmt = case stmt of
-    DefField names mRhs toks -> Just (False, names, mRhs, toks)
-    DefConstField names mRhs toks -> Just (True, names, mRhs, toks)
-    DefVar names mRhs toks -> Just (False, names, mRhs, toks)
-    DefConstVar names mRhs toks -> Just (True, names, mRhs, toks)
+    DefField names mDeclType mRhs toks -> Just (False, names, mDeclType, mRhs, toks)
+    DefConstField names mDeclType mRhs toks -> Just (True, names, mDeclType, mRhs, toks)
+    DefVar names mDeclType mRhs toks -> Just (False, names, mDeclType, mRhs, toks)
+    DefConstVar names mDeclType mRhs toks -> Just (True, names, mDeclType, mRhs, toks)
     _ -> Nothing
 
 inferDefineStmtFromDecl :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
 inferDefineStmtFromDecl path packages envs stmt =
     case defineDeclParts stmt of
-        Just (isConst, names, mRhs, toks) ->
-            inferDefineStmt path packages envs isConst names mRhs toks
+        Just (isConst, names, mDeclType, mRhs, toks) ->
+            inferDefineStmt path packages envs isConst names mDeclType mRhs toks
         Nothing ->
             error "inferDefineStmtFromDecl: expected var/val declaration"
 
@@ -844,11 +844,13 @@ inferDefineStmt ::
     [TypedImportEnv] ->
     Bool ->
     [String] ->
+    Maybe Class ->
     Maybe Expression ->
     [Lex.Token] ->
     TypeM ()
-inferDefineStmt path packages envs isConst names mRhs toks = do
+inferDefineStmt path packages envs isConst names mDeclType mRhs toks = do
     mTRhs <- traverse (inferExpr path packages envs) mRhs
+    let mDeclTypeN = normalizeTypeAlias <$> mDeclType
     let declFlags = ([Final | isConst])
 
     case names of
@@ -889,12 +891,20 @@ inferDefineStmt path packages envs isConst names mRhs toks = do
                         recordVarUseLocal posTok name vid
                         case Map.lookup vid (tcVarTypes c) of
                             Nothing ->
-                                modify $ \c0 -> c0 {
-                                    tcCtx = (tcCtx c0) { CC.st = cState2 },
-                                    tcVarTypes = case mTRhs of
-                                        Just tRhs -> Map.insert vid (tRhs, defPos) (tcVarTypes c0)
-                                        Nothing -> tcVarTypes c0 }
+                                do
+                                    let pos = map Lex.tokenPos toks
+                                    case (mDeclTypeN, mTRhs) of
+                                        (Just declT, Just rhsT) -> checkTypeCompat path pos declT rhsT
+                                        _ -> pure ()
+                                    let inferredType = case (mDeclTypeN, mTRhs) of
+                                            (Just declT, _) -> declT
+                                            (Nothing, Just rhsT) -> rhsT
+                                            (Nothing, Nothing) -> Int32T
+                                    modify $ \c0 -> c0 {
+                                        tcCtx = (tcCtx c0) { CC.st = cState2 },
+                                        tcVarTypes = Map.insert vid (inferredType, defPos) (tcVarTypes c0) }
                             Just (oldT, _) -> do
+                                for_ mDeclTypeN (checkTypeCompat path (map Lex.tokenPos toks) oldT)
                                 for_ mTRhs (checkTypeCompat path (map Lex.tokenPos toks) oldT)
                                 modify $ \c0 -> c0 { tcCtx = (tcCtx c0) { CC.st = cState2 } }
                     Nothing -> do
@@ -994,7 +1004,8 @@ inferStmts path package envs stmts = do
 -- | Run type checking for a whole program.
 --   Requires context checking results and typed import environments.
 inferProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TypeCtx
-inferProgm path prog@(decls, stmts) importEnvs typedEnvs = do
+inferProgm path prog0 importEnvs typedEnvs = do
+    let prog@(decls, stmts) = promoteTopLevelFunctions prog0
     packageName <- getPackageName path decls
     case CC.checkProgmWithUses path prog importEnvs of
         Left errs -> Left errs

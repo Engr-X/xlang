@@ -25,7 +25,7 @@ basicClassMap = Map.fromList [
     ("float", Float32T), ("float32", Float32T),
     ("double", Float64T), ("float64", Float64T),
     ("float128", Float128T),
-    ("string", stringClass), ("String", stringClass),
+    ("String", stringClass),
     ("void", Void)]
 
 

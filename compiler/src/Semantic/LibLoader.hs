@@ -10,6 +10,7 @@ import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
 import Control.Exception (bracket_)
 import Data.Aeson (FromJSON(..), Value(Object), (.:), (.:?), (.!=), withObject, eitherDecode)
 import Data.Char (toLower)
+import Data.Either (lefts, rights)
 import Data.List (foldl', nub)
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Class(..), normalizeClass)
@@ -36,7 +37,7 @@ mapConcurrentlyLimit jobs action xs
             bracket_ (waitQSem sem) (signalQSem sem) (action x)
 
 
-data LibEnvelope = LibEnvelope [LibClass]
+newtype LibEnvelope = LibEnvelope [LibClass]
 
 
 data LibClass = LibClass {
@@ -110,8 +111,8 @@ loadLibEnvsWithJobs :: Int -> FilePath -> [Path] -> IO (Either [ErrorKind] ([Imp
 loadLibEnvsWithJobs _ _ [] = pure (Right ([], []))
 loadLibEnvsWithJobs jobs toolkitJar libPaths = do
     loaded <- mapConcurrentlyLimit jobs (loadOne toolkitJar) libPaths
-    let errs = concat [es | Left es <- loaded]
-        ok = [x | Right x <- loaded]
+    let errs = concat (lefts loaded)
+        ok = rights loaded
     if null errs
         then
             let (imports, typeds) = unzip ok
@@ -214,7 +215,7 @@ collectMethodDecls cls = concatMap one (lcStaticMethods cls)
 
 aliasesFor :: QName -> String -> String -> String -> [QName]
 aliasesFor pkg clsName memberName ownerType
-    | ownerType == "xlang-wrapped-class" =
+    | ownerType == "xlang-top-level" =
         nub [pkg ++ [clsName, memberName], pkg ++ [memberName]]
     | otherwise =
         [pkg ++ [clsName, memberName]]
@@ -226,7 +227,7 @@ applyVisibility False qn = toHiddenQName qn
 
 
 isPublicAccess :: [String] -> Bool
-isPublicAccess accs = any ((== "public") . map toLower) accs
+isPublicAccess = any ((== "public") . map toLower)
 
 
 normalizeOwnerType :: String -> String
@@ -234,7 +235,7 @@ normalizeOwnerType raw =
     let s = map toLower raw
     in case s of
         "xlang-class" -> "xlang-class"
-        "xlang-wrapped-class" -> "xlang-wrapped-class"
+        "xlang-top-level" -> "xlang-top-level"
         _ -> "xlang-class"
 
 
@@ -258,10 +259,9 @@ normalizePrimitive raw = case map toLower raw of
     "long" -> "int64"
     "float" -> "float32"
     "double" -> "float64"
-    other -> other
+    "string" -> "String"
+    _ -> raw
 
 
 mkSyntax :: Path -> String -> ErrorKind
 mkSyntax path msg = UE.Syntax (UE.makeError path [] msg)
-
-

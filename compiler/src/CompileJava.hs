@@ -12,16 +12,19 @@ module CompileJava (
 
 import Control.Concurrent.Async (forConcurrently)
 import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
-import Control.Exception (bracket_, finally)
+import Control.Exception (bracket_, evaluate, finally)
 import Control.Monad (when)
 import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Char (toLower)
 import Data.List (foldl', intercalate, sort, sortOn)
 import Data.Maybe (mapMaybe)
+import Data.Word (Word64)
+import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (
     copyFile,
     createDirectoryIfMissing,
+    doesFileExist,
     doesDirectoryExist,
     listDirectory,
     removeFile,
@@ -30,12 +33,14 @@ import System.Directory (
     )
 import System.FilePath ((</>), isAbsolute, makeRelative, normalise, splitDirectories, takeDirectory, takeExtension, takeFileName)
 import System.IO.Error (catchIOError)
+import Text.Printf (printf)
 import System.Process (callProcess)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.Map.Strict as Map
 import qualified IR.Lowing as IR
 import qualified IR.TAC as TAC
+import qualified Lowing.JVM as JVM
 import qualified Lowing.JVMLowing as JVML
 import qualified Lowing.JVMJson as JVMJson
 import qualified Semantic.LibLoader as LibLoader
@@ -50,6 +55,63 @@ mapConcurrentlyLimit jobs action xs
         sem <- newQSem jobs
         forConcurrently xs $ \x ->
             bracket_ (waitQSem sem) (signalQSem sem) (action x)
+
+timedIO :: IO a -> IO (a, Word64)
+timedIO action = do
+    begin <- getMonotonicTimeNSec
+    out <- action
+    end <- getMonotonicTimeNSec
+    pure (out, end - begin)
+
+formatDurationMs :: Word64 -> String
+formatDurationMs dtNs
+    | dtNs == 0 = "<1 tick"
+    | ms >= 1.0 = printf "%.2f ms" ms
+    | us >= 1.0 = printf "%.2f us" us
+    | otherwise = printf "%.2f ns" ns
+  where
+    ns = fromIntegral dtNs :: Double
+    us = ns / 1000.0
+    ms = ns / 1000000.0
+
+
+forceJClasses :: [JVM.JClass] -> Int
+forceJClasses = sum . map forceJClass
+  where
+    forceJClass (JVM.JClass decl clsName superName interfaces fields (JVM.JClinit clinitOps) inits methods mainKind) =
+        length (show decl)
+            + forceQName clsName
+            + forceQName superName
+            + sum (map forceQName interfaces)
+            + sum (map forceJField fields)
+            + sum (map forceJCommand clinitOps)
+            + sum (map forceJInit inits)
+            + sum (map forceJFunction methods)
+            + length (show mainKind)
+
+    forceJField (JVM.JField decl cls name ownerType) =
+        length (show decl)
+            + length (show cls)
+            + length name
+            + length ownerType
+
+    forceJInit (JVM.JInit decl sig commands) =
+        length (show decl)
+            + length (show sig)
+            + sum (map forceJCommand commands)
+
+    forceJFunction (JVM.JFunction decl name sig ownerType commands) =
+        length (show decl)
+            + length name
+            + length (show sig)
+            + length ownerType
+            + sum (map forceJCommand commands)
+
+    forceJCommand (JVM.OP op) = 1 + length (show op)
+    forceJCommand (JVM.Label (labelId, commands)) = labelId + sum (map forceJCommand commands)
+
+    forceQName :: [String] -> Int
+    forceQName = sum . map length
 
 
 resolveFromRoot :: FilePath -> FilePath -> FilePath
@@ -211,7 +273,9 @@ compileJVM jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debugOut
             pure Nothing
         else
             do
-                libsRes <- LibLoader.loadLibEnvsWithJobs jobs toolkitJar libPaths
+                (libsRes, libsTime) <- timedIO (LibLoader.loadLibEnvsWithJobs jobs toolkitJar libPaths)
+                when debugOut $
+                    putStrLn ("[DEBUG] load library: " ++ formatDurationMs libsTime ++ " (" ++ show (length libPaths) ++ " libs)")
                 case libsRes of
                     Left errs -> do
                         mapM_ (putStrLn . UE.errorToString) errs
@@ -232,11 +296,22 @@ compileJVM jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debugOut
                                     (zip [1 :: Int ..] irPairs)
 
                                 lowered <- mapConcurrentlyLimit jobs
-                                    (\(_, ir) -> pure (JVML.jvmProgmLowing ir))
+                                    (\(path, ir) -> do
+                                        (jClasses, elapsed) <- timedIO $ do
+                                            let classes = JVML.jvmProgmLowing ir
+                                            _ <- evaluate (forceJClasses classes)
+                                            pure classes
+                                        pure (path, jClasses, elapsed))
                                     irPairs
+                                when debugOut $
+                                    mapM_
+                                        (\(idx, (path, _, elapsed)) ->
+                                            putStrLn (concat
+                                                ["[DEBUG] [", show idx, " / ", show total, "]: compile ", path, " in ", formatDurationMs elapsed]))
+                                        (zip [1 :: Int ..] lowered)
 
                                 let irs = map snd irPairs
-                                    classes = concat lowered
+                                    classes = concat [jClasses | (_, jClasses, _) <- lowered]
                                     jsonVal = JVMJson.jProgmToJSON targetJvm classes
                                     jsonStr = BL.unpack (encode jsonVal)
                                     debugDir = case srcPaths of
@@ -278,17 +353,6 @@ renderManifest mMainClass =
         ++ mainClassLines
         ++ [""])
 
-
-ensureJarManifest :: FilePath -> Maybe [String] -> IO ()
-ensureJarManifest jarOutput mMainClass = do
-    let jarDir = takeDirectory jarOutput
-        manifestPath = jarDir </> ".xlang-manifest.mf"
-
-    createDirectoryIfMissing True jarDir
-    writeFile manifestPath (renderManifest mMainClass)
-    callProcess "jar" ["ufm", jarOutput, manifestPath]
-    removeFile manifestPath `catchIOError` (\_ -> pure ())
-
 isOutsideRootRelative :: FilePath -> Bool
 isOutsideRootRelative relPath =
     ".." `elem` filter (not . null) (splitDirectories (normalise relPath))
@@ -304,9 +368,16 @@ mergeLibsIntoJar rootPath libPaths jarOutput = do
     createDirectoryIfMissing True mergeDir
 
     mapM_ (stageOneLib mergeDir) libPaths
+    stripMergedManifest mergeDir
     callProcess "jar" ["uf", jarOutput, "-C", mergeDir, "."]
     removePathForcibly mergeDir `catchIOError` (\_ -> pure ())
   where
+    stripMergedManifest :: FilePath -> IO ()
+    stripMergedManifest mergeDir = do
+        let manifestPath = mergeDir </> "META-INF" </> "MANIFEST.MF"
+        hasManifest <- doesFileExist manifestPath
+        when hasManifest (removeFile manifestPath)
+
     stageOneLib :: FilePath -> FilePath -> IO ()
     stageOneLib mergeDir libPath =
         case map toLower (takeExtension libPath) of
@@ -349,7 +420,6 @@ compileJVMToJar jobs targetJvm toolkitJar rootPath srcPaths libPaths jarOutput i
                 when includeRuntime $ do
                     putStrLn ("[INFO] include-runtime: merging " ++ show (length libPaths) ++ " lib(s) into jar")
                     mergeLibsIntoJar rootPath libPaths jarOutput
-                ensureJarManifest jarOutput mMainClass
                 putStrLn ("[DONE] jar generated: " ++ jarOutput)
             Nothing ->
                 putStrLn "[ERROR] xlang compile failed; jar packaging skipped"

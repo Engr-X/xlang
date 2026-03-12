@@ -72,7 +72,7 @@ class MethodEmitterTest
             mutableListOf(Access.Public, Access.Static),
             "m",
             Type.VOID to mutableListOf()
-        ).setOwnerType("xlang-wrapped-class")
+        ).setOwnerType("xlang-top-level")
 
         method.Builder().apply { `return`() }.build()
         method.generate()
@@ -109,6 +109,54 @@ class MethodEmitterTest
 
         reader.accept(visitor, 0)
 
-        assertEquals(OwnerTypeMetadata.WRAPPED_CLASS, ownerType)
+        assertEquals(OwnerTypeMetadata.TOP_LEVEL, ownerType)
+    }
+
+    @Test
+    fun classOwnerTypeSkipsMetadata()
+    {
+        val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
+        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, "TestMetaMClass", null, "java/lang/Object", null)
+
+        val method = MethodEmitter(
+            cw,
+            mutableListOf(Access.Public, Access.Static),
+            "m",
+            Type.VOID to mutableListOf()
+        ).setOwnerType("xlang-class")
+
+        method.Builder().apply { `return`() }.build()
+        method.generate()
+        cw.visitEnd()
+
+        var foundOwnerTypeMetadata = false
+        val reader = ClassReader(cw.toByteArray())
+        val visitor = object : ClassVisitor(Opcodes.ASM9)
+        {
+            override fun visitMethod(
+                access: Int,
+                name: String,
+                descriptor: String?,
+                signature: String?,
+                exceptions: Array<out String>?
+            ): MethodVisitor?
+            {
+                if (name != "m")
+                    return super.visitMethod(access, name, descriptor, signature, exceptions)
+
+                return object : MethodVisitor(Opcodes.ASM9)
+                {
+                    override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
+                    {
+                        if (OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
+                            foundOwnerTypeMetadata = true
+                        return super.visitAnnotation(descriptor, visible)
+                    }
+                }
+            }
+        }
+
+        reader.accept(visitor, 0)
+        assertEquals(false, foundOwnerTypeMetadata)
     }
 }

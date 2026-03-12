@@ -80,6 +80,11 @@ multipleJavaNameMsg = "multiple javaname declarations"
 invalidPackageNameMsg :: String -> String
 invalidPackageNameMsg pkg = "invalid package name or package path mismatch: " ++ pkg
 
+-- | Error message for invalid import declaration form.
+invalidImportDeclMsg :: String -> String
+invalidImportDeclMsg qn =
+    "invalid import '" ++ qn ++ "': import must end with a class name or '*'"
+
 
 -- | Error message for multiple import statements
 multipleVariableDefMsg :: String -> String

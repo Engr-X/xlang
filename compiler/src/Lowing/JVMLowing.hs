@@ -4,6 +4,7 @@ import Control.Monad.State.Strict (State, get, put, runState)
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Class(..), Operator(..))
 import Semantic.NameEnv (QName)
+import Text.Printf (printf)
 
 import qualified Data.Map.Strict as Map
 import qualified IR.TAC as IR
@@ -12,7 +13,7 @@ import qualified Semantic.TypeEnv as TEnv
 
 ownerTypeToString :: IR.IRMemberType -> String
 ownerTypeToString IR.MemberClass = "xlang-class"
-ownerTypeToString IR.MemberClassWrapped = "xlang-wrapped-class"
+ownerTypeToString IR.MemberClassWrapped = "xlang-top-level"
 
 
 data LowerState = LowerState {
@@ -23,6 +24,81 @@ data LowerState = LowerState {
     retType :: Maybe Class,
     retLocal :: Maybe Int
 }
+
+float128JvmMsg :: String -> String
+float128JvmMsg whereAt =
+    printf "float128 is native-only; JVM target does not support float128 (%s)" whereAt
+
+rejectFloat128 :: String -> a
+rejectFloat128 whereAt = errorWithoutStackTrace (float128JvmMsg whereAt)
+
+ensureAll :: [a] -> (a -> ()) -> ()
+ensureAll xs check = go xs
+  where
+    go [] = ()
+    go (x:rest) = check x `seq` go rest
+
+ensureJvmClass :: String -> Class -> ()
+ensureJvmClass whereAt cls = case cls of
+    Float128T -> rejectFloat128 whereAt
+    Array elemCls _ -> ensureJvmClass whereAt elemCls
+    _ -> ()
+
+ensureJvmAtom :: IR.IRAtom -> ()
+ensureJvmAtom atom = case atom of
+    IR.Float128C _ -> rejectFloat128 "literal"
+    IR.Phi pairs -> ensureAll (map snd pairs) ensureJvmAtom
+    _ -> ()
+
+ensureJvmInstr :: IR.IRInstr -> ()
+ensureJvmInstr instr = case instr of
+    IR.Jump _ -> ()
+    IR.Ifeq a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.Ifne a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.Iflt a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.Ifle a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.Ifgt a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.Ifge a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.SetIRet atom -> ensureJvmAtom atom
+    IR.IReturn -> ()
+    IR.Return -> ()
+    IR.IAssign dst src -> ensureJvmAtom dst `seq` ensureJvmAtom src
+    IR.IUnary dst _ src -> ensureJvmAtom dst `seq` ensureJvmAtom src
+    IR.IBinary dst _ a b -> ensureJvmAtom dst `seq` ensureJvmAtom a `seq` ensureJvmAtom b
+    IR.ICast dst (fromC, toC) atom ->
+        ensureJvmAtom dst
+            `seq` ensureJvmClass "cast-from type" fromC
+            `seq` ensureJvmClass "cast-to type" toC
+            `seq` ensureJvmAtom atom
+    IR.ICall dst _ args -> ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
+    IR.ICallStatic dst _ args -> ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
+    IR.IGetField dst obj _ -> ensureJvmAtom dst `seq` ensureJvmAtom obj
+    IR.IPutField obj _ v -> ensureJvmAtom obj `seq` ensureJvmAtom v
+    IR.IGetStatic dst _ -> ensureJvmAtom dst
+    IR.IPutStatic _ v -> ensureJvmAtom v
+
+ensureJvmStmt :: IR.IRStmt -> ()
+ensureJvmStmt stmt = case stmt of
+    IR.IRInstr instr -> ensureJvmInstr instr
+    IR.IRBlockStmt (IR.IRBlock (_, stmts)) -> ensureAll stmts ensureJvmStmt
+
+ensureJvmFunction :: IR.IRFunction -> ()
+ensureJvmFunction (IR.IRFunction _ name sig atomT body _) =
+    ensureJvmClass ("function " ++ name ++ " return type") (TEnv.funReturn sig)
+        `seq` ensureAll (zip [0 :: Int ..] (TEnv.funParams sig))
+            (\(idx, cls) -> ensureJvmClass ("function " ++ name ++ " param #" ++ show idx) cls)
+        `seq` ensureAll (Map.toList atomT)
+            (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("function " ++ name ++ " inferred type") cls)
+        `seq` ensureAll body ensureJvmStmt
+
+ensureJvmIRClass :: IR.IRClass -> ()
+ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit sBody) atomT funs _) =
+    ensureAll attrs
+        (\(_, cls, fieldName, _) -> ensureJvmClass ("class " ++ name ++ " field " ++ fieldName) cls)
+        `seq` ensureAll (Map.toList atomT)
+            (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("class " ++ name ++ " static inferred type") cls)
+        `seq` ensureAll sBody ensureJvmStmt
+        `seq` ensureAll funs ensureJvmFunction
 
 
 -- | Lower a list of IR statements into JVM command stream.
@@ -164,20 +240,22 @@ cmpOp kind cls bid = case kind of
 
 
 isNoOpCast :: Class -> Class -> Bool
-isNoOpCast fromC toC = jvmPrefix fromC == jvmPrefix toC
+isNoOpCast fromC toC = castGroup fromC == castGroup toC
     where
-        jvmPrefix :: Class -> Char
-        jvmPrefix cls = case cls of
-            Int8T -> 'i'
-            Int16T -> 'i'
-            Int32T -> 'i'
-            Bool -> 'i'
-            Char -> 'i'
-            Int64T -> 'l'
-            Float32T -> 'f'
-            Float64T -> 'd'
-            Float128T -> 'd'
-            _ -> error ("isNoOpCast: unsupported type " ++ show cls)
+        castGroup :: Class -> Maybe Char
+        castGroup cls = case cls of
+            Int8T -> Just 'i'
+            Int16T -> Just 'i'
+            Int32T -> Just 'i'
+            Bool -> Just 'i'
+            Char -> Just 'i'
+            Int64T -> Just 'l'
+            Float32T -> Just 'f'
+            Float64T -> Just 'd'
+            Float128T -> Just 'd'
+            Class _ _ -> Just 'a'
+            Array _ _ -> Just 'a'
+            _ -> Nothing
 
 
 -- | Map unary IR operators to JVM ops; unsupported ops are errors.
@@ -370,7 +448,8 @@ buildParamSlots params = foldl step (Map.empty, 0) (zip [0..] params)
 
 -- | Lower an IR class into JVM class (constructors not supported yet).
 jvmClassLowing :: QName -> IR.IRClass -> JVM.JClass
-jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs mainKind) =
+jvmClassLowing pkg irClass@(IR.IRClass decl name attrs sInit atomT funs mainKind) =
+    ensureJvmIRClass irClass `seq`
     let qname = if null pkg then [name] else pkg ++ [name]
         extendQ = []
         interfaces = []
@@ -384,6 +463,7 @@ jvmClassLowing pkg (IR.IRClass decl name attrs sInit atomT funs mainKind) =
 -- | Lower a whole IR program into JVM classes.
 jvmProgmLowing :: IR.IRProgm -> [JVM.JClass]
 jvmProgmLowing (IR.IRProgm pkg classes) =
+    ensureAll classes ensureJvmIRClass `seq`
     map (jvmClassLowing pkg) classes
 
 

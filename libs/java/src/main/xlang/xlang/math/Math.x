@@ -1,9 +1,9 @@
 package xlang.math
 
 
-val PI = 3.14159265358979323846
+val PI: double = 3.14159265358979323846
 
-val E = 2.7182818284590452354
+val E: double = 2.7182818284590452354
 
 
 fun succ(x: int) -> int = Math.addExact(x, 1)

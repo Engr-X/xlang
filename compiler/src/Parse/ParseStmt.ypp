@@ -28,6 +28,8 @@ import qualified Util.Exception as UE
 
     KW_VAR              { t@(Lex.Ident "var" _) }
     KW_VAL              { t@(Lex.Ident "val" _) }
+    KW_CONST            { t@(Lex.Ident "const" _) }
+    KW_FINAL            { t@(Lex.Ident "final" _) }
 
     KW_PUBLIC           { t@(Lex.Ident "public" _) }
     KW_PROTECTED        { t@(Lex.Ident "protected" _) }

@@ -9,7 +9,7 @@ import org.objectweb.asm.Opcodes
 object OwnerTypeMetadata
 {
     const val CLASS: String = "xlang-class"
-    const val WRAPPED_CLASS: String = "xlang-wrapped-class"
+    const val TOP_LEVEL: String = "xlang-top-level"
 
     private const val VALUE_KEY: String = "value"
 
@@ -20,7 +20,7 @@ object OwnerTypeMetadata
     fun normalize(raw: String?): String = when (raw?.trim()?.lowercase())
     {
         null, "", CLASS -> CLASS
-        WRAPPED_CLASS -> WRAPPED_CLASS
+        TOP_LEVEL -> TOP_LEVEL
         else -> throw IllegalArgumentException("Unknown owner_type: $raw")
     }
 
@@ -37,15 +37,23 @@ object OwnerTypeMetadata
 
     fun write(fieldVisitor: FieldVisitor, ownerType: String)
     {
+        val normalized = normalize(ownerType)
+        if (normalized == CLASS)
+            return
+
         val av = fieldVisitor.visitAnnotation(DESC_CURRENT, false) ?: return
-        av.visit(VALUE_KEY, normalize(ownerType))
+        av.visit(VALUE_KEY, normalized)
         av.visitEnd()
     }
 
     fun write(methodVisitor: MethodVisitor, ownerType: String)
     {
+        val normalized = normalize(ownerType)
+        if (normalized == CLASS)
+            return
+
         val av = methodVisitor.visitAnnotation(DESC_CURRENT, false) ?: return
-        av.visit(VALUE_KEY, normalize(ownerType))
+        av.visit(VALUE_KEY, normalized)
         av.visitEnd()
     }
 

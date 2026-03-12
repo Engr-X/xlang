@@ -119,12 +119,12 @@ isFunction stmt = case functionLikeParts stmt of
     Nothing -> False
 
 -- | Extract common pieces from var/val declarations.
-declLikeParts :: Statement -> Maybe (Bool, Bool, [String], Maybe Expression, [Token])
+declLikeParts :: Statement -> Maybe (Bool, Bool, [String], Maybe AST.Class, Maybe Expression, [Token])
 declLikeParts stmt = case stmt of
-    AST.DefField names mRhs toks -> Just (True, False, names, mRhs, toks)
-    AST.DefConstField names mRhs toks -> Just (True, True, names, mRhs, toks)
-    AST.DefVar names mRhs toks -> Just (False, False, names, mRhs, toks)
-    AST.DefConstVar names mRhs toks -> Just (False, True, names, mRhs, toks)
+    AST.DefField names mTy mRhs toks -> Just (True, False, names, mTy, mRhs, toks)
+    AST.DefConstField names mTy mRhs toks -> Just (True, True, names, mTy, mRhs, toks)
+    AST.DefVar names mTy mRhs toks -> Just (False, False, names, mTy, mRhs, toks)
+    AST.DefConstVar names mTy mRhs toks -> Just (False, True, names, mTy, mRhs, toks)
     _ -> Nothing
 isPublicDecl :: [Token] -> Bool
 isPublicDecl (Lex.Ident "public" _ : _) = True
@@ -314,8 +314,8 @@ checkExpr p packages envs expr = case expr of
 
 
 
-checkDefDecl :: Path -> QName -> [ImportEnv] -> Bool -> Bool -> [String] -> Maybe Expression -> [Token] -> CheckM ()
-checkDefDecl p package envs isFieldDecl isConstDecl names mRhs toks = do
+checkDefDecl :: Path -> QName -> [ImportEnv] -> Bool -> Bool -> [String] -> Maybe AST.Class -> Maybe Expression -> [Token] -> CheckM ()
+checkDefDecl p package envs isFieldDecl isConstDecl names _mDeclType mRhs toks = do
     validateDeclAccess p toks
     c0 <- get
     let parentCtrl = parentCtrlFor (st c0)
@@ -386,8 +386,8 @@ checkStmt p package envs (AST.Command cmd token) = do
             if isReturnValid ctrls then let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] returnCtrlErrorMsg
 checkStmt p package envs stmt
-    | Just (isFieldDecl, isConstDecl, names, mRhs, toks) <- declLikeParts stmt =
-        checkDefDecl p package envs isFieldDecl isConstDecl names mRhs toks
+    | Just (isFieldDecl, isConstDecl, names, mDeclType, mRhs, toks) <- declLikeParts stmt =
+        checkDefDecl p package envs isFieldDecl isConstDecl names mDeclType mRhs toks
 checkStmt p package envs (AST.Expr e) = do
     if not (isStmtExpr e)
         then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg

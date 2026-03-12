@@ -155,8 +155,24 @@ normalTests = testGroup "Parse.ParseStmt.lexparseStmt" $ map (\(n, src, expected
 valStmtTests :: TestTree
 valStmtTests = testCase "val_0" $
     case replLexparseStmt "val pi = 3;" of
-        Right (DefConstVar ["pi"] _ _) -> pure ()
-        other -> assertFailure ("expected DefConstVar, got: " ++ show other)
+        Right (DefConstField ["pi"] _ _ _) -> pure ()
+        other -> assertFailure ("expected DefConstField, got: " ++ show other)
+
+typedDeclSyntaxTests :: TestTree
+typedDeclSyntaxTests = testGroup "typed_decl_syntax"
+    [ testCase "int_a" $
+        case replLexparseStmt "int a;" of
+            Right (DefField ["a"] (Just _) Nothing _) -> pure ()
+            other -> assertFailure ("expected typed DefField, got: " ++ show other)
+    , testCase "const_int_a_eq_10" $
+        case replLexparseStmt "const int a = 10;" of
+            Right (DefConstField ["a"] (Just _) (Just _) _) -> pure ()
+            other -> assertFailure ("expected typed DefConstField with init, got: " ++ show other)
+    , testCase "final_int_a_eq_10" $
+        case replLexparseStmt "final int a = 10;" of
+            Right (DefConstField ["a"] (Just _) (Just _) _) -> pure ()
+            other -> assertFailure ("expected typed DefConstField with init, got: " ++ show other)
+    ]
 
 tests :: TestTree
-tests = testGroup "Parse.ParseStmt" [normalTests, valStmtTests]
+tests = testGroup "Parse.ParseStmt" [normalTests, valStmtTests, typedDeclSyntaxTests]

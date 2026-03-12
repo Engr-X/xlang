@@ -177,13 +177,21 @@ atomLowing (AST.Variable _ tok) = do
     case vinfo of
         -- ????????? VarId + ??????
         TEnv.VarLocal _ realName vid -> do
-            (_, ver) <- peekVarStack (realName, vid)
-            let atom = TAC.Var (realName, vid, ver)
+            let key = (realName, vid)
+            isStatic <- isStaticVar key
+            if isStatic
+                then do
+                    (clazz, _) <- peekVarStack key
+                    nAtom <- newSubCVar clazz
+                    return ([TAC.IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
+                else do
+                    (_, ver) <- peekVarStack key
+                    let atom = TAC.Var (realName, vid, ver)
 
-            mFun <- TAC.getCurrentFunMaybe
-            case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
-                Just idx -> return ([], TAC.Param idx)
-                Nothing -> return ([], atom)
+                    mFun <- TAC.getCurrentFunMaybe
+                    case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
+                        Just idx -> return ([], TAC.Param idx)
+                        Nothing -> return ([], atom)
 
         -- ??????
         TEnv.VarImported _ clazz _ fullQname -> do
@@ -445,22 +453,22 @@ collectAssignKeysBlock (AST.Multiple ss) = do
     where
         collectAssignKeysStmt :: Statement -> TACM [VarKey]
         collectAssignKeysStmt stmt = case stmt of
-            AST.DefField names mRhs toks -> case (names, mRhs, reverse toks) of
+            AST.DefField names _ mRhs toks -> case (names, mRhs, reverse toks) of
                 ([name], Just rhs, nameTok:_) ->
                     collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
                 _ ->
                     maybe (return []) collectAssignKeysExpr mRhs
-            AST.DefConstField names mRhs toks -> case (names, mRhs, reverse toks) of
+            AST.DefConstField names _ mRhs toks -> case (names, mRhs, reverse toks) of
                 ([name], Just rhs, nameTok:_) ->
                     collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
                 _ ->
                     maybe (return []) collectAssignKeysExpr mRhs
-            AST.DefVar names mRhs toks -> case (names, mRhs, reverse toks) of
+            AST.DefVar names _ mRhs toks -> case (names, mRhs, reverse toks) of
                 ([name], Just rhs, nameTok:_) ->
                     collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
                 _ ->
                     maybe (return []) collectAssignKeysExpr mRhs
-            AST.DefConstVar names mRhs toks -> case (names, mRhs, reverse toks) of
+            AST.DefConstVar names _ mRhs toks -> case (names, mRhs, reverse toks) of
                 ([name], Just rhs, nameTok:_) ->
                     collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
                 _ ->
@@ -552,6 +560,40 @@ appendAfterCond condStmts tailStmts = case reverse condStmts of
                 base ++ extra
 
 
+emitDefaultDeclInit :: Maybe Class -> Token -> TACM [IRStmt]
+emitDefaultDeclInit mTy nameTok = do
+    vinfo <- getVar [tokenPos nameTok]
+    case vinfo of
+        TEnv.VarLocal _ realName vid -> do
+            let key = (realName, vid)
+                declT = fromMaybe Int32T mTy
+            lhsAtom <- newSubVar declT key
+            isStatic <- isStaticVar key
+            let initInstrs = case defaultAtomForClass declT of
+                    Just rhsAtom -> [TAC.IRInstr (TAC.IAssign lhsAtom rhsAtom)]
+                    Nothing -> []
+                putStaticInstrs = if isStatic
+                    then [TAC.IRInstr (TAC.IPutStatic [realName] lhsAtom)]
+                    else []
+            return (initInstrs ++ putStaticInstrs)
+        _ -> return []
+
+
+defaultAtomForClass :: Class -> Maybe IRAtom
+defaultAtomForClass cls = case cls of
+    Int8T -> Just (TAC.Int8C 0)
+    Int16T -> Just (TAC.Int16C 0)
+    Int32T -> Just (TAC.Int32C 0)
+    Int64T -> Just (TAC.Int64C 0)
+    Float32T -> Just (TAC.Float32C 0)
+    Float64T -> Just (TAC.Float64C 0)
+    Float128T -> Just (TAC.Float128C 0)
+    Bool -> Just (TAC.BoolC False)
+    Char -> Just (TAC.CharC '\0')
+    Class ["java", "lang", "String"] [] -> Just (TAC.StringC "")
+    _ -> Nothing
+
+
 stmtsLowing :: [Statement] -> TACM [IRStmt]
 stmtsLowing [] = return []
 stmtsLowing ((AST.Command AST.Continue _):stmts) = do
@@ -593,21 +635,26 @@ stmtsLowing ((AST.BlockStmt b):stmts) = do
     rest <- stmtsLowing stmts
     return $ appendAfterCond current rest
 
-stmtsLowing ((AST.DefField names mRhs toks):stmts) =
-    stmtsLowing ((AST.DefVar names mRhs toks):stmts)
+stmtsLowing ((AST.DefField names mDeclType mRhs toks):stmts) =
+    stmtsLowing ((AST.DefVar names mDeclType mRhs toks):stmts)
 
-stmtsLowing ((AST.DefConstField names mRhs toks):stmts) =
-    stmtsLowing ((AST.DefConstVar names mRhs toks):stmts)
+stmtsLowing ((AST.DefConstField names mDeclType mRhs toks):stmts) =
+    stmtsLowing ((AST.DefConstVar names mDeclType mRhs toks):stmts)
 
-stmtsLowing ((AST.DefVar names mRhs toks):stmts) = do
+stmtsLowing ((AST.DefVar names mDeclType mRhs toks):stmts) = do
     let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
     current <- case (names, mRhs, reverse toks) of
         ([name], Just rhs, nameTok:_) ->
             let assignTok = case toks of
                     (_:tokEq:_) -> tokEq
                     _ -> nameTok
-                assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhs assignTok
+                rhsTyped = case mDeclType of
+                    Just declT -> AST.Cast (declT, []) rhs assignTok
+                    Nothing -> rhs
+                assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhsTyped assignTok
             in exprLowing' assignExpr
+        ([_], Nothing, nameTok:_) ->
+            emitDefaultDeclInit mDeclType nameTok
         (_, Just rhs, _) ->
             exprLowing' rhs
         (_, Nothing, _) ->
@@ -615,15 +662,20 @@ stmtsLowing ((AST.DefVar names mRhs toks):stmts) = do
     rest <- stmtsLowing stmts
     return $ appendAfterCond current rest
 
-stmtsLowing ((AST.DefConstVar names mRhs toks):stmts) = do
+stmtsLowing ((AST.DefConstVar names mDeclType mRhs toks):stmts) = do
     let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
     current <- case (names, mRhs, reverse toks) of
         ([name], Just rhs, nameTok:_) ->
             let assignTok = case toks of
                     (_:tokEq:_) -> tokEq
                     _ -> nameTok
-                assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhs assignTok
+                rhsTyped = case mDeclType of
+                    Just declT -> AST.Cast (declT, []) rhs assignTok
+                    Nothing -> rhs
+                assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhsTyped assignTok
             in exprLowing' assignExpr
+        ([_], Nothing, nameTok:_) ->
+            emitDefaultDeclInit mDeclType nameTok
         (_, Just rhs, _) ->
             exprLowing' rhs
         (_, Nothing, _) ->
@@ -1147,19 +1199,19 @@ collectAssignKey = foldl step Map.empty
         step acc stmt = case stmt of
             AST.Expr (AST.Binary _ (AST.Variable name tok) _ _) ->
                 insertOnce name (tokenPos tok) acc
-            AST.DefField [name] _ toks ->
+            AST.DefField [name] _ _ toks ->
                 case reverse toks of
                     (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
                     [] -> acc
-            AST.DefConstField [name] _ toks ->
+            AST.DefConstField [name] _ _ toks ->
                 case reverse toks of
                     (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
                     [] -> acc
-            AST.DefVar [name] _ toks ->
+            AST.DefVar [name] _ _ toks ->
                 case reverse toks of
                     (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
                     [] -> acc
-            AST.DefConstVar [name] _ toks ->
+            AST.DefConstVar [name] _ _ toks ->
                 case reverse toks of
                     (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
                     [] -> acc
@@ -1174,11 +1226,11 @@ collectConstKey = foldl step Map.empty
     where
         step :: Map String [Position] -> Statement -> Map String [Position]
         step acc stmt = case stmt of
-            AST.DefConstField [name] _ toks ->
+            AST.DefConstField [name] _ _ toks ->
                 case reverse toks of
                     (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
                     [] -> acc
-            AST.DefConstVar [name] _ toks ->
+            AST.DefConstVar [name] _ _ toks ->
                 case reverse toks of
                     (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
                     [] -> acc

@@ -449,7 +449,16 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                             [Variable "ll" (mkId "ll" 2 16 2)]
                     )
                 ])
-        ]))]
+        ])),
+
+        ("13", unlines [
+            "import java.lang.*"],
+        ([Import ["java", "lang", "*"] [
+            mkId "java" 1 8 4,
+            mkId "lang" 1 13 4,
+            mkSym Lex.Dot 1 17 1,
+            mkSym Lex.Multiply 1 18 1
+            ]], []))]
         
 
 tests :: TestTree

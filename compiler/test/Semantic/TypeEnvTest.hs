@@ -14,7 +14,9 @@ basicClassMapTests = testGroup "Semantic.TypeEnv.basicClassMap" $
         ("0", "bool", Just Bool),
         ("1", "int32", Just Int32T),
         ("2", "long", Just Int64T),
-        ("3", "unknown", Nothing)]
+        ("3", "String", Just (Class ["java", "lang", "String"] [])),
+        ("4", "string", Nothing),
+        ("5", "unknown", Nothing)]
 
 
 basicClassEnvTests :: TestTree
@@ -31,8 +33,10 @@ isBasicClassNameTests = testGroup "Semantic.TypeEnv.isBasicClassName" $
     map (\(name, key, expected) -> testCase name $ isBasicClassName key @?= expected) [
         ("0", ["int"], True),
         ("1", ["float64"], True),
-        ("2", ["foo"], False),
-        ("3", ["pkg", "int"], False)]
+        ("2", ["String"], True),
+        ("3", ["string"], False),
+        ("4", ["foo"], False),
+        ("5", ["pkg", "int"], False)]
 
 
 emptyTypedImportEnvTests :: TestTree

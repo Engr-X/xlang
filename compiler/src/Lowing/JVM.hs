@@ -70,7 +70,7 @@ data JFunction = JFunction
     Decl            -- ^ declaration (access + flags)
     String          -- ^ function name
     FunSig          -- ^ function signature
-    String          -- ^ owner type: xlang-class / xlang-wrapped-class
+    String          -- ^ owner type: xlang-class / xlang-top-level
 
     [JCommand]      -- ^ function body
     deriving (Eq, Show)
@@ -89,7 +89,7 @@ data JField = JField
     Decl
     Class           -- type
     String          -- name
-    String          -- owner type: xlang-class / xlang-wrapped-class
+    String          -- owner type: xlang-class / xlang-top-level
 
 
 

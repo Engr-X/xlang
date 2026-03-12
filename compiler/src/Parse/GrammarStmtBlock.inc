@@ -66,31 +66,93 @@ AccessOpt :: { [Token] }
     | KW_PUBLIC                     { [$1] }
     ;
 
+AccessOptOpt :: { [Token] }
+    : {- empty -}                   { [] }
+    | AccessOpt                     { $1 }
+    ;
+
+VarKind :: { (Bool, Token) }
+    : KW_VAR                        { (False, $1) }
+    | KW_VAL                        { (True, $1) }
+    ;
+
+VarDeclHead :: { (Bool, [String], Maybe Class, [Token], [Token], [Token]) }
+    : AccessOptOpt VarKind QName
+        {
+            let (isConst, kwTok) = $2
+            in (isConst, fst $3, Nothing, $1 ++ [kwTok], snd $3, [])
+        }
+
+    | AccessOptOpt VarKind QName ':' Clazz
+        {
+            let (isConst, kwTok) = $2
+            in (isConst, fst $3, Just (fst $5), $1 ++ [kwTok], snd $3, $4 : snd $5)
+        }
+
+    ;
+
+DeclInitOpt :: { (Maybe Expression, Maybe Token) }
+    : {- empty -}                   { (Nothing, Nothing) }
+    | '=' Expr                      { (Just $2, Just $1) }
+    ;
+
+ConstKw :: { Token }
+    : KW_CONST                      { $1 }
+    | KW_FINAL                      { $1 }
+    ;
+
 
 FunctionStmt :: { Statement }
-    : Clazz QName FunctionParams FunctionBlock
-        { StaticMethod (fst $1, snd $1) (qnameToExpr $2) $3 $4 }
-
-    | KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
-        { StaticMethod (fst $5, snd $5) (qnameToExpr $2) $3 $6 }
-
-    | Clazz QName GenericParamList FunctionParams FunctionBlock
-        { StaticMethodT (fst $1, snd $1) (qnameToExpr $2) $3 $4 $5 }
+    : KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
+        { InstanceMethod (fst $5, snd $5) (qnameToExpr $2) $3 $6 }
 
     | KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock
-        { StaticMethodT (fst $6, snd $6) (qnameToExpr $2) $3 $4 $7 }
-
-    | AccessOpt Clazz QName FunctionParams FunctionBlock
-        { StaticMethod (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 }
+        { InstanceMethodT (fst $6, snd $6) (qnameToExpr $2) $3 $4 $7 }
 
     | AccessOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
-        { StaticMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 $7 }
-
-    | AccessOpt Clazz QName GenericParamList FunctionParams FunctionBlock
-        { StaticMethodT (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 $6 }
+        { InstanceMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 $7 }
 
     | AccessOpt KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock
-        { StaticMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 $8 }
+        { InstanceMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 $8 }
+    ;
+
+TypedLeadStmt :: { Statement }
+    : Clazz QName FunctionParams FunctionBlock
+        { InstanceMethod (fst $1, snd $1) (qnameToExpr $2) $3 $4 }
+
+    | Clazz QName GenericParamList FunctionParams FunctionBlock
+        { InstanceMethodT (fst $1, snd $1) (qnameToExpr $2) $3 $4 $5 }
+
+    | AccessOpt Clazz QName FunctionParams FunctionBlock
+        { InstanceMethod (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 }
+
+    | AccessOpt Clazz QName GenericParamList FunctionParams FunctionBlock
+        { InstanceMethodT (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 $6 }
+
+    -- C-like declarations: int a; / const int a = 10;
+    | Clazz QName Sep
+        { DefField (fst $2) (Just $ fst $1) Nothing (concat [snd $1, snd $2]) }
+
+    | Clazz QName '=' Expr Sep
+        { DefField (fst $2) (Just $ fst $1) (Just $4) (concat [snd $1, snd $2, [$3]]) }
+
+    | ConstKw Clazz QName Sep
+        { DefConstField (fst $3) (Just $ fst $2) Nothing (concat [[$1], snd $2, snd $3]) }
+
+    | ConstKw Clazz QName '=' Expr Sep
+        { DefConstField (fst $3) (Just $ fst $2) (Just $5) (concat [[$1], snd $2, snd $3, [$4]]) }
+
+    | AccessOpt Clazz QName Sep
+        { DefField (fst $3) (Just $ fst $2) Nothing (concat [$1, snd $2, snd $3]) }
+
+    | AccessOpt Clazz QName '=' Expr Sep
+        { DefField (fst $3) (Just $ fst $2) (Just $5) (concat [$1, snd $2, snd $3, [$4]]) }
+
+    | AccessOpt ConstKw Clazz QName Sep
+        { DefConstField (fst $4) (Just $ fst $3) Nothing (concat [$1, [$2], snd $3, snd $4]) }
+
+    | AccessOpt ConstKw Clazz QName '=' Expr Sep
+        { DefConstField (fst $4) (Just $ fst $3) (Just $6) (concat [$1, [$2], snd $3, snd $4, [$5]]) }
     ;
 
 
@@ -102,11 +164,21 @@ Stmt :: { Statement }
     | KW_RETURN Stmt            { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
 
     | Expr Sep                                  { Expr $1 }
-    | KW_VAR QName '=' Expr Sep                 { DefVar (fst $2) (Just $4) ([$1, $3] ++ snd $2) }
-    | KW_VAL QName '=' Expr Sep                 { DefConstVar (fst $2) (Just $4) ([$1, $3] ++ snd $2) }
-    | AccessOpt KW_VAR QName '=' Expr Sep       { DefVar (fst $3) (Just $5) ($1 ++ [$2, $4] ++ snd $3) }
-    | AccessOpt KW_VAL QName '=' Expr Sep       { DefConstVar (fst $3) (Just $5) ($1 ++ [$2, $4] ++ snd $3) }
+    
+    | VarDeclHead DeclInitOpt Sep
+        {
+            case $1 of
+                (isConst, names, mDeclType, headTokens, qnameTokens, tailTokens) ->
+                    case $2 of
+                        (mExpr, mEqTok) ->
+                            (if isConst then DefConstField else DefField)
+                                names
+                                mDeclType
+                                mExpr
+                                (concat [headTokens, qnameTokens, tailTokens, maybe [] (\eqTok -> [eqTok]) mEqTok])
+        }
 
+    | TypedLeadStmt                 { $1 }
     | Block Sep                     { BlockStmt $ fromMaybe (Multiple []) $1 }
     | IfStmt                        { $1 }
     | WhileStmt                     { $1 }

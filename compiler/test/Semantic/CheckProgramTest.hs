@@ -529,10 +529,10 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
                 (any (isInfixOf "cannot be assigned" . errWhy) errs)),
 
     ("3", do
-        let prog = mkProgram [] [] [assignStmt "b" (varExpr "a" 2) 2]
+        let prog = mkProgram [] [["dep", "DepX"]] [assignStmt "b" (varExpr "a" 2) 2]
             ien = IEnv "dep.x" (Map.fromList [(["a"], [pos 2])]) Map.empty
             ten = (emptyTypedImportEnv "dep.x") {
-                tVars = Map.fromList [(["a"], (Int32T, [pos 2], ["dep", "DepX", "a"]))]
+                tVars = Map.fromList [(["dep", "a"], (Int32T, [pos 2], ["dep", "DepX", "a"]))]
             }
         case checkOneProgram "a.x" prog [ien] [ten] of
             Right _ -> pure ()
@@ -564,6 +564,30 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
                     ]
             }
         case checkOneProgram "a.x" prog [ien] [ten] of
+            Right _ -> pure ()
+            Left e -> assertFailure ("expected Right, got Left: " ++ show e)),
+
+    ("7", do
+        let prog = mkProgram [] [["xlang", "math"]] [assignStmt "b" (intExpr 1 1) 1]
+            ten = (emptyTypedImportEnv "xmath.x") {
+                tFuncs = Map.fromList [
+                    (["xlang", "math", "MathX", "succ"], ([FunSig [Int32T] Int32T], [pos 2], ["xlang", "math", "MathX", "succ"]))
+                    ]
+            }
+        assertLeftWith (checkOneProgram "a.x" prog [] [ten]) $ \errs ->
+            assertBool "must reject package-ending import"
+                (any (isInfixOf "must end with a class name or '*'" . errWhy) errs)),
+
+    ("8", do
+        let callStmt = Expr (Binary Assign (varExpr "b" 1) (Call (varExpr "succ" 2) [intExpr 1 3]) (symTok Lex.Assign 4))
+            prog = mkProgram [] [["xlang", "math", "MathX"]] [callStmt]
+            ten = (emptyTypedImportEnv "xmath.x") {
+                tFuncs = Map.fromList [
+                    (["xlang", "math", "MathX", "succ"], ([FunSig [Int32T] Int32T], [pos 2], ["xlang", "math", "MathX", "succ"])),
+                    (["xlang", "math", "succ"], ([FunSig [Int32T] Int32T], [pos 2], ["xlang", "math", "MathX", "succ"]))
+                    ]
+            }
+        case checkOneProgram "a.x" prog [] [ten] of
             Right _ -> pure ()
             Left e -> assertFailure ("expected Right, got Left: " ++ show e))
     ]
@@ -628,7 +652,7 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
             assertBool "must fail" (not (null errs))),
 
     ("3", do
-        let miNeed = mkModuleInfo "need.x" ["p"] [] [assignStmt "b" (addExpr (varExpr "a" 2) (intExpr 1 3) 2) 2]
+        let miNeed = mkModuleInfo "need.x" ["p"] [["p", "DefX"]] [assignStmt "b" (addExpr (varExpr "a" 2) (intExpr 1 3) 2) 2]
             miDef = mkModuleInfo "def.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
@@ -658,12 +682,15 @@ checkPackageTests = mkGroup "Semantic.CheckProgram.checkPackage" [
             assertBool "must have semantic errors" (not (null errs))),
 
     ("3", do
-        let miMain = mkModuleInfo "main.x" ["main"] [["dep"]] [assignStmt "b" (intExpr 1 1) 1]
+        let miMain = mkModuleInfo "main.x" ["main"] [["dep", "DepX"]] [assignStmt "b" (intExpr 1 1) 1]
             pkgMap = Map.fromList [(["main"], [miMain])]
             depMap = Map.fromList [(["main"], [["dep"]])]
+            depTyped = (emptyTypedImportEnv "dep.x") {
+                tVars = Map.fromList [(["dep", "x"], (Int32T, [pos 1], ["dep", "DepX", "x"]))]
+            }
             depChecked = CheckedPackage {
                 cpImportEnv = IEnv "dep.x" Map.empty Map.empty,
-                cpTypedEnv = emptyTypedImportEnv "dep.x",
+                cpTypedEnv = depTyped,
                 cpTypeCtxs = Map.empty :: Map Path TC.TypeCtx
             }
             checked0 = Map.fromList [(["dep"], depChecked)]

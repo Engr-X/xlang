@@ -83,7 +83,7 @@ class JavaClassEmitterTest
                 mutableListOf(Access.Public, Access.Static),
                 "f",
                 Type.INT32
-            ).setOwnerType("xlang-wrapped-class")
+            ).setOwnerType("xlang-top-level")
         )
 
         val outDir: Path = Files.createTempDirectory("bcg-test-meta-f")
@@ -120,6 +120,59 @@ class JavaClassEmitterTest
 
         reader.accept(visitor, 0)
 
-        assertEquals(OwnerTypeMetadata.WRAPPED_CLASS, ownerType)
+        assertEquals(OwnerTypeMetadata.TOP_LEVEL, ownerType)
+    }
+
+    @Test
+    fun fieldClassOwnerTypeSkipsMetadata()
+    {
+        val emitter = ClassEmitter(
+            Opcodes.V1_8,
+            mutableListOf(Access.Public, Access.Super),
+            TypeRef("TestMetaFClass")
+        )
+
+        emitter.addAttribute(
+            AttributeGenerator(
+                emitter.getCW(),
+                mutableListOf(Access.Public, Access.Static),
+                "f",
+                Type.INT32
+            ).setOwnerType("xlang-class")
+        )
+
+        val outDir: Path = Files.createTempDirectory("bcg-test-meta-f-class")
+        emitter.save(outDir)
+
+        var foundOwnerTypeMetadata = false
+        val classBytes = Files.readAllBytes(outDir.resolve("TestMetaFClass.class"))
+        val reader = ClassReader(classBytes)
+        val visitor = object : ClassVisitor(Opcodes.ASM9)
+        {
+            override fun visitField(
+                access: Int,
+                name: String?,
+                descriptor: String?,
+                signature: String?,
+                value: Any?
+            ): FieldVisitor?
+            {
+                if (name != "f")
+                    return super.visitField(access, name, descriptor, signature, value)
+
+                return object : FieldVisitor(Opcodes.ASM9)
+                {
+                    override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
+                    {
+                        if (OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
+                            foundOwnerTypeMetadata = true
+                        return super.visitAnnotation(descriptor, visible)
+                    }
+                }
+            }
+        }
+
+        reader.accept(visitor, 0)
+        assertEquals(false, foundOwnerTypeMetadata)
     }
 }

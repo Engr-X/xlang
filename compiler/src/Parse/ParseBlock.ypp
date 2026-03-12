@@ -33,6 +33,8 @@ import qualified Util.Exception as UE
 
     KW_VAR              { t@(Lex.Ident "var" _) }
     KW_VAL              { t@(Lex.Ident "val" _) }
+    KW_CONST            { t@(Lex.Ident "const" _) }
+    KW_FINAL            { t@(Lex.Ident "final" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
