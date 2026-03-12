@@ -56,6 +56,14 @@ numericRangeRank = Map.fromList [
     (Void, -1)]
 
 
+normalizeTypeAlias :: Class -> Class
+normalizeTypeAlias cls = case cls of
+    Array elemT dims -> Array (normalizeTypeAlias elemT) dims
+    Class ["String"] [] -> Class ["java", "lang", "String"] []
+    Class qn args -> Class qn (map normalizeTypeAlias args)
+    other -> other
+
+
 widenedClass :: Class -> [Class]
 widenedClass Bool = [Bool]
 widenedClass Char = [Char, Int8T, Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
@@ -67,26 +75,25 @@ widenedClass Float32T = [Float32T, Float64T, Float128T]
 widenedClass Float64T = [Float64T, Float128T]
 widenedClass Float128T = [Float128T]
 widenedClass Void = [Void]
-widenedClass (Array c n)
-    | isBasicType c = [Array c n]
-    | otherwise = map (`Array` n) (widenedClass c)
-widenedClass (Class _ _) = error "TODO: class widen is not supported yet"
+widenedClass (Array c n) = [Array (normalizeTypeAlias c) n]
+widenedClass cls@(Class _ _) = [normalizeTypeAlias cls]
 widenedClass ErrorClass = error "ErrorClass cannot be widened"
 
 
 widenedArgs :: Path -> [Position] -> [(Class, [Position])] -> [FunSig] -> Either ErrorKind (FunSig, [Warning])
 widenedArgs path callPos argInfos sigs =
-    let (argTs, argPos) = unzip argInfos
+    let (argTsRaw, argPos) = unzip argInfos
+        argTs = map normalizeTypeAlias argTsRaw
         dist argT paramT = elemIndex paramT (widenedClass argT)
 
         buildCandidate sig =
-            let ps = funParams sig
+            let ps = map normalizeTypeAlias (funParams sig)
             in if length ps /= length argTs then Nothing
                else case traverse (uncurry dist) (zip argTs ps) of
                     Nothing -> Nothing
                     Just dists ->
                         let warns = concat [mkWarnings a p pos
-                                           | ((a, p), pos, d) <- zip3 (zip argTs ps) argPos dists,
+                                           | ((a, p), pos, d) <- zip3 (zip argTsRaw (funParams sig)) argPos dists,
                                            d > 0]
                         in Just (sig, dists, warns)
 

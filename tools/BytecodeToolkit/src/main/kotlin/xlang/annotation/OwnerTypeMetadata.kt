@@ -8,26 +8,24 @@ import org.objectweb.asm.Opcodes
 
 object OwnerTypeMetadata
 {
-    const val CLASS: String = "class"
-    const val WRAPPED_CLASS: String = "wrapped-class"
+    const val CLASS: String = "xlang-class"
+    const val WRAPPED_CLASS: String = "xlang-wrapped-class"
 
-    private const val CLASS_WRAPPED_ALIAS: String = "class-wrapped"
     private const val VALUE_KEY: String = "value"
 
     private const val DESC_CURRENT: String = "Lxlang/annotation/Metadata;"
-    private const val DESC_LEGACY: String = "Lcom/wangdi/bctoolkit/meta/Metadata;"
 
     val DESC: String = DESC_CURRENT
 
     fun normalize(raw: String?): String = when (raw?.trim()?.lowercase())
     {
         null, "", CLASS -> CLASS
-        WRAPPED_CLASS, CLASS_WRAPPED_ALIAS -> WRAPPED_CLASS
+        WRAPPED_CLASS -> WRAPPED_CLASS
         else -> throw IllegalArgumentException("Unknown owner_type: $raw")
     }
 
     fun isOwnerTypeDescriptor(desc: String?): Boolean =
-        desc == DESC_CURRENT || desc == DESC_LEGACY
+        desc == DESC_CURRENT
 
     fun visitAnnotationValue(name: String?, value: Any?, currentValue: String): String
     {
@@ -66,4 +64,3 @@ object OwnerTypeMetadata
             }
         }
 }
-

@@ -214,7 +214,7 @@ collectMethodDecls cls = concatMap one (lcStaticMethods cls)
 
 aliasesFor :: QName -> String -> String -> String -> [QName]
 aliasesFor pkg clsName memberName ownerType
-    | ownerType == "wrapped-class" =
+    | ownerType == "xlang-wrapped-class" =
         nub [pkg ++ [clsName, memberName], pkg ++ [memberName]]
     | otherwise =
         [pkg ++ [clsName, memberName]]
@@ -233,10 +233,9 @@ normalizeOwnerType :: String -> String
 normalizeOwnerType raw =
     let s = map toLower raw
     in case s of
-        "class" -> "class"
-        "wrapped-class" -> "wrapped-class"
-        "class-wrapped" -> "wrapped-class"
-        _ -> "class"
+        "xlang-class" -> "xlang-class"
+        "xlang-wrapped-class" -> "xlang-wrapped-class"
+        _ -> "xlang-class"
 
 
 parseTypeParts :: [String] -> Class

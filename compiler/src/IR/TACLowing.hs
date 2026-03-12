@@ -169,7 +169,7 @@ atomLowing (AST.LongDoubleConst value tok) = do
     
 atomLowing (AST.CharConst value _) = return ([], TAC.CharC value)
 atomLowing (AST.BoolConst value _) = return ([], TAC.BoolC value)
-atomLowing (AST.StringConst _ _) = error "string literal is not supported in TAC"
+atomLowing (AST.StringConst value _) = return ([], TAC.StringC value)
 
 atomLowing (AST.Variable _ tok) = do
     let pos = tokenPos tok
@@ -363,8 +363,6 @@ exprLowing (AST.Ternary cond (thenE, elseE) _) = do
     return (reverse seqFwd, nAtom)
 
 exprLowing (AST.Call funName params) = do
-    (argInstrs, argAtoms) <- lowerArgs params
-    
     funInfo <- case funName of
         AST.Variable _ tok -> TAC.getFunction [tokenPos tok]
         AST.Qualified _ toks -> TAC.getFunction (map tokenPos toks)
@@ -373,6 +371,7 @@ exprLowing (AST.Call funName params) = do
     case funInfo of
         TEnv.FunLocal _ qname sig -> do
             let retT = TEnv.funReturn sig
+            (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
             dst <- newSubCVar retT
             let instr = case qname of
                     [name] -> TAC.ICall dst name argAtoms
@@ -380,16 +379,21 @@ exprLowing (AST.Call funName params) = do
             return (TAC.IRInstr instr : argInstrs, dst)
         TEnv.FunImported _ _ fullQname sig -> do
             let retT = TEnv.funReturn sig
+            (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
             dst <- newSubCVar retT
             return (TAC.IRInstr (TAC.ICallStatic dst fullQname argAtoms) : argInstrs, dst)
     where
-        lowerArgs :: [Expression] -> TACM ([IRStmt], [IRAtom])
-        lowerArgs = foldrM step ([], [])
+        lowerArgsWithSig :: [Class] -> [Expression] -> TACM ([IRStmt], [IRAtom])
+        lowerArgsWithSig paramTs args
+            | length paramTs /= length args = error "internal error: argument count mismatch after typecheck"
+            | otherwise = foldrM step ([], []) (zip args paramTs)
             where
-                step :: Expression -> ([IRStmt], [IRAtom]) -> TACM ([IRStmt], [IRAtom])
-                step p (instrsRest, atomsRest) = do
+                step :: (Expression, Class) -> ([IRStmt], [IRAtom]) -> TACM ([IRStmt], [IRAtom])
+                step (p, paramT) (instrsRest, atomsRest) = do
                     (instrsP, atomP) <- if AST.isAtom p then atomLowing p else exprLowing p
-                    return (instrsRest ++ instrsP, atomP : atomsRest)
+                    argT <- getAtomType atomP
+                    (castInstrs, castAtom) <- castIfNeeded argT atomP paramT
+                    return (instrsRest ++ castInstrs ++ instrsP, castAtom : atomsRest)
 
 exprLowing (AST.CallT {}) = error "template is not support!"
 
@@ -840,6 +844,7 @@ collectAtomTypes sig stmts = do
             TAC.Float32C _ -> Just Float32T
             TAC.Float64C _ -> Just Float64T
             TAC.Float128C _ -> Just Float128T
+            TAC.StringC _ -> Just (Class ["java", "lang", "String"] [])
             TAC.Var _ -> Map.lookup atom varTypeMap
             TAC.Param i -> Just (TEnv.funParams sig' !! i)
             TAC.Phi pairs -> case pairs of
@@ -909,6 +914,7 @@ collectAtomTypesStatic stmts = do
             TAC.Float32C _ -> Just Float32T
             TAC.Float64C _ -> Just Float64T
             TAC.Float128C _ -> Just Float128T
+            TAC.StringC _ -> Just (Class ["java", "lang", "String"] [])
             TAC.Var _ -> Map.lookup atom varTypeMap
             TAC.Param _ -> Nothing
             TAC.Phi pairs -> case pairs of

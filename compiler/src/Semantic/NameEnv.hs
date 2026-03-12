@@ -113,14 +113,7 @@ emptyImportEnv p = IEnv {file = p, iVars = Map.empty, iFuncs = Map.empty}
 
 
 defaultImportEnv :: Path -> ImportEnv
-defaultImportEnv p = envWithDefaultImport (emptyImportEnv p)
-    where
-        envWithDefaultImport :: ImportEnv -> ImportEnv
-        envWithDefaultImport env =
-            let addFun qn env0 = env0 {iFuncs = Map.insert qn [] (iFuncs env0)}
-                addPut env0 = addFun ["xlang", "io", "put"] (addFun ["put"] env0)
-                addPutln env0 = addFun ["xlang", "io", "putln"] (addFun ["putln"] env0)
-            in addPutln (addPut env)
+defaultImportEnv = emptyImportEnv
 
 
 -- | Hidden import key prefix used for non-public exported symbols.
@@ -235,4 +228,3 @@ getPackageName p ds = case filter AST.isPackageDecl ds of
 -- | Get the current lexical depth.
 getStateDepth :: CheckState -> Int
 getStateDepth = depth
-

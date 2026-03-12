@@ -119,7 +119,8 @@ basicQNameMap = Map.fromList [
 -- | Convert a language-level type to a QName used in JSON.
 typeToQName :: Class -> QName
 typeToQName (Array elemT dims) = typeToQName elemT ++ replicate dims "[]"
-typeToQName cls@(Class _ _) = error ("typeToQName: class types not supported: " ++ show cls)
+typeToQName (Class qn []) = qn
+typeToQName cls@(Class _ _) = error ("typeToQName: generic class types not supported: " ++ show cls)
 typeToQName ErrorClass = error "typeToQName: error class"
 typeToQName cls =
     fromMaybe (error ("typeToQName: non-basic type not supported: " ++ show cls))
@@ -177,8 +178,8 @@ opPrefix Float128T = "d"
 opPrefix Bool = "i"
 opPrefix Char = "i"
 opPrefix Void = "v"
-opPrefix (Array _ _) = error "opPrefix: array type"
-opPrefix (Class _ _) = error "opPrefix: class type"
+opPrefix (Array _ _) = "a"
+opPrefix (Class _ _) = "a"
 opPrefix ErrorClass = error "opPrefix: error class"
 
 -- | Choose JVM cmp prefix for compare/jump ops.
@@ -275,6 +276,9 @@ opToJSON (JVM.CPush (JVM.JF f)) = object [
 opToJSON (JVM.CPush (JVM.JD d)) = object [
     opNameKey .= ("dpush" :: String),
     valueKey .= d]
+opToJSON (JVM.CPush (JVM.JString s)) = object [
+    opNameKey .= ("apush" :: String),
+    valueKey .= s]
 opToJSON JVM.PushNull = op0 "aconst_null"
 
 

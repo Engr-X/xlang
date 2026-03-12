@@ -72,7 +72,7 @@ class MethodEmitterTest
             mutableListOf(Access.Public, Access.Static),
             "m",
             Type.VOID to mutableListOf()
-        ).setOwnerType("class-wrapped")
+        ).setOwnerType("xlang-wrapped-class")
 
         method.Builder().apply { `return`() }.build()
         method.generate()
@@ -112,4 +112,3 @@ class MethodEmitterTest
         assertEquals(OwnerTypeMetadata.WRAPPED_CLASS, ownerType)
     }
 }
-

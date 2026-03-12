@@ -417,6 +417,7 @@ newSubCVar cls = do
 data IRAtom
     = BoolC Bool
     | CharC Char
+    | StringC String
     | Int8C Int
     | Int16C Int 
     | Int32C Int
@@ -433,6 +434,7 @@ data IRAtom
 prettyIRAtom :: IRAtom -> String
 prettyIRAtom (BoolC b) = if b then "true" else "false"
 prettyIRAtom (CharC c) = [c]
+prettyIRAtom (StringC s) = show s
 prettyIRAtom (Int8C i) = show i
 prettyIRAtom (Int16C i) = show i
 prettyIRAtom (Int32C i) = show i
@@ -451,6 +453,7 @@ prettyIRAtom (Param i) = "param" ++ show i
 getAtomType :: IRAtom -> TACM Class
 getAtomType (BoolC _) = return AST.Bool
 getAtomType (CharC _) = return AST.Char
+getAtomType (StringC _) = return (AST.Class ["java", "lang", "String"] [])
 getAtomType (Int8C _) = return AST.Int8T
 getAtomType (Int16C _) = return AST.Int16T
 getAtomType (Int32C _) = return AST.Int32T

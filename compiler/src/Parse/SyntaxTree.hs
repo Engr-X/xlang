@@ -685,6 +685,8 @@ classesMap = Map.fromList [
     ("float128", Float128T),
     
     ("char", Char),
+    ("string", Class ["java", "lang", "String"] []),
+    ("String", Class ["java", "lang", "String"] []),
     ("void", Void)]
 
 

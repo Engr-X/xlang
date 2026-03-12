@@ -6,14 +6,11 @@ val PI = 3.14159265358979323846
 val E = 2.7182818284590452354
 
 
-fun sign(x: int) -> byte
-{
-    if (x > 0):
-        return (1 as byte)
+fun succ(x: int) -> int = Math.addExact(x, 1)
 
-    return (-1 as byte) if x < 0 else (0 as byte)
-}
+fun succ(x: long) -> long = Math.addExact(x, 1 as long)
 
-fun power(a: double, b: double) -> double = a ** b
 
-fun fib(x: int) -> long = (x as long) if x < 2 else (fib(x - 1) + fib(x - 2))
+fun pred(x: int) -> int = Math.subtractExact(x, 1)
+
+fun pred(x: long) -> long = Math.subtractExact(x, 1 as long)

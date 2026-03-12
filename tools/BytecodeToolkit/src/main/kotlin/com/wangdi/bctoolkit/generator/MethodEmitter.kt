@@ -172,11 +172,13 @@ open class MethodEmitter(
         fun lpush(value: Long): Builder = this.apply { this.innerAddOp(LPush(mv, labels, value)) }
         fun fpush(value: Float): Builder = this.apply { this.innerAddOp(FPush(mv, labels, value)) }
         fun dpush(value: Double): Builder = this.apply { this.innerAddOp(DPush(mv, labels, value)) }
+        fun apush(value: String): Builder = this.apply { this.innerAddOp(APush(mv, labels, value)) }
 
         fun istore(index: Int): Builder = this.apply { this.innerAddOp(IStore(mv, labels, index)) }
         fun lstore(index: Int): Builder = this.apply { this.innerAddOp(LStore(mv, labels, index)) }
         fun fstore(index: Int): Builder = this.apply { this.innerAddOp(FStore(mv, labels, index)) }
         fun dstore(index: Int): Builder = this.apply { this.innerAddOp(DStore(mv, labels, index)) }
+        fun astore(index: Int): Builder = this.apply { this.innerAddOp(AStore(mv, labels, index)) }
 
         open fun build(): Builder = this.apply {
             operations.addAll(this.innerOps)

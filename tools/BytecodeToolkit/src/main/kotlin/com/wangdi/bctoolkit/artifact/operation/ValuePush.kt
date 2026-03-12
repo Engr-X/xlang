@@ -143,6 +143,19 @@ class DPush(
 }
 
 
+class APush(
+    mv: MethodVisitor,
+    labels: MutableMap<Int, Label>,
+    private val value: String
+) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitLdcInsn(this.value)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}ldc \"${this.value}\""
+}
+
 //class AConstNull(
 //    mv: MethodVisitor,
 //    labels: MutableMap<Int, Label>

@@ -83,7 +83,7 @@ class JavaClassEmitterTest
                 mutableListOf(Access.Public, Access.Static),
                 "f",
                 Type.INT32
-            ).setOwnerType("class-wrapped")
+            ).setOwnerType("xlang-wrapped-class")
         )
 
         val outDir: Path = Files.createTempDirectory("bcg-test-meta-f")
@@ -123,4 +123,3 @@ class JavaClassEmitterTest
         assertEquals(OwnerTypeMetadata.WRAPPED_CLASS, ownerType)
     }
 }
-

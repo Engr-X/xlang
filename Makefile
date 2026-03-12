@@ -57,6 +57,7 @@ java_lib:
 	cd "$(JAVA_LIB_DIR)" && chmod +x ./gradlew
 	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) $(GRADLE_ARGS)
 	cp -f "$(JAVA_LIB_DIR)"/build/libs/* "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(JAVA_LIB_DIR)"/build/runtime-libs/*.jar "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
 
 clean:
 	cd "$(COMPILER_DIR)" && cabal clean

@@ -346,11 +346,13 @@ class JsonAdapter(private val json: JSONObject)
             "lpush" to { json -> lpush(json.getLong(VALUE).toLong()) },
             "fpush" to { json -> fpush(json.getFloat(VALUE).toFloat()) },
             "dpush" to { json -> dpush(json.getDouble(VALUE).toDouble()) },
+            "apush" to { json -> apush(json.getOrError<String>(VALUE)) },
 
             "istore" to { json -> istore(json.getOrError(VAR_INDEX)) },
             "lstore" to { json -> lstore(json.getOrError(VAR_INDEX)) },
             "fstore" to { json -> fstore(json.getOrError(VAR_INDEX)) },
             "dstore" to { json -> dstore(json.getOrError(VAR_INDEX)) },
+            "astore" to { json -> astore(json.getOrError(VAR_INDEX)) },
 
             "invokestatic" to { json ->
                 val (fullName, sig) = parseInvokeSpec(json)

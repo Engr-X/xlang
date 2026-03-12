@@ -19,9 +19,8 @@ data JConst =
     JI Int |
     JL Int64 |
     JF Float |
-    JD Double
-    -- JString String |
-    -- JRef String
+    JD Double |
+    JString String
     deriving (Eq, Show)
 
 type JValue = JConst
@@ -71,7 +70,7 @@ data JFunction = JFunction
     Decl            -- ^ declaration (access + flags)
     String          -- ^ function name
     FunSig          -- ^ function signature
-    String          -- ^ owner type: class / class-wrapped
+    String          -- ^ owner type: xlang-class / xlang-wrapped-class
 
     [JCommand]      -- ^ function body
     deriving (Eq, Show)
@@ -90,7 +89,7 @@ data JField = JField
     Decl
     Class           -- type
     String          -- name
-    String          -- owner type: class / class-wrapped
+    String          -- owner type: xlang-class / xlang-wrapped-class
 
 
 

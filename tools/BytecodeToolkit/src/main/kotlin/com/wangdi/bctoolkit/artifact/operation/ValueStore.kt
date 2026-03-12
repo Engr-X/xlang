@@ -63,3 +63,16 @@ class DStore(
 
     override fun toString(tabs: Int): String = this.indent(tabs) + storeInsn("dstore", this.index)
 }
+
+class AStore(
+    mv: MethodVisitor,
+    labels: MutableMap<Int, Label>,
+    private val index: Int
+) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitVarInsn(Opcodes.ASTORE, this.index)
+    }
+
+    override fun toString(tabs: Int): String = this.indent(tabs) + storeInsn("astore", this.index)
+}

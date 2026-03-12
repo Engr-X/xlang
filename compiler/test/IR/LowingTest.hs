@@ -1,13 +1,17 @@
 module IR.LowingTest where
 
-import Data.List (find)
+import Data.Aeson (encode)
+import Data.List (find, isInfixOf)
 import IR.Lowing (codeToIRSingleWithRoot)
-import IR.TAC (IRBlock (..), IRClass (..), IRFunction (..), IRInstr (..), IRProgm (..), IRStmt (..))
+import IR.TAC (IRAtom(..), IRBlock (..), IRClass (..), IRFunction (..), IRInstr (..), IRProgm (..), IRStmt (..))
+import Lowing.JVMLowing (jvmProgmLowing)
+import Lowing.JVMJson (jProgmToJSON)
 import Parse.ParserBasic (DeclFlag (..))
 import Parse.SyntaxTree (Class (..))
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Util.Exception as UE
 
 
@@ -89,6 +93,41 @@ topLevelValFinalTests = testGroup "IR.Lowing.topLevelValFinal" $ map (uncurry te
             Right _ -> assertFailure "expected duplicate-variable error"
     )]
 
+callArgCastTests :: TestTree
+callArgCastTests = testGroup "IR.Lowing.callArgCast" [
+    testCase "insert cast when calling double param with int arg" $ do
+        let src = unlines [
+                "double f(double x) {",
+                "    return x",
+                "}",
+                "double g() {",
+                "    return f(1)",
+                "}"
+                ]
+            collectInstrs :: [IRStmt] -> [IRInstr]
+            collectInstrs = concatMap go
+                where
+                    go stmt = case stmt of
+                        IRInstr instr -> [instr]
+                        IRBlockStmt (IRBlock (_, body)) -> collectInstrs body
+            hasIntToDoubleCast :: [IRInstr] -> Bool
+            hasIntToDoubleCast = any isCast
+                where
+                    isCast instr = case instr of
+                        ICast _ (Int32T, Float64T) _ -> True
+                        _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) -> do
+                case find (\(IRFunction _ name _ _ _ _) -> name == "g") funs of
+                    Nothing -> assertFailure "missing function g"
+                    Just (IRFunction _ _ _ _ stmts _) ->
+                        assertBool "g should cast int argument to double before call"
+                            (hasIntToDoubleCast (collectInstrs stmts))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+
 ternaryControlFlowTests :: TestTree
 ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
     testCase "return-ternary dispatch stays in block join" $ do
@@ -128,7 +167,55 @@ ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
     ]
 
 
+stringLiteralLoweringTests :: TestTree
+stringLiteralLoweringTests = testGroup "IR.Lowing.stringLiteral" [
+    testCase "lower val string without semantic/type errors" $ do
+        let src = unlines [
+                "int main() {",
+                "    val a = \"100\"",
+                "    return 0",
+                "}"
+                ]
+            collectInstrs :: [IRStmt] -> [IRInstr]
+            collectInstrs = concatMap go
+                where
+                    go stmt = case stmt of
+                        IRInstr instr -> [instr]
+                        IRBlockStmt (IRBlock (_, body)) -> collectInstrs body
+            hasStringAssign :: [IRInstr] -> Bool
+            hasStringAssign = any isStringAssign
+                where
+                    isStringAssign instr = case instr of
+                        IAssign _ (StringC "100") -> True
+                        _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
+                assertBool "main should contain string literal assignment lowering"
+                    (hasStringAssign (collectInstrs stmts))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ,
+    testCase "jvm json contains reference ops for string local" $ do
+        let src = unlines [
+                "int main() {",
+                "    val a = \"100\"",
+                "    return 0",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (ir@(IRProgm _ _), _) -> do
+                let classes = jvmProgmLowing ir
+                    jsonText = BL.unpack (encode (jProgmToJSON 8 classes))
+                assertBool "json should include string push op" ("\"op_name\":\"apush\"" `isInfixOf` jsonText)
+                assertBool "json should include reference local store op" ("\"op_name\":\"astore\"" `isInfixOf` jsonText)
+    ]
+
+
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
-    ternaryControlFlowTests]
+    callArgCastTests,
+    ternaryControlFlowTests,
+    stringLiteralLoweringTests]

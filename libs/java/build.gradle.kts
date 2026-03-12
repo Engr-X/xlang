@@ -1,6 +1,7 @@
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSetContainer
+import org.gradle.api.tasks.Sync
 import org.gradle.kotlin.dsl.the
 
 plugins {
@@ -21,6 +22,7 @@ dependencies {
 val repoRoot = projectDir.resolve("../..").canonicalFile
 val xlangSourceRoot = projectDir.resolve("src/main/xlang")
 val xlangOutDir = layout.buildDirectory.dir("generated/xlang/classes")
+val runtimeLibsDir = layout.buildDirectory.dir("runtime-libs")
 val xlangExe = providers.gradleProperty("xlangExe")
     .orElse(repoRoot.resolve("build/xlang.exe").absolutePath)
 
@@ -86,6 +88,16 @@ the<SourceSetContainer>().named("main") {
 
 tasks.named("classes") {
     dependsOn(compileXlang)
+}
+
+val copyRuntimeLibs = tasks.register<Sync>("copyRuntimeLibs") {
+    from(configurations.named("runtimeClasspath"))
+    include("*.jar")
+    into(runtimeLibsDir)
+}
+
+tasks.named("build") {
+    dependsOn(copyRuntimeLibs)
 }
 
 kotlin {

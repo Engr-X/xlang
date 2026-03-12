@@ -199,6 +199,7 @@ popd >nul
 if not "%ERR%"=="0" exit /b %ERR%
 
 copy /Y "%JAVA_LIB_DIR%\build\libs\*" "%JAVA_LIB_OUT_DIR%\" >nul 2>nul
+copy /Y "%JAVA_LIB_DIR%\build\runtime-libs\*.jar" "%JAVA_LIB_OUT_DIR%\" >nul 2>nul
 echo [OK] java lib outputs copied to: %JAVA_LIB_OUT_DIR%\
 exit /b 0
 

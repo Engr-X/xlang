@@ -169,13 +169,18 @@ findDefaultLibJars exeDir = do
             names
 
 
-findDefaultNativeJsons :: FilePath -> IO [FilePath]
-findDefaultNativeJsons exeDir = do
+findDefaultNativeJsons :: FilePath -> Int -> IO [FilePath]
+findDefaultNativeJsons exeDir targetJvm = do
     let nativeDir = exeDir </> "libs" </> "java-native"
-    exists <- doesDirectoryExist nativeDir
-    if not exists
-        then pure []
-        else sort <$> collect nativeDir
+        versionDir = nativeDir </> ("jdk-" ++ show targetJvm)
+    versionedExists <- doesDirectoryExist versionDir
+    if versionedExists
+        then sort <$> collect versionDir
+        else do
+            nativeExists <- doesDirectoryExist nativeDir
+            if not nativeExists
+                then pure []
+                else sort <$> collect nativeDir
   where
     collect :: FilePath -> IO [FilePath]
     collect dir = do
@@ -189,8 +194,8 @@ findDefaultNativeJsons exeDir = do
                     else pure [path | map toLower (takeExtension path) == ".json"])
             names
 
-compileJVM :: Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO (Maybe [TAC.IRProgm])
-compileJVM jobs toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
+compileJVM :: Int -> Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO (Maybe [TAC.IRProgm])
+compileJVM jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
     sourceRes <- mapConcurrentlyLimit jobs
         (\path -> do
             fileRes <- FH.readFile path
@@ -232,7 +237,7 @@ compileJVM jobs toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
 
                                 let irs = map snd irPairs
                                     classes = concat lowered
-                                    jsonVal = JVMJson.jProgmToJSON 8 classes
+                                    jsonVal = JVMJson.jProgmToJSON targetJvm classes
                                     jsonStr = BL.unpack (encode jsonVal)
                                     debugDir = case srcPaths of
                                         [one] -> takeDirectory one
@@ -315,8 +320,8 @@ mergeLibsIntoJar rootPath libPaths jarOutput = do
             _ -> pure ()
 
 
-compileJVMToJar :: Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> Maybe [String] -> IO ()
-compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRuntime debugOut mMainClassOverride = do
+compileJVMToJar :: Int -> Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> Maybe [String] -> IO ()
+compileJVMToJar jobs targetJvm toolkitJar rootPath srcPaths libPaths jarOutput includeRuntime debugOut mMainClassOverride = do
     let classesOut = rootPath </> "out"
         cleanupOut = do
             exists <- doesDirectoryExist classesOut
@@ -327,7 +332,7 @@ compileJVMToJar jobs toolkitJar rootPath srcPaths libPaths jarOutput includeRunt
     putStrLn ("[INFO] -d is jar; classes output dir: " ++ classesOut)
 
     (`finally` cleanupOut) $ do
-        mIrs <- compileJVM jobs toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
+        mIrs <- compileJVM jobs targetJvm toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
         case mIrs of
             Just irs -> do
                 let mMainClassAuto = selectJarMainClass irs

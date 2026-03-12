@@ -2,7 +2,8 @@ module Xlang where
 
 import Control.Monad (void)
 import Data.Char (isDigit)
-import Data.List (stripPrefix)
+import Data.Foldable (for_)
+import Data.List (intercalate, sort, stripPrefix)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
 import GHC.Conc (setNumCapabilities)
@@ -28,7 +29,7 @@ data Options = Options {
     optVersion :: Bool,
     optDownload :: Maybe Int,
     optMainEntry :: Maybe [String],
-    optTarget :: Maybe String,
+    optTargetJvm :: Maybe Int,
     optInputs :: [FilePath],
     optLibs :: [FilePath],
     optOutput :: Maybe FilePath,
@@ -46,7 +47,7 @@ defaultOptions = Options {
     optVersion = False,
     optDownload = Nothing,
     optMainEntry = Nothing,
-    optTarget = Nothing,
+    optTargetJvm = Nothing,
     optInputs = [],
     optLibs = [],
     optOutput = Nothing,
@@ -63,9 +64,29 @@ xlangVersion = "alpha 0.0.0"
 
 jdkMetadataUrlMap :: Map Int String
 jdkMetadataUrlMap = Map.fromList [
-    (8, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std/jdk-1.8.0_202.7z"),
-    (17, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std/jdk-17.0.10.7z"),
-    (25, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std/jdk-25.0.1.7z")]
+    (8, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-1.8.0_202.7z"),
+    (11, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-11.0.29.7z"),
+    (17, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-17.0.10.7z"),
+    (21, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-21.0.10.7z"),
+    (25, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-25.0.1.7z")]
+
+
+defaultJvmTargetVersion :: Int
+defaultJvmTargetVersion = 8
+
+
+supportedJdkMetadataVersions :: [Int]
+supportedJdkMetadataVersions = sort (Map.keys jdkMetadataUrlMap)
+
+
+supportedJdkMetadataVersionsText :: String
+supportedJdkMetadataVersionsText = intercalate ", " (map show supportedJdkMetadataVersions)
+
+
+validateSupportedJvmVersion :: Int -> Either String Int
+validateSupportedJvmVersion version
+    | Map.member version jdkMetadataUrlMap = Right version
+    | otherwise = Left ("unsupported --target-jvm version: " ++ show version ++ "; supported versions: " ++ supportedJdkMetadataVersionsText)
 
 
 downloadJdkMetadata :: FilePath -> Int -> IO ()
@@ -73,10 +94,11 @@ downloadJdkMetadata exeDir version =
     case Map.lookup version jdkMetadataUrlMap of
         Nothing -> do
             putStrLn ("unsupported java metadata version: " ++ show version)
-            putStrLn "supported versions: 8, 17, 25"
+            putStrLn ("supported versions: " ++ supportedJdkMetadataVersionsText)
         Just url -> do
-            let outDir = exeDir </> "libs" </> "java-native"
-                outFile = outDir </> takeFileName url
+            let nativeDir = exeDir </> "libs" </> "java-native"
+                outDir = versionedMetadataDir exeDir version
+                outFile = nativeDir </> takeFileName url
                 downloadScript = concat [
                     "$ErrorActionPreference='Stop'; ",
                     "$ProgressPreference='SilentlyContinue'; ",
@@ -90,6 +112,7 @@ downloadJdkMetadata exeDir version =
                     "& $sevenZip.Source x \"", outFile, "\" \"-o", outDir, "\" -y | Out-Null; ",
                     "Remove-Item -LiteralPath \"", outFile, "\" -Force"]
 
+            createDirectoryIfMissing True nativeDir
             createDirectoryIfMissing True outDir
             putStrLn ("[1 / 2][DOWNLOAD] jdk metadata v" ++ show version)
             putStrLn ("        url : " ++ url)
@@ -121,15 +144,25 @@ hasAnyEntries dir = do
             pure (not (null entries))
 
 
-ensureDefaultJdkMetadata :: FilePath -> IO ()
-ensureDefaultJdkMetadata exeDir = do
-    let nativeDir = exeDir </> "libs" </> "java-native"
-    ready <- hasAnyEntries nativeDir
-    if ready
+versionedMetadataDir :: FilePath -> Int -> FilePath
+versionedMetadataDir exeDir version = exeDir </> "libs" </> "java-native" </> ("jdk-" ++ show version)
+
+
+hasVersionedMetadata :: FilePath -> Int -> IO Bool
+hasVersionedMetadata exeDir version = hasAnyEntries (versionedMetadataDir exeDir version)
+
+
+ensureTargetJdkMetadata :: FilePath -> Int -> IO ()
+ensureTargetJdkMetadata exeDir version = do
+    versionedReady <- hasVersionedMetadata exeDir version
+    legacyReady <- if version == defaultJvmTargetVersion
+        then hasAnyEntries (exeDir </> "libs" </> "java-native")
+        else pure False
+    if versionedReady || legacyReady
         then pure ()
         else do
-            putStrLn "[INFO] java-native metadata not found; auto download jdk 8 metadata"
-            downloadJdkMetadata exeDir 8
+            putStrLn ("[INFO] java-native metadata for jdk v" ++ show version ++ " not found; auto download")
+            downloadJdkMetadata exeDir version
 
 splitOnDot :: String -> [String]
 splitOnDot s =
@@ -162,6 +195,42 @@ parseArgs = go defaultOptions
             [(n, "")] | n > 0 -> Just n
             _ -> Nothing
 
+        parseTargetJvmArg :: String -> Either String Int
+        parseTargetJvmArg arg = case stripPrefix "--target-jvm" arg of
+            Nothing -> Left "internal parse error for --target-jvm"
+            Just "" -> Right defaultJvmTargetVersion
+            Just ('=' : _) -> Left "invalid --target-jvm format; use --target-jvm25 (no '=')"
+            Just suffix
+                | all isDigit suffix ->
+                    case parsePositiveInt suffix of
+                        Just n -> validateSupportedJvmVersion n
+                        Nothing -> Left "invalid --target-jvm value; expected positive integer suffix"
+                | otherwise ->
+                    Left "invalid --target-jvm format; use --target-jvm25"
+
+        parseLegacyTargetValue :: String -> Either String Int
+        parseLegacyTargetValue raw = case raw of
+            "jvm" -> Right defaultJvmTargetVersion
+            _ ->
+                case stripPrefix "jvm" raw of
+                    Just suffix | not (null suffix) && all isDigit suffix ->
+                        case parsePositiveInt suffix of
+                            Just n -> validateSupportedJvmVersion n
+                            Nothing -> Left "invalid --target value; expected jvm<number>"
+                    _ -> Left "unsupported --target value; use --target-jvm<number>"
+
+        parseTargetJvmValue :: String -> Options -> [String] -> Options
+        parseTargetJvmValue raw opts xs =
+            case parseTargetJvmArg raw of
+                Right n -> go opts {optTargetJvm = Just n} xs
+                Left msg -> opts {optHelp = True, optError = Just msg}
+
+        parseLegacyTarget :: String -> Options -> [String] -> Options
+        parseLegacyTarget raw opts xs =
+            case parseLegacyTargetValue raw of
+                Right n -> go opts {optTargetJvm = Just n} xs
+                Left msg -> opts {optHelp = True, optError = Just msg}
+
         parseJobsValue :: String -> Options -> [String] -> Options
         parseJobsValue raw opts xs = case parsePositiveInt raw of
             Just n -> go opts {optJobs = n} xs
@@ -192,11 +261,15 @@ parseArgs = go defaultOptions
         go opts ("-v" : _) = opts {optVersion = True}
         go opts ("--version" : _) = opts {optVersion = True}
 
-        go opts ("--target=jvm" : xs) = go opts {optTarget = Just "jvm"} xs
-        go opts ("--target" : t : xs) = go opts {optTarget = Just t} xs
+        go opts ("--target=jvm" : xs) = go opts {optTargetJvm = Just defaultJvmTargetVersion} xs
+        go opts ("--target" : t : xs) = parseLegacyTarget t opts xs
         go opts ["--target"] = opts {optHelp = True, optError = Just "missing value for --target"}
 
         go opts (arg : xs)
+            | Just targetRaw <- stripPrefix "--target=" arg =
+                parseLegacyTarget targetRaw opts xs
+            | Just _ <- stripPrefix "--target-jvm" arg =
+                parseTargetJvmValue arg opts xs
             | Just jobsRaw <- stripPrefix "--jobs=" arg =
                 parseJobsValue jobsRaw opts xs
             | Just jobsRaw <- stripPrefix "-j=" arg =
@@ -261,19 +334,23 @@ parseArgs = go defaultOptions
 printHelp :: IO ()
 printHelp = putStrLn $ unlines [
     "Usage:",
-    "   xlang --target=jvm <file.x|file.xl|file.xlang> [more files ...]",
+    "   xlang --target-jvm<n> <file.x|file.xl|file.xlang> [more files ...]",
     "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>]",
     "         [--main=<qname.main>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
     "",
     "   xlang -v | --version",
     "   xlang -h | --help",
-    "   xlang -download=<8|17|25>",
+    "   xlang -download=<n>",
     "",
     "Options:",
-    "   --target=jvm     compile to JVM bytecode (required)",
+    "   --target-jvm<n>  compile to JVM bytecode for target n (e.g. --target-jvm25)",
+    "   --target-jvm     compile to JVM bytecode (defaults to jvm8)",
+    "   --target=jvm     compatibility alias for --target-jvm",
+    "   --target=jvm<n>  compatibility alias for --target-jvm<n> (e.g. --target=jvm25)",
+    "   --target jvm<n>  compatibility alias for --target-jvm<n>",
     "   -download=<n>, --download=<n>",
     "                    download jdk metadata archive to <xlang.exe dir>/libs/java-native",
-    "                    supported versions: 8, 17, 25",
+    "                    supported versions: " ++ supportedJdkMetadataVersionsText,
     "   <file.*>         source files to compile (extensions: .x/.xl/.xlang)",
     "   -c <file.*>      compatibility alias for one input file",
     "   --root=<dir>     source root (preferred form), e.g. --root=./abcde",
@@ -283,7 +360,8 @@ printHelp = putStrLn $ unlines [
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
     "   -lib <files...>  external libs (.class/.jar/.json), e.g. -lib a.jar b.class c.json",
-    "                    plus default: all .jar under <xlang.exe dir>/libs and all .json under <xlang.exe dir>/libs/java-native",
+    "                    plus default: all .jar under <xlang.exe dir>/libs and jsons under <xlang.exe dir>/libs/java-native/jdk-<target>",
+    "                    fallback for legacy metadata: all .json under <xlang.exe dir>/libs/java-native",
     "   --main=<qname.main>",
     "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
     "                    class-only is also accepted: --main=com.wangdi.MainKt",
@@ -323,9 +401,13 @@ main = do
 
                         setNumCapabilities (optJobs opts)
 
-                        ensureDefaultJdkMetadata exeDir
+                        let mTargetJvm = optTargetJvm opts
+                        for_ mTargetJvm (ensureTargetJdkMetadata exeDir)
                         defaultLibJars <- CJ.findDefaultLibJars exeDir
-                        defaultNativeJsons <- CJ.findDefaultNativeJsons exeDir
+                        defaultNativeJsons <-
+                            case mTargetJvm of
+                                Just targetJvm -> CJ.findDefaultNativeJsons exeDir targetJvm
+                                Nothing -> pure []
 
                         let toolkitJar = bytecodegenFile exeDir
                             srcPaths = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
@@ -339,23 +421,23 @@ main = do
                             jobs = optJobs opts
                             mMainClassOverride = optMainEntry opts
 
-                        case (optTarget opts, srcPaths, optOutput opts) of
-                            (Just "jvm", [], _) -> do
+                        case (optTargetJvm opts, srcPaths, optOutput opts) of
+                            (Just _, [], _) -> do
                                 putStrLn "missing input xlang file"
                                 printHelp
-                            (Just "jvm", _, _) | not (null invalidInputs) -> do
+                            (Just _, _, _) | not (null invalidInputs) -> do
                                 putStrLn "invalid source file extension; only .x, .xl, .xlang are allowed"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidInputs
                                 printHelp
-                            (Just "jvm", _, _) | not (null duplicateLibs) -> do
+                            (Just _, _, _) | not (null duplicateLibs) -> do
                                 putStrLn "duplicate library reference detected"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) duplicateLibs
                                 printHelp
-                            (Just "jvm", _, _) | not (null invalidLibs) -> do
+                            (Just _, _, _) | not (null invalidLibs) -> do
                                 putStrLn "invalid -lib extension; only .class, .jar and .json are allowed"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
                                 printHelp
-                            (Just "jvm", _, Just outPath0) -> do
+                            (Just targetJvm, _, Just outPath0) -> do
                                 let outPath = CJ.resolveFromRoot rootAbs outPath0
                                 if includeRuntime && not (CJ.isJarOutput outPath)
                                     then do
@@ -366,9 +448,9 @@ main = do
                                             putStrLn "--main is only valid when -d points to a .jar output"
                                             printHelp
                                         else if CJ.isJarOutput outPath
-                                        then CJ.compileJVMToJar jobs toolkitJar rootAbs srcPaths libPaths outPath includeRuntime (optDebug opts) mMainClassOverride
-                                        else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
-                            (Just "jvm", _, Nothing) ->
+                                        then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths outPath includeRuntime (optDebug opts) mMainClassOverride
+                                        else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
+                            (Just targetJvm, _, Nothing) ->
                                 if includeRuntime
                                     then do
                                         putStrLn "cannot use -include-runtime without -d <output>.jar"
@@ -377,22 +459,9 @@ main = do
                                         then do
                                             putStrLn "--main is only valid with -d <output>.jar"
                                             printHelp
-                                        else void (CJ.compileJVM jobs toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
-                            (Just _, _, _) -> do
-                                putStrLn "unsupported target"
-                                printHelp
+                                        else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
                             _ -> do
-                                putStrLn "missing --target"
+                                putStrLn "missing --target-jvm<number>"
                                 printHelp
-
-
-
-
-
-
-
-
-
-
 
 

@@ -11,8 +11,8 @@ import qualified Lowing.JVM as JVM
 import qualified Semantic.TypeEnv as TEnv
 
 ownerTypeToString :: IR.IRMemberType -> String
-ownerTypeToString IR.MemberClass = "class"
-ownerTypeToString IR.MemberClassWrapped = "class-wrapped"
+ownerTypeToString IR.MemberClass = "xlang-class"
+ownerTypeToString IR.MemberClassWrapped = "xlang-wrapped-class"
 
 
 data LowerState = LowerState {
@@ -229,6 +229,7 @@ atomClass :: IR.IRAtom -> State LowerState Class
 atomClass atom = case atom of
     IR.BoolC _ -> return Bool
     IR.CharC _ -> return Char
+    IR.StringC _ -> return (Class ["java", "lang", "String"] [])
     IR.Int8C _ -> return Int8T
     IR.Int16C _ -> return Int16T
     IR.Int32C _ -> return Int32T
@@ -274,9 +275,14 @@ ensureLocal atom = case atom of
 -- | Emit ops to push a default value for the atom's type and store it.
 defaultValue :: IR.IRAtom -> State LowerState [JVM.JOP]
 defaultValue atom = do
-    c <- defaultConst atom
+    cls <- atomClass atom
     dstOps <- storeAtom atom
-    return  (JVM.CPush c : dstOps)
+    case cls of
+        Class _ _ -> return (JVM.PushNull : dstOps)
+        Array _ _ -> return (JVM.PushNull : dstOps)
+        _ -> do
+            c <- defaultConst atom
+            return (JVM.CPush c : dstOps)
 
 
 -- | Compute a zero-like constant based on the atom's inferred type.
@@ -301,6 +307,7 @@ atomToConst (IR.Float64C f) = Just (JVM.JD f)
 atomToConst (IR.Float128C r) =  Just (JVM.JD (fromRational r))
 atomToConst (IR.BoolC b) = Just (JVM.JI (if b then 1 else 0))
 atomToConst (IR.CharC c) = Just (JVM.JI (fromEnum c))
+atomToConst (IR.StringC s) = Just (JVM.JString s)
 atomToConst _ = Nothing
 
 

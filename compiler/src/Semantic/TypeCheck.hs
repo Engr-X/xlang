@@ -101,6 +101,15 @@ declFromFlags flags = (Public, flags)
 defaultDecl :: Decl
 defaultDecl = declFromFlags defaultDeclFlags
 
+
+normalizeTypeAlias :: Class -> Class
+normalizeTypeAlias cls = case cls of
+    Array elemT dims -> Array (normalizeTypeAlias elemT) dims
+    Class ["String"] [] -> Class ["java", "lang", "String"] []
+    Class qn args -> Class qn (map normalizeTypeAlias args)
+    other -> other
+
+
 -- | Compute flags for a newly defined variable at the current depth.
 newVarFlags :: CheckState -> DeclFlags
 newVarFlags _ =
@@ -140,16 +149,18 @@ recordVarUseLocal pos name vid = do
 -- | Check type compatibility and emit implicit-cast warnings when allowed.
 checkTypeCompat :: Path -> [Position] -> Class -> Class -> TypeM ()
 checkTypeCompat path pos expected actual = do
-    if actual == ErrorClass || expected == ErrorClass || expected == actual then
+    let expectedN = normalizeTypeAlias expected
+        actualN = normalizeTypeAlias actual
+    if actualN == ErrorClass || expectedN == ErrorClass || expectedN == actualN then
         pure ()
-    else if expected == Void || actual == Void then
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected) (prettyClass actual))
-    else if isBasicType expected && isBasicType actual then
-        mapM_ addWarn (iCast path pos actual expected)
-    else if isBasicType expected /= isBasicType actual then
-        addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actual) (prettyClass expected))
+    else if expectedN == Void || actualN == Void then
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
+    else if isBasicType expectedN && isBasicType actualN then
+        mapM_ addWarn (iCast path pos actualN expectedN)
+    else if isBasicType expectedN /= isBasicType actualN then
+        addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actualN) (prettyClass expectedN))
     else
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expected) (prettyClass actual))
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
 
 -- | Check condition expression type (must be bool).
 checkCondBool :: Path -> [Position] -> Class -> TypeM ()
@@ -630,7 +641,7 @@ inferLiteral _ e = case e of
     LongDoubleConst _ _ -> pure Float128T
     CharConst _ _ -> pure Char
     BoolConst _ _ -> pure Bool
-    StringConst _ _ -> error "string type is not supported"
+    StringConst _ _ -> pure (Class ["java", "lang", "String"] [])
     _ -> error "inferLiteral: non-literal expression"
 
 
