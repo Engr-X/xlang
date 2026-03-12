@@ -1,36 +1,37 @@
 /*
 First xlang program.
-第一个 xlang 程序.
+绗竴涓?xlang 绋嬪簭.
 
 It prints "Hello, World!".
-它会输出 "Hello, World!".
+瀹冧細杈撳嚭 "Hello, World!".
 
 Semicolon notes:
-分号说明:
+鍒嗗彿璇存槑:
 1) End-of-line semicolon is optional.
-1) 行尾分号可省略.
+1) 琛屽熬鍒嗗彿鍙渷鐣?
 2) On the same line, ';' can separate statements.
-2) 同一行里 ';' 可以分隔多个语句.
+2) 鍚屼竴琛岄噷 ';' 鍙互鍒嗛殧澶氫釜璇彞.
 */
 
-main() -> void
+void main()
 {
     // Output "Hello, World!"
-    // 输出 "Hello, World!"
+    // 杈撳嚭 "Hello, World!"
     putln("Hello, World!")
 
     // Same-line separator example:
-    // 同行分隔示例:
+    // 鍚岃鍒嗛殧绀轰緥:
     // putln("A"); putln("B")
     // putln("A"); putln("B")
 }
 
 /*
 If you prefer Java/C style, this version is also accepted.
-如果你更喜欢 Java/C 风格, 也可以写成下面这样.
+濡傛灉浣犳洿鍠滄 Java/C 椋庢牸, 涔熷彲浠ュ啓鎴愪笅闈㈣繖鏍?
 
-void main()
+fun main() -> void:
 {
     putln("Hello, World!")
 }
 */
+
