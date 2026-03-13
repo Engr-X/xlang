@@ -1,5 +1,9 @@
-# Revision history for lexparser
+# Revision history for xlang
 
-## 0.1.0.0 -- YYYY-mm-dd
+## Alpha-1.0.0 -- 2026-03-14
 
-* First version. Released on an unsuspecting world.
+This root changelog is an index only. Detailed updates are tracked in:
+
+- `compiler/CHANGELOG.md`
+- `libs/java/CHANGELOG.md`
+- `tools/BytecodeToolkit/CHANGELOG.md`

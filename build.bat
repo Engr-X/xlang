@@ -12,6 +12,8 @@ if not defined JOBS (
     )
 )
 
+if not defined CABAL_UPDATE set "CABAL_UPDATE=0"
+
 set "ROOT_DIR=%~dp0"
 if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 
@@ -27,8 +29,6 @@ set "JAVA_LIB_OUT_DIR=%BUILD_DIR_ABS%\libs\java"
 
 set "GRADLE_USER_HOME=%BUILD_DIR_ABS%\.gradle-home"
 set "GRADLE_ARGS=--console=plain --no-daemon"
-
-if not defined TERM set "TERM=dumb"
 
 set "CMD="
 set "SHOW_HELP=0"
@@ -54,9 +54,21 @@ if /I "%ARG%"=="help" (
     goto parse_args
 )
 
+if /I "%ARG%"=="-u" (
+    set "CABAL_UPDATE=1"
+    shift
+    goto parse_args
+)
+if /I "%ARG%"=="--update" (
+    set "CABAL_UPDATE=1"
+    shift
+    goto parse_args
+)
+
 if /I "%ARG%"=="all"       call :set_cmd all       || goto parse_fail
 if /I "%ARG%"=="build"     call :set_cmd build     || goto parse_fail
 if /I "%ARG%"=="compile"   call :set_cmd compile   || goto parse_fail
+if /I "%ARG%"=="update"    call :set_cmd update    || goto parse_fail
 if /I "%ARG%"=="tools"     call :set_cmd tools     || goto parse_fail
 if /I "%ARG%"=="java_lib"  call :set_cmd java_lib  || goto parse_fail
 if /I "%ARG%"=="clean"     call :set_cmd clean     || goto parse_fail
@@ -65,6 +77,7 @@ if /I "%ARG%"=="rebuild"   call :set_cmd rebuild   || goto parse_fail
 if /I "%ARG%"=="all"       (shift & goto parse_args)
 if /I "%ARG%"=="build"     (shift & goto parse_args)
 if /I "%ARG%"=="compile"   (shift & goto parse_args)
+if /I "%ARG%"=="update"    (shift & goto parse_args)
 if /I "%ARG%"=="tools"     (shift & goto parse_args)
 if /I "%ARG%"=="java_lib"  (shift & goto parse_args)
 if /I "%ARG%"=="clean"     (shift & goto parse_args)
@@ -131,6 +144,7 @@ if /I "%CMD%"=="build" set "CMD=all"
 
 if /I "%CMD%"=="all" goto all
 if /I "%CMD%"=="compile" goto compile
+if /I "%CMD%"=="update" goto update
 if /I "%CMD%"=="tools" goto tools
 if /I "%CMD%"=="java_lib" goto java_lib
 if /I "%CMD%"=="clean" goto clean
@@ -145,13 +159,28 @@ if defined ARG_ERROR echo %ARG_ERROR%
 call :usage
 exit /b 2
 
+:maybe_update
+if "%CABAL_UPDATE%"=="1" (
+    call :update
+    exit /b %ERRORLEVEL%
+)
+exit /b 0
+
 :all
 call :compile || exit /b 1
 call :tools || exit /b 1
 call :java_lib || exit /b 1
 exit /b 0
 
+:update
+pushd "%COMPILER_DIR%" >nul || exit /b 1
+cabal update
+set "ERR=%ERRORLEVEL%"
+popd >nul
+exit /b %ERR%
+
 :compile
+call :maybe_update || exit /b 1
 if not exist "%BUILD_DIR_ABS%" mkdir "%BUILD_DIR_ABS%" || exit /b 1
 
 pushd "%COMPILER_DIR%" >nul || exit /b 1
@@ -255,58 +284,18 @@ pushd "%GDIR%" >nul 2>nul
 if errorlevel 1 exit /b 0
 
 set "GRADLE_USER_HOME=%GRADLE_USER_HOME%"
-if "%CLEAN_VERBOSE%"=="1" (
-    call gradlew.bat --stop %GRADLE_ARGS%
-) else (
-    call gradlew.bat --stop %GRADLE_ARGS% >nul 2>nul
-)
-set "ERR1=%ERRORLEVEL%"
-if "%CLEAN_VERBOSE%"=="1" (
-    call gradlew.bat clean %GRADLE_ARGS%
-) else (
-    call gradlew.bat clean %GRADLE_ARGS% >nul 2>nul
-)
-set "ERR2=%ERRORLEVEL%"
-
-if "%ERR1%%ERR2%"=="00" (
-    popd >nul
-    exit /b 0
-)
-
-echo [INFO] retry gradle clean with fallback GRADLE_USER_HOME in "%GDIR%"
-set "OLD_GRADLE_USER_HOME=%GRADLE_USER_HOME%"
-set "GRADLE_USER_HOME=%TEMP%\\xlang-gradle-home"
-if not exist "%GRADLE_USER_HOME%" mkdir "%GRADLE_USER_HOME%" >nul 2>nul
-if "%CLEAN_VERBOSE%"=="1" (
-    call gradlew.bat --stop %GRADLE_ARGS%
-) else (
-    call gradlew.bat --stop %GRADLE_ARGS% >nul 2>nul
-)
-set "ERR1=%ERRORLEVEL%"
-if "%CLEAN_VERBOSE%"=="1" (
-    call gradlew.bat clean %GRADLE_ARGS%
-) else (
-    call gradlew.bat clean %GRADLE_ARGS% >nul 2>nul
-)
-set "ERR2=%ERRORLEVEL%"
-set "GRADLE_USER_HOME=%OLD_GRADLE_USER_HOME%"
-set "OLD_GRADLE_USER_HOME="
-
-if not "%ERR1%%ERR2%"=="00" (
-    if not "%ERR1%"=="0" echo [WARN] gradle --stop failed in "%GDIR%"
-    if not "%ERR2%"=="0" echo [WARN] gradle clean failed in "%GDIR%"
-)
-
+call gradlew.bat --stop %GRADLE_ARGS% >nul 2>nul
+call gradlew.bat clean %GRADLE_ARGS% >nul 2>nul
 popd >nul
 exit /b 0
 
 :usage
-echo Usage: build.bat [all^|build^|compile^|tools^|java_lib^|clean^|clean_ide^|rebuild] [-jN ^| -j N ^| --jobs=N ^| --jobs N]
+echo Usage: build.bat [all^|build^|compile^|update^|tools^|java_lib^|clean^|clean_ide^|rebuild] [-jN ^| -j N ^| --jobs=N ^| --jobs N] [--update]
 echo.
 echo Env overrides:
-echo   BUILD_DIR=out   (default: build)
-echo   JOBS=24         (default: NUMBER_OF_PROCESSORS or 8)
-echo   CLEAN_VERBOSE=1 (show gradle clean output)
+echo   BUILD_DIR=out      (default: build)
+echo   JOBS=24            (default: NUMBER_OF_PROCESSORS or 8)
+echo   CABAL_UPDATE=1     (run cabal update before compile/all/rebuild)
 exit /b 0
 
 :set_cmd

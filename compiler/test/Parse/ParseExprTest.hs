@@ -151,6 +151,24 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
                     (mkSym Lex.Plus 1 23 1))
                 (mkSym Lex.Minus 1 18 1))
             (mkSym Lex.NotEqual 1 9 2)),
+
+    ("7a", "a >= b + 1", Right $
+        Binary GreaterEqual
+            (Variable "a" $ mkId "a" 1 1 1)
+            (Binary Add
+                (Variable "b" $ mkId "b" 1 6 1)
+                (IntConst "1" $ mkNum "1" 1 10 1)
+                (mkSym Lex.Plus 1 8 1))
+            (mkSym Lex.GreaterEqual 1 3 2)),
+
+    ("7b", "x <= y * 2", Right $
+        Binary LessEqual
+            (Variable "x" $ mkId "x" 1 1 1)
+            (Binary Mul
+                (Variable "y" $ mkId "y" 1 6 1)
+                (IntConst "2" $ mkNum "2" 1 10 1)
+                (mkSym Lex.Multiply 1 8 1))
+            (mkSym Lex.LessEqual 1 3 2)),
             
     ("8", "!a > b", Right $
         Binary GreaterThan

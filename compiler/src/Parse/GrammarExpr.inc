@@ -89,8 +89,14 @@ Expr :: { Expression }
     | Expr '>' Expr                     { Binary GreaterThan $1 $3 $2 }
     | Expr '>' error                    { Error [$2] (expectedExpression 1 ">") }
 
+    | Expr '>=' Expr                    { Binary GreaterEqual $1 $3 $2 }
+    | Expr '>=' error                   { Error [$2] (expectedExpression 1 ">=") }
+
     | Expr '<' Expr                     { Binary LessThan $1 $3 $2 }
     | Expr '<' error                    { Error [$2] (expectedExpression 1 "<") }
+
+    | Expr '<=' Expr                    { Binary LessEqual $1 $3 $2 }
+    | Expr '<=' error                   { Error [$2] (expectedExpression 1 "<=") }
 
     --
     | Expr '+' Expr                     { Binary Add $1 $3 $2 }

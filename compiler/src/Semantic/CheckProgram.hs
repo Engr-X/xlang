@@ -189,7 +189,8 @@ resolveAllImportsWithExternal pkgMap extPkgs mods =
                         then (errs0, acc)
                         else
                             let msg = UE.undefinedIdentity (prettyQName importQn)
-                            in (UE.Syntax (UE.makeError ownerPath pos msg) : errs0, acc)
+                                err = UE.Syntax (UE.makeError ownerPath pos msg)
+                            in (err : errs0, acc)
 
         (errsRev, owners) = foldl' foldOne ([], Map.empty) imports
         errs = reverse errsRev
@@ -207,8 +208,8 @@ externalPackages envs =
     where
         fromEnv :: TypedImportEnv -> [QName]
         fromEnv env =
-            mapMaybe pkgFromFull (map (\(_, _, full) -> full) (Map.elems (tVars env)))
-            ++ mapMaybe pkgFromFull (map (\(_, _, full) -> full) (Map.elems (tFuncs env)))
+            mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tVars env))
+            ++ mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tFuncs env))
 
         pkgFromFull :: QName -> Maybe QName
         pkgFromFull full
@@ -535,10 +536,7 @@ aliasTargetsForSpec currentPkg isTopLevel full = case splitFullQName full of
     Nothing -> [full]
     Just (_, cls, member) ->
         let shortClass = [cls, member]
-            samePkgTopLevel =
-                if isTopLevel
-                    then [currentPkg ++ [member]]
-                    else []
+            samePkgTopLevel = ([currentPkg ++ [member] | isTopLevel])
         in dedupQNames (full : shortClass : samePkgTopLevel)
   where
     dedupQNames :: [QName] -> [QName]
@@ -555,20 +553,17 @@ expandTypedImportEnvBySpecs currentPkg specs env =
     expandVarMap :: Map QName (AST.Class, [Position], QName) -> Map QName (AST.Class, [Position], QName)
     expandVarMap mp =
         let entries = Map.toList mp
-            topLevels = HashSet.fromList
-                [ fullQn
-                | (keyQn, (_, _, fullQn)) <- entries
-                , let (_, payload) = splitHiddenQName keyQn
-                , isTopLevelAliasPayload payload fullQn
-                ]
-            aliases =
-                [ (aliasKey, entry)
-                | (keyQn, entry) <- entries
-                , let (isHidden, _) = splitHiddenQName keyQn
-                , any (`matchesImportSpec` fullFromEntry entry) specs
-                , alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry)
-                , let aliasKey = if isHidden then toHiddenQName alias else alias
-                ]
+            topLevels = HashSet.fromList [
+                fullQn | (keyQn, (_, _, fullQn)) <- entries,
+                let (_, payload) = splitHiddenQName keyQn,
+                isTopLevelAliasPayload payload fullQn]
+            aliases = [
+                (aliasKey, entry) | (keyQn, entry) <- entries,
+                let (isHidden, _) = splitHiddenQName keyQn,
+                let full = fullFromEntry entry,
+                isSamePackageFull full || any (`matchesImportSpec` full) specs,
+                alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry),
+                let aliasKey = if isHidden then toHiddenQName alias else alias]
             keepOld :: (AST.Class, [Position], QName) -> (AST.Class, [Position], QName) -> (AST.Class, [Position], QName)
             keepOld _ old = old
         in foldl' (\acc (k, v) -> Map.insertWith keepOld k v acc) Map.empty aliases
@@ -586,7 +581,8 @@ expandTypedImportEnvBySpecs currentPkg specs env =
                 [ (aliasKey, entry)
                 | (keyQn, entry) <- entries
                 , let (isHidden, _) = splitHiddenQName keyQn
-                , any (`matchesImportSpec` fullFromEntry entry) specs
+                , let full = fullFromEntry entry
+                , isSamePackageFull full || any (`matchesImportSpec` full) specs
                 , alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry)
                 , let aliasKey = if isHidden then toHiddenQName alias else alias
                 ]
@@ -600,6 +596,11 @@ expandTypedImportEnvBySpecs currentPkg specs env =
 
     fullFromEntry :: (a, b, QName) -> QName
     fullFromEntry (_, _, full) = full
+
+    isSamePackageFull :: QName -> Bool
+    isSamePackageFull full = case splitFullQName full of
+        Just (pkg, _, _) -> pkg == currentPkg
+        Nothing -> False
 
 
 typedToImportEnv :: TypedImportEnv -> ImportEnv
@@ -703,7 +704,7 @@ applyVisibilityKey _ qn = toHiddenQName qn
 
 
 collectFunctions :: Path -> QName -> [Statement] -> [(QName, QName, FunSig, [Position])]
-collectFunctions path pkg = collectFunctionsWithClass (fileClassName path) pkg
+collectFunctions path = collectFunctionsWithClass (fileClassName path)
 
 
 collectFunctionsWithClass :: String -> QName -> [Statement] -> [(QName, QName, FunSig, [Position])]
@@ -749,7 +750,7 @@ collectFunctionsWithClass fileCls pkg = concatMap one
 
 
 collectTopLevelVars :: Path -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
-collectTopLevelVars path pkg stmts ctx = collectTopLevelVarsWithClass (fileClassName path) pkg stmts ctx
+collectTopLevelVars path = collectTopLevelVarsWithClass (fileClassName path)
 
 
 collectTopLevelVarsWithClass :: String -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
@@ -793,7 +794,7 @@ collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one stmts >>= expa
 
 
 symbolAliases :: Path -> QName -> String -> (QName, [QName])
-symbolAliases path pkg name = symbolAliasesWithClass (fileClassName path) pkg name
+symbolAliases path = symbolAliasesWithClass (fileClassName path)
 
 
 symbolAliasesWithClass :: String -> QName -> String -> (QName, [QName])
@@ -831,4 +832,3 @@ prettyQName = intercalate "."
 safeHead :: [a] -> Maybe a
 safeHead [] = Nothing
 safeHead (x:_) = Just x
-

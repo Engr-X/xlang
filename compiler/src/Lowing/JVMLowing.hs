@@ -220,12 +220,14 @@ lowerCmp kind a b bid = do
 
 pickCmpClass :: Class -> Class -> Class
 pickCmpClass a b
-    | isFloatLike a || isFloatLike b = Float32T
+    | isFloat64Like a || isFloat64Like b = Float64T
+    | isFloat32Like a || isFloat32Like b = Float32T
     | isLongLike a || isLongLike b = Int64T
     | isIntLike a && isIntLike b = Int32T
     | otherwise = error ("unsupported cmp types: " ++ show a ++ ", " ++ show b)
     where
-        isFloatLike cls = cls `elem` [Float32T, Float64T, Float128T]
+        isFloat32Like cls = cls == Float32T
+        isFloat64Like cls = cls `elem` [Float64T, Float128T]
         isLongLike cls = cls == Int64T
         isIntLike cls = cls `elem` [Bool, Char, Int8T, Int16T, Int32T]
 

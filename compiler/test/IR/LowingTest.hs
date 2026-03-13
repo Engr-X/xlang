@@ -232,6 +232,27 @@ staticFieldReadLoweringTests = testGroup "IR.Lowing.staticFieldRead" [
                 assertBool "json should reference MainX.a in getstatic" ("\"attr_name\":[\"MainX\",\"a\"]" `isInfixOf` jsonText)
     ]
 
+doubleCmpLoweringTests :: TestTree
+doubleCmpLoweringTests = testGroup "IR.Lowing.doubleCmp" [
+    testCase "double condition lowers to dcmp-based if op" $ do
+        let src = unlines [
+                "int main() {",
+                "    val a = 10.0",
+                "    val absA = a if a > 0 else (-a)",
+                "    return 0",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (ir@(IRProgm _ _), _) -> do
+                let classes = jvmProgmLowing ir
+                    jsonText = BL.unpack (encode (jProgmToJSON 8 classes))
+                assertBool "json should include if_dcmp* for double comparisons"
+                    ("\"op_name\":\"if_dcmp" `isInfixOf` jsonText)
+                assertBool "json should not include if_fcmp* for double comparisons"
+                    (not ("\"op_name\":\"if_fcmp" `isInfixOf` jsonText))
+    ]
+
 float128JvmRejectTests :: TestTree
 float128JvmRejectTests = testGroup "IR.Lowing.float128JvmReject" [
     testCase "jvm lowering rejects float128 (native only)" $ do
@@ -260,4 +281,5 @@ tests = testGroup "IR.Lowing" [
     ternaryControlFlowTests,
     stringLiteralLoweringTests,
     staticFieldReadLoweringTests,
+    doubleCmpLoweringTests,
     float128JvmRejectTests]

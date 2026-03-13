@@ -58,6 +58,8 @@ import qualified Util.Exception as UE
 
     '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
     '<'                 { t@(Lex.Symbol Lex.LessThan _) }
+    '>='                { t@(Lex.Symbol Lex.GreaterEqual _) }
+    '<='                { t@(Lex.Symbol Lex.LessEqual _) }
     '=='                { t@(Lex.Symbol Lex.Equal _) }
     '!='                { t@(Lex.Symbol Lex.NotEqual _) }
 
@@ -86,7 +88,7 @@ import qualified Util.Exception as UE
 %right '='
 %right KW_IF
 %left '!=' '=='
-%left '>' '<'
+%left '>' '<' '>=' '<='
 %left '+' '-'
 %left '*' '/' '%'
 %left '**'

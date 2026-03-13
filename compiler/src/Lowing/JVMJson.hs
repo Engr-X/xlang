@@ -187,8 +187,8 @@ cmpPrefix :: Class -> String
 cmpPrefix cls = case cls of
     Int64T -> "l"
     Float32T -> "f"
-    Float64T -> "f"
-    Float128T -> "f"
+    Float64T -> "d"
+    Float128T -> "d"
     Bool -> "i"
     Char -> "i"
     Int8T -> "i"

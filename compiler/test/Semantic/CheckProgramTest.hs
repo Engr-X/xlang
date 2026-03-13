@@ -658,6 +658,15 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
             t0 = emptyTypedImportEnv "seed.x"
         assertRightWith (checkPackageFixpoint [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 2)
+    ,
+
+    ("4", do
+        let miNeed = mkModuleInfo "need2.x" ["p"] [] [assignStmt "b" (addExpr (varExpr "a" 2) (intExpr 1 3) 2) 2]
+            miDef = mkModuleInfo "def2.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
+            i0 = IEnv "seed.x" Map.empty Map.empty
+            t0 = emptyTypedImportEnv "seed.x"
+        assertRightWith (checkPackageFixpoint [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+            Map.size ctxs @?= 2)
     ]
 
 
