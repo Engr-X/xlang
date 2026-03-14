@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.artifact.operation
+﻿package com.wangdi.bctoolkit.generator.artifact.operation
 
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
@@ -12,6 +12,12 @@ class OpBlock(
     private val blockOps: MutableList<Instruction>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         return this.mv.also {
@@ -20,6 +26,13 @@ class OpBlock(
         }
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String {
         val pad: String = this.indent(tabs)
         if (this.blockOps.isEmpty())
@@ -36,11 +49,24 @@ class Goto(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.GOTO, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}goto .L${this.blockId}"
 }
 
@@ -53,11 +79,24 @@ class If_icmpeq(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.IF_ICMPEQ, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_icmpeq .L${this.blockId}"
 }
 
@@ -69,11 +108,24 @@ class If_icmpne(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.IF_ICMPNE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_icmpne .L${this.blockId}"
 }
 
@@ -85,11 +137,24 @@ class If_icmplt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.IF_ICMPLT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_icmplt .L${this.blockId}"
 }
 
@@ -101,11 +166,24 @@ class If_icmple(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.IF_ICMPLE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_icmple .L${this.blockId}"
 }
 
@@ -117,11 +195,24 @@ class If_icmpgt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.IF_ICMPGT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_icmpgt .L${this.blockId}"
 }
 
@@ -133,11 +224,24 @@ class If_icmpge(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitJumpInsn(Opcodes.IF_ICMPGE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_icmpge .L${this.blockId}"
 }
 
@@ -150,12 +254,25 @@ class If_lcmpeq(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.LCMP)
         it.visitJumpInsn(Opcodes.IFEQ, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_lcmpeq .L${this.blockId}"
 }
 
@@ -167,12 +284,25 @@ class If_lcmpne(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.LCMP)
         it.visitJumpInsn(Opcodes.IFNE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_lcmpne .L${this.blockId}"
 }
 
@@ -184,12 +314,25 @@ class If_lcmplt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.LCMP)
         it.visitJumpInsn(Opcodes.IFLT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_lcmplt .L${this.blockId}"
 }
 
@@ -201,12 +344,25 @@ class If_lcmple(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.LCMP)
         it.visitJumpInsn(Opcodes.IFLE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_lcmple .L${this.blockId}"
 }
 
@@ -218,12 +374,25 @@ class If_lcmpgt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.LCMP)
         it.visitJumpInsn(Opcodes.IFGT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_lcmpgt .L${this.blockId}"
 }
 
@@ -235,12 +404,25 @@ class If_lcmpge(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.LCMP)
         it.visitJumpInsn(Opcodes.IFGE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_lcmpge .L${this.blockId}"
 }
 
@@ -253,12 +435,25 @@ class If_fcmpeq(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.FCMPL)
         it.visitJumpInsn(Opcodes.IFEQ, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_fcmpeq .L${this.blockId}"
 }
 
@@ -270,12 +465,25 @@ class If_fcmpne(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.FCMPL)
         it.visitJumpInsn(Opcodes.IFNE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_fcmpne .L${this.blockId}"
 }
 
@@ -287,12 +495,25 @@ class If_fcmplt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.FCMPG)
         it.visitJumpInsn(Opcodes.IFLT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_fcmplt .L${this.blockId}"
 }
 
@@ -304,12 +525,25 @@ class If_fcmple(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.FCMPG)
         it.visitJumpInsn(Opcodes.IFLE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_fcmple .L${this.blockId}"
 }
 
@@ -321,12 +555,25 @@ class If_fcmpgt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.FCMPL)
         it.visitJumpInsn(Opcodes.IFGT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_fcmpgt .L${this.blockId}"
 }
 
@@ -338,12 +585,25 @@ class If_fcmpge(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.FCMPL)
         it.visitJumpInsn(Opcodes.IFGE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_fcmpge .L${this.blockId}"
 }
 
@@ -353,10 +613,23 @@ class Return(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.RETURN)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}return"
 }
 
@@ -369,12 +642,25 @@ class If_dcmpeq(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.DCMPL)
         it.visitJumpInsn(Opcodes.IFEQ, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_dcmpeq .L${this.blockId}"
 }
 
@@ -386,12 +672,25 @@ class If_dcmpne(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.DCMPL)
         it.visitJumpInsn(Opcodes.IFNE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_dcmpne .L${this.blockId}"
 }
 
@@ -403,12 +702,25 @@ class If_dcmplt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.DCMPG)
         it.visitJumpInsn(Opcodes.IFLT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_dcmplt .L${this.blockId}"
 }
 
@@ -420,12 +732,25 @@ class If_dcmple(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.DCMPG)
         it.visitJumpInsn(Opcodes.IFLE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_dcmple .L${this.blockId}"
 }
 
@@ -437,12 +762,25 @@ class If_dcmpgt(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.DCMPL)
         it.visitJumpInsn(Opcodes.IFGT, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_dcmpgt .L${this.blockId}"
 }
 
@@ -454,12 +792,25 @@ class If_dcmpge(
     private val blockId: Int
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         val label: Label = this.labels.getOrPut(this.blockId) { Label() }
         it.visitInsn(Opcodes.DCMPL)
         it.visitJumpInsn(Opcodes.IFGE, label)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}if_dcmpge .L${this.blockId}"
 }
 
@@ -470,10 +821,23 @@ class IReturn(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.IRETURN)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}ireturn"
 }
 
@@ -483,10 +847,23 @@ class LReturn(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.LRETURN)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}lreturn"
 }
 
@@ -496,10 +873,23 @@ class FReturn(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.FRETURN)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}freturn"
 }
 
@@ -509,10 +899,23 @@ class DReturn(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.DRETURN)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}dreturn"
 }
 
@@ -523,10 +926,23 @@ class Pop(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.POP)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}pop"
 }
 
@@ -536,10 +952,23 @@ class Dup(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.DUP)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}dup"
 }
 
@@ -549,9 +978,23 @@ class Nop(
     labels: MutableMap<Int, Label>
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitInsn(Opcodes.NOP)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}nop"
 }
+

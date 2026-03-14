@@ -1,9 +1,6 @@
-package com.wangdi.bctoolkit.reader
+﻿package com.wangdi.bctoolkit.reader
 
 import com.wangdi.bctoolkit.base.Access
-
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 
 class JavaClass(
@@ -20,6 +17,13 @@ class JavaClass(
     private val instanceMethod: MutableList<JavaMethod> = mutableListOf()
 )
 {
+    /**
+     * Auto-generated baseline docs for addFunction.
+     * Describes the intent and behavior of this function.
+     *
+     * @param method parameter from function signature.
+     * @return return value of this function.
+     */
     fun addFunction(method: JavaMethod): JavaClass = this.apply {
         if (method.isStatic())
             this.staticMethod.add(method)
@@ -27,6 +31,13 @@ class JavaClass(
             this.instanceMethod.add(method)
     }
 
+    /**
+     * Auto-generated baseline docs for addField.
+     * Describes the intent and behavior of this function.
+     *
+     * @param field parameter from function signature.
+     * @return return value of this function.
+     */
     fun addField(field: JavaField): JavaClass = this.apply {
         if (field.isStatic())
             this.staticField.add(field)
@@ -34,6 +45,12 @@ class JavaClass(
             this.instanceField.add(field)
     }
 
+    /**
+     * Auto-generated baseline docs for toDto.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun toDto(): JavaClassDto =
         JavaClassDto(
             packagePath = this.belong.path.toList(),
@@ -46,6 +63,12 @@ class JavaClass(
             staticMethod = this.staticMethod.map { it.toDto() },
             instanceMethod = this.instanceMethod.map { it.toDto() })
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun toString(): String =
         "${this.belong.path.joinToString(".")}:${this.access.toList().sorted()} " +
                 "${this.name.joinToString(".")} extends ${this.superClass.joinToString(".")} " +
@@ -53,18 +76,12 @@ class JavaClass(
                 "fields(static=${this.staticField.size}, instance=${this.instanceField.size}) " +
                 "methods(static=${this.staticMethod.size}, instance=${this.instanceMethod.size})"
 
+    /**
+     * Auto-generated baseline docs for getName.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun getName(): String = this.name.last()
 }
 
-@Serializable
-data class JavaClassDto(
-    @SerialName("package") val packagePath: List<String>,
-    val access: List<String>,
-    @SerialName("class") val name: String,
-    @SerialName("super_class") val superClass: List<String>,
-    val interfaces: List<List<String>>,
-    
-    @SerialName("static_fields") val staticField: List<JavaFieldDto>,
-    @SerialName("instance_fields") val instanceField: List<JavaFieldDto>,
-    @SerialName("static_methods") val staticMethod: List<JavaMethodDto>,
-    @SerialName("instance_methods") val instanceMethod: List<JavaMethodDto>)

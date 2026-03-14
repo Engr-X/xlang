@@ -1,6 +1,6 @@
 package com.wangdi.bctoolkit.generator
 
-import com.wangdi.bctoolkit.artifact.operation.OpBlock
+import com.wangdi.bctoolkit.generator.artifact.operation.OpBlock
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
 import xlang.annotation.OwnerTypeMetadata
@@ -16,6 +16,11 @@ import kotlin.test.assertEquals
 class MethodEmitterTest
 {
     @Test
+    /**
+     * Auto-generated baseline docs for builderBuildsAndGenerate.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun builderBuildsAndGenerate()
     {
         val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
@@ -35,6 +40,11 @@ class MethodEmitterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for blockBuilderProducesBlockOp.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun blockBuilderProducesBlockOp()
     {
         val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
@@ -62,6 +72,11 @@ class MethodEmitterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for methodWritesOwnerTypeMetadata.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun methodWritesOwnerTypeMetadata()
     {
         val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
@@ -83,6 +98,11 @@ class MethodEmitterTest
         val reader = ClassReader(cw.toByteArray())
         val visitor = object : ClassVisitor(Opcodes.ASM9)
         {
+            /**
+             * Auto-generated baseline docs for visitMethod.
+             * Describes the intent and behavior of this function.
+             * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+             */
             override fun visitMethod(
                 access: Int,
                 name: String,
@@ -96,6 +116,11 @@ class MethodEmitterTest
 
                 return object : MethodVisitor(Opcodes.ASM9)
                 {
+                    /**
+                     * Auto-generated baseline docs for visitAnnotation.
+                     * Describes the intent and behavior of this function.
+                     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+                     */
                     override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
                     {
                         if (!OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
@@ -113,6 +138,11 @@ class MethodEmitterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for classOwnerTypeSkipsMetadata.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun classOwnerTypeSkipsMetadata()
     {
         val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
@@ -133,6 +163,11 @@ class MethodEmitterTest
         val reader = ClassReader(cw.toByteArray())
         val visitor = object : ClassVisitor(Opcodes.ASM9)
         {
+            /**
+             * Auto-generated baseline docs for visitMethod.
+             * Describes the intent and behavior of this function.
+             * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+             */
             override fun visitMethod(
                 access: Int,
                 name: String,
@@ -146,6 +181,11 @@ class MethodEmitterTest
 
                 return object : MethodVisitor(Opcodes.ASM9)
                 {
+                    /**
+                     * Auto-generated baseline docs for visitAnnotation.
+                     * Describes the intent and behavior of this function.
+                     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+                     */
                     override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
                     {
                         if (OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
@@ -160,3 +200,4 @@ class MethodEmitterTest
         assertEquals(false, foundOwnerTypeMetadata)
     }
 }
+

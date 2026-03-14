@@ -18,6 +18,11 @@ import kotlin.test.assertTrue
 class JavaClassEmitterTest
 {
     @Test
+    /**
+     * Auto-generated baseline docs for saveCreatesClassFile.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun saveCreatesClassFile()
     {
         val emitter = ClassEmitter(
@@ -40,6 +45,11 @@ class JavaClassEmitterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for customInitAndClinitWork.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun customInitAndClinitWork()
     {
         val emitter = ClassEmitter(
@@ -69,6 +79,11 @@ class JavaClassEmitterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for fieldWritesOwnerTypeMetadata.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun fieldWritesOwnerTypeMetadata()
     {
         val emitter = ClassEmitter(
@@ -94,6 +109,11 @@ class JavaClassEmitterTest
         val reader = ClassReader(classBytes)
         val visitor = object : ClassVisitor(Opcodes.ASM9)
         {
+            /**
+             * Auto-generated baseline docs for visitField.
+             * Describes the intent and behavior of this function.
+             * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+             */
             override fun visitField(
                 access: Int,
                 name: String?,
@@ -107,6 +127,11 @@ class JavaClassEmitterTest
 
                 return object : FieldVisitor(Opcodes.ASM9)
                 {
+                    /**
+                     * Auto-generated baseline docs for visitAnnotation.
+                     * Describes the intent and behavior of this function.
+                     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+                     */
                     override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
                     {
                         if (!OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
@@ -124,6 +149,11 @@ class JavaClassEmitterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for fieldClassOwnerTypeSkipsMetadata.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun fieldClassOwnerTypeSkipsMetadata()
     {
         val emitter = ClassEmitter(
@@ -149,6 +179,11 @@ class JavaClassEmitterTest
         val reader = ClassReader(classBytes)
         val visitor = object : ClassVisitor(Opcodes.ASM9)
         {
+            /**
+             * Auto-generated baseline docs for visitField.
+             * Describes the intent and behavior of this function.
+             * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+             */
             override fun visitField(
                 access: Int,
                 name: String?,
@@ -162,6 +197,11 @@ class JavaClassEmitterTest
 
                 return object : FieldVisitor(Opcodes.ASM9)
                 {
+                    /**
+                     * Auto-generated baseline docs for visitAnnotation.
+                     * Describes the intent and behavior of this function.
+                     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+                     */
                     override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
                     {
                         if (OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
@@ -176,3 +216,4 @@ class JavaClassEmitterTest
         assertEquals(false, foundOwnerTypeMetadata)
     }
 }
+

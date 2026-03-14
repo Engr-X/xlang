@@ -1,5 +1,6 @@
 package com.wangdi.bctoolkit
 
+import com.wangdi.bctoolkit.generator.JsonAdapter
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -9,6 +10,11 @@ import kotlin.test.assertTrue
 class JsonAdapterTest
 {
     @Test
+    /**
+     * Auto-generated baseline docs for parseMinimalJsonAndSave.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun parseMinimalJsonAndSave()
     {
         val json: String = """
@@ -40,6 +46,11 @@ class JsonAdapterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for parseShortOpFormatAndArrayParams.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun parseShortOpFormatAndArrayParams()
     {
         val json: String = """
@@ -82,6 +93,11 @@ class JsonAdapterTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for unknownOpThrowsReadableError.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun unknownOpThrowsReadableError()
     {
         val json: String = """
@@ -123,3 +139,4 @@ class JsonAdapterTest
         assertTrue(error.message?.contains("Unknown op_name: vstore") == true)
     }
 }
+

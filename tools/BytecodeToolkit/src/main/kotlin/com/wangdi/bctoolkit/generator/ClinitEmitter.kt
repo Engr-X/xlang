@@ -1,6 +1,6 @@
-package com.wangdi.bctoolkit.generator
+﻿package com.wangdi.bctoolkit.generator
 
-import com.wangdi.bctoolkit.artifact.Emitter
+import com.wangdi.bctoolkit.generator.artifact.Emitter
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
 
@@ -18,6 +18,13 @@ class ClinitEmitter(
 {
     companion object
     {
+        /**
+         * Auto-generated baseline docs for getEmpty.
+         * Describes the intent and behavior of this function.
+         *
+         * @param cw parameter from function signature.
+         * @return return value of this function.
+         */
         fun getEmpty(cw: ClassWriter): ClinitEmitter
         {
             val layout = ClinitEmitter(cw)
@@ -26,10 +33,17 @@ class ClinitEmitter(
         }
     }
 
+    /**
+     * Auto-generated baseline docs for generate.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun generate(): Emitter = this.apply {
         // JVM requires <clinit>()V to terminate with RETURN on all fall-through paths.
         this.Builder().`return`().build()
         super.generate()
     }
 }
+
 

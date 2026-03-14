@@ -359,9 +359,9 @@ printHelp = putStrLn $ unlines [
     "   -j<n>, -j <n>, --jobs <n>, --jobs=<n>",
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
-    "   -lib <files...>  external libs (.class/.jar/.json), e.g. -lib a.jar b.class c.json",
-    "                    plus default: all .jar under <xlang.exe dir>/libs and jsons under <xlang.exe dir>/libs/java-native/jdk-<target>",
-    "                    fallback for legacy metadata: all .json under <xlang.exe dir>/libs/java-native",
+    "   -lib <files...>  external libs (.class/.jar/.json/.db), e.g. -lib a.jar b.class c.json d.db",
+    "                    plus default: all .jar under <xlang.exe dir>/libs and .json/.db under <xlang.exe dir>/libs/java-native/jdk-<target>",
+    "                    fallback for legacy metadata: all .json/.db under <xlang.exe dir>/libs/java-native",
     "   --main=<qname.main>",
     "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
     "                    class-only is also accepted: --main=com.wangdi.MainKt",
@@ -434,7 +434,7 @@ main = do
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) duplicateLibs
                                 printHelp
                             (Just _, _, _) | not (null invalidLibs) -> do
-                                putStrLn "invalid -lib extension; only .class, .jar and .json are allowed"
+                                putStrLn "invalid -lib extension; only .class, .jar, .json and .db are allowed"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
                                 printHelp
                             (Just targetJvm, _, Just outPath0) -> do
@@ -463,5 +463,4 @@ main = do
                             _ -> do
                                 putStrLn "missing --target-jvm<number>"
                                 printHelp
-
 

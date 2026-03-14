@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.generator
+﻿package com.wangdi.bctoolkit.generator
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
@@ -22,6 +22,13 @@ class InitEmitter(
 {
     companion object
     {
+        /**
+         * Auto-generated baseline docs for getEmpty.
+         * Describes the intent and behavior of this function.
+         *
+         * @param cw parameter from function signature.
+         * @return return value of this function.
+         */
         fun getEmpty(cw: ClassWriter): InitEmitter
         {
             val layout = InitEmitter(cw, Access.Public)
@@ -37,3 +44,4 @@ class InitEmitter(
         }
     }
 }
+

@@ -44,13 +44,13 @@ int64Range :: (Integer, Integer)
 int64Range = (-0x8000000000000000, 0x7fffffffffffffff)
 
 float32Range :: (Double, Double)
-float32Range = (0x0.000002P-126, 0x1.fffffeP+127)
+float32Range = (-0x1.fffffeP+127, 0x1.fffffeP+127)
 
 float64Range :: (Double, Double)
-float64Range = (0x0.0000000000001P-1022, 0x1.fffffffffffffP+1023)
+float64Range = (-0x1.fffffffffffffP+1023, 0x1.fffffffffffffP+1023)
 
 float128Range :: (Rational, Rational)
-float128Range = (0x0.0000000000000000000000000001P-16382, 0x1.ffffffffffffffffffffffffffffP+16383)
+float128Range = (-0x1.ffffffffffffffffffffffffffffP+16383, 0x1.ffffffffffffffffffffffffffffP+16383)
 
 
 -- | Strip integer literal suffixes (only 'L' / 'l').
@@ -572,9 +572,7 @@ emitDefaultDeclInit mTy nameTok = do
             let initInstrs = case defaultAtomForClass declT of
                     Just rhsAtom -> [TAC.IRInstr (TAC.IAssign lhsAtom rhsAtom)]
                     Nothing -> []
-                putStaticInstrs = if isStatic
-                    then [TAC.IRInstr (TAC.IPutStatic [realName] lhsAtom)]
-                    else []
+                putStaticInstrs = ([TAC.IRInstr (TAC.IPutStatic [realName] lhsAtom) | isStatic])
             return (initInstrs ++ putStaticInstrs)
         _ -> return []
 
@@ -636,10 +634,10 @@ stmtsLowing ((AST.BlockStmt b):stmts) = do
     return $ appendAfterCond current rest
 
 stmtsLowing ((AST.DefField names mDeclType mRhs toks):stmts) =
-    stmtsLowing ((AST.DefVar names mDeclType mRhs toks):stmts)
+    stmtsLowing (AST.DefVar names mDeclType mRhs toks:stmts)
 
 stmtsLowing ((AST.DefConstField names mDeclType mRhs toks):stmts) =
-    stmtsLowing ((AST.DefConstVar names mDeclType mRhs toks):stmts)
+    stmtsLowing (AST.DefConstVar names mDeclType mRhs toks:stmts)
 
 stmtsLowing ((AST.DefVar names mDeclType mRhs toks):stmts) = do
     let exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)

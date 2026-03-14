@@ -185,7 +185,8 @@ withCtrlScope ctrl action = withCtrl ctrl (withScope action)
 -- | Minimal expression traversal; no name/type rules yet.
 checkExpr :: Path -> QName -> [ImportEnv] -> Expression -> CheckM ()
 checkExpr p packages envs expr = case expr of
-    AST.Error _ _ -> error "this error should really filter or catched after parser"
+    AST.Error toks msg ->
+        addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks) msg
     AST.IntConst _ _ -> pure ()
     AST.LongConst _ _ -> pure ()
     AST.FloatConst _ _ -> pure ()

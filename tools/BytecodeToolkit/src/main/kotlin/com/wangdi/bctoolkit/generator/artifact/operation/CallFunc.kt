@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.artifact.operation
+﻿package com.wangdi.bctoolkit.generator.artifact.operation
 
 import com.wangdi.bctoolkit.base.Type
 
@@ -26,6 +26,12 @@ class InvokeStatic(
     }
 
 
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitMethodInsn(
             Opcodes.INVOKESTATIC,
@@ -36,6 +42,13 @@ class InvokeStatic(
         )
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String =
         "${this.indent(tabs)}invokestatic ${this.owner}/${this.name}${this.desc}"
 }
@@ -60,6 +73,12 @@ class InvokeSpecial(
     }
 
 
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitMethodInsn(
             Opcodes.INVOKESPECIAL,
@@ -70,6 +89,13 @@ class InvokeSpecial(
         )
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String =
         "${this.indent(tabs)}invokespecial ${this.owner}/${this.name}${this.desc}"
 }
@@ -93,6 +119,12 @@ class InvokeVirtual(
         append(this@InvokeVirtual.signature.first.getName())
     }
 
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitMethodInsn(
             Opcodes.INVOKEVIRTUAL,
@@ -103,6 +135,14 @@ class InvokeVirtual(
         )
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String =
         "${this.indent(tabs)}invokevirtual ${this.owner}/${this.name}${this.desc}"
 }
+

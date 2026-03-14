@@ -137,7 +137,7 @@ invalidSourceFiles = filter (not . isAllowedSourceFile)
 
 
 allowedLibExtensions :: [String]
-allowedLibExtensions = [".class", ".jar", ".json"]
+allowedLibExtensions = [".class", ".jar", ".json", ".db"]
 
 
 isAllowedLibFile :: FilePath -> Bool
@@ -253,7 +253,9 @@ findDefaultNativeJsons exeDir targetJvm = do
                 isDir <- doesDirectoryExist path
                 if isDir
                     then collect path
-                    else pure [path | map toLower (takeExtension path) == ".json"])
+                    else pure [path |
+                        let ext = map toLower (takeExtension path)
+                        in ext == ".json" || ext == ".db"])
             names
 
 compileJVM :: Int -> Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO (Maybe [TAC.IRProgm])

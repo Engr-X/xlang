@@ -143,8 +143,11 @@ lowerInstr IR.Return = return [JVM.Return]
 
 lowerInstr (IR.IAssign dst src) = do
     srcOps <- loadAtom src
+    srcCls <- atomClass src
+    dstCls <- atomClass dst
     dstOps <- storeAtom dst
-    return  (srcOps ++ dstOps)
+    let castOps = if isNoOpCast srcCls dstCls then [] else [JVM.Cast srcCls dstCls]
+    return  (srcOps ++ castOps ++ dstOps)
 lowerInstr (IR.IUnary dst op src) = do
     srcOps <- loadAtom src
     cls <- atomClass dst

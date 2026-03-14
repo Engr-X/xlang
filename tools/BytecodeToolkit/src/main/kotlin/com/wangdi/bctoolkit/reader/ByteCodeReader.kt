@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.reader
+﻿package com.wangdi.bctoolkit.reader
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
@@ -19,9 +19,25 @@ class ByteCodeReader(bytes: ByteArray)
 {
     companion object
     {
+        /**
+         * Auto-generated baseline docs for readClass.
+         * Describes the intent and behavior of this function.
+         *
+         * @param path parameter from function signature.
+         * @return return value of this function.
+         */
         fun readClass(path: Path): JavaClass =
             ByteCodeReader(Files.readAllBytes(path)).read()
 
+        /**
+         * Auto-generated baseline docs for readArchiveClasses.
+         * Describes the intent and behavior of this function.
+         *
+         * @param path parameter from function signature.
+         * @param classEntryFilter parameter from function signature.
+         * @param onProgress parameter from function signature.
+         * @return return value of this function.
+         */
         private fun readArchiveClasses(
             path: Path,
             classEntryFilter: (String) -> Boolean,
@@ -60,12 +76,28 @@ class ByteCodeReader(bytes: ByteArray)
             return classes.sortedWith(compareBy({ it.toDto().packagePath.joinToString(".") }, { it.getName() }))
         }
 
+        /**
+         * Auto-generated baseline docs for readJar.
+         * Describes the intent and behavior of this function.
+         *
+         * @param path parameter from function signature.
+         * @param onProgress parameter from function signature.
+         * @return return value of this function.
+         */
         fun readJar(
             path: Path,
             onProgress: ((Int, Int, String) -> Unit)? = null
         ): List<JavaClass> =
             readArchiveClasses(path, { entryName -> entryName.endsWith(".class") }, onProgress)
 
+        /**
+         * Auto-generated baseline docs for readJmod.
+         * Describes the intent and behavior of this function.
+         *
+         * @param path parameter from function signature.
+         * @param onProgress parameter from function signature.
+         * @return return value of this function.
+         */
         fun readJmod(
             path: Path,
             onProgress: ((Int, Int, String) -> Unit)? = null
@@ -74,6 +106,13 @@ class ByteCodeReader(bytes: ByteArray)
                 entryName.startsWith("classes/") && entryName.endsWith(".class")
             }, onProgress)
 
+        /**
+         * Auto-generated baseline docs for splitClassName.
+         * Describes the intent and behavior of this function.
+         *
+         * @param fullName parameter from function signature.
+         * @return return value of this function.
+         */
         private fun splitClassName(fullName: String): MutableList<String> = fullName.split("/").toMutableList()
 
         private val ACCESS_VALUE_MAP: MutableList<Pair<Int, Access>> = mutableListOf(
@@ -84,6 +123,13 @@ class ByteCodeReader(bytes: ByteArray)
 
             Opcodes.ACC_FINAL to Access.Final)
 
+        /**
+         * Auto-generated baseline docs for parseAsmType.
+         * Describes the intent and behavior of this function.
+         *
+         * @param asmType parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseAsmType(asmType: AsmType): MutableList<String> = when (asmType.sort)
         {
             AsmType.VOID -> mutableListOf("void")
@@ -105,9 +151,23 @@ class ByteCodeReader(bytes: ByteArray)
             else -> mutableListOf("java", "lang", "Object")
         }
 
+        /**
+         * Auto-generated baseline docs for parseType.
+         * Describes the intent and behavior of this function.
+         *
+         * @param fullName parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseType(fullName: String): TypeRef =
             TypeRef(parseAsmType(AsmType.getType(fullName)))
 
+        /**
+         * Auto-generated baseline docs for parseSignature.
+         * Describes the intent and behavior of this function.
+         *
+         * @param descriptor parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseSignature(descriptor: String): Pair<TypeRef, MutableList<TypeRef>>
         {
             val methodType: AsmType = AsmType.getMethodType(descriptor)
@@ -119,6 +179,13 @@ class ByteCodeReader(bytes: ByteArray)
             return ret to params
         }
 
+        /**
+         * Auto-generated baseline docs for parseAccess.
+         * Describes the intent and behavior of this function.
+         *
+         * @param raw parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseAccess(raw: Int): Set<Access> = ACCESS_VALUE_MAP
             .filterNot { (flag, _) -> (raw and flag) == 0 }
             .map { it.second }
@@ -127,6 +194,12 @@ class ByteCodeReader(bytes: ByteArray)
 
     private val reader: ClassReader = ClassReader(bytes)
 
+    /**
+     * Auto-generated baseline docs for read.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun read(): JavaClass
     {
         var className: MutableList<String> = mutableListOf()
@@ -136,6 +209,17 @@ class ByteCodeReader(bytes: ByteArray)
         var accessList: Set<Access> = HashSet()
 
         val cv = object : ClassVisitor(Opcodes.ASM9) {
+            /**
+             * Auto-generated baseline docs for visit.
+             * Describes the intent and behavior of this function.
+             *
+             * @param version parameter from function signature.
+             * @param access parameter from function signature.
+             * @param name parameter from function signature.
+             * @param signature parameter from function signature.
+             * @param superName parameter from function signature.
+             * @param interfaces parameter from function signature.
+             */
             override fun visit(
                 version: Int,
                 access: Int,
@@ -171,9 +255,26 @@ class ByteCodeReader(bytes: ByteArray)
         return clazz
     }
 
+    /**
+     * Auto-generated baseline docs for readFunction.
+     * Describes the intent and behavior of this function.
+     *
+     * @param clazz parameter from function signature.
+     */
     fun readFunction(clazz: JavaClass)
     {
         val cv = object : ClassVisitor(Opcodes.ASM9) {
+            /**
+             * Auto-generated baseline docs for visitMethod.
+             * Describes the intent and behavior of this function.
+             *
+             * @param access parameter from function signature.
+             * @param name parameter from function signature.
+             * @param descriptor parameter from function signature.
+             * @param signature parameter from function signature.
+             * @param exceptions parameter from function signature.
+             * @return return value of this function.
+             */
             override fun visitMethod(
                 access: Int,
                 name: String,
@@ -187,6 +288,14 @@ class ByteCodeReader(bytes: ByteArray)
 
                 return object : MethodVisitor(Opcodes.ASM9)
                 {
+                    /**
+                     * Auto-generated baseline docs for visitAnnotation.
+                     * Describes the intent and behavior of this function.
+                     *
+                     * @param descriptor parameter from function signature.
+                     * @param visible parameter from function signature.
+                     * @return return value of this function.
+                     */
                     override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
                     {
                         if (!OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
@@ -195,6 +304,10 @@ class ByteCodeReader(bytes: ByteArray)
                         return OwnerTypeMetadata.reader(ownerType) { parsed -> ownerType = parsed }
                     }
 
+                    /**
+                     * Auto-generated baseline docs for visitEnd.
+                     * Describes the intent and behavior of this function.
+                     */
                     override fun visitEnd()
                     {
                         val method = JavaMethod(clazz, accessSet, name, sig, ownerType)
@@ -208,9 +321,26 @@ class ByteCodeReader(bytes: ByteArray)
         reader.accept(cv, 0)
     }
 
+    /**
+     * Auto-generated baseline docs for readField.
+     * Describes the intent and behavior of this function.
+     *
+     * @param clazz parameter from function signature.
+     */
     fun readField(clazz: JavaClass)
     {
         val cv = object : ClassVisitor(Opcodes.ASM9) {
+            /**
+             * Auto-generated baseline docs for visitField.
+             * Describes the intent and behavior of this function.
+             *
+             * @param access parameter from function signature.
+             * @param name parameter from function signature.
+             * @param descriptor parameter from function signature.
+             * @param signature parameter from function signature.
+             * @param value parameter from function signature.
+             * @return return value of this function.
+             */
             override fun visitField(
                 access: Int,
                 name: String,
@@ -224,6 +354,14 @@ class ByteCodeReader(bytes: ByteArray)
 
                 return object : FieldVisitor(Opcodes.ASM9)
                 {
+                    /**
+                     * Auto-generated baseline docs for visitAnnotation.
+                     * Describes the intent and behavior of this function.
+                     *
+                     * @param descriptor parameter from function signature.
+                     * @param visible parameter from function signature.
+                     * @return return value of this function.
+                     */
                     override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor?
                     {
                         if (!OwnerTypeMetadata.isOwnerTypeDescriptor(descriptor))
@@ -232,6 +370,10 @@ class ByteCodeReader(bytes: ByteArray)
                         return OwnerTypeMetadata.reader(ownerType) { parsed -> ownerType = parsed }
                     }
 
+                    /**
+                     * Auto-generated baseline docs for visitEnd.
+                     * Describes the intent and behavior of this function.
+                     */
                     override fun visitEnd()
                     {
                         val field = JavaField(clazz, accessSet, fieldType, name, ownerType)
@@ -244,3 +386,4 @@ class ByteCodeReader(bytes: ByteArray)
         reader.accept(cv, 0)
     }
 }
+

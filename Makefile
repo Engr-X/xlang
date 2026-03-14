@@ -27,6 +27,7 @@ XLANG_JOBS ?= $(JOBS)
 # Haskell compiler (Cabal)
 COMPILER_DIR := $(ROOT_DIR)/compiler
 EXE := xlang
+EXE_OUT := $(BUILD_DIR_ABS)/$(EXE)
 
 # Java tool (Gradle)
 BYTECODEGEN_DIR := $(ROOT_DIR)/tools/BytecodeToolkit
@@ -78,7 +79,7 @@ compile: maybe_update
 	mkdir -p "$(BUILD_DIR_ABS)"
 	cd "$(COMPILER_DIR)" && $(CABAL) build -j$(JOBS) exe:$(EXE)
 	EXE_PATH=$$(cd "$(COMPILER_DIR)" && $(CABAL) list-bin exe:$(EXE)); \
-	cp -f "$$EXE_PATH" "$(BUILD_DIR_ABS)/"
+		cp -f "$$EXE_PATH" "$(BUILD_DIR_ABS)/"
 
 tools:
 	mkdir -p "$(TOOLS_OUT_DIR)"
@@ -86,10 +87,10 @@ tools:
 	cd "$(BYTECODEGEN_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
 	cp -f "$(BYTECODEGEN_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
 
-java_lib:
+java_lib: compile
 	mkdir -p "$(JAVA_LIB_OUT_DIR)"
 	cd "$(JAVA_LIB_DIR)" && chmod +x ./gradlew
-	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) $(GRADLE_ARGS)
+	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) -PxlangExe="$(EXE_OUT)" $(GRADLE_ARGS)
 	cp -f "$(JAVA_LIB_DIR)"/build/libs/* "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(JAVA_LIB_DIR)"/build/runtime-libs/*.jar "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
 

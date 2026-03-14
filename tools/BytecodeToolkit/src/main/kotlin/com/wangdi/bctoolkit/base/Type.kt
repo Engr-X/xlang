@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.base
+﻿package com.wangdi.bctoolkit.base
 
 
 class Type(private val typeRef: TypeRef, private val arrayDimension: Int = 0)
@@ -39,8 +39,15 @@ class Type(private val typeRef: TypeRef, private val arrayDimension: Int = 0)
 
     // fun isPrimitive(): Boolean = this.pt != null
 
+    /**
+     * Auto-generated baseline docs for getName.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun getName(): String = if (this.pt == null)
         "[".repeat(this.arrayDimension) + "L${this.typeRef.getFullName("/")};"
     else
         "[".repeat(this.arrayDimension) + PRIM[this.pt!!]!!
 }
+

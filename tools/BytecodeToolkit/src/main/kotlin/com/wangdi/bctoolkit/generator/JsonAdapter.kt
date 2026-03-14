@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit
+﻿package com.wangdi.bctoolkit.generator
 
 import com.alibaba.fastjson2.JSONArray
 import com.alibaba.fastjson2.JSONObject
@@ -6,11 +6,7 @@ import com.alibaba.fastjson2.JSONObject
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
 import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.artifact.operation.OpBlock
-import com.wangdi.bctoolkit.generator.AttributeGenerator
-import com.wangdi.bctoolkit.generator.ClassEmitter
-import com.wangdi.bctoolkit.generator.ClinitEmitter
-import com.wangdi.bctoolkit.generator.MethodEmitter
+import com.wangdi.bctoolkit.generator.artifact.operation.OpBlock
 import xlang.annotation.OwnerTypeMetadata
 
 import org.objectweb.asm.Opcodes
@@ -60,6 +56,13 @@ class JsonAdapter(private val json: JSONObject)
         private const val MAIN_TYPE = "main_type"
         private const val MAIN_QNAME = "main_qname"
 
+        /**
+         * Auto-generated baseline docs for selectCtorAccess.
+         * Describes the intent and behavior of this function.
+         *
+         * @param access parameter from function signature.
+         * @return return value of this function.
+         */
         private fun selectCtorAccess(access: MutableList<Access>): Access =
             access.firstOrNull { it == Access.Public || it == Access.Private || it == Access.Protected } ?: Access.Public
 
@@ -91,6 +94,31 @@ class JsonAdapter(private val json: JSONObject)
             throw ClassCastException("${R::class.java.name}, but was ${it::class.java.name}")
         }.toMutableList()
 
+        /**
+         * Auto-generated baseline docs for parseClassObjects.
+         * Describes the intent and behavior of this function.
+         *
+         * @param jsonText parameter from function signature.
+         * @return return value of this function.
+         */
+        fun parseClassObjects(jsonText: String): List<JSONObject>
+        {
+            val root: Any = JSONObject.parse(jsonText)
+
+            val rootObj = root as? JSONObject
+                ?: throw ClassCastException("Root JSON must be JSONObject, but was ${root::class.java.name}")
+
+            val classesValue: Any = rootObj["classes"] ?: return listOf(rootObj)
+
+            val classArray: JSONArray = classesValue as? JSONArray
+                ?: throw ClassCastException("classes must be JSONArray, but was ${classesValue::class.java.name}")
+
+            return classArray.map { item ->
+                item as? JSONObject
+                    ?: throw ClassCastException("classes item must be JSONObject, but was ${item::class.java.name}")
+            }
+        }
+
         private val ACCESS_TABLE_MAP: Map<String, Access> = mutableMapOf(
             "public" to Access.Public,
             "private" to Access.Private,
@@ -103,9 +131,23 @@ class JsonAdapter(private val json: JSONObject)
             "super" to Access.Super
         )
 
+        /**
+         * Auto-generated baseline docs for parseAccess.
+         * Describes the intent and behavior of this function.
+         *
+         * @param value parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseAccess(value: String): Access =
             ACCESS_TABLE_MAP[value.trim().lowercase()] ?: throw IllegalArgumentException("Unknown access flag: $value")
 
+        /**
+         * Auto-generated baseline docs for parseAccessList.
+         * Describes the intent and behavior of this function.
+         *
+         * @param json parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseAccessList(json: JSONObject): MutableList<Access> =
             json.getOrDefault<JSONArray>(ACCESS_KEY, JSONArray())
                 .toList<String>()
@@ -134,6 +176,13 @@ class JsonAdapter(private val json: JSONObject)
             26 to Opcodes.V26
         )
 
+        /**
+         * Auto-generated baseline docs for toJvmTarget.
+         * Describes the intent and behavior of this function.
+         *
+         * @param value parameter from function signature.
+         * @return return value of this function.
+         */
         private fun toJvmTarget(value: Int): Int = JVM_TARGET_MAP[value] ?: value
 
         private val PRIMITIVE_TYPE_MAP: MutableMap<String, Type> = mutableMapOf(
@@ -161,9 +210,23 @@ class JsonAdapter(private val json: JSONObject)
             "float64" to Type.Float64
         )
 
+        /**
+         * Auto-generated baseline docs for primitiveTypeOf.
+         * Describes the intent and behavior of this function.
+         *
+         * @param raw parameter from function signature.
+         * @return return value of this function.
+         */
         private fun primitiveTypeOf(raw: String): Type? =
             PRIMITIVE_TYPE_MAP[raw.trim().lowercase()]
 
+        /**
+         * Auto-generated baseline docs for parseType.
+         * Describes the intent and behavior of this function.
+         *
+         * @param value parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseType(value: JSONArray): Type
         {
             val parts: MutableList<String> = value.toList<String>()
@@ -188,6 +251,13 @@ class JsonAdapter(private val json: JSONObject)
             return Type(TypeRef(*baseParts.toTypedArray()), arrayDim)
         }
 
+        /**
+         * Auto-generated baseline docs for parseInvokeSpec.
+         * Describes the intent and behavior of this function.
+         *
+         * @param json parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseInvokeSpec(json: JSONObject): Pair<MutableList<String>, Pair<Type, MutableList<Type>>> {
             val fullName: MutableList<String> = json.getJSONArray(FULL_NAME).toList<String>()
             require(fullName.isNotEmpty()) { "full_name must not be empty" }
@@ -206,6 +276,13 @@ class JsonAdapter(private val json: JSONObject)
             return fullName to (returnType to paramTypes)
         }
 
+        /**
+         * Auto-generated baseline docs for parseFieldSpec.
+         * Describes the intent and behavior of this function.
+         *
+         * @param json parameter from function signature.
+         * @return return value of this function.
+         */
         private fun parseFieldSpec(json: JSONObject): Pair<MutableList<String>, Type>
         {
             val fullName: MutableList<String> = json.getJSONArray(ATTRIBUTE_NAME).toList<String>()
@@ -217,6 +294,13 @@ class JsonAdapter(private val json: JSONObject)
             return fullName to type
         }
 
+        /**
+         * Auto-generated baseline docs for normalizeOp.
+         * Describes the intent and behavior of this function.
+         *
+         * @param json parameter from function signature.
+         * @return return value of this function.
+         */
         private fun normalizeOp(json: JSONObject): JSONObject
         {
             if (json.containsKey(OP_NAME))
@@ -411,6 +495,12 @@ class JsonAdapter(private val json: JSONObject)
 
     constructor(json: String) : this(JSONObject.parse(json))
 
+    /**
+     * Auto-generated baseline docs for getClassEmitter.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun getClassEmitter(): ClassEmitter
     {
         val jvmTarget: Int = toJvmTarget(this.json.getOrDefault<Int>(JVM_TARGET_KEY, 8))
@@ -455,6 +545,12 @@ class JsonAdapter(private val json: JSONObject)
         return ce
     }
 
+    /**
+     * Auto-generated baseline docs for addAttribute.
+     * Describes the intent and behavior of this function.
+     *
+     * @param ce parameter from function signature.
+     */
     private fun addAttribute(ce: ClassEmitter)
     {
         val attrs: JSONArray = this.json.getOrDefault<JSONArray>(ATTRIBUTE_KEY, JSONArray())
@@ -481,6 +577,12 @@ class JsonAdapter(private val json: JSONObject)
         }
     }
 
+    /**
+     * Auto-generated baseline docs for addMethods.
+     * Describes the intent and behavior of this function.
+     *
+     * @param ce parameter from function signature.
+     */
     private fun addMethods(ce: ClassEmitter)
     {
         val methods: JSONArray = this.json.getJSONArray(METHODS_KEY) ?: JSONArray()
@@ -519,6 +621,12 @@ class JsonAdapter(private val json: JSONObject)
         }
     }
 
+    /**
+     * Auto-generated baseline docs for addClinit.
+     * Describes the intent and behavior of this function.
+     *
+     * @param ce parameter from function signature.
+     */
     private fun addClinit(ce: ClassEmitter)
     {
         val raw: JSONObject = this.json.getJSONObject(CLINIT_KEY) ?: return
@@ -538,6 +646,12 @@ class JsonAdapter(private val json: JSONObject)
         ce.setClinit(clinit)
     }
 
+    /**
+     * Auto-generated baseline docs for addInit.
+     * Describes the intent and behavior of this function.
+     *
+     * @param ce parameter from function signature.
+     */
     private fun addInit(ce: ClassEmitter)
     {
         val raw: Any = this.json[INIT_KEY] ?: return
@@ -580,6 +694,12 @@ class JsonAdapter(private val json: JSONObject)
         }
     }
 
+    /**
+     * Auto-generated baseline docs for addMain.
+     * Describes the intent and behavior of this function.
+     *
+     * @param ce parameter from function signature.
+     */
     private fun addMain(ce: ClassEmitter)
     {
         val mainType: Int = this.json.getOrDefault<Int>(MAIN_TYPE, -1)

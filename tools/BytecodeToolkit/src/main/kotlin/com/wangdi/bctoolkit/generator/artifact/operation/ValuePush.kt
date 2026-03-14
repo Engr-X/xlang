@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.artifact.operation
+﻿package com.wangdi.bctoolkit.generator.artifact.operation
 
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
@@ -34,6 +34,12 @@ class IPush(
         )
     }
 
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also { mv ->
         ICONST_TABLE[this.value]?.let { opcode ->
             mv.visitInsn(opcode)
@@ -47,6 +53,13 @@ class IPush(
         }
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String {
         val op: String = ICONST_NAME_TAbBLE[this.value] ?: when (this.value) {
             in Byte.MIN_VALUE..Byte.MAX_VALUE -> "bipush ${this.value}"
@@ -64,6 +77,12 @@ class LPush(
     private val value: Long
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         when (this.value)
         {
@@ -73,6 +92,13 @@ class LPush(
         }
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String {
         val op: String = when (this.value)
         {
@@ -91,6 +117,12 @@ class FPush(
     private val value: Float
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         // prefer FCONST_0/1/2, otherwise use LDC.
         when (java.lang.Float.floatToIntBits(this.value))
@@ -102,6 +134,13 @@ class FPush(
         }
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String {
         val op: String = when (java.lang.Float.floatToIntBits(this.value))
         {
@@ -121,6 +160,12 @@ class DPush(
     private val value: Double
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         // prefer DCONST_0/1, otherwise use LDC (ASM will pick LDC2_W when needed).
         when (java.lang.Double.doubleToLongBits(this.value))
@@ -131,6 +176,13 @@ class DPush(
         }
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String {
         val op: String = when (java.lang.Double.doubleToLongBits(this.value))
         {
@@ -149,10 +201,23 @@ class APush(
     private val value: String
 ) : Instruction(mv, labels)
 {
+    /**
+     * Auto-generated baseline docs for addOp.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun addOp(): MethodVisitor = this.mv.also {
         it.visitLdcInsn(this.value)
     }
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @param tabs parameter from function signature.
+     * @return return value of this function.
+     */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}ldc \"${this.value}\""
 }
 
@@ -167,3 +232,4 @@ class APush(
 //
 //    override fun toString(tabs: Int): String = "${this.indent(tabs)}aconst_null"
 //}
+

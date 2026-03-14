@@ -15,6 +15,7 @@ dependencies {
     implementation("org.ow2.asm:asm:9.9.1")
     implementation("com.alibaba.fastjson2:fastjson2:2.0.61")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("org.xerial:sqlite-jdbc:3.51.2.0")
     testImplementation(kotlin("test"))
 }
 

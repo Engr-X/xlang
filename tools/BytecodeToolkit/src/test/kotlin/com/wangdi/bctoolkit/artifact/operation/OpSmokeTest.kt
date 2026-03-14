@@ -1,5 +1,10 @@
 package com.wangdi.bctoolkit.artifact.operation
 
+import com.wangdi.bctoolkit.generator.artifact.operation.ALoad
+import com.wangdi.bctoolkit.generator.artifact.operation.IAdd
+import com.wangdi.bctoolkit.generator.artifact.operation.IPush
+import com.wangdi.bctoolkit.generator.artifact.operation.Instruction
+import com.wangdi.bctoolkit.generator.artifact.operation.Return
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
@@ -10,6 +15,11 @@ import kotlin.test.assertEquals
 
 class OpSmokeTest
 {
+    /**
+     * Auto-generated baseline docs for newMv.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     private fun newMv(): Pair<MethodVisitor, MutableMap<Int, Label>>
     {
         val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
@@ -20,6 +30,11 @@ class OpSmokeTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for addOpDoesNotThrow.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun addOpDoesNotThrow()
     {
         val pair: Pair<MethodVisitor, MutableMap<Int, Label>> = newMv()
@@ -35,6 +50,11 @@ class OpSmokeTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for toStringMatchesExpected.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun toStringMatchesExpected()
     {
         val pair: Pair<MethodVisitor, MutableMap<Int, Label>> = newMv()
@@ -46,3 +66,4 @@ class OpSmokeTest
         assertEquals("return", Return(mv, labels).toString())
     }
 }
+

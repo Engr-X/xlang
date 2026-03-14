@@ -6,6 +6,11 @@ import kotlin.test.assertEquals
 class TypeRefTest
 {
     @Test
+    /**
+     * Auto-generated baseline docs for safeCreateEmptyUsesObject.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun safeCreateEmptyUsesObject()
     {
         val ref: TypeRef = TypeRef.safeCreate(mutableListOf())
@@ -14,6 +19,11 @@ class TypeRefTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for safeCreateNonEmptyKeepsParts.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun safeCreateNonEmptyKeepsParts()
     {
         val ref: TypeRef = TypeRef.safeCreate(mutableListOf("a", "b"))
@@ -22,6 +32,11 @@ class TypeRefTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for getNameReturnsLastPart.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun getNameReturnsLastPart()
     {
         val ref = TypeRef("x", "y", "Z")
@@ -29,6 +44,11 @@ class TypeRefTest
     }
 
     @Test
+    /**
+     * Auto-generated baseline docs for getFullNameUsesSeparator.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun getFullNameUsesSeparator()
     {
         val ref = TypeRef("x", "y", "Z")
@@ -36,3 +56,4 @@ class TypeRefTest
         assertEquals("x.y.Z", ref.getFullName("."))
     }
 }
+

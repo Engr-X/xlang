@@ -1,11 +1,8 @@
-package com.wangdi.bctoolkit.reader
+﻿package com.wangdi.bctoolkit.reader
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
 import xlang.annotation.OwnerTypeMetadata
-
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 
 class JavaField(
@@ -16,8 +13,20 @@ class JavaField(
     private val ownerType: String = OwnerTypeMetadata.CLASS,
 )
 {
+    /**
+     * Auto-generated baseline docs for isStatic.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun isStatic(): Boolean = this.access.contains(Access.Static)
 
+    /**
+     * Auto-generated baseline docs for toDto.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun toDto(): JavaFieldDto =
         JavaFieldDto(
             this.access.map { it.name }.sorted(),
@@ -25,14 +34,13 @@ class JavaField(
             this.name,
             this.ownerType)
 
+    /**
+     * Auto-generated baseline docs for toString.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     override fun toString(): String = "${this.belong.getName()}:" +
             "${this.access.toList().sorted()} ${this.type} ${this.name} metadata(${this.ownerType})"
 }
-
-@Serializable
-data class JavaFieldDto(
-    val access: List<String>,
-    val type: List<String>,
-    val name: String,
-    @SerialName("owner_type") val ownerType: String)
 

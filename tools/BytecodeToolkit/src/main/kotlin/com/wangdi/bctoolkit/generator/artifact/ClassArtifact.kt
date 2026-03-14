@@ -1,4 +1,4 @@
-package com.wangdi.bctoolkit.artifact
+﻿package com.wangdi.bctoolkit.generator.artifact
 
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.TypeRef
@@ -19,10 +19,30 @@ abstract class ClassArtifact(
 
     protected val cw: ClassWriter = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
 
+    /**
+     * Auto-generated baseline docs for init.
+     * Describes the intent and behavior of this function.
+     *
+     * @param cw parameter from function signature.
+     * @return return value of this function.
+     */
     abstract fun init(cw: ClassWriter): ClassWriter
 
+    /**
+     * Auto-generated baseline docs for addMethod.
+     * Describes the intent and behavior of this function.
+     *
+     * @param method parameter from function signature.
+     * @return return value of this function.
+     */
     fun addMethod(method: MethodEmitter): ClassArtifact = this.apply { this.methods.add(method) }
 
+    /**
+     * Auto-generated baseline docs for save.
+     * Describes the intent and behavior of this function.
+     *
+     * @param outDir parameter from function signature.
+     */
     fun save(outDir: Path)
     {
         this.init(cw)
@@ -37,8 +57,20 @@ abstract class ClassArtifact(
         Files.write(outFile, bytes)
     }
 
+    /**
+     * Auto-generated baseline docs for accessOf.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     protected fun accessOf(): Int = this.access.fold(0) { acc, f -> acc or f.flag }
 
+    /**
+     * Auto-generated baseline docs for genSignature.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     protected fun genSignature(): String?
     {
         if (this.signature.isEmpty())
@@ -49,5 +81,12 @@ abstract class ClassArtifact(
         return "<$typeParams>L${TypeRef.OBJECT_FULL_NAME};"
     }
 
+    /**
+     * Auto-generated baseline docs for getCW.
+     * Describes the intent and behavior of this function.
+     *
+     * @return return value of this function.
+     */
     fun getCW(): ClassWriter = this.cw
 }
+

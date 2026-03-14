@@ -16,6 +16,11 @@ import kotlin.test.assertTrue
 class ByteCodeReaderTest
 {
     @Test
+    /**
+     * Auto-generated baseline docs for readJmodReadsClassesUnderClassesDir.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
     fun readJmodReadsClassesUnderClassesDir()
     {
         val outDir: Path = Files.createTempDirectory("bctoolkit-jmod-read")
@@ -55,3 +60,4 @@ class ByteCodeReaderTest
         assertTrue(classes[0].toDto().packagePath.isEmpty())
     }
 }
+
