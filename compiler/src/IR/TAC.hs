@@ -14,6 +14,7 @@ import Semantic.NameEnv (QName)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
 import Util.Exception (Warning)
+import Util.Basic (insertTab)
 
 import qualified Semantic.TypeEnv as TEnv
 import qualified Parse.SyntaxTree as AST
@@ -508,7 +509,7 @@ data IRInstr
 
 
 prettyIRInstr :: Int -> IRInstr -> String
-prettyIRInstr n instr = replicate (n * 4) ' ' ++ case instr of
+prettyIRInstr n instr = insertTab n ++ case instr of
     Jump bid -> "goto .L" ++ show bid
     Ifeq a b t -> concat ["if ", prettyIRAtom a, " == ", prettyIRAtom b, " goto .L" ++ show t]
     Ifne a b t -> concat ["if ", prettyIRAtom a, " != ", prettyIRAtom b, " goto .L" ++ show t]
@@ -542,7 +543,7 @@ newtype IRBlock = IRBlock (Int, [IRStmt])
 
 prettyIRBlock :: Int -> IRBlock -> String
 prettyIRBlock n (IRBlock (bid, stmts)) =
-    let header = concat [replicate (n * 4) ' ', ".L", show bid, ":\n"]
+    let header = concat [insertTab n, ".L", show bid, ":\n"]
         body = concatMap (prettyStmt (n + 1)) stmts
     in header ++ body
 
@@ -575,7 +576,7 @@ type Attribute = (Decl, Class, String, IRMemberType)
 
 prettyAttribute :: Int -> Attribute -> String
 prettyAttribute n (decl, cls, name, memberType) =
-    let indent = replicate (n * 4) ' '
+    let indent = insertTab n
         declS = prettyDecl decl
         prefix = if null declS then "" else declS ++ " "
         typeS = "[" ++ prettyIRMemberType memberType ++ "] "
@@ -595,7 +596,7 @@ data IRFunction
 
 prettyIRFunction :: Int -> IRFunction -> String
 prettyIRFunction n (IRFunction decl name sig atomTypes body memberType) =
-    let indent = replicate (n * 4) ' '
+    let indent = insertTab n
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
         retS = AST.prettyClass (TEnv.funReturn sig)
@@ -612,7 +613,7 @@ newtype StaticInit = StaticInit [IRStmt] deriving (Eq, Show)
 
 prettyStaticInit :: Int -> StaticInit -> String
 prettyStaticInit n (StaticInit stmts) =
-    let indent = replicate (n * 4) ' '
+    let indent = insertTab n
         header = indent ++ "static {}:\n"
         body = concatMap (prettyStmt (n + 1)) stmts
     in header ++ body
@@ -651,7 +652,7 @@ data IRClass
 
 prettyIRClass :: Int -> IRClass -> String
 prettyIRClass n (IRClass decl name attrs sInit atomTypes funs mainKind) =
-    let indent = replicate (n * 4) ' '
+    let indent = insertTab n
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
         header = concat [indent, declPrefix, "class ", name, ":\n"]
@@ -666,8 +667,8 @@ prettyTypeMap :: Int -> Map IRAtom Class -> String
 prettyTypeMap n atomTypes
     | Map.null atomTypes = ""
     | otherwise =
-        let indent = replicate (n * 4) ' '
-            entryIndent = replicate ((n + 1) * 4) ' '
+        let indent = insertTab n
+            entryIndent = insertTab (n + 1)
             header = indent ++ "type:\n"
             entries = concatMap
                 (\(atom, cls) -> entryIndent ++ prettyIRAtom atom ++ ": " ++ AST.prettyClass cls ++ "\n")

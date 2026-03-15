@@ -1,6 +1,6 @@
 module X86Lowing.ASM where
 
-import Util.Basic (insertSpace)
+import Util.Basic (insertTab)
 
 
 data Register = 
@@ -131,43 +131,43 @@ data Instruction =
 
 
 prettyInstruction :: Int -> Instruction -> String
-prettyInstruction tab (Mov target src) = concat [insertSpace tab, "mov ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Lea target src) = concat [insertSpace tab, "lea ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab Push = insertSpace tab ++ "push"
-prettyInstruction tab Pop = insertSpace tab ++ "pop"
-prettyInstruction tab (Add target src) = concat [insertSpace tab, "add ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Sub target src) = concat [insertSpace tab, "sub ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Inc target) = concat [insertSpace tab, "inc ", prettyTarget target]
-prettyInstruction tab (Dec target) = concat [insertSpace tab, "dec ", prettyTarget target]
-prettyInstruction tab (Neg target) = concat [insertSpace tab, "neg ", prettyTarget target]
-prettyInstruction tab (Mul target src) = concat [insertSpace tab, "mul ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (IMul target src) = concat [insertSpace tab, "imul ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Div target src) = concat [insertSpace tab, "div ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (IDiv target src) = concat [insertSpace tab, "idiv ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (And target src) = concat [insertSpace tab, "and ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Or target src) = concat [insertSpace tab, "or ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Xor target src) = concat [insertSpace tab, "xor ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Not target) = concat [insertSpace tab, "not ", prettyTarget target]
-prettyInstruction tab (Shl target src) = concat [insertSpace tab, "shl ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Sal target src) = concat [insertSpace tab, "sal ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Shr target src) = concat [insertSpace tab, "shr ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Sar target src) = concat [insertSpace tab, "sar ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Cmp target src) = concat [insertSpace tab, "cmp ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Test target src) = concat [insertSpace tab, "test ", prettyTarget target, ", ", prettyAtom src]
-prettyInstruction tab (Jump label) = concat [insertSpace tab, "jmp ", label]
-prettyInstruction tab (Je label) = concat [insertSpace tab, "je ", label]
-prettyInstruction tab (Jne label) = concat [insertSpace tab, "jne ", label]
-prettyInstruction tab (Jg label) = concat [insertSpace tab, "jg ", label]
-prettyInstruction tab (Jge label) = concat [insertSpace tab, "jge ", label]
-prettyInstruction tab (Jl label) = concat [insertSpace tab, "jl ", label]
-prettyInstruction tab (Jle label) = concat [insertSpace tab, "jle ", label]
-prettyInstruction tab (Call func) = concat [insertSpace tab, "call ", func]
-prettyInstruction tab Ret = insertSpace tab ++ "ret"
+prettyInstruction tab (Mov target src) = concat [insertTab tab, "mov ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Lea target src) = concat [insertTab tab, "lea ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab Push = insertTab tab ++ "push"
+prettyInstruction tab Pop = insertTab tab ++ "pop"
+prettyInstruction tab (Add target src) = concat [insertTab tab, "add ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Sub target src) = concat [insertTab tab, "sub ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Inc target) = concat [insertTab tab, "inc ", prettyTarget target]
+prettyInstruction tab (Dec target) = concat [insertTab tab, "dec ", prettyTarget target]
+prettyInstruction tab (Neg target) = concat [insertTab tab, "neg ", prettyTarget target]
+prettyInstruction tab (Mul target src) = concat [insertTab tab, "mul ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (IMul target src) = concat [insertTab tab, "imul ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Div target src) = concat [insertTab tab, "div ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (IDiv target src) = concat [insertTab tab, "idiv ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (And target src) = concat [insertTab tab, "and ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Or target src) = concat [insertTab tab, "or ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Xor target src) = concat [insertTab tab, "xor ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Not target) = concat [insertTab tab, "not ", prettyTarget target]
+prettyInstruction tab (Shl target src) = concat [insertTab tab, "shl ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Sal target src) = concat [insertTab tab, "sal ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Shr target src) = concat [insertTab tab, "shr ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Sar target src) = concat [insertTab tab, "sar ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Cmp target src) = concat [insertTab tab, "cmp ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Test target src) = concat [insertTab tab, "test ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Jump label) = concat [insertTab tab, "jmp ", label]
+prettyInstruction tab (Je label) = concat [insertTab tab, "je ", label]
+prettyInstruction tab (Jne label) = concat [insertTab tab, "jne ", label]
+prettyInstruction tab (Jg label) = concat [insertTab tab, "jg ", label]
+prettyInstruction tab (Jge label) = concat [insertTab tab, "jge ", label]
+prettyInstruction tab (Jl label) = concat [insertTab tab, "jl ", label]
+prettyInstruction tab (Jle label) = concat [insertTab tab, "jle ", label]
+prettyInstruction tab (Call func) = concat [insertTab tab, "call ", func]
+prettyInstruction tab Ret = insertTab tab ++ "ret"
 
 
 type Instructions = [(String, [Instruction])]
 
 
 prettyInstructions :: Instructions -> String
-prettyInstructions = concatMap (\(label, instrs) -> concat [".", label, ":\n", concatMap (prettyInstruction 4) instrs, "\n"])
+prettyInstructions = concatMap (\(label, instrs) -> concat [".", label, ":\n", concatMap (prettyInstruction 1) instrs, "\n"])
 

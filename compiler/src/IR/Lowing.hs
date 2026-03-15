@@ -1,5 +1,9 @@
 module IR.Lowing (
     codeToIRWithRootAndDeps,
+    codeToIRWithRootAndDepsTimed,
+    FrontendStageTiming(..),
+    IrLoweringStageTiming(..),
+    PipelineStageTiming(..),
     codeToIRWithRoot,
     codeToIR,
     codeToIRSingleWithRoot,
@@ -7,12 +11,15 @@ module IR.Lowing (
     lowerWithUses
 ) where
 
+import Control.Exception (evaluate)
 import Control.Monad.State.Strict (runState)
 import Data.Char (toUpper)
 import Data.Either (lefts, rights)
 import Data.List (partition)
 import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
+import Data.Word (Word64)
+import GHC.Clock (getMonotonicTimeNSec)
 import Lex.Tokenizer (tokenizeWithNL)
 import Parse.ParseProgm (parseProgm)
 import Parse.ParserBasic (toException)
@@ -31,6 +38,32 @@ import qualified Data.Map.Strict as Map
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeCheck as TC
 import qualified Util.Exception as UE
+
+
+data FrontendStageTiming = FrontendStageTiming {
+    fePath :: Path,
+    feTokenizeNs :: Word64,
+    feParseNs :: Word64
+} deriving (Eq, Show)
+
+data IrLoweringStageTiming = IrLoweringStageTiming {
+    irPath :: Path,
+    irLowerNs :: Word64
+} deriving (Eq, Show)
+
+data PipelineStageTiming = PipelineStageTiming {
+    frontendStageTimings :: [FrontendStageTiming],
+    semanticStageNs :: Word64,
+    irLowerStageTimings :: [IrLoweringStageTiming]
+} deriving (Eq, Show)
+
+
+timedIO :: IO a -> IO (a, Word64)
+timedIO action = do
+    begin <- getMonotonicTimeNSec
+    out <- action
+    end <- getMonotonicTimeNSec
+    pure (out, end - begin)
 
 
 -- | Parse, semantically check, and lower source files under an explicit source root.
@@ -90,6 +123,107 @@ codeToIRWithRootAndDeps depImportEnvs depTypedEnvs root files =
                     let (ir, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns = tcWarnings ctx ++ tacWarns
                     in Right ((path, ir), warns)
+
+
+codeToIRWithRootAndDepsTimed ::
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Path ->
+    [(Path, String)] ->
+    IO (Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning], PipelineStageTiming))
+codeToIRWithRootAndDepsTimed depImportEnvs depTypedEnvs root files = do
+    parsedWithTime <- mapM parseOneTimed files
+    let frontendTimings = map fst parsedWithTime
+        parsed = map snd parsedWithTime
+        parseErrs = concat (lefts parsed)
+        progms = rights parsed
+    if not (null parseErrs)
+        then pure (Left parseErrs)
+        else do
+            (semRes, semanticNs) <- timedIO $ do
+                let res = checkProgmWithDeps root depImportEnvs depTypedEnvs progms
+                case res of
+                    Left errs -> do
+                        _ <- evaluate (length errs)
+                        pure res
+                    Right ctxs -> do
+                        _ <- evaluate (length ctxs)
+                        pure res
+            case semRes of
+                Left errs -> pure (Left errs)
+                Right ctxs -> do
+                    let ctxMap = Map.fromList ctxs
+                    loweredWithTime <- mapM (lowerOneTimed ctxMap) progms
+                    let irTimings = map fst loweredWithTime
+                        lowered = map snd loweredWithTime
+                        lowerErrs = concat (lefts lowered)
+                        loweredOk = rights lowered
+                    if not (null lowerErrs)
+                        then pure (Left lowerErrs)
+                        else
+                            let (irs, warnsList) = unzip loweredOk
+                                timing = PipelineStageTiming {
+                                    frontendStageTimings = frontendTimings,
+                                    semanticStageNs = semanticNs,
+                                    irLowerStageTimings = irTimings
+                                }
+                            in pure (Right (irs, concat warnsList, timing))
+  where
+    parseOneTimed :: (Path, String) -> IO (FrontendStageTiming, Either [ErrorKind] (Path, Program))
+    parseOneTimed (path, code) = do
+        ((lexErrs, tokens), tokenizeNs) <- timedIO $ do
+            let res@(lexErrs0, tokens0) = tokenizeWithNL path code
+            _ <- evaluate (length lexErrs0 + length tokens0)
+            pure res
+        if not (null lexErrs)
+            then pure
+                ( FrontendStageTiming {
+                    fePath = path,
+                    feTokenizeNs = tokenizeNs,
+                    feParseNs = 0
+                  }
+                , Left lexErrs
+                )
+            else do
+                ((prog, parseErrs), parseNs) <- timedIO $ do
+                    let prog0 = parseProgm tokens
+                        parseErrs0 = getErrorProgram prog0
+                    _ <- evaluate (length parseErrs0)
+                    pure (prog0, parseErrs0)
+                let res =
+                        if null parseErrs
+                            then Right (path, prog)
+                            else Left (map (toException path) parseErrs)
+                pure
+                    ( FrontendStageTiming {
+                        fePath = path,
+                        feTokenizeNs = tokenizeNs,
+                        feParseNs = parseNs
+                      }
+                    , res
+                    )
+
+    lowerOneTimed ::
+        Map Path TC.TypeCtx ->
+        (Path, Program) ->
+        IO (IrLoweringStageTiming, Either [ErrorKind] ((Path, TAC.IRProgm), [Warning]))
+    lowerOneTimed ctxMap (path, prog) =
+        case Map.lookup path ctxMap of
+            Nothing ->
+                pure
+                    ( IrLoweringStageTiming {irPath = path, irLowerNs = 0}
+                    , Left [UE.Syntax (UE.makeError path [] UE.internalErrorMsg)]
+                    )
+            Just ctx -> do
+                ((ir, warns), irNs) <- timedIO $ do
+                    let (ir0, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
+                        warns0 = tcWarnings ctx ++ tacWarns
+                    _ <- evaluate (length warns0)
+                    pure (ir0, warns0)
+                pure
+                    ( IrLoweringStageTiming {irPath = path, irLowerNs = irNs}
+                    , Right ((path, ir), warns)
+                    )
 
 
 -- | Compatibility wrapper using current directory as source root.

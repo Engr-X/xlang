@@ -11,7 +11,7 @@ import Control.Exception (bracket_)
 import Data.Aeson (FromJSON(..), Value(Object), (.:), (.:?), (.!=), withObject, eitherDecode)
 import Data.Char (toLower)
 import Data.Either (lefts, rights)
-import Data.List (foldl', nub)
+import Data.List (foldl', intercalate, nub, partition)
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Class(..), normalizeClass)
 import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
@@ -103,55 +103,106 @@ instance FromJSON LibMethod where
             <*> (normalizeOwnerType <$> o .:? "owner_type" .!= "class")
 
 
-loadLibEnvs :: FilePath -> [Path] -> IO (Either [ErrorKind] ([ImportEnv], [TypedImportEnv]))
+loadLibEnvs :: FilePath -> [Path] -> [String] -> IO (Either [ErrorKind] ([ImportEnv], [TypedImportEnv]))
 loadLibEnvs = loadLibEnvsWithJobs 1
 
 
-loadLibEnvsWithJobs :: Int -> FilePath -> [Path] -> IO (Either [ErrorKind] ([ImportEnv], [TypedImportEnv]))
-loadLibEnvsWithJobs _ _ [] = pure (Right ([], []))
-loadLibEnvsWithJobs jobs toolkitJar libPaths = do
-    loaded <- mapConcurrentlyLimit jobs (loadOne toolkitJar) libPaths
-    let errs = concat (lefts loaded)
-        ok = rights loaded
+loadLibEnvsWithJobs :: Int -> FilePath -> [Path] -> [String] -> IO (Either [ErrorKind] ([ImportEnv], [TypedImportEnv]))
+loadLibEnvsWithJobs _ _ [] _ = pure (Right ([], []))
+loadLibEnvsWithJobs jobs toolkitJar libPaths imports = do
+    let (jsonLibPaths, nonJsonLibPaths) = partition isJsonLibPath libPaths
+
+    loadedJson <- mapConcurrentlyLimit jobs (loadJsonOne imports) jsonLibPaths
+    loadedNonJson <- loadNonJsonBatch toolkitJar imports nonJsonLibPaths
+
+    let jsonErrs = concat (lefts loadedJson)
+        jsonOk = rights loadedJson
+        nonJsonErrList = case loadedNonJson of
+            Left oneErrs -> oneErrs
+            Right _ -> []
+        nonJsonOk = case loadedNonJson of
+            Left _ -> []
+            Right Nothing -> []
+            Right (Just (envI, envT)) -> [(envI, envT)]
+        errs = jsonErrs ++ nonJsonErrList
+        ok = jsonOk ++ nonJsonOk
+
     if null errs
         then
-            let (imports, typeds) = unzip ok
-            in pure (Right (imports, typeds))
+            let (importEnvs, typeds) = unzip ok
+            in pure (Right (importEnvs, typeds))
         else pure (Left errs)
 
 
-loadOne :: FilePath -> Path -> IO (Either [ErrorKind] (ImportEnv, TypedImportEnv))
-loadOne toolkitJar libPath
-    | isJsonLibPath libPath = do
-        fileRes <- (Right <$> BL.readFile libPath) `catchIOError` (pure . Left . show)
-        case fileRes of
-            Left readErr ->
-                pure $ Left [mkSyntax libPath ("failed to read lib metadata json file: " ++ readErr)]
-            Right bytes ->
-                case eitherDecode bytes of
-                    Left e ->
-                        pure $ Left [mkSyntax libPath ("failed to parse lib metadata json: " ++ e)]
-                    Right env ->
-                        pure $ Right (buildEnv libPath env)
-    | otherwise = do
-        (ec, out, errText) <- readProcessWithExitCode "java" ["-jar", toolkitJar, "--read", libPath] ""
-        case ec of
-            ExitSuccess ->
-                case eitherDecode (BL.pack out) of
-                    Left e ->
-                        pure $ Left [mkSyntax libPath ("failed to parse lib metadata json: " ++ e)]
-                    Right env ->
-                        pure $ Right (buildEnv libPath env)
-            ExitFailure code ->
-                let details = trim (if null errText then out else errText)
-                    msg = "failed to read library metadata (exit " ++ show code ++ "): " ++ details
-                in pure $ Left [mkSyntax libPath msg]
-  where
-    isJsonLibPath :: Path -> Bool
-    isJsonLibPath path = map toLower (takeExtension path) == ".json"
+isJsonLibPath :: Path -> Bool
+isJsonLibPath path = map toLower (takeExtension path) == ".json"
 
+
+loadJsonOne :: [String] -> Path -> IO (Either [ErrorKind] (ImportEnv, TypedImportEnv))
+loadJsonOne imports libPath = do
+    fileRes <- (Right <$> BL.readFile libPath) `catchIOError` (pure . Left . show)
+    case fileRes of
+        Left readErr ->
+            pure $ Left [mkSyntax libPath ("failed to read lib metadata json file: " ++ readErr)]
+        Right bytes ->
+            case eitherDecode bytes of
+                Left e ->
+                    pure $ Left [mkSyntax libPath ("failed to parse lib metadata json: " ++ e)]
+                Right env ->
+                    pure $ Right (buildEnv libPath (filterEnvelopeByImports imports env))
+
+
+loadNonJsonBatch :: FilePath -> [String] -> [Path] -> IO (Either [ErrorKind] (Maybe (ImportEnv, TypedImportEnv)))
+loadNonJsonBatch _ _ [] = pure (Right Nothing)
+loadNonJsonBatch toolkitJar imports libPaths = do
+    let importArgs = if null imports then [] else ["--imports", intercalate "," imports]
+        readArgs = concatMap (\path -> ["--read", path]) libPaths
+        args = ["-jar", toolkitJar] ++ readArgs ++ importArgs
+    (ec, out, errText) <- readProcessWithExitCode "java" args ""
+    case ec of
+        ExitSuccess ->
+            case eitherDecode (BL.pack out) of
+                Left e ->
+                    pure $ Left [mkSyntax "<batched-libs>" ("failed to parse batched lib metadata json: " ++ e)]
+                Right env ->
+                    pure $ Right (Just (buildEnv "<batched-libs>" env))
+        ExitFailure code ->
+            let details = trim (if null errText then out else errText)
+                msg = "failed to read batched library metadata (exit " ++ show code ++ "): " ++ details
+            in pure $ Left [mkSyntax "<batched-libs>" msg]
+  where
     trim :: String -> String
     trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
+
+
+filterEnvelopeByImports :: [String] -> LibEnvelope -> LibEnvelope
+filterEnvelopeByImports imports (LibEnvelope classes)
+    | null normalizedImports = LibEnvelope classes
+    | otherwise = LibEnvelope (filter keep classes)
+  where
+    normalizedImports = map normalizeImportPattern imports
+
+    keep :: LibClass -> Bool
+    keep cls =
+        let fullName = intercalate "." (lcPackage cls ++ [lcClassName cls])
+        in any (`globMatch` fullName) normalizedImports
+
+    normalizeImportPattern :: String -> String
+    normalizeImportPattern = map (\c -> if c == '/' then '.' else c)
+
+    globMatch :: String -> String -> Bool
+    globMatch patternText value = go patternText value
+      where
+        go :: String -> String -> Bool
+        go [] [] = True
+        go [] _ = False
+        go ('*':ps) xs = go ps xs || case xs of
+            [] -> False
+            (_:rest) -> go ('*':ps) rest
+        go (p:ps) (x:xs)
+            | p == x = go ps xs
+            | otherwise = False
+        go _ _ = False
 
 
 buildEnv :: Path -> LibEnvelope -> (ImportEnv, TypedImportEnv)

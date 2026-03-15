@@ -60,6 +60,11 @@ class DbMetadataStore(
     private val bootstrap: DbBootstrap = DbBootstrap()
 )
 {
+    companion object
+    {
+        private const val SQLITE_IN_LIMIT: Int = 900
+    }
+
     /**
      * Save class metadata into an sqlite database file.
      *
@@ -100,14 +105,15 @@ class DbMetadataStore(
      * Load class metadata from an sqlite database file.
      *
      * @param dbPath sqlite file path.
+     * @param imports optional import patterns for SQL-side filtering.
      * @return decoded class metadata list.
      */
-    fun loadClasses(dbPath: Path): List<JavaClassDto>
+    fun loadClasses(dbPath: Path, imports: List<String>? = null): List<JavaClassDto>
     {
         val normalized: Path = dbPath.toAbsolutePath().normalize()
 
         DriverManager.getConnection("jdbc:sqlite:$normalized").use { conn ->
-            return loadClasses(conn)
+            return loadClasses(conn, imports)
         }
     }
 
@@ -210,79 +216,25 @@ class DbMetadataStore(
      * Load metadata using an existing db connection.
      *
      * @param conn database connection.
+     * @param imports optional import patterns for SQL-side filtering.
      * @return decoded class metadata list.
      */
-    private fun loadClasses(conn: Connection): List<JavaClassDto>
+    private fun loadClasses(conn: Connection, imports: List<String>? = null): List<JavaClassDto>
     {
-        val classRows: MutableList<DbClassRow> = mutableListOf()
+        val importPatterns: List<String> = normalizeImportPatterns(imports)
+        val classRows: List<DbClassRow> = loadClassRows(conn, importPatterns)
+        if (classRows.isEmpty())
+            return emptyList()
 
-        conn.prepareStatement(DbSql.selectClassRows).use { st ->
-            st.executeQuery().use { rs ->
-                while (rs.next())
-                {
-                    classRows.add(
-                        DbClassRow(
-                            id = rs.getLong("id"),
-                            packageName = rs.getString("package_name"),
-                            accessJson = rs.getString("access_json"),
-                            name = rs.getString("name"),
-                            superClassRaw = rs.getString("super_class"),
-                            interfacesJson = rs.getString("interfaces_json")
-                        )
-                    )
-                }
-            }
-        }
+        val classIds: List<Long> = classRows.map { it.id }
 
         val staticFieldsByClass: MutableMap<Long, MutableList<JavaFieldDto>> = mutableMapOf()
         val instanceFieldsByClass: MutableMap<Long, MutableList<JavaFieldDto>> = mutableMapOf()
-
-        conn.prepareStatement(DbSql.selectFieldRows).use { st ->
-            st.executeQuery().use { rs ->
-                while (rs.next())
-                {
-                    val classId: Long = rs.getLong("class_id")
-                    val access: List<String> = this.decodeStringList(rs.getString("access_json"))
-                    val dto = JavaFieldDto(
-                        access = access,
-                        type = this.decodeStringList(rs.getString("type_json")),
-                        name = rs.getString("name"),
-                        ownerType = rs.getString("owner_type")
-                    )
-
-                    if (hasStaticAccess(access))
-                        staticFieldsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
-                    else
-                        instanceFieldsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
-                }
-            }
-        }
+        loadFieldRows(conn, classIds, importPatterns.isEmpty(), staticFieldsByClass, instanceFieldsByClass)
 
         val staticMethodsByClass: MutableMap<Long, MutableList<JavaMethodDto>> = mutableMapOf()
         val instanceMethodsByClass: MutableMap<Long, MutableList<JavaMethodDto>> = mutableMapOf()
-
-        conn.prepareStatement(DbSql.selectMethodRows).use { st ->
-            st.executeQuery().use { rs ->
-                while (rs.next())
-                {
-                    val classId: Long = rs.getLong("class_id")
-                    val access: List<String> = this.decodeStringList(rs.getString("access_json"))
-                    val signature: MethodSignaturePayload = this.decodeMethodSignature(rs.getString("signature_json"))
-                    val dto = JavaMethodDto(
-                        access = access,
-                        returnType = signature.returnType,
-                        params = signature.paramTypes,
-                        name = rs.getString("name"),
-                        ownerType = rs.getString("owner_type")
-                    )
-
-                    if (hasStaticAccess(access))
-                        staticMethodsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
-                    else
-                        instanceMethodsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
-                }
-            }
-        }
+        loadMethodRows(conn, classIds, importPatterns.isEmpty(), staticMethodsByClass, instanceMethodsByClass)
 
         return classRows.map { row ->
             JavaClassDto(
@@ -298,6 +250,220 @@ class DbMetadataStore(
             )
         }
     }
+
+    private fun loadClassRows(conn: Connection, importPatterns: List<String>): List<DbClassRow>
+    {
+        val out: MutableList<DbClassRow> = mutableListOf()
+
+        if (importPatterns.isEmpty())
+        {
+            conn.prepareStatement(DbSql.selectClassRows).use { st ->
+                st.executeQuery().use { rs ->
+                    while (rs.next())
+                    {
+                        out.add(
+                            DbClassRow(
+                                id = rs.getLong("id"),
+                                packageName = rs.getString("package_name"),
+                                accessJson = rs.getString("access_json"),
+                                name = rs.getString("name"),
+                                superClassRaw = rs.getString("super_class"),
+                                interfacesJson = rs.getString("interfaces_json")
+                            )
+                        )
+                    }
+                }
+            }
+            return out
+        }
+
+        val wherePart: String = List(importPatterns.size) { "c.full_name GLOB ?" }.joinToString(" OR ")
+        val sql = """
+            SELECT c.id,
+                   p.package_name,
+                   c.access_json,
+                   c.name,
+                   c.super_class,
+                   c.interfaces_json,
+                   c.full_name
+            FROM class_entity c
+            JOIN package_entity p ON p.id = c.package_id
+            WHERE $wherePart
+            ORDER BY c.full_name;
+        """.trimIndent()
+
+        conn.prepareStatement(sql).use { st ->
+            importPatterns.forEachIndexed { index, pattern ->
+                st.setString(index + 1, pattern)
+            }
+
+            st.executeQuery().use { rs ->
+                while (rs.next())
+                {
+                    out.add(
+                        DbClassRow(
+                            id = rs.getLong("id"),
+                            packageName = rs.getString("package_name"),
+                            accessJson = rs.getString("access_json"),
+                            name = rs.getString("name"),
+                            superClassRaw = rs.getString("super_class"),
+                            interfacesJson = rs.getString("interfaces_json")
+                        )
+                    )
+                }
+            }
+        }
+
+        return out
+    }
+
+    private fun loadFieldRows(
+        conn: Connection,
+        classIds: List<Long>,
+        loadAllRows: Boolean,
+        staticFieldsByClass: MutableMap<Long, MutableList<JavaFieldDto>>,
+        instanceFieldsByClass: MutableMap<Long, MutableList<JavaFieldDto>>
+    )
+    {
+        if (loadAllRows)
+        {
+            conn.prepareStatement(DbSql.selectFieldRows).use { st ->
+                st.executeQuery().use { rs ->
+                    while (rs.next())
+                        readOneFieldRow(rs.getLong("class_id"), rs.getString("access_json"), rs.getString("type_json"), rs.getString("name"), rs.getString("owner_type"), staticFieldsByClass, instanceFieldsByClass)
+                }
+            }
+            return
+        }
+
+        classIds.chunked(SQLITE_IN_LIMIT).forEach { chunk ->
+            val inArgs: String = List(chunk.size) { "?" }.joinToString(",")
+            val sql = """
+                SELECT class_id,
+                       access_json,
+                       type_json,
+                       name,
+                       owner_type
+                FROM field_entity
+                WHERE class_id IN ($inArgs)
+                ORDER BY id;
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { st ->
+                chunk.forEachIndexed { index, classId ->
+                    st.setLong(index + 1, classId)
+                }
+
+                st.executeQuery().use { rs ->
+                    while (rs.next())
+                        readOneFieldRow(rs.getLong("class_id"), rs.getString("access_json"), rs.getString("type_json"), rs.getString("name"), rs.getString("owner_type"), staticFieldsByClass, instanceFieldsByClass)
+                }
+            }
+        }
+    }
+
+    private fun readOneFieldRow(
+        classId: Long,
+        accessJson: String,
+        typeJson: String,
+        name: String,
+        ownerType: String,
+        staticFieldsByClass: MutableMap<Long, MutableList<JavaFieldDto>>,
+        instanceFieldsByClass: MutableMap<Long, MutableList<JavaFieldDto>>
+    )
+    {
+        val access: List<String> = this.decodeStringList(accessJson)
+        val dto = JavaFieldDto(
+            access = access,
+            type = this.decodeStringList(typeJson),
+            name = name,
+            ownerType = ownerType
+        )
+
+        if (hasStaticAccess(access))
+            staticFieldsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
+        else
+            instanceFieldsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
+    }
+
+    private fun loadMethodRows(
+        conn: Connection,
+        classIds: List<Long>,
+        loadAllRows: Boolean,
+        staticMethodsByClass: MutableMap<Long, MutableList<JavaMethodDto>>,
+        instanceMethodsByClass: MutableMap<Long, MutableList<JavaMethodDto>>
+    )
+    {
+        if (loadAllRows)
+        {
+            conn.prepareStatement(DbSql.selectMethodRows).use { st ->
+                st.executeQuery().use { rs ->
+                    while (rs.next())
+                        readOneMethodRow(rs.getLong("class_id"), rs.getString("access_json"), rs.getString("signature_json"), rs.getString("name"), rs.getString("owner_type"), staticMethodsByClass, instanceMethodsByClass)
+                }
+            }
+            return
+        }
+
+        classIds.chunked(SQLITE_IN_LIMIT).forEach { chunk ->
+            val inArgs: String = List(chunk.size) { "?" }.joinToString(",")
+            val sql = """
+                SELECT class_id,
+                       access_json,
+                       name,
+                       signature_json,
+                       owner_type
+                FROM method_entity
+                WHERE class_id IN ($inArgs)
+                ORDER BY id;
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { st ->
+                chunk.forEachIndexed { index, classId ->
+                    st.setLong(index + 1, classId)
+                }
+
+                st.executeQuery().use { rs ->
+                    while (rs.next())
+                        readOneMethodRow(rs.getLong("class_id"), rs.getString("access_json"), rs.getString("signature_json"), rs.getString("name"), rs.getString("owner_type"), staticMethodsByClass, instanceMethodsByClass)
+                }
+            }
+        }
+    }
+
+    private fun readOneMethodRow(
+        classId: Long,
+        accessJson: String,
+        signatureJson: String,
+        name: String,
+        ownerType: String,
+        staticMethodsByClass: MutableMap<Long, MutableList<JavaMethodDto>>,
+        instanceMethodsByClass: MutableMap<Long, MutableList<JavaMethodDto>>
+    )
+    {
+        val access: List<String> = this.decodeStringList(accessJson)
+        val signature: MethodSignaturePayload = this.decodeMethodSignature(signatureJson)
+        val dto = JavaMethodDto(
+            access = access,
+            returnType = signature.returnType,
+            params = signature.paramTypes,
+            name = name,
+            ownerType = ownerType
+        )
+
+        if (hasStaticAccess(access))
+            staticMethodsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
+        else
+            instanceMethodsByClass.getOrPut(classId) { mutableListOf() }.add(dto)
+    }
+
+    private fun normalizeImportPatterns(imports: List<String>?): List<String> =
+        imports.orEmpty()
+            .asSequence()
+            .map { it.trim().replace('/', '.') }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .toList()
 
     /**
      * Ensure package row exists and return package id.

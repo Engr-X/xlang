@@ -231,11 +231,8 @@ buildDepMap pkgMap owners =
     where
         one :: QName -> [ModuleInfo] -> [QName]
         one pkg mods =
-            let deps =
-                    [ fromMaybe pkg (Map.lookup (miPath m, rawQn) owners)
-                    | m <- mods
-                    , (rawQn, _) <- miImports m
-                    ]
+            let deps = [fromMaybe pkg (Map.lookup (miPath m, rawQn) owners) | m <- mods,
+                    (rawQn, _) <- miImports m]
             in dedup (filter (/= pkg) deps)
 
         dedup :: [QName] -> [QName]
@@ -416,15 +413,12 @@ toImportSpec qn
 
 
 importDeclSpecs :: [Declaration] -> [(ImportSpec, [Position])]
-importDeclSpecs decls =
-    [ (toImportSpec qn, map Lex.tokenPos toks)
-    | d <- decls
-    , isImportDecl d
-    , let qn = declPath d
-    , let toks = case d of
+importDeclSpecs decls = [(toImportSpec qn, map Lex.tokenPos toks) | d <- decls,
+    isImportDecl d, 
+    let qn = declPath d,
+    let toks = case d of
             Import _ ts -> ts
-            _ -> []
-    ]
+            _ -> []]
 
 
 dedupImportSpecs :: [ImportSpec] -> [ImportSpec]
@@ -571,21 +565,16 @@ expandTypedImportEnvBySpecs currentPkg specs env =
     expandFunMap :: Map QName ([FunSig], [Position], QName) -> Map QName ([FunSig], [Position], QName)
     expandFunMap mp =
         let entries = Map.toList mp
-            topLevels = HashSet.fromList
-                [ fullQn
-                | (keyQn, (_, _, fullQn)) <- entries
-                , let (_, payload) = splitHiddenQName keyQn
-                , isTopLevelAliasPayload payload fullQn
-                ]
-            aliases =
-                [ (aliasKey, entry)
-                | (keyQn, entry) <- entries
-                , let (isHidden, _) = splitHiddenQName keyQn
-                , let full = fullFromEntry entry
-                , isSamePackageFull full || any (`matchesImportSpec` full) specs
-                , alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry)
-                , let aliasKey = if isHidden then toHiddenQName alias else alias
-                ]
+            topLevels = HashSet.fromList [
+                fullQn | (keyQn, (_, _, fullQn)) <- entries,
+                let (_, payload) = splitHiddenQName keyQn, isTopLevelAliasPayload payload fullQn]
+            aliases = [
+                (aliasKey, entry) | (keyQn, entry) <- entries,
+                let (isHidden, _) = splitHiddenQName keyQn,
+                let full = fullFromEntry entry,
+                isSamePackageFull full || any (`matchesImportSpec` full) specs,
+                alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry),
+                let aliasKey = if isHidden then toHiddenQName alias else alias]
             mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
             mergeFunEntry (newSigs, newPos, newFull) (oldSigs, oldPos, oldFull) =
                 let sigs = oldSigs ++ filter (`notElem` oldSigs) newSigs

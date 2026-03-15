@@ -64,11 +64,11 @@ xlangVersion = "alpha 0.0.0"
 
 jdkMetadataUrlMap :: Map Int String
 jdkMetadataUrlMap = Map.fromList [
-    (8, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-1.8.0_202.7z"),
-    (11, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-11.0.29.7z"),
-    (17, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-17.0.10.7z"),
-    (21, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-21.0.10.7z"),
-    (25, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-25.0.1.7z")]
+    (8, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-1.8.0_202.db"),
+    (11, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-11.0.29.db"),
+    (17, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-17.0.10.db"),
+    (21, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-21.0.10.db"),
+    (25, "https://github.com/Engr-X/xlang-jdk-metadata/releases/download/jdk-std-main/jdk-25.0.1.db")]
 
 
 defaultJvmTargetVersion :: Int
@@ -96,43 +96,24 @@ downloadJdkMetadata exeDir version =
             putStrLn ("unsupported java metadata version: " ++ show version)
             putStrLn ("supported versions: " ++ supportedJdkMetadataVersionsText)
         Just url -> do
-            let nativeDir = exeDir </> "libs" </> "java-native"
-                outDir = versionedMetadataDir exeDir version
-                outFile = nativeDir </> takeFileName url
+            let outDir = versionedMetadataDir exeDir version
+                outFile = outDir </> takeFileName url
                 downloadScript = concat [
                     "$ErrorActionPreference='Stop'; ",
                     "$ProgressPreference='SilentlyContinue'; ",
                     "Invoke-WebRequest -Uri \"", url, "\" -OutFile \"", outFile, "\""]
-                extractScript = concat [
-                    "$ErrorActionPreference='Stop'; ",
-                    "$sevenZip = Get-Command 7z -ErrorAction SilentlyContinue; ",
-                    "if ($null -eq $sevenZip) { $sevenZip = Get-Command 7za -ErrorAction SilentlyContinue }; ",
-                    "if ($null -eq $sevenZip) { $sevenZip = Get-Command 7zr -ErrorAction SilentlyContinue }; ",
-                    "if ($null -eq $sevenZip) { throw '7z executable not found in PATH.' }; ",
-                    "& $sevenZip.Source x \"", outFile, "\" \"-o", outDir, "\" -y | Out-Null; ",
-                    "Remove-Item -LiteralPath \"", outFile, "\" -Force"]
 
-            createDirectoryIfMissing True nativeDir
             createDirectoryIfMissing True outDir
-            putStrLn ("[1 / 2][DOWNLOAD] jdk metadata v" ++ show version)
-            putStrLn ("        url : " ++ url)
-            putStrLn ("        file: " ++ outFile)
+            putStrLn ("[DOWNLOAD] jdk metadata v" ++ show version)
+            putStrLn ("           url : " ++ url)
+            putStrLn ("           file: " ++ outFile)
             (downloadCode, _, downloadErr) <- readProcessWithExitCode "powershell" ["-NoProfile", "-Command", downloadScript] ""
             case downloadCode of
                 ExitFailure _ -> do
-                    putStrLn "[1 / 2][ERROR] failed to download jdk metadata archive"
+                    putStrLn "[ERROR] failed to download jdk metadata db"
                     if null downloadErr then pure () else putStrLn downloadErr
-                ExitSuccess -> do
-                    putStrLn ("[1 / 2][DONE] downloaded: " ++ outFile)
-                    putStrLn ("[2 / 2][EXTRACT] start -> " ++ outDir)
-                    (extractCode, _, extractErr) <- readProcessWithExitCode "powershell" ["-NoProfile", "-Command", extractScript] ""
-                    case extractCode of
-                        ExitSuccess -> do
-                            putStrLn ("[2 / 2][DONE] extracted to: " ++ outDir)
-                            putStrLn ("[2 / 2][DONE] deleted archive: " ++ outFile)
-                        ExitFailure _ -> do
-                            putStrLn "[2 / 2][ERROR] failed to extract archive or delete package"
-                            if null extractErr then pure () else putStrLn extractErr
+                ExitSuccess ->
+                    putStrLn ("[DONE] downloaded: " ++ outFile)
 
 hasAnyEntries :: FilePath -> IO Bool
 hasAnyEntries dir = do
@@ -349,7 +330,7 @@ printHelp = putStrLn $ unlines [
     "   --target=jvm<n>  compatibility alias for --target-jvm<n> (e.g. --target=jvm25)",
     "   --target jvm<n>  compatibility alias for --target-jvm<n>",
     "   -download=<n>, --download=<n>",
-    "                    download jdk metadata archive to <xlang.exe dir>/libs/java-native",
+    "                    download jdk metadata db to <xlang.exe dir>/libs/java-native/jdk-<target>",
     "                    supported versions: " ++ supportedJdkMetadataVersionsText,
     "   <file.*>         source files to compile (extensions: .x/.xl/.xlang)",
     "   -c <file.*>      compatibility alias for one input file",
@@ -359,9 +340,9 @@ printHelp = putStrLn $ unlines [
     "   -j<n>, -j <n>, --jobs <n>, --jobs=<n>",
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
-    "   -lib <files...>  external libs (.class/.jar/.json/.db), e.g. -lib a.jar b.class c.json d.db",
-    "                    plus default: all .jar under <xlang.exe dir>/libs and .json/.db under <xlang.exe dir>/libs/java-native/jdk-<target>",
-    "                    fallback for legacy metadata: all .json/.db under <xlang.exe dir>/libs/java-native",
+    "   -lib <files...>  external libs (.class/.jar/.json/.db/.jmod), e.g. -lib a.jar b.class c.json d.db e.jmod",
+    "                    plus default: all .jar under <xlang.exe dir>/libs and .class/.jar/.json/.db/.jmod under <xlang.exe dir>/libs/java-native/jdk-<target>",
+    "                    fallback for legacy metadata: all .class/.jar/.json/.db/.jmod under <xlang.exe dir>/libs/java-native",
     "   --main=<qname.main>",
     "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
     "                    class-only is also accepted: --main=com.wangdi.MainKt",
@@ -434,7 +415,7 @@ main = do
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) duplicateLibs
                                 printHelp
                             (Just _, _, _) | not (null invalidLibs) -> do
-                                putStrLn "invalid -lib extension; only .class, .jar, .json and .db are allowed"
+                                putStrLn "invalid -lib extension; only .class, .jar, .json, .db and .jmod are allowed"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
                                 printHelp
                             (Just targetJvm, _, Just outPath0) -> do
@@ -463,4 +444,3 @@ main = do
                             _ -> do
                                 putStrLn "missing --target-jvm<number>"
                                 printHelp
-

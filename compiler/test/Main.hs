@@ -1,7 +1,6 @@
 module Main (main) where
 
 import Lex.TokenPassTest
-import Lex.TokenTest
 import Lex.TokenizerTest
 
 import Parse.ParserBasicTest
@@ -12,6 +11,9 @@ import Parse.ParseStmtTest
 import Parse.ParseProgmTest
 
 import IR.LowingTest
+import IR.OptimizeTest
+import IR.TACLowingTest
+import IR.TACTest
 
 import Semantic.NameEnvTest
 import Semantic.ContextCheckTest
@@ -24,7 +26,6 @@ import Semantic.SemanticDebugTest
 
 import Util.BasicTest
 import Util.ExceptionTest
-import Util.FileHelperTest
 import Util.TypeTest
 
 import Test.Tasty
@@ -32,13 +33,13 @@ import Test.Tasty
 
 main :: IO ()
 main = defaultMain $ testGroup "xlang test" [
-    Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.FileHelperTest.tests,
-    Lex.TokenTest.tests, Lex.TokenizerTest.tests, Lex.TokenPassTest.tests,
+    Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests,
+    Lex.TokenizerTest.tests, Lex.TokenPassTest.tests,
 
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,
     Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,
 
-    IR.LowingTest.tests,
+    IR.LowingTest.tests, IR.TACTest.tests, IR.TACLowingTest.tests, IR.OptimizeTest.tests,
 
     Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
     Semantic.CheckProgramTest.tests,

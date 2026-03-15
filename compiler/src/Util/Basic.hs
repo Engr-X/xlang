@@ -153,3 +153,16 @@ insertTab = insertSpace . (4*)
 -- | pair 2 D point (x, y) into on D point a it is bijection function
 paring :: (Int, Int) -> Int
 paring (x, y) = let acc = x + y in (acc * succ acc) `div` 2 + y
+
+
+-- | Split a non-empty list into its prefix and last element.
+--
+-- Uses a tail-recursive worker with an accumulator.
+-- Throws an error on empty input.
+-- Example: @splitLast [1,2,3] == ([1,2],3)@.
+splitLast :: [a] -> ([a], a)
+splitLast [] = error "splitLast: empty list"
+splitLast (x : xs) = go [] x xs
+    where
+        go acc lastOne [] = (reverse acc, lastOne)
+        go acc lastOne (y : ys) = go (lastOne : acc) y ys

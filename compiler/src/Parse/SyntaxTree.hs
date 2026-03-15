@@ -9,7 +9,7 @@ import Data.Maybe (listToMaybe, fromMaybe, catMaybes, isNothing)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable(..))
 import Lex.Token (Token)
-import Util.Basic
+import Util.Basic (insertTab, splitLast)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.HashSet as HashSet
@@ -468,15 +468,14 @@ prettyStmt n (Just (Function (retC, _) functionName params b)) =
         prettyOneParam :: (Class, String, [Token]) -> String
         prettyOneParam (c, name, _) = concat [prettyClass c, " ", name]
     in unlines [
-        concat [
-            space,
-            prettyClass retC,
-            " ",
-            prettyExpr 0 (Just functionName),
-            "(",
-            intercalate ", " (map prettyOneParam params),
-            ")"],
-        prettyBlock n b]
+            concat [
+                space,
+                prettyClass retC,
+                " ",
+                prettyExpr 0 (Just functionName),
+                "(",
+                intercalate ", " (map prettyOneParam params), ")"],
+            prettyBlock n b]
 prettyStmt n (Just (FunctionT (retC, _) functionName genParams params b)) =
     let space = insertTab n
         prettyGen = concat ["<", intercalate ", " (map (prettyClass . fst) genParams), ">"]
@@ -732,11 +731,23 @@ getErrorProgram :: Program -> [Expression]
 getErrorProgram = filter isErrExpr . flattenProgram
 
 
--- | Convert a type name into its corresponding Class.
---   Unknown names are treated as user-defined classes.
-{-toClass :: [String] -> Class
-toClass [s] = fromMaybe (Class [s]) $ Map.lookup s classesMap
-toClass ss = Class ss-}
+-- | Collect all imported classes from a program.
+--   Returns a map from package paths to sets of class names.
+collectInputProgram :: Program -> Map [String] (HashSet String)
+collectInputProgram (decls, _) = let imports = filter isImportDecl decls in
+        foldr (insert . declPath) Map.empty imports
+    where
+        insert :: [String] -> Map [String]  (HashSet String) -> Map [String] (HashSet String)
+        insert ss imap = let (package, className) = splitLast ss in case Map.lookup package imap of
+            Nothing -> Map.insert package (HashSet.singleton className) imap
+            Just classSet -> (if HashSet.member "*" classSet then
+                    imap
+                else
+                    Map.insert package (HashSet.insert className classSet) imap)
+
+-- | Collect all imported classes from a list of programs.
+collectInputPrograms :: [Program] -> Map [String] (HashSet String)
+collectInputPrograms = foldr (Map.unionWith HashSet.union . collectInputProgram) Map.empty
 
 
 -- Check a expresson is a variable or not
@@ -783,12 +794,3 @@ charVal _ = error "charVal: expected CharConst token"
 strVal :: Token -> String
 strVal (Lex.StrConst s _) = s
 strVal _ = error "strVal: expected StrConst token"
-
-
-
-
-
-
-
-
-

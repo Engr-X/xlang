@@ -1,5 +1,30 @@
 # Revision history for BytecodeToolkit
 
+## Alpha-1.1.0 -- 2026-03-15
+
+### Added / Supported
+
+- SQLite metadata pipeline for Java libraries:
+    - `--read` now supports `.db` / `.sqlite`
+    - `--out` now supports `.db` output
+    - built-in schema bootstrap for sqlite metadata files
+- Import-driven metadata filtering:
+    - `--imports` supports wildcard class patterns (for example: `java.lang.*`)
+    - SQL-side filtering is applied when reading from `.db`
+- Multi-source read in one process:
+    - repeated `--read` is supported (for example: `--read a.db --read b.jar`)
+    - merged output is emitted as one JSON/db result
+
+### Improved
+
+- Archive read performance:
+    - `.jar` / `.jmod` reading supports class-name pre-filtering before bytecode parse
+- Import pattern matching:
+    - fixed wildcard matching behavior for `*`
+- Compiler integration path:
+    - non-json library inputs can be batched into a single BytecodeToolkit invocation
+    - reduced repeated JVM startup overhead during library load
+
 ## Alpha-1.0.0 -- 2026-03-14
 
 ### Added / Supported

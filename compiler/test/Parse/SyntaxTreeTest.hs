@@ -8,6 +8,8 @@ import Util.Basic
 import Lex.Token (Token, Symbol)
 
 import qualified Lex.Token as Lex
+import qualified Data.Map.Strict as Map
+import qualified Data.HashSet as HashSet
 
 
 pos :: Position
@@ -238,6 +240,46 @@ getPackageTests = testGroup "Parse.SyntaxTree.getPackage" $
              ], []),
             ["a", "b"])
         ]
+
+
+collectInputProgramTests :: TestTree
+collectInputProgramTests = testGroup "Parse.SyntaxTree.collectInputProgram" $
+    map (\(i, prog, out) -> testCase i $ collectInputProgram prog @=? out) [
+        ("0", ([], []), Map.empty),
+        ("1",
+            ([Import ["java", "util", "List"] []], []),
+            Map.fromList [(["java", "util"], HashSet.fromList ["List"])]),
+        ("2",
+            ([Import ["java", "util", "List"] [],
+              Import ["java", "util", "Map"] [],
+              Import ["java", "util", "List"] []], []),
+            Map.fromList [(["java", "util"], HashSet.fromList ["List", "Map"])]),
+        ("3",
+            ([Import ["java", "lang", "String"] [],
+              Import ["java", "lang", "*"] []], []),
+            Map.fromList [(["java", "lang"], HashSet.fromList ["*"])])
+    ]
+
+
+collectInputProgramsTests :: TestTree
+collectInputProgramsTests = testGroup "Parse.SyntaxTree.collectInputPrograms" $
+    map (\(i, progs, out) -> testCase i $ collectInputPrograms progs @=? out) [
+        ("0", [], Map.empty),
+        ("1",
+            [([Import ["java", "util", "List"] []], [])],
+            Map.fromList [(["java", "util"], HashSet.fromList ["List"])]),
+        ("2",
+            [([Import ["java", "util", "List"] []], []),
+             ([Import ["java", "lang", "String"] []], [])],
+            Map.fromList [
+                (["java", "util"], HashSet.fromList ["List"]),
+                (["java", "lang"], HashSet.fromList ["String"])
+            ]),
+        ("3",
+            [([Import ["java", "util", "List"] []], []),
+             ([Import ["java", "util", "Set"] []], [])],
+            Map.fromList [(["java", "util"], HashSet.fromList ["List", "Set"])])
+    ]
 
 
 flattenProgramTests :: TestTree
@@ -613,4 +655,5 @@ tests = testGroup "Parse.SyntaxTree" [
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,
      
     isPackageDeclTests, isImportDeclTests, isClassDeclarTests,
-    isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests]
+    isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests,
+    collectInputProgramTests, collectInputProgramsTests]

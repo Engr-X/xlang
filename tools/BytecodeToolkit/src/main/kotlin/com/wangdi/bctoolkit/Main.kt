@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 private data class ArgContext(
     var jsonText: String? = null,
     var jsonPath: Path? = null,
-    var readPath: Path? = null,
+    val readPaths: MutableList<Path> = mutableListOf(),
     var outPath: Path? = null,
     var imports: List<String>? = null,
     var separateSize: Int? = null,
@@ -33,7 +33,7 @@ private data class ArgContext(
 private data class Options(
     val jsonText: String?,
     val jsonPath: Path?,
-    val readPath: Path?,
+    val readPaths: List<Path>,
     val outPath: Path?,
     val imports: List<String>?,
     val separateSize: Int?,
@@ -172,12 +172,12 @@ private val handlers: Map<String, (ArgContext, Int) -> Int> = mapOf(
     },
     "-r" to { ctx, i ->
         val value = nextValue(ctx, i) ?: return@to ctx.args.size
-        ctx.readPath = Paths.get(value)
+        ctx.readPaths.add(Paths.get(value))
         i + 2
     },
     "--read" to { ctx, i ->
         val value = nextValue(ctx, i) ?: return@to ctx.args.size
-        ctx.readPath = Paths.get(value)
+        ctx.readPaths.add(Paths.get(value))
         i + 2
     },
     "-o" to { ctx, i ->
@@ -281,7 +281,7 @@ private fun parseArgs(args: Array<String>): Options
     return Options(
         ctx.jsonText,
         ctx.jsonPath,
-        ctx.readPath,
+        ctx.readPaths.toList(),
         ctx.outPath,
         ctx.imports,
         ctx.separateSize,
@@ -308,6 +308,7 @@ private fun printHelp()
             read mode (json/class/jar/jmod/db -> json or db):
                 --read (-r) <file.json|file.class|file.jar|file.jmod|file.db|json_dir>
                                                 Input json/class/jar/jmod/db file or json directory
+                                                Repeat --read to load multiple inputs in one run
                 --out (-o) <file.json|file.db>  Write pretty JSON to file or save to sqlite db
                                                 If omitted, print pretty JSON to stdout
                                                 JSON shape: {"classes":[...]}
@@ -333,6 +334,7 @@ private fun printHelp()
             --read out/app.jar --out app.db
             --read out/app.jar --out ./meta --separate=2
             --read out/app.jar --imports java.lang.* --out java.db
+            --read rt1.db --read rt2.jar --imports java.lang.*,xlang.io.* --out merged.db
             --read out/app.jar --debug
             --read D:/meta/jdk8-json --out D:/meta/jdk8.db
             --read C:/Java/jmods/java.base.jmod --out java.base.json
@@ -384,9 +386,25 @@ private fun classFullName(clazz: JavaClassDto): String =
 private fun importPatternRegex(pattern: String): Regex
 {
     val normalized = pattern.trim().replace('/', '.')
-    val escaped = Regex.escape(normalized).replace("\\*", ".*")
-    return Regex("^$escaped$")
+    val out = StringBuilder("^")
+    normalized.forEach { ch ->
+        if (ch == '*')
+            out.append(".*")
+        else
+            out.append(Regex.escape(ch.toString()))
+    }
+    out.append("$")
+    return Regex(out.toString())
 }
+
+/**
+ * Compile import wildcard patterns to regex list.
+ *
+ * @param imports import pattern list.
+ * @return compiled regex list or null when filter is disabled.
+ */
+private fun compileImportPatterns(imports: List<String>?): List<Regex>? =
+    if (imports.isNullOrEmpty()) null else imports.map(::importPatternRegex)
 
 /**
  * Filter class metadata by import patterns.
@@ -397,14 +415,23 @@ private fun importPatternRegex(pattern: String): Regex
  */
 private fun filterByImports(classes: List<JavaClassDto>, imports: List<String>?): List<JavaClassDto>
 {
-    if (imports.isNullOrEmpty())
-        return classes
-
-    val patterns = imports.map(::importPatternRegex)
+    val patterns = compileImportPatterns(imports) ?: return classes
     return classes.filter { clazz ->
         val fullName = classFullName(clazz)
         patterns.any { it.matches(fullName) }
     }
+}
+
+/**
+ * Build class-name matcher from import patterns.
+ *
+ * @param imports import pattern list.
+ * @return class-name predicate or null when filter is disabled.
+ */
+private fun buildClassNameFilter(imports: List<String>?): ((String) -> Boolean)?
+{
+    val patterns = compileImportPatterns(imports) ?: return null
+    return { fullName -> patterns.any { it.matches(fullName) } }
 }
 
 /**
@@ -431,14 +458,15 @@ private fun readOneClass(path: Path, debug: Boolean = false): JavaClassDto
  * @param debug parameter from function signature.
  * @return return value of this function.
  */
-private fun readFromJar(path: Path, debug: Boolean = false): List<JavaClassDto>
+private fun readFromJar(path: Path, imports: List<String>? = null, debug: Boolean = false): List<JavaClassDto>
 {
     val cb: ((Int, Int, String) -> Unit)? = if (debug)
         { current, total, entryText -> printReadProgress(current, total, entryText) }
     else
         null
+    val classNameFilter = buildClassNameFilter(imports)
 
-    return ByteCodeReader.readJar(path, cb).map { it.toDto() }
+    return ByteCodeReader.readJar(path, cb, classNameFilter).map { it.toDto() }
 }
 
 /**
@@ -449,26 +477,28 @@ private fun readFromJar(path: Path, debug: Boolean = false): List<JavaClassDto>
  * @param debug parameter from function signature.
  * @return return value of this function.
  */
-private fun readFromJmod(path: Path, debug: Boolean = false): List<JavaClassDto>
+private fun readFromJmod(path: Path, imports: List<String>? = null, debug: Boolean = false): List<JavaClassDto>
 {
     val cb: ((Int, Int, String) -> Unit)? = if (debug)
         { current, total, entryText -> printReadProgress(current, total, entryText) }
     else
         null
+    val classNameFilter = buildClassNameFilter(imports)
 
-    return ByteCodeReader.readJmod(path, cb).map { it.toDto() }
+    return ByteCodeReader.readJmod(path, cb, classNameFilter).map { it.toDto() }
 }
 
 /**
  * Load class metadata from db file.
  *
  * @param path sqlite db path.
+ * @param imports optional import patterns used for SQL-side filtering.
  * @param debug debug switch.
  * @return decoded class metadata list.
  */
-private fun readFromDb(path: Path, debug: Boolean = false): List<JavaClassDto>
+private fun readFromDb(path: Path, imports: List<String>? = null, debug: Boolean = false): List<JavaClassDto>
 {
-    val classes = dbMetadataStore.loadClasses(path)
+    val classes = dbMetadataStore.loadClasses(path, imports)
     if (debug)
         println("[1 / 1]: read ${path.toAbsolutePath().normalize()} (classes=${classes.size})")
     return classes
@@ -527,10 +557,11 @@ private fun readFromJsonDir(path: Path, debug: Boolean = false): List<JavaClassD
  * Describes the intent and behavior of this function.
  *
  * @param path parameter from function signature.
+ * @param imports optional import patterns.
  * @param debug parameter from function signature.
  * @return return value of this function.
  */
-private fun readClassDtos(path: Path, debug: Boolean = false): List<JavaClassDto>
+private fun readClassDtos(path: Path, imports: List<String>? = null, debug: Boolean = false): List<JavaClassDto>
 {
     if (Files.isDirectory(path))
         return readFromJsonDir(path, debug)
@@ -541,11 +572,30 @@ private fun readClassDtos(path: Path, debug: Boolean = false): List<JavaClassDto
     {
         fileName.endsWith(".json") -> readFromJsonFile(path, debug)
         fileName.endsWith(".class") -> listOf(readOneClass(path, debug))
-        fileName.endsWith(".jar") -> readFromJar(path, debug)
-        fileName.endsWith(".jmod") -> readFromJmod(path, debug)
-        fileName.endsWith(".db") || fileName.endsWith(".sqlite") -> readFromDb(path, debug)
+        fileName.endsWith(".jar") -> readFromJar(path, imports, debug)
+        fileName.endsWith(".jmod") -> readFromJmod(path, imports, debug)
+        fileName.endsWith(".db") || fileName.endsWith(".sqlite") -> readFromDb(path, imports, debug)
         else -> throw IllegalArgumentException("Unsupported --read input: '$path' (use .json/.class/.jar/.jmod/.db or a json directory)")
     }
+}
+
+/**
+ * Read and merge class metadata from multiple read inputs.
+ *
+ * @param paths read input paths.
+ * @param imports optional import patterns.
+ * @param debug debug switch.
+ * @return merged class metadata list.
+ */
+private fun readClassDtos(paths: List<Path>, imports: List<String>? = null, debug: Boolean = false): List<JavaClassDto>
+{
+    val out = mutableListOf<JavaClassDto>()
+    paths.forEach { one ->
+        val rawClasses = readClassDtos(one, imports, debug)
+        val classes = if (isDbPath(one)) rawClasses else filterByImports(rawClasses, imports)
+        out.addAll(classes)
+    }
+    return out
 }
 
 /**
@@ -638,7 +688,7 @@ fun main(args: Array<String>)
 {
     val opts: Options = parseArgs(args)
     val writeMode: Boolean = opts.jsonText != null || opts.jsonPath != null
-    val readMode: Boolean = opts.readPath != null
+    val readMode: Boolean = opts.readPaths.isNotEmpty()
 
     if (opts.showHelp || (!writeMode && !readMode))
     {
@@ -669,8 +719,7 @@ fun main(args: Array<String>)
 
     if (readMode)
     {
-        val readPath: Path = opts.readPath!!
-        val classes = filterByImports(readClassDtos(readPath, opts.debug), opts.imports)
+        val classes = readClassDtos(opts.readPaths, opts.imports, opts.debug)
 
         if (opts.separateSize != null && opts.outPath != null && isDbPath(opts.outPath))
         {

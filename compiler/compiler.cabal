@@ -153,7 +153,6 @@ test-suite compiler-test
 
     other-modules:
         Lex.TokenPassTest
-        Lex.TokenTest
         Lex.TokenizerTest
 
         Parse.ParserBasicTest
@@ -164,6 +163,9 @@ test-suite compiler-test
         Parse.ParseProgmTest
 
         IR.LowingTest
+        IR.TACTest
+        IR.TACLowingTest
+        IR.OptimizeTest
 
         Semantic.NameEnvTest
         Semantic.ContextCheckTest
@@ -176,7 +178,6 @@ test-suite compiler-test
 
         Util.BasicTest
         Util.ExceptionTest
-        Util.FileHelperTest
         Util.TypeTest
 
     build-depends:
@@ -207,8 +208,6 @@ test-suite compiler-test
                             src/Parse/ParseBlock.y,
                             src/Parse/ParseProgm.y
     x-happy-output-dir:     src/Parse
-
-
 
 
 

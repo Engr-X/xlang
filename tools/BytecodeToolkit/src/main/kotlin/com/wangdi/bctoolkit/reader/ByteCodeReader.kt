@@ -41,7 +41,9 @@ class ByteCodeReader(bytes: ByteArray)
         private fun readArchiveClasses(
             path: Path,
             classEntryFilter: (String) -> Boolean,
-            onProgress: ((Int, Int, String) -> Unit)? = null
+            entryToClassFullName: (String) -> String,
+            onProgress: ((Int, Int, String) -> Unit)? = null,
+            classNameFilter: ((String) -> Boolean)? = null
         ): List<JavaClass>
         {
             val classes = mutableListOf<JavaClass>()
@@ -54,7 +56,11 @@ class ByteCodeReader(bytes: ByteArray)
                 {
                     val entry = entries.nextElement()
                     if (!entry.isDirectory && classEntryFilter(entry.name))
-                        entryNames.add(entry.name)
+                    {
+                        val classFullName = entryToClassFullName(entry.name)
+                        if (classNameFilter == null || classNameFilter.invoke(classFullName))
+                            entryNames.add(entry.name)
+                    }
                 }
 
                 entryNames.sort()
@@ -86,9 +92,18 @@ class ByteCodeReader(bytes: ByteArray)
          */
         fun readJar(
             path: Path,
-            onProgress: ((Int, Int, String) -> Unit)? = null
+            onProgress: ((Int, Int, String) -> Unit)? = null,
+            classNameFilter: ((String) -> Boolean)? = null
         ): List<JavaClass> =
-            readArchiveClasses(path, { entryName -> entryName.endsWith(".class") }, onProgress)
+            readArchiveClasses(
+                path = path,
+                classEntryFilter = { entryName -> entryName.endsWith(".class") },
+                entryToClassFullName = { entryName ->
+                    entryName.removeSuffix(".class").replace('/', '.')
+                },
+                onProgress = onProgress,
+                classNameFilter = classNameFilter
+            )
 
         /**
          * Auto-generated baseline docs for readJmod.
@@ -100,11 +115,20 @@ class ByteCodeReader(bytes: ByteArray)
          */
         fun readJmod(
             path: Path,
-            onProgress: ((Int, Int, String) -> Unit)? = null
+            onProgress: ((Int, Int, String) -> Unit)? = null,
+            classNameFilter: ((String) -> Boolean)? = null
         ): List<JavaClass> =
-            readArchiveClasses(path, { entryName ->
-                entryName.startsWith("classes/") && entryName.endsWith(".class")
-            }, onProgress)
+            readArchiveClasses(
+                path = path,
+                classEntryFilter = { entryName ->
+                    entryName.startsWith("classes/") && entryName.endsWith(".class")
+                },
+                entryToClassFullName = { entryName ->
+                    entryName.removePrefix("classes/").removeSuffix(".class").replace('/', '.')
+                },
+                onProgress = onProgress,
+                classNameFilter = classNameFilter
+            )
 
         /**
          * Auto-generated baseline docs for splitClassName.
