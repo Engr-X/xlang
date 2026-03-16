@@ -292,7 +292,7 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
     )]
 
 tests :: TestTree
-tests = testGroup "Parse.ParseExpr" [lexparseExprTests, ternaryParseTests]
+tests = testGroup "Parse.ParseExpr" [lexparseExprTests, ternaryParseTests, incDecParseTests]
 
 
 ternaryParseTests :: TestTree
@@ -313,5 +313,49 @@ ternaryParseTests = testGroup "Parse.ParseExpr.ternary" [
                 (Variable "b" _)
                 (Binary Add (Variable "a" _) (IntConst "1" _) _, Binary Add (Variable "c" _) (IntConst "2" _) _)
                 _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+
+
+incDecParseTests :: TestTree
+incDecParseTests = testGroup "Parse.ParseExpr.incDec" [
+    testCase "prefix ++ parses as IncSelf" $
+        case replLexparseExpr "++a" of
+            Right (Unary IncSelf (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "prefix -- parses as DecSelf" $
+        case replLexparseExpr "--a" of
+            Right (Unary DecSelf (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "postfix ++ parses as SelfInc" $
+        case replLexparseExpr "a++" of
+            Right (Unary SelfInc (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "postfix -- parses as SelfDec" $
+        case replLexparseExpr "a--" of
+            Right (Unary SelfDec (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "a++ + 1 keeps postfix on lhs" $
+        case replLexparseExpr "a++ + 1" of
+            Right (Binary Add (Unary SelfInc (Variable "a" _) _) (IntConst "1" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "++a + 1 keeps prefix on lhs" $
+        case replLexparseExpr "++a + 1" of
+            Right (Binary Add (Unary IncSelf (Variable "a" _) _) (IntConst "1" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "postfix chain after paren parses" $
+        case replLexparseExpr "(a)++" of
+            Right (Unary SelfInc (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "postfix before cast parses in Postfix layer" $
+        case replLexparseExpr "a++ as int" of
+            Right (Cast (Int32T, _) (Unary SelfInc (Variable "a" _) _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]

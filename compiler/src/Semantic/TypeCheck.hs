@@ -365,13 +365,27 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
     pure toT
 
 inferExpr path packages envs e@(Unary op innerE _) = do
-    t0 <- inferExpr path packages envs innerE
-    let pos = map Lex.tokenPos (exprTokens e)
-    if isBasicType t0 then
-        let resT = inferUnaryOp op t0 in do
-            mapM_ addWarn (iCast path pos t0 resT)
-            pure resT
-    else error "TODO: unary on non-basic type"
+    if isIncDecOperator op then do
+        targetOk <- checkIncDecTarget path innerE
+        t0 <- inferExpr path packages envs innerE
+        let pos = map Lex.tokenPos (exprTokens e)
+        if not targetOk || t0 == ErrorClass then
+            pure ErrorClass
+        else if isIncDecOperandType t0 then
+            let resT = inferUnaryOp op t0 in do
+                mapM_ addWarn (iCast path pos t0 resT)
+                pure resT
+        else do
+            addErr $ UE.Syntax $ UE.makeError path pos (UE.incDecOperandTypeMsg (prettyClass t0))
+            pure ErrorClass
+    else do
+        t0 <- inferExpr path packages envs innerE
+        let pos = map Lex.tokenPos (exprTokens e)
+        if isBasicType t0 then
+            let resT = inferUnaryOp op t0 in do
+                mapM_ addWarn (iCast path pos t0 resT)
+                pure resT
+        else error "TODO: unary on non-basic type"
 
 
 inferExpr path packages envs e@(Binary Assign lhs rhs _) = do
@@ -656,6 +670,44 @@ resolveLocalVarId name pos c =
     case getVarId pos (tcCtx c) of
         Just vid -> Just vid
         Nothing -> fst <$> lookupVarId name (CC.st (tcCtx c))
+
+
+-- | Predicate: ++/-- operators.
+isIncDecOperator :: Operator -> Bool
+isIncDecOperator op = op `elem` [IncSelf, DecSelf, SelfInc, SelfDec]
+
+
+-- | Predicate: valid operand type for ++/--.
+isIncDecOperandType :: Class -> Bool
+isIncDecOperandType cls = isBasicType cls && cls /= Bool
+
+
+-- | Validate ++/-- target mutability/lvalue constraints.
+checkIncDecTarget :: Path -> Expression -> TypeM Bool
+checkIncDecTarget path innerE = case innerE of
+    Variable "this" tok -> do
+        addErr $ UE.Syntax $ UE.makeError path [Lex.tokenPos tok] UE.thisAssignMsg
+        pure False
+    Variable name tok -> do
+        c <- get
+        let posTok = Lex.tokenPos tok
+        case resolveLocalVarId name posTok c of
+            Just vid -> do
+                finalVar <- isVarFinal vid
+                if finalVar
+                    then do
+                        addErr $ UE.Syntax $ UE.makeError path [posTok] (UE.immutableVariableMsg name)
+                        pure False
+                    else pure True
+            Nothing ->
+                pure True
+    Qualified _ toks -> do
+        addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+        pure False
+    _ -> do
+        addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens innerE))
+            (UE.cannotAssignMsg (prettyExpr 0 (Just innerE)))
+        pure False
 
 
 -- | Lookup a variable type from imported environments by qualified name.

@@ -163,6 +163,11 @@ typeMismatchMsg expected actual = concat["type mismatch: expected ", expected, "
 conditionBoolMsg :: String -> String
 conditionBoolMsg actual = "condition must be bool, got " ++ actual
 
+-- | ++/-- operand must be writable numeric-like value.
+incDecOperandTypeMsg :: String -> String
+incDecOperandTypeMsg actual =
+    "++/-- operand must be numeric or char, got " ++ actual
+
 
 -- | possible overflow warning message for casts
 overflowCastMsg :: String -> String -> String

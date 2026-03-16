@@ -222,6 +222,21 @@ castIfNeeded from atom to
         castAtom <- newSubCVar to
         return ([TAC.IRInstr (TAC.ICast castAtom (from, to) atom)], castAtom)
 
+
+-- | Numeric literal `1` with a concrete class shape.
+oneAtomForClass :: Class -> IRAtom
+oneAtomForClass cls = case cls of
+    Int8T -> TAC.Int8C 1
+    Int16T -> TAC.Int16C 1
+    Int32T -> TAC.Int32C 1
+    Int64T -> TAC.Int64C 1
+    Float32T -> TAC.Float32C 1.0
+    Float64T -> TAC.Float64C 1.0
+    Float128T -> TAC.Float128C 1
+    Char -> TAC.CharC '\1'
+    _ -> error "oneAtomForClass: unsupported type for ++"
+
+
 -- return instruction and output atom eg: a = a + b => a1 = a0 + b0 return a1
 -- warning [IRStmt] is reversed!
 exprLowing :: Expression -> TACM ([IRStmt], IRAtom)
@@ -230,6 +245,83 @@ exprLowing (AST.Cast (toClass, _) inner _) = do
     fromClass <- getAtomType oAtom
     nAtom <- newSubCVar toClass
     return (TAC.IRInstr (TAC.ICast nAtom (fromClass, toClass) oAtom) : instrs, nAtom)
+
+-- ++a
+exprLowing (AST.Unary AST.IncSelf inner _) = do
+    (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    fromClass <- getAtomType oAtom
+    let oneAtom = oneAtomForClass fromClass
+    case oAtom of
+        TAC.Var (name, vid, _) -> do
+            nextAtom <- newSubVar fromClass (name, vid)
+            let addInstr = TAC.IRInstr (TAC.IBinary nextAtom AST.Add oAtom oneAtom)
+            return (addInstr : instr, nextAtom)
+        TAC.Param _ -> do
+            tmpAtom <- newSubCVar fromClass
+            let addInstr = TAC.IRInstr (TAC.IBinary tmpAtom AST.Add oAtom oneAtom)
+            let writeBack = TAC.IRInstr (TAC.IAssign oAtom tmpAtom)
+            return ([writeBack, addInstr] ++ instr, oAtom)
+        _ -> error "IncSelf expects Var/Param atom"
+
+-- --a
+exprLowing (AST.Unary AST.DecSelf inner _) = do
+    (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    fromClass <- getAtomType oAtom
+    let oneAtom = oneAtomForClass fromClass
+    case oAtom of
+        TAC.Var (name, vid, _) -> do
+            nextAtom <- newSubVar fromClass (name, vid)
+            let subInstr = TAC.IRInstr (TAC.IBinary nextAtom AST.Sub oAtom oneAtom)
+            return (subInstr : instr, nextAtom)
+        TAC.Param _ -> do
+            tmpAtom <- newSubCVar fromClass
+            let subInstr = TAC.IRInstr (TAC.IBinary tmpAtom AST.Sub oAtom oneAtom)
+            let writeBack = TAC.IRInstr (TAC.IAssign oAtom tmpAtom)
+            return ([writeBack, subInstr] ++ instr, oAtom)
+        _ -> error "DecSelf expects Var/Param atom"
+
+-- a++
+exprLowing (AST.Unary AST.SelfInc inner _) = do
+    (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    fromClass <- getAtomType oAtom
+    let oneAtom = oneAtomForClass fromClass
+    case oAtom of
+        TAC.Var (name, vid, _) -> do
+            oldAtom <- newSubCVar fromClass
+            nextAtom <- newSubVar fromClass (name, vid)
+            let copyInstr = TAC.IRInstr (TAC.IAssign oldAtom oAtom)
+            let addInstr = TAC.IRInstr (TAC.IBinary nextAtom AST.Add oAtom oneAtom)
+            return ([addInstr, copyInstr] ++ instr, oldAtom)
+        TAC.Param _ -> do
+            oldAtom <- newSubCVar fromClass
+            tempAtom <- newSubCVar fromClass
+            let copyInstr = TAC.IRInstr (TAC.IAssign oldAtom oAtom)
+            let addInstr = TAC.IRInstr (TAC.IBinary tempAtom AST.Add oAtom oneAtom)
+            let writeBack = TAC.IRInstr (TAC.IAssign oAtom tempAtom)
+            return ([writeBack, addInstr, copyInstr] ++ instr, oldAtom)
+        _ -> error "SelfInc expects Var/Param atom"
+
+-- a--
+exprLowing (AST.Unary AST.SelfDec inner _) = do
+    (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    fromClass <- getAtomType oAtom
+    let oneAtom = oneAtomForClass fromClass
+    case oAtom of
+        TAC.Var (name, vid, _) -> do
+            oldAtom <- newSubCVar fromClass
+            nextAtom <- newSubVar fromClass (name, vid)
+            let copyInstr = TAC.IRInstr (TAC.IAssign oldAtom oAtom)
+            let subInstr = TAC.IRInstr (TAC.IBinary nextAtom AST.Sub oAtom oneAtom)
+            return ([subInstr, copyInstr] ++ instr, oldAtom)
+        TAC.Param _ -> do
+            oldAtom <- newSubCVar fromClass
+            tempAtom <- newSubCVar fromClass
+            let copyInstr = TAC.IRInstr (TAC.IAssign oldAtom oAtom)
+            let subInstr = TAC.IRInstr (TAC.IBinary tempAtom AST.Sub oAtom oneAtom)
+            let writeBack = TAC.IRInstr (TAC.IAssign oAtom tempAtom)
+            return ([writeBack, subInstr, copyInstr] ++ instr, oldAtom)
+        _ -> error "SelfDec expects Var/Param atom"
+
 
 exprLowing (AST.Unary op inner _) = do
     (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner

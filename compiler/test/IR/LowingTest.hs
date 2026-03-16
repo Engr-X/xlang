@@ -13,6 +13,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import qualified Data.ByteString.Lazy.Char8 as BL
+import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
 
 
@@ -274,6 +275,85 @@ float128JvmRejectTests = testGroup "IR.Lowing.float128JvmReject" [
     ]
 
 
+incDecLoweringTests :: TestTree
+incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
+    testCase "postfix ++ lowers with add" $ do
+        let src = unlines [
+                "int main() {",
+                "    var a = 1",
+                "    var b = a++",
+                "    return b",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
+                let instrs = collectInstrs stmts
+                assertBool "postfix ++ should generate add op" (any isAdd instrs)
+                assertBool "postfix ++ should not generate sub op in this snippet" (not (any isSub instrs))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
+
+    testCase "postfix -- lowers with sub" $ do
+        let src = unlines [
+                "int main() {",
+                "    var a = 1",
+                "    var b = a--",
+                "    return b",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
+                let instrs = collectInstrs stmts
+                assertBool "postfix -- should generate sub op" (any isSub instrs)
+                assertBool "postfix -- should not generate add op in this snippet" (not (any isAdd instrs))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
+
+    testCase "prefix ++ on var lowers with add" $ do
+        let src = unlines [
+                "int main() {",
+                "    var a = 1",
+                "    return ++a",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
+                assertBool "prefix ++ should generate add op" (any isAdd (collectInstrs stmts))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
+
+    testCase "prefix -- on var lowers with sub" $ do
+        let src = unlines [
+                "int main() {",
+                "    var a = 1",
+                "    return --a",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
+                assertBool "prefix -- should generate sub op" (any isSub (collectInstrs stmts))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+    where
+        collectInstrs :: [IRStmt] -> [IRInstr]
+        collectInstrs = concatMap go
+            where
+                go stmt = case stmt of
+                    IRInstr instr -> [instr]
+                    IRBlockStmt (IRBlock (_, body)) -> collectInstrs body
+
+        isAdd :: IRInstr -> Bool
+        isAdd instr = case instr of
+            IBinary _ AST.Add _ _ -> True
+            _ -> False
+
+        isSub :: IRInstr -> Bool
+        isSub instr = case instr of
+            IBinary _ AST.Sub _ _ -> True
+            _ -> False
+
+
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
@@ -282,4 +362,5 @@ tests = testGroup "IR.Lowing" [
     stringLiteralLoweringTests,
     staticFieldReadLoweringTests,
     doubleCmpLoweringTests,
-    float128JvmRejectTests]
+    float128JvmRejectTests,
+    incDecLoweringTests]

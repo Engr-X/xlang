@@ -12,6 +12,7 @@ import Parse.ParseExpr (replLexparseExpr)
 import Parse.ParseStmt (replLexparseStmt)
 import Parse.ParseProgm (replLexparseProgm)
 import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), pattern Function, SwitchCase(..), prettyClass)
+import Parse.ParserBasic (DeclFlag(..))
 import Semantic.TypeCheck
 import Semantic.NameEnv (CheckState(..), ImportEnv(..), QName, Scope(..), VarId, lookupVarId)
 import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable)
@@ -541,6 +542,98 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
                 extra ctx1
 
 
+inferExprIncDecTests :: TestTree
+inferExprIncDecTests = testGroup "Semantic.TypeCheck.inferExprIncDec" $ map (uncurry testCase) [
+    ("0", do
+        let st0 = stWithVars ["i"]
+            vts = mkVarTable st0 [("i", Int32T)]
+            tokI = Lex.Ident "i" pos1
+            tokInc = Lex.Symbol Lex.PlusPlus pos1
+            expr = Unary AST.SelfInc (Variable "i" tokI) tokInc
+            ctx0 = mkTypeCtx st0 Map.empty vts [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= Int32T
+        assertTcErrs Nothing ctx1
+        assertWarnCount 0 ctx1),
+
+    ("1", do
+        let tokNum = Lex.NumberConst "1" pos1
+            tokInc = Lex.Symbol Lex.PlusPlus pos1
+            expr = Unary AST.IncSelf (IntConst "1" tokNum) tokInc
+            ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= ErrorClass
+        assertTcErrs (Just (UE.cannotAssignMsg "1")) ctx1),
+
+    ("2", do
+        let st0 = stWithVars ["x"]
+            vts = mkVarTable st0 [("x", Int32T)]
+            tokX = Lex.Ident "x" pos1
+            tokInc = Lex.Symbol Lex.PlusPlus pos1
+            expr = Unary AST.SelfInc (Variable "x" tokX) tokInc
+            ctx0 = (mkTypeCtx st0 Map.empty vts [Map.empty]) { tcVarFlags = Map.fromList [(0, [Final])] }
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= ErrorClass
+        assertTcErrs (Just (UE.immutableVariableMsg "x")) ctx1),
+
+    ("3", do
+        let st0 = stWithVars ["b"]
+            vts = mkVarTable st0 [("b", Bool)]
+            tokB = Lex.Ident "b" pos1
+            tokInc = Lex.Symbol Lex.PlusPlus pos1
+            expr = Unary AST.SelfInc (Variable "b" tokB) tokInc
+            ctx0 = mkTypeCtx st0 Map.empty vts [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= ErrorClass
+        assertTcErrs (Just (UE.incDecOperandTypeMsg (prettyClass Bool))) ctx1),
+
+    ("4", do
+        let st0 = stWithVars ["i"]
+            vts = mkVarTable st0 [("i", Int32T)]
+            tokI = Lex.Ident "i" pos1
+            tokDec = Lex.Symbol Lex.MinusMinus pos1
+            expr = Unary AST.DecSelf (Variable "i" tokI) tokDec
+            ctx0 = mkTypeCtx st0 Map.empty vts [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= Int32T
+        assertTcErrs Nothing ctx1
+        assertWarnCount 0 ctx1),
+
+    ("5", do
+        let st0 = stWithVars ["i"]
+            vts = mkVarTable st0 [("i", Int32T)]
+            tokI = Lex.Ident "i" pos1
+            tokDec = Lex.Symbol Lex.MinusMinus pos1
+            expr = Unary AST.SelfDec (Variable "i" tokI) tokDec
+            ctx0 = mkTypeCtx st0 Map.empty vts [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= Int32T
+        assertTcErrs Nothing ctx1
+        assertWarnCount 0 ctx1),
+
+    ("6", do
+        let st0 = stWithVars ["x"]
+            vts = mkVarTable st0 [("x", Int32T)]
+            tokX = Lex.Ident "x" pos1
+            tokDec = Lex.Symbol Lex.MinusMinus pos1
+            expr = Unary AST.SelfDec (Variable "x" tokX) tokDec
+            ctx0 = (mkTypeCtx st0 Map.empty vts [Map.empty]) { tcVarFlags = Map.fromList [(0, [Final])] }
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= ErrorClass
+        assertTcErrs (Just (UE.immutableVariableMsg "x")) ctx1),
+
+    ("7", do
+        let st0 = stWithVars ["b"]
+            vts = mkVarTable st0 [("b", Bool)]
+            tokB = Lex.Ident "b" pos1
+            tokDec = Lex.Symbol Lex.MinusMinus pos1
+            expr = Unary AST.DecSelf (Variable "b" tokB) tokDec
+            ctx0 = mkTypeCtx st0 Map.empty vts [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= ErrorClass
+        assertTcErrs (Just (UE.incDecOperandTypeMsg (prettyClass Bool))) ctx1)]
+
+
 inferStmtTests :: TestTree
 inferStmtTests = testGroup "Semantic.TypeCheck.inferStmt" $ map mkCase [
     ("0", "return;", Just Void, Nothing),
@@ -828,7 +921,7 @@ tests = testGroup "Semantic.TypeCheck" [
     inferThisTests, inferThisFieldTests, inferLiteralTests,
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
-    inferExprTests, inferStmtTests, conditionBoolTests,
+    inferExprTests, inferExprIncDecTests, inferStmtTests, conditionBoolTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 
 

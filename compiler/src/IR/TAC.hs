@@ -401,6 +401,16 @@ newSubVar cls key@(name, vid) = TACM $ do
     return atom
 
 
+-- | Generate a fresh temporary SSA variable.
+--   Temp varId starts at 0 and increases on each allocation.
+generateTempVar :: Class -> TACM IRAtom
+generateTempVar cls = TACM $ do
+    st <- get
+    let tid = tempId st
+    put st { tempId = succ tid }
+    runTACM (newSubVar cls ("#temp", tid))
+
+
 -- | Create a new SSA-style version for the current variable context.
 --   Requires 'tacCurrentVar' to be set.
 newSubCVar :: Class -> TACM IRAtom
@@ -408,11 +418,7 @@ newSubCVar cls = do
     mKey <- getCurrentVar
     case mKey of
         Just key -> newSubVar cls key
-        Nothing -> do
-            st <- get
-            let newId = succ $ tempId st
-            put st { tempId = newId }
-            newSubVar cls ("#temp", newId)
+        Nothing -> generateTempVar cls
 
 
 data IRAtom
@@ -448,6 +454,11 @@ prettyIRAtom (Phi pairs) =
     let showPair (bid, atom) = concat [".L", show bid, ":", prettyIRAtom atom]
     in concat ["phi(", intercalate ", " (map showPair pairs), ")"]
 prettyIRAtom (Param i) = "param" ++ show i
+
+
+getVarKey :: IRAtom -> (String, Int, Int)
+getVarKey (Var key) = key
+getVarKey _ = error "getVarKey: not a Var atom"
 
 
 -- get the typr for the atom.

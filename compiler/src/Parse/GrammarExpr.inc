@@ -36,6 +36,12 @@ Atom :: { Expression }
     | '-' Atom %prec UMINUS     { Unary UnaryMinus $2 $1}
     | '-' error %prec UMINUS    { Error [$1] (expectedExpression 1 "-") }
 
+    | '++' Atom %prec UPLUS     { Unary IncSelf $2 $1 }
+    | '++' error %prec UPLUS    { Error [$1] (expectedExpression 1 "++") }
+
+    | '--' Atom %prec UMINUS    { Unary DecSelf $2 $1 }
+    | '--' error %prec UMINUS   { Error [$1] (expectedExpression 1 "--") }
+
     -- parenthesized expression
     | '(' Expr ')'              { $2 }
 
@@ -68,6 +74,10 @@ GenericParamList :: { [(Class, [Token])] }
 
 Postfix :: { Expression }
     : Atom                      { $1 }
+
+    | Postfix '++'              { Unary SelfInc $1 $2 }
+    | Postfix '--'              { Unary SelfDec $1 $2 }
+
     | Postfix KW_AS Clazz       { Cast $3 $1 $2 }
     | Postfix KW_AS error       { Error [$2] (expectedExpression 0 "as") }
     ;

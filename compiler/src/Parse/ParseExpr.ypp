@@ -47,6 +47,8 @@ import qualified Util.Exception as UE
 
     '+'                 { t@(Lex.Symbol Lex.Plus _) }
     '-'                 { t@(Lex.Symbol Lex.Minus _) }
+    '++'                { t@(Lex.Symbol Lex.PlusPlus _) }
+    '--'                { t@(Lex.Symbol Lex.MinusMinus _) }
     '*'                 { t@(Lex.Symbol Lex.Multiply _) }
     '/'                 { t@(Lex.Symbol Lex.Divide _) }
     '%'                 { t@(Lex.Symbol Lex.Modulo _) }

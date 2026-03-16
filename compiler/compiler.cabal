@@ -167,6 +167,10 @@ test-suite compiler-test
         IR.TACLowingTest
         IR.OptimizeTest
 
+        Lowing.JVMTest
+        Lowing.JVMJsonTest
+        Lowing.JVMLowingTest
+
         Semantic.NameEnvTest
         Semantic.ContextCheckTest
         Semantic.CheckProgramTest
@@ -208,6 +212,5 @@ test-suite compiler-test
                             src/Parse/ParseBlock.y,
                             src/Parse/ParseProgm.y
     x-happy-output-dir:     src/Parse
-
 
 

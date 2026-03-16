@@ -15,6 +15,10 @@ import IR.OptimizeTest
 import IR.TACLowingTest
 import IR.TACTest
 
+import Lowing.JVMTest
+import Lowing.JVMJsonTest
+import Lowing.JVMLowingTest
+
 import Semantic.NameEnvTest
 import Semantic.ContextCheckTest
 import Semantic.CheckProgramTest
@@ -40,6 +44,7 @@ main = defaultMain $ testGroup "xlang test" [
     Parse.ParseExprTest.tests, Parse.ParseBlockTest.tests, Parse.ParseStmtTest.tests, Parse.ParseProgmTest.tests,
 
     IR.LowingTest.tests, IR.TACTest.tests, IR.TACLowingTest.tests, IR.OptimizeTest.tests,
+    Lowing.JVMTest.tests, Lowing.JVMJsonTest.tests, Lowing.JVMLowingTest.tests,
 
     Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
     Semantic.CheckProgramTest.tests,
