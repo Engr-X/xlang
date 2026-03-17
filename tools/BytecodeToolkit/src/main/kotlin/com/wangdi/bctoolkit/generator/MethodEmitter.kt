@@ -3,98 +3,7 @@
 import com.wangdi.bctoolkit.generator.artifact.Emitter
 import com.wangdi.bctoolkit.base.Access
 import com.wangdi.bctoolkit.base.Type
-import com.wangdi.bctoolkit.generator.artifact.operation.ALoad
-import com.wangdi.bctoolkit.generator.artifact.operation.APush
-import com.wangdi.bctoolkit.generator.artifact.operation.AStore
-import com.wangdi.bctoolkit.generator.artifact.operation.D2F
-import com.wangdi.bctoolkit.generator.artifact.operation.D2I
-import com.wangdi.bctoolkit.generator.artifact.operation.D2L
-import com.wangdi.bctoolkit.generator.artifact.operation.DAdd
-import com.wangdi.bctoolkit.generator.artifact.operation.DDiv
-import com.wangdi.bctoolkit.generator.artifact.operation.DLoad
-import com.wangdi.bctoolkit.generator.artifact.operation.DMul
-import com.wangdi.bctoolkit.generator.artifact.operation.DNeg
-import com.wangdi.bctoolkit.generator.artifact.operation.DPush
-import com.wangdi.bctoolkit.generator.artifact.operation.DReturn
-import com.wangdi.bctoolkit.generator.artifact.operation.DStore
-import com.wangdi.bctoolkit.generator.artifact.operation.DSub
-import com.wangdi.bctoolkit.generator.artifact.operation.Dup
-import com.wangdi.bctoolkit.generator.artifact.operation.F2D
-import com.wangdi.bctoolkit.generator.artifact.operation.F2I
-import com.wangdi.bctoolkit.generator.artifact.operation.F2L
-import com.wangdi.bctoolkit.generator.artifact.operation.FAdd
-import com.wangdi.bctoolkit.generator.artifact.operation.FDiv
-import com.wangdi.bctoolkit.generator.artifact.operation.FLoad
-import com.wangdi.bctoolkit.generator.artifact.operation.FMul
-import com.wangdi.bctoolkit.generator.artifact.operation.FNeg
-import com.wangdi.bctoolkit.generator.artifact.operation.FPush
-import com.wangdi.bctoolkit.generator.artifact.operation.FReturn
-import com.wangdi.bctoolkit.generator.artifact.operation.FStore
-import com.wangdi.bctoolkit.generator.artifact.operation.FSub
-import com.wangdi.bctoolkit.generator.artifact.operation.GetStatic
-import com.wangdi.bctoolkit.generator.artifact.operation.Goto
-import com.wangdi.bctoolkit.generator.artifact.operation.I2D
-import com.wangdi.bctoolkit.generator.artifact.operation.I2F
-import com.wangdi.bctoolkit.generator.artifact.operation.I2L
-import com.wangdi.bctoolkit.generator.artifact.operation.IAdd
-import com.wangdi.bctoolkit.generator.artifact.operation.IBitNot
-import com.wangdi.bctoolkit.generator.artifact.operation.IDiv
-import com.wangdi.bctoolkit.generator.artifact.operation.ILoad
-import com.wangdi.bctoolkit.generator.artifact.operation.IMul
-import com.wangdi.bctoolkit.generator.artifact.operation.INeg
-import com.wangdi.bctoolkit.generator.artifact.operation.IPush
-import com.wangdi.bctoolkit.generator.artifact.operation.IRem
-import com.wangdi.bctoolkit.generator.artifact.operation.IReturn
-import com.wangdi.bctoolkit.generator.artifact.operation.IStore
-import com.wangdi.bctoolkit.generator.artifact.operation.ISub
-import com.wangdi.bctoolkit.generator.artifact.operation.If_dcmpeq
-import com.wangdi.bctoolkit.generator.artifact.operation.If_dcmpge
-import com.wangdi.bctoolkit.generator.artifact.operation.If_dcmpgt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_dcmple
-import com.wangdi.bctoolkit.generator.artifact.operation.If_dcmplt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_dcmpne
-import com.wangdi.bctoolkit.generator.artifact.operation.If_fcmpeq
-import com.wangdi.bctoolkit.generator.artifact.operation.If_fcmpge
-import com.wangdi.bctoolkit.generator.artifact.operation.If_fcmpgt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_fcmple
-import com.wangdi.bctoolkit.generator.artifact.operation.If_fcmplt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_fcmpne
-import com.wangdi.bctoolkit.generator.artifact.operation.If_icmpeq
-import com.wangdi.bctoolkit.generator.artifact.operation.If_icmpge
-import com.wangdi.bctoolkit.generator.artifact.operation.If_icmpgt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_icmple
-import com.wangdi.bctoolkit.generator.artifact.operation.If_icmplt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_icmpne
-import com.wangdi.bctoolkit.generator.artifact.operation.If_lcmpeq
-import com.wangdi.bctoolkit.generator.artifact.operation.If_lcmpge
-import com.wangdi.bctoolkit.generator.artifact.operation.If_lcmpgt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_lcmple
-import com.wangdi.bctoolkit.generator.artifact.operation.If_lcmplt
-import com.wangdi.bctoolkit.generator.artifact.operation.If_lcmpne
-import com.wangdi.bctoolkit.generator.artifact.operation.Instruction
-import com.wangdi.bctoolkit.generator.artifact.operation.InvokeSpecial
-import com.wangdi.bctoolkit.generator.artifact.operation.InvokeStatic
-import com.wangdi.bctoolkit.generator.artifact.operation.InvokeVirtual
-import com.wangdi.bctoolkit.generator.artifact.operation.L2D
-import com.wangdi.bctoolkit.generator.artifact.operation.L2F
-import com.wangdi.bctoolkit.generator.artifact.operation.L2I
-import com.wangdi.bctoolkit.generator.artifact.operation.LAdd
-import com.wangdi.bctoolkit.generator.artifact.operation.LBitNot
-import com.wangdi.bctoolkit.generator.artifact.operation.LDiv
-import com.wangdi.bctoolkit.generator.artifact.operation.LLoad
-import com.wangdi.bctoolkit.generator.artifact.operation.LMul
-import com.wangdi.bctoolkit.generator.artifact.operation.LNeg
-import com.wangdi.bctoolkit.generator.artifact.operation.LPush
-import com.wangdi.bctoolkit.generator.artifact.operation.LRem
-import com.wangdi.bctoolkit.generator.artifact.operation.LReturn
-import com.wangdi.bctoolkit.generator.artifact.operation.LStore
-import com.wangdi.bctoolkit.generator.artifact.operation.LSub
-import com.wangdi.bctoolkit.generator.artifact.operation.Nop
-import com.wangdi.bctoolkit.generator.artifact.operation.OpBlock
-import com.wangdi.bctoolkit.generator.artifact.operation.Pop
-import com.wangdi.bctoolkit.generator.artifact.operation.PutStatic
-import com.wangdi.bctoolkit.generator.artifact.operation.Return
-import com.wangdi.bctoolkit.generator.artifact.operation.UPlus
+import com.wangdi.bctoolkit.generator.artifact.operation.*
 import xlang.annotation.OwnerTypeMetadata
 
 import org.objectweb.asm.ClassWriter
@@ -259,6 +168,91 @@ open class MethodEmitter(
          * @return return value of this function.
          */
         fun lrem(): Builder = this.apply { this.innerAddOp(LRem(mv, labels)) }
+
+        /**
+         * Auto-generated baseline docs for iand.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun iand(): Builder = this.apply { this.innerAddOp(IAnd(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for ior.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun ior(): Builder = this.apply { this.innerAddOp(IOr(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for ixor.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun ixor(): Builder = this.apply { this.innerAddOp(IXor(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for land.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun land(): Builder = this.apply { this.innerAddOp(LAnd(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for lor.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun lor(): Builder = this.apply { this.innerAddOp(LOr(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for lxor.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun lxor(): Builder = this.apply { this.innerAddOp(LXor(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for ishl.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun ishl(): Builder = this.apply { this.innerAddOp(IShl(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for ishr.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun ishr(): Builder = this.apply { this.innerAddOp(IShr(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for iushr.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun iushr(): Builder = this.apply { this.innerAddOp(IUShr(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for lshl.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun lshl(): Builder = this.apply { this.innerAddOp(LShl(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for lshr.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun lshr(): Builder = this.apply { this.innerAddOp(LShr(mv, labels)) }
+        /**
+         * Auto-generated baseline docs for lushr.
+         * Describes the intent and behavior of this function.
+         *
+         * @return return value of this function.
+         */
+        fun lushr(): Builder = this.apply { this.innerAddOp(LUShr(mv, labels)) }
 
         /**
          * Auto-generated baseline docs for invokeStatic.
@@ -728,21 +722,6 @@ open class MethodEmitter(
          * @return return value of this function.
          */
         fun dneg(): Builder = this.apply { this.innerAddOp(DNeg(mv, labels)) }
-
-        /**
-         * Auto-generated baseline docs for inot.
-         * Describes the intent and behavior of this function.
-         *
-         * @return return value of this function.
-         */
-        fun inot(): Builder = this.apply { this.innerAddOp(IBitNot(mv, labels)) }
-        /**
-         * Auto-generated baseline docs for lnot.
-         * Describes the intent and behavior of this function.
-         *
-         * @return return value of this function.
-         */
-        fun lnot(): Builder = this.apply { this.innerAddOp(LBitNot(mv, labels)) }
 
         /**
          * Auto-generated baseline docs for pos.

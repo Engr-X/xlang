@@ -181,10 +181,13 @@ promoteBasicType a b =
 
 
 unaryOpInfer :: Map (Operator, Class) Class
-unaryOpInfer = foldr Map.union Map.empty [unaryArithmetic, unaryIncDec, unaryBitNot]
+unaryOpInfer = foldr Map.union Map.empty [unaryArithmetic, unaryIncDec, unaryLogicalNot, unaryBitInv]
     where
         types :: [Class]
         types = [Bool, Char, Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T]
+
+        integerTypes :: [Class]
+        integerTypes = [Bool, Char, Int8T, Int16T, Int32T, Int64T]
 
         unaryArithmetic :: Map (Operator, Class) Class
         unaryArithmetic =
@@ -198,8 +201,11 @@ unaryOpInfer = foldr Map.union Map.empty [unaryArithmetic, unaryIncDec, unaryBit
                 res = liftA2 (,) op types
             in Map.fromList $ map (\x@(_, t) -> (x, t)) res
 
-        unaryBitNot :: Map (Operator, Class) Class
-        unaryBitNot = Map.fromList $ map (\t -> ((BitNot, t), if t == Bool then Bool else incType t)) types
+        unaryLogicalNot :: Map (Operator, Class) Class
+        unaryLogicalNot = Map.fromList [((LogicalNot, Bool), Bool)]
+
+        unaryBitInv :: Map (Operator, Class) Class
+        unaryBitInv = Map.fromList $ map (\t -> ((BitInv, t), t)) integerTypes
 
         incType :: Class -> Class
         incType cls =
@@ -221,13 +227,10 @@ inferUnaryOp op cls =
 --   Built by merging the per-operator maps defined below.
 --   Assignment operators are handled elsewhere.
 binOpInfer :: Map (Operator, Class, Class) Class
-binOpInfer = foldr Map.union Map.empty [loadCompare, loadShift, loadBitOp, arithmeticOp, modOp]
+binOpInfer = foldr Map.union Map.empty [loadCompare, loadShift, loadBitOp, loadLogicalOp, arithmeticOp, modOp]
     where
         types :: [Class]
         types = [Bool, Char, Int8T, Int16T, Int32T, Int64T, Float32T, Float64T, Float128T]
-
-        narrowIntegerTypes :: [Class]
-        narrowIntegerTypes = [Char, Int8T, Int16T, Int32T, Int64T]
 
         generalIntegerTypes :: [Class]
         generalIntegerTypes = [Bool, Char, Int8T, Int16T, Int32T, Int64T]
@@ -241,24 +244,38 @@ binOpInfer = foldr Map.union Map.empty [loadCompare, loadShift, loadBitOp, arith
                 res = liftA3 (,,) op types types
             in Map.fromList $ map (, Bool) res
 
-        -- | Build rules for <<, >>.
+        -- | Build rules for <<, >>, >>>.
         --   Operates over general integer types only.
-        --   Result type follows 'promoteBasicType'.
+        --   Result type picks the wider integer-like operand type directly.
         loadShift :: Map (Operator, Class, Class) Class
         loadShift =
-            let op = [BitRShift, BitLShift]
+            let op = [BitRShift, BitLShift, BitURShift]
                 res = liftA3 (,,) op generalIntegerTypes generalIntegerTypes
-            in Map.fromList $ map (\x@(_, a, b) -> (x, promoteBasicType a b)) res
+            in Map.fromList $ map (\x@(_, a, b) -> (x, widerIntegerType a b)) res
 
         -- | Build rules for |, ^, !^, &.
-        --   Integer operands promote to a common integer result.
-        --   Bool/Bool is explicitly mapped to Bool.
+        --   Result type picks the wider integer-like operand type directly.
+        --   No forced floor to Int32 for narrow operands.
         loadBitOp :: Map (Operator, Class, Class) Class
         loadBitOp =
-            let op = [BitOr, BitXor, BitXnor, BitAnd]
-                res = liftA3 (,,) op narrowIntegerTypes narrowIntegerTypes
-            in Map.fromList $ map (\x@(_, a, b) -> (x, promoteBasicType a b)) res ++
-                map (\x -> ((x, Bool, Bool), Bool)) op
+            let op = [BitOr, BitXor, BitXnor, BitAnd, BitNor, BitNand, BitImply, BitNimply]
+                res = liftA3 (,,) op generalIntegerTypes generalIntegerTypes
+            in Map.fromList $ map (\x@(_, a, b) -> (x, widerIntegerType a b)) res
+
+        widerIntegerType :: Class -> Class -> Class
+        widerIntegerType a b =
+            let ra = Map.findWithDefault (error ("missing integer rank for " ++ show a)) a basicTypeRank
+                rb = Map.findWithDefault (error ("missing integer rank for " ++ show b)) b basicTypeRank
+            in if ra >= rb then a else b
+
+        -- | Build rules for logical operators (|, ^, !^, &).
+        --   Accepts any pair of integer-like operands (including Bool).
+        --   Logical expressions always produce Bool, regardless of operand width.
+        loadLogicalOp :: Map (Operator, Class, Class) Class
+        loadLogicalOp =
+            let op = [LogicalOr, LogicalXor, LogicalXnor, LogicalAnd]
+                pairs = map (, Bool, Bool) op
+            in Map.fromList $ map (, Bool) pairs
 
         -- | Build rules for +, -, *, **, /.
         --   + - * / use 'promoteBasicType' across all 'types'.
@@ -298,3 +315,5 @@ binaryOpCastType :: Operator -> Class -> Class -> Class
 binaryOpCastType op t1 t2
     | isCompareOp op = promoteBasicType t1 t2
     | otherwise = inferBinaryOp op t1 t2
+
+

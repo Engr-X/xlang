@@ -50,7 +50,7 @@ prettyClass (Class ss args) =
 
 -- | Control-flow commands that can appear as expressions.
 --   Used for statements such as return, break, and continue.
-data Command = Continue | Break | Return (Maybe Expression)
+data Command = Pass | Continue | Break | Return (Maybe Expression)
     deriving (Eq, Show)
 
 
@@ -80,6 +80,7 @@ pattern FunctionT ret name gens params body <- (methodTView -> Just (ret, name, 
 
 -- pretty toString method for command
 prettyCmd :: Int -> Command -> String
+prettyCmd n Pass = insertTab n ++ "pass"
 prettyCmd n Continue = insertTab n ++ "continue"
 prettyCmd n Break = insertTab n ++ "break"
 prettyCmd n (Return Nothing) = insertTab n ++ "return;"
@@ -91,45 +92,60 @@ prettyCmd n (Return e) = concat [insertTab n, "return ", prettyExpr 0 e]
 data Operator = 
     -- 0
     Assign | BitLShiftAssign | BitRShiftAssign | BitOrAssign | BitXorAssign | BitXnorAssign |
-    PlusAssign | MinusAssign | MultiplyAssign | DivideAssign | ModuloAssign | PowerAssign | 
+    PlusAssign | MinusAssign | MultiplyAssign | DivideAssign | ModuloAssign | PowerAssign |
 
     -- 1
-    Equal | NotEqual |
-    
+    BitImply | BitNimply |
+
     -- 2
-    GreaterThan | LessThan | GreaterEqual | LessEqual |
+    LogicalOr |
 
     -- 3
-    BitRShift | BitLShift |
+    LogicalXor | LogicalXnor |
 
     -- 4
-    BitOr |
+    LogicalAnd |
 
     -- 5
-    BitXor | BitXnor | 
-    
+    BitOr | BitNor |
+
     -- 6
-    BitAnd | BitNot | 
+    BitXor | BitXnor |
 
     -- 7
-    Add | Sub | 
-    
+    BitAnd | BitNand |
+
     -- 8
-    Mul | Div | 
+    Equal | NotEqual |
 
     -- 9
-    Mod | 
+    GreaterThan | LessThan | GreaterEqual | LessEqual |
 
-    -- 10Cast
-    Pow | UnaryPlus | UnaryMinus |
+    -- 10
+    BitLShift | BitRShift | BitURShift |
 
     -- 11
-    IncSelf | DecSelf |
+    Add | Sub |
 
     -- 12
-    SelfInc | SelfDec |
+    Mul | Div | Mod |
 
     -- 13
+    Pow |
+
+    -- 14
+    LogicalNot | BitInv |
+
+    -- 15
+    UnaryPlus | UnaryMinus |
+
+    -- 16
+    IncSelf | DecSelf |
+
+    -- 17
+    SelfInc | SelfDec |
+
+    -- 18
     AddrOf | DeRef
    
     deriving (Eq, Ord, Enum, Show)
@@ -145,13 +161,15 @@ operatorTextMap = Map.fromList [
     (BitXnorAssign, "!^="), (PlusAssign, "+="), (MinusAssign, "-="), (MultiplyAssign, "*="), (DivideAssign, "/="),
     (ModuloAssign, "%="), (PowerAssign, "**="),
     
+    (BitImply, "imp"), (BitNimply, "nimp"),
     (Equal, "=="), (NotEqual, "!="),
     
     (GreaterThan, ">"), (LessThan, "<"), (GreaterEqual, ">="), (LessEqual, "<="),
     
-    (BitRShift, ">>"), (BitLShift, "<<"),
+    (BitRShift, ">>"), (BitLShift, "<<"), (BitURShift, ">>>"),
     
-    (BitOr, "|"), (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNot, "!"),
+    (LogicalOr, "|"), (LogicalXor, "^"), (LogicalXnor, "!^"), (LogicalAnd, "&"), (LogicalNot, "!"),
+    (BitOr, "|"), (BitNor, "nor"), (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNand, "nand"), (BitInv, "~"),
     
     (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),
     
@@ -794,3 +812,4 @@ charVal _ = error "charVal: expected CharConst token"
 strVal :: Token -> String
 strVal (Lex.StrConst s _) = s
 strVal _ = error "strVal: expected StrConst token"
+

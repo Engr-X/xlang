@@ -1,0 +1,19 @@
+package examples
+
+void main() {
+    var a = 10
+    var b = 20
+
+    putln(a xor b)
+    putln(a xnor b)
+    putln(a nor b)
+    putln(a nand b)
+
+    putln(1 xor 1)
+    putln(1 xnor 1)
+    putln(1 nor 1)
+    putln(1 nand 1)
+
+    putln(1 nor 2 and 3)
+    putln(1 nand 2 xor 3)
+}

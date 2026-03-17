@@ -140,7 +140,11 @@ tokens :-
 
 <0> ">>"                { eatSymbol BitRShift }
 <0> "<<"                { eatSymbol BitLShift }
-<0> "!^"                { eatSymbol BitXnor }
+<0> "^^"                { eatSymbol LogicalXor }
+<0> "!^"                { eatSymbol LogicalXnor }
+<0> "||"                { eatSymbol LogicalOr }
+<0> "&&"                { eatSymbol LogicalAnd }
+
 <0> "**"                { eatSymbol Power }
 <0> "++"                { eatSymbol PlusPlus }
 <0> "--"                { eatSymbol MinusMinus }
@@ -157,10 +161,8 @@ tokens :-
 <0> ">"                 { eatSymbol GreaterThan }
 <0> "<"                 { eatSymbol LessThan }
 
-<0> "|"                 { eatSymbol BitOr }
-<0> "^"                 { eatSymbol BitXor }
-<0> "&"                 { eatSymbol BitAnd }
-<0> "!"                 { eatSymbol BitNot }
+<0> "^"                 { eatSymbol LogicalXor }
+<0> "!"                 { eatSymbol LogicalNot }
 
 <0> "+"                 { eatSymbol Plus }
 <0> "-"                 { eatSymbol Minus }
@@ -505,3 +507,4 @@ fileTokenize p = do
         Left e -> return ([e], [])
         Right code -> return $ tokenizeWithNL p code
 }
+

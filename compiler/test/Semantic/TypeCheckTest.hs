@@ -517,7 +517,8 @@ checkTypeCompatTests = testGroup "Semantic.TypeCheck.checkTypeCompat" $ map (\(n
         ("0", Int32T, Int32T, Nothing, Just 0),
         ("1", Int64T, Int32T, Nothing, Just 1),
         ("2", Int32T, Void, Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void)), Nothing),
-        ("3", Class ["Foo"] [], Int32T, Just (UE.staticCastError (prettyClass Int32T) (prettyClass (Class ["Foo"] []))), Nothing)]
+        ("3", Class ["Foo"] [], Int32T, Just (UE.staticCastError (prettyClass Int32T) (prettyClass (Class ["Foo"] []))), Nothing),
+        ("4", Bool, Int32T, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing)]
 
 
 inferExprTests :: TestTree
@@ -529,7 +530,8 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("4", "x = true", stWithVars ["x"], mkVarTable (stWithVars ["x"]) [("x", Int32T)], [Map.empty], [], [], Bool, Nothing, Nothing, assertWarnsNonEmpty),
     ("5", "1 == 2", stEmpty, Map.empty, [Map.empty], [], [], Bool, Nothing, Nothing, noExtraTc),
     ("6", "f(1)", stWithVarsFuncs [] ["f"], Map.empty, [Map.fromList [(["f"], [FunSig [Int32T] Int64T])]], [], [], Int64T, Nothing, Just 0, noExtraTc),
-    ("7", "a.b", stEmpty, Map.empty, [Map.empty], [typedVarsEnv [(["a", "b"], Int16T)]], [importVars [["a", "b"]]], Int16T, Nothing, Just 0, noExtraTc)]
+    ("7", "a.b", stEmpty, Map.empty, [Map.empty], [typedVarsEnv [(["a", "b"], Int16T)]], [importVars [["a", "b"]]], Int16T, Nothing, Just 0, noExtraTc),
+    ("8", "1 as bool", stEmpty, Map.empty, [Map.empty], [], [], Bool, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing, noExtraTc)]
     where
         mkCase (name, src, st0, vts, fScopes, typedEnvs, importEnvs, expectedT, errMsg, warnCount, extra) =
             testCase name $ do
@@ -646,6 +648,20 @@ inferStmtTests = testGroup "Semantic.TypeCheck.inferStmt" $ map mkCase [
             let ctx0 = (mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]) { tcCurrentReturn = retT }
                 (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
             assertTcErrs errMsg ctx1
+
+inferStmtPassTests :: TestTree
+inferStmtPassTests = testGroup "Semantic.TypeCheck.inferStmtPass" $ map (\(name, retT) ->
+    testCase name $ do
+        let tokPass = Lex.Ident "pass" pos1
+            stmt = Command AST.Pass tokPass
+            ctx0 = (mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]) { tcCurrentReturn = retT }
+            (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
+        assertTcErrs Nothing ctx1
+        assertWarnCount 0 ctx1) [
+        ("0", Nothing),
+        ("1", Just Void),
+        ("2", Just Int32T),
+        ("3", Just (Class ["Foo"] []))]
 
 
 conditionBoolTests :: TestTree
@@ -921,7 +937,7 @@ tests = testGroup "Semantic.TypeCheck" [
     inferThisTests, inferThisFieldTests, inferLiteralTests,
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
-    inferExprTests, inferExprIncDecTests, inferStmtTests, conditionBoolTests,
+    inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, conditionBoolTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 
 

@@ -29,30 +29,43 @@ import qualified Util.Exception as UE
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
 
-    identity            { t@(Lex.Ident _ _) }
-    number              { t@(Lex.NumberConst _ _) }
-    character           { t@(Lex.CharConst _ _) }
-    string              { t@(Lex.StrConst _ _) }
-
     '='                 { t@(Lex.Symbol Lex.Assign _) }
+    'imp'               { t@(Lex.Ident "imp" _) }
+    'nimp'              { t@(Lex.Ident "nimp" _) }
+    'or'                { t@(Lex.Ident "or" _) }
+    'nor'               { t@(Lex.Ident "nor" _) }
+    'xor'               { t@(Lex.Ident "xor" _) }
+    'xnor'              { t@(Lex.Ident "xnor" _) }
+    'and'               { t@(Lex.Ident "and" _) }
+    'nand'              { t@(Lex.Ident "nand" _) }
 
+    '=='                { t@(Lex.Symbol Lex.Equal _) }
+    '!='                { t@(Lex.Symbol Lex.NotEqual _) }
+    
     '>'                 { t@(Lex.Symbol Lex.GreaterThan _) }
     '<'                 { t@(Lex.Symbol Lex.LessThan _) }
     '>='                { t@(Lex.Symbol Lex.GreaterEqual _) }
     '<='                { t@(Lex.Symbol Lex.LessEqual _) }
-    '=='                { t@(Lex.Symbol Lex.Equal _) }
-    '!='                { t@(Lex.Symbol Lex.NotEqual _) }
-    
-    '!'                 { t@(Lex.Symbol Lex.BitNot _) }
+    'shl'               { t@(Lex.Ident "shl" _) }
+    'shr'               { t@(Lex.Ident "shr" _) }
+    'ushr'              { t@(Lex.Ident "ushr" _) }
 
     '+'                 { t@(Lex.Symbol Lex.Plus _) }
     '-'                 { t@(Lex.Symbol Lex.Minus _) }
-    '++'                { t@(Lex.Symbol Lex.PlusPlus _) }
-    '--'                { t@(Lex.Symbol Lex.MinusMinus _) }
     '*'                 { t@(Lex.Symbol Lex.Multiply _) }
     '/'                 { t@(Lex.Symbol Lex.Divide _) }
     '%'                 { t@(Lex.Symbol Lex.Modulo _) }
     '**'                { t@(Lex.Symbol Lex.Power _) }
+    
+    '!'                 { t@(Lex.Symbol Lex.LogicalNot _) }
+    'inv'               { t@(Lex.Ident "inv" _) }
+    '++'                { t@(Lex.Symbol Lex.PlusPlus _) }
+    '--'                { t@(Lex.Symbol Lex.MinusMinus _) }
+
+    identity            { t@(Lex.Ident _ _) }
+    number              { t@(Lex.NumberConst _ _) }
+    character           { t@(Lex.CharConst _ _) }
+    string              { t@(Lex.StrConst _ _) }
 
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
@@ -60,14 +73,58 @@ import qualified Util.Exception as UE
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
     '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
 
+-- 0: assignment
 %right '='
+
+-- helper precedence for ternary "if ... else ..."
 %right KW_IF
+
+-- 1: bit implication
+%right 'imp' 'nimp'
+
+-- 2: logical-or (reserved)
+%left 'or' 'nor'
+
+-- 3: logical-xor / logical-xnor (reserved)
+
+-- 4: logical-and (reserved)
+%left 'and' 'nand'
+
+-- 5: bit-or (reserved)
+
+-- 6: bit-xor / bit-xnor (reserved)
+%left 'xor' 'xnor'
+
+-- 7: bit-and (reserved)
+
+-- 8: equality
 %left '!=' '=='
+
+-- 9: relational
 %left '>' '<' '>=' '<='
+
+-- 10: shift (reserved)
+%left 'shl' 'shr' 'ushr'
+
+-- 11: additive
 %left '+' '-'
+
+-- 12: multiplicative
 %left '*' '/' '%'
+
+-- 13: power
 %left '**'
-%right UPLUS UMINUS '!'
+
+-- 14: unary logical/bit not ('!' / 'inv')
+
+-- 15: unary plus/minus
+%right UPLUS UMINUS '!' 'inv'
+
+-- 16: prefix ++/-- (handled in Atom rules)
+
+-- 17: postfix ++/-- (handled in Postfix rules)
+
+-- 18: atom/call/cast
 
 %%
 
@@ -75,7 +132,7 @@ Start
     : Expr EOF { $1 }
     ;
 
-#include "Parse/GrammarExpr.inc"
+#include "Parse/GrammarExpr"
 
 {
 -- | Happy-required error continuation for expression parsing.
@@ -124,3 +181,4 @@ lexparseExpr p str = let (errs, tokens) = tokenize p str in case errs of
 replLexparseExpr :: String -> Either [ErrorKind] Expression
 replLexparseExpr = lexparseExpr "stdin"
 }
+

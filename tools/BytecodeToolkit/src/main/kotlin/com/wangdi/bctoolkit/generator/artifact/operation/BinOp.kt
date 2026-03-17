@@ -121,6 +121,60 @@ class IRem(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, 
     override fun toString(tabs: Int): String = "${this.indent(tabs)}irem"
 }
 
+class IAnd(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.IAND)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}iand"
+}
+
+class IOr(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.IOR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}ior"
+}
+
+class IXor(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.IXOR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}ixor"
+}
+
+class IShl(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.ISHL)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}ishl"
+}
+
+class IShr(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.ISHR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}ishr"
+}
+
+class IUShr(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.IUSHR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}iushr"
+}
+
 
 // ---------- Long arithmetic ----------
 class LAdd(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
@@ -237,6 +291,60 @@ class LRem(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, 
      * @return return value of this function.
      */
     override fun toString(tabs: Int): String = "${this.indent(tabs)}lrem"
+}
+
+class LAnd(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.LAND)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}land"
+}
+
+class LOr(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.LOR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}lor"
+}
+
+class LXor(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.LXOR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}lxor"
+}
+
+class LShl(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.LSHL)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}lshl"
+}
+
+class LShr(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.LSHR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}lshr"
+}
+
+class LUShr(mv: MethodVisitor, labels: MutableMap<Int, Label>) : Instruction(mv, labels)
+{
+    override fun addOp(): MethodVisitor = this.mv.also {
+        it.visitInsn(Opcodes.LUSHR)
+    }
+
+    override fun toString(tabs: Int): String = "${this.indent(tabs)}lushr"
 }
 
 

@@ -21,7 +21,7 @@ banPrevSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.BitOr, Lex.BitXor, Lex.BitXnor, Lex.BitAnd, Lex.BitNot,
+    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalXor, Lex.LogicalXnor, Lex.LogicalAnd, Lex.LogicalNot,
 
     Lex.Plus, Lex.Minus, Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
@@ -41,7 +41,7 @@ banNextSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.BitOr, Lex.BitXor, Lex.BitXnor, Lex.BitAnd,
+    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalXor, Lex.LogicalXnor, Lex.LogicalAnd,
 
     Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
@@ -256,4 +256,5 @@ splitShiftInGenerics = go 0
         -- English comment: force token length.
         withLen :: Int -> Position -> Position
         withLen n pos = pos { len = n }
+
 

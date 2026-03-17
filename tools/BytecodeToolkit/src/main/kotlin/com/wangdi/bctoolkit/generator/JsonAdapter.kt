@@ -347,6 +347,18 @@ class JsonAdapter(private val json: JSONObject)
 
             "irem" to { irem() },
             "lrem" to { lrem() },
+            "iand" to { iand() },
+            "ior" to { ior() },
+            "ixor" to { ixor() },
+            "ishl" to { ishl() },
+            "ishr" to { ishr() },
+            "iushr" to { iushr() },
+            "land" to { land() },
+            "lor" to { lor() },
+            "lxor" to { lxor() },
+            "lshl" to { lshl() },
+            "lshr" to { lshr() },
+            "lushr" to { lushr() },
 
             // no-op casts kept for compatibility with older lowering output
             "i2i" to { nop() },
@@ -384,9 +396,6 @@ class JsonAdapter(private val json: JSONObject)
             "lneg" to { lneg() },
             "fneg" to { fneg() },
             "dneg" to { dneg() },
-
-            "inot" to { inot() },
-            "lnot" to { lnot() },
 
             "pos" to { pos() },
 

@@ -369,6 +369,30 @@ isReturnValidTests = testGroup "Semantic.ContextCheck.isReturnValid" $ map (\(na
         ("2", [InLoop, InCase], False),
         ("3", [], False)]
 
+checkPassStmtTests :: TestTree
+checkPassStmtTests = testGroup "Semantic.ContextCheck.checkStmtPass" $ map (\(name, initSt) ->
+    testCase name $ do
+        let tokPass = Lex.Ident "pass" pos1
+            stmt = AST.Command AST.Pass tokPass
+            ctx0 = Ctx { st = initSt, errs = [], varUses = Map.empty }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
+        errs ctx1 @?= []) [
+        ("0", stEmpty),
+        ("1", stInBlock),
+        ("2", stFuncNoCtrl),
+        ("3", stEmpty { ctrlStack = [InLoop, InCase] })]
+
+topLevelCtrlCommandTests :: TestTree
+topLevelCtrlCommandTests = testGroup "Semantic.ContextCheck.topLevelCtrlCommand" $ map (\(name, stmt, expected) ->
+    testCase name $ do
+        let ctx0 = Ctx { st = stEmpty, errs = [], varUses = Map.empty }
+            (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
+        assertErrs expected ctx1) [
+        ("0", AST.Command AST.Continue (Lex.Ident "continue" pos1), Nothing),
+        ("1", AST.Command AST.Break (Lex.Ident "break" pos1), Nothing),
+        ("2", AST.Command (AST.Return Nothing) (Lex.Ident "return" pos1), Nothing),
+        ("3", AST.Command (AST.Return (Just (AST.IntConst "0" (Lex.NumberConst "0" pos1)))) (Lex.Ident "return" pos1), Just topLevelReturnValueErrorMsg)]
+
 
 checkStmtTests :: TestTree
 checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmtOrSrc, initSt) ->
@@ -888,7 +912,7 @@ tests = testGroup "Semantic.ContextCheck" [
     isAssignOpTests, isIncDecOpTests, isStmtExprTests,
     concatQTests, addErrTests, getStateTests, putStateTests, isFunctionTests,
     withCtrlTests, withScopeTests, withCtrlScopeTests,
-    isContinueValidTests, isBreakValidTests, isReturnValidTests,
+    isContinueValidTests, isBreakValidTests, isReturnValidTests, checkPassStmtTests, topLevelCtrlCommandTests,
     
     checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests, checkProgmTests,
     declKindLoweringTests, forScopeTests]

@@ -172,43 +172,43 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
             
     ("8", "!a > b", Right $
         Binary GreaterThan
-            (Unary BitNot
+            (Unary LogicalNot
                 (Variable "a" $ mkId "a" 1 2 1)
-                (mkSym Lex.BitNot 1 1 1))
+                (mkSym Lex.LogicalNot 1 1 1))
             (Variable "b" $ mkId "b" 1 6 1)
             (mkSym Lex.GreaterThan 1 4 1)),
 
     ("9", "!a == b", Right $
         Binary Equal
-            (Unary BitNot
+            (Unary LogicalNot
                 (Variable "a" $ mkId "a" 1 2 1)
-                (mkSym Lex.BitNot 1 1 1))
+                (mkSym Lex.LogicalNot 1 1 1))
             (Variable "b" $ mkId "b" 1 7 1)
             (mkSym Lex.Equal 1 4 2)),
 
     ("10", "!!a != !b", Right $
         Binary NotEqual
-            (Unary BitNot
-                (Unary BitNot
+            (Unary LogicalNot
+                (Unary LogicalNot
                     (Variable "a" $ mkId "a" 1 3 1)
-                    (mkSym Lex.BitNot 1 2 1))
-                (mkSym Lex.BitNot 1 1 1))
-            (Unary BitNot
+                    (mkSym Lex.LogicalNot 1 2 1))
+                (mkSym Lex.LogicalNot 1 1 1))
+            (Unary LogicalNot
                 (Variable "b" $ mkId "b" 1 9 1)
-                (mkSym Lex.BitNot 1 8 1))
+                (mkSym Lex.LogicalNot 1 8 1))
             (mkSym Lex.NotEqual 1 5 2)),
 
     ("11", "!(a < b) == !c", Right $
         Binary Equal
-            (Unary BitNot
+            (Unary LogicalNot
                 (Binary LessThan
                     (Variable "a" $ mkId "a" 1 3 1)
                     (Variable "b" $ mkId "b" 1 7 1)
                     (mkSym Lex.LessThan 1 5 1))
-                (mkSym Lex.BitNot 1 1 1))
-            (Unary BitNot
+                (mkSym Lex.LogicalNot 1 1 1))
+            (Unary LogicalNot
                 (Variable "c" $ mkId "c" 1 14 1)
-                (mkSym Lex.BitNot 1 13 1))
+                (mkSym Lex.LogicalNot 1 13 1))
             (mkSym Lex.Equal 1 10 2)),
             
     ("12", "addToMap::<int>(m, 1)", Right $
@@ -292,7 +292,7 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
     )]
 
 tests :: TestTree
-tests = testGroup "Parse.ParseExpr" [lexparseExprTests, ternaryParseTests, incDecParseTests]
+tests = testGroup "Parse.ParseExpr" [lexparseExprTests, ternaryParseTests, incDecParseTests, andOrParseTests]
 
 
 ternaryParseTests :: TestTree
@@ -359,3 +359,18 @@ incDecParseTests = testGroup "Parse.ParseExpr.incDec" [
             Right (Cast (Int32T, _) (Unary SelfInc (Variable "a" _) _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
+
+
+andOrParseTests :: TestTree
+andOrParseTests = testGroup "Parse.ParseExpr.andOr" [
+    testCase "and has higher precedence than or" $
+        case replLexparseExpr "1 or 2 and 3" of
+            Right (Binary BitOr (IntConst "1" _) (Binary BitAnd (IntConst "2" _) (IntConst "3" _) _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "left associativity for or" $
+        case replLexparseExpr "a or b or c" of
+            Right (Binary BitOr (Binary BitOr (Variable "a" _) (Variable "b" _) _) (Variable "c" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+

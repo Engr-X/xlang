@@ -26,8 +26,7 @@ data LowerState = LowerState {
 }
 
 float128JvmMsg :: String -> String
-float128JvmMsg whereAt =
-    printf "float128 is native-only; JVM target does not support float128 (%s)" whereAt
+float128JvmMsg = printf "float128 is native-only; JVM target does not support float128 (%s)"
 
 rejectFloat128 :: String -> a
 rejectFloat128 whereAt = errorWithoutStackTrace (float128JvmMsg whereAt)
@@ -146,8 +145,21 @@ lowerInstr (IR.IAssign dst src) = do
     srcCls <- atomClass src
     dstCls <- atomClass dst
     dstOps <- storeAtom dst
-    let castOps = if isNoOpCast srcCls dstCls then [] else [JVM.Cast srcCls dstCls]
+    let castOps = ([JVM.Cast srcCls dstCls | not (isNoOpCast srcCls dstCls)])
     return  (srcOps ++ castOps ++ dstOps)
+
+lowerInstr (IR.IUnary dst BitInv src) = do
+    srcOps <- loadAtom src
+    cls <- atomClass dst
+    dstOps <- storeAtom dst
+    return $ concat [srcOps, bitInvOps cls, dstOps]
+
+lowerInstr (IR.IUnary dst LogicalNot src) = do
+    srcOps <- loadAtom src
+    cls <- atomClass dst
+    dstOps <- storeAtom dst
+    return $ concat [srcOps, logicalNotOps cls, dstOps]
+
 lowerInstr (IR.IUnary dst op src) = do
     srcOps <- loadAtom src
     cls <- atomClass dst
@@ -169,16 +181,48 @@ lowerInstr (IR.IBinary dst Pow a b) = do
         aOps, bOps,
         [JVM.InvokeStatic ["java", "lang", "Math", "pow"] powFunSig], dstOps]
 
-lowerInstr (IR.IBinary dst op a b) = do
-    case binaryOp op of
-        Nothing -> error "not implemnt"
-        Just mkOp -> do
-            aOps <- loadAtom a
-            bOps <- loadAtom b
-            dstOps <- storeAtom dst
-            cls <- atomClass dst
+lowerInstr (IR.IBinary dst BitXnor a b) = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    dstOps <- storeAtom dst
+    cls <- atomClass dst
+    return $ concat [aOps, bOps, [JVM.Xor cls], bitInvOps cls, dstOps]
 
-            return $ concat [aOps, bOps, [mkOp cls], dstOps]
+lowerInstr (IR.IBinary dst BitNor a b) = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    dstOps <- storeAtom dst
+    cls <- atomClass dst
+    return $ concat [aOps, bOps, [JVM.Or cls], bitInvOps cls, dstOps]
+
+lowerInstr (IR.IBinary dst BitNand a b) = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    dstOps <- storeAtom dst
+    cls <- atomClass dst
+    return $ concat [aOps, bOps, [JVM.And cls], bitInvOps cls, dstOps]
+
+lowerInstr (IR.IBinary dst BitImply a b) = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    dstOps <- storeAtom dst
+    cls <- atomClass dst
+    return $ concat [aOps, bitInvOps cls, bOps, [JVM.Or cls], dstOps]
+
+lowerInstr (IR.IBinary dst BitNimply a b) = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    dstOps <- storeAtom dst
+    cls <- atomClass dst
+    return $ concat [aOps, bOps, bitInvOps cls, [JVM.And cls], dstOps]
+
+lowerInstr (IR.IBinary dst op a b) = do
+    aOps <- loadAtom a
+    bOps <- loadAtom b
+    dstOps <- storeAtom dst
+    cls <- atomClass dst
+    let mkOp = binaryOp op
+    return $ concat [aOps, bOps, [mkOp cls], dstOps]
 lowerInstr (IR.ICast dst (fromC, toC) atom) = do
     atomOps <- loadAtom atom
     dstOps <- storeAtom dst
@@ -219,7 +263,7 @@ lowerCmp kind a b bid = do
     clsB <- atomClass b
     let cmpCls = pickCmpClass clsA clsB
         op = cmpOp kind cmpCls bid
-    return (aOps ++ bOps ++ [op])
+    return (concat [aOps, bOps, [op]])
 
 pickCmpClass :: Class -> Class -> Class
 pickCmpClass a b
@@ -244,45 +288,85 @@ cmpOp kind cls bid = case kind of
     CmpGe -> JVM.IfcmpGe cls bid
 
 
+castGroupMap :: Map Class Char
+castGroupMap = Map.fromList [
+    (Int8T, 'i'),
+    (Int16T, 'i'),
+    (Int32T, 'i'),
+    (Bool, 'i'),
+    (Char, 'i'),
+    (Int64T, 'l'),
+    (Float32T, 'f'),
+    (Float64T, 'd'),
+    (Float128T, 'd')]
+
+
 isNoOpCast :: Class -> Class -> Bool
 isNoOpCast fromC toC = castGroup fromC == castGroup toC
     where
         castGroup :: Class -> Maybe Char
         castGroup cls = case cls of
-            Int8T -> Just 'i'
-            Int16T -> Just 'i'
-            Int32T -> Just 'i'
-            Bool -> Just 'i'
-            Char -> Just 'i'
-            Int64T -> Just 'l'
-            Float32T -> Just 'f'
-            Float64T -> Just 'd'
-            Float128T -> Just 'd'
             Class _ _ -> Just 'a'
             Array _ _ -> Just 'a'
-            _ -> Nothing
+            _ -> Map.lookup cls castGroupMap
+
+
+bitInvConstMap :: Map Class JVM.JValue
+bitInvConstMap = Map.fromList [
+    (Int64T, JVM.JL (-1)),
+    (Bool, JVM.JI (-1)),
+    (Char, JVM.JI (-1)),
+    (Int8T, JVM.JI (-1)),
+    (Int16T, JVM.JI (-1)),
+    (Int32T, JVM.JI (-1))]
+
+
+-- | Expand bitwise inversion to primitive JVM ops (x ^ -1).
+bitInvOps :: Class -> [JVM.JOP]
+bitInvOps cls =
+    let c = Map.findWithDefault (error ("unsupported bit inv type: " ++ show cls))
+                cls
+                bitInvConstMap
+    in [JVM.CPush c, JVM.Xor cls]
+
+
+-- | Expand logical not for bool (0/1) to xor with 1.
+logicalNotOps :: Class -> [JVM.JOP]
+logicalNotOps Bool = [JVM.CPush (JVM.JI 1), JVM.Xor Bool]
+logicalNotOps cls = error ("unsupported logical not type: " ++ show cls)
 
 
 -- | Map unary IR operators to JVM ops; unsupported ops are errors.
 unaryOp :: Operator -> Class -> JVM.JOP
 unaryOp UnaryMinus cls = JVM.Neg cls
+unaryOp LogicalNot _ = error "LogicalNot should be expanded in lowerInstr"
+unaryOp BitInv _ = error "BitInv should be expanded in lowerInstr"
 unaryOp UnaryPlus _ = error "unsupported unary op: UnaryPlus"
 unaryOp op _ = error ("unsupported unary op: " ++ show op)
 
 
--- | Map binary IR operators to JVM ops when supported.
-binaryOp :: Operator -> Maybe (Class -> JVM.JOP)
-binaryOp Add = Just JVM.Add
-binaryOp Sub = Just JVM.Sub
-binaryOp Mul = Just JVM.Mul
-binaryOp Div = Just JVM.Div
-binaryOp Mod = Just JVM.Rem
-binaryOp BitAnd = Just JVM.And
-binaryOp BitOr = Just JVM.Or
-binaryOp BitXor = Just JVM.Xor
-binaryOp BitLShift = Just JVM.Shl
-binaryOp BitRShift = Just JVM.Shr
-binaryOp _ = Nothing
+-- | Map binary IR operators to JVM ops; unsupported ops are errors.
+binaryOp :: Operator -> (Class -> JVM.JOP)
+binaryOp op = Map.findWithDefault unsupported op binaryOpMap
+    where
+        unsupported _ = error ("unsupported binary op: " ++ show op)
+
+binaryOpMap :: Map Operator (Class -> JVM.JOP)
+binaryOpMap = Map.fromList [
+    (Add, JVM.Add),
+    (Sub, JVM.Sub),
+    (Mul, JVM.Mul),
+    (Div, JVM.Div),
+    (Mod, JVM.Rem),
+    (BitAnd, JVM.And),
+    (BitOr, JVM.Or),
+    (BitXor, JVM.Xor),
+    (LogicalAnd, JVM.And),
+    (LogicalOr, JVM.Or),
+    (LogicalXor, JVM.Xor),
+    (BitLShift, JVM.Shl),
+    (BitRShift, JVM.Shr),
+    (BitURShift, JVM.UShr)]
 
 
 -- | Emit ops to load an atom onto the JVM stack.
@@ -475,3 +559,5 @@ jvmProgmLowing (IR.IRProgm pkg classes) =
 -- | Lower IR programs into JVM classes.
 jvmProgmsLowing :: [IR.IRProgm] -> [JVM.JClass]
 jvmProgmsLowing = concatMap jvmProgmLowing
+
+

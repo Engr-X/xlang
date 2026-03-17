@@ -153,7 +153,7 @@ checkTypeCompat path pos expected actual = do
         actualN = normalizeTypeAlias actual
     if actualN == ErrorClass || expectedN == ErrorClass || expectedN == actualN then
         pure ()
-    else if expectedN == Void || actualN == Void then
+    else if expectedN == Bool || expectedN == Void || actualN == Void then
         addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
     else if isBasicType expectedN && isBasicType actualN then
         mapM_ addWarn (iCast path pos actualN expectedN)
@@ -349,15 +349,21 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
     fromT <- inferExpr path packages envs innerE
 
     let toT = cls
+        fromTN = normalizeTypeAlias fromT
+        toTN = normalizeTypeAlias toT
         pos = map Lex.tokenPos (exprTokens e)
 
+    -- forbid any non-bool -> bool explicit cast
+    if toTN == Bool && fromTN /= Bool && fromTN /= ErrorClass then
+        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass toTN) (prettyClass fromTN))
+
     -- one is basic, the other is not
-    if isBasicType fromT /= isBasicType toT then do
-        addErr $ UE.Syntax $ UE.makeError path pos $ staticCastError (prettyClass fromT) (prettyClass toT)
+    else if isBasicType fromTN /= isBasicType toTN then do
+        addErr $ UE.Syntax $ UE.makeError path pos $ staticCastError (prettyClass fromTN) (prettyClass toTN)
 
     -- both are non-basic (class / array / user type)
     else do
-        if isBasicType fromT
+        if isBasicType fromTN
             then pure ()
             else error "TODO: class cast is not supported yet: "
 
@@ -748,6 +754,7 @@ inferDefineStmtFromDecl path packages envs stmt =
 
 -- | Infer types in a statement.
 inferStmt :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
+inferStmt _ _ _ (Command Pass _) = pure ()
 inferStmt _ _ _ (Command Continue _) = pure ()
 inferStmt _ _ _ (Command Break _) = pure ()
 inferStmt path _ _ (Command (Return Nothing) tok) = do

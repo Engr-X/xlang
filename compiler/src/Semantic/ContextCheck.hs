@@ -366,6 +366,14 @@ isBreakValid ctrls = elem InLoop ctrls || elem InCase ctrls
 isReturnValid :: [CtrlState] -> Bool
 isReturnValid = elem InFunction
 
+-- | At top-level (empty control stack), allow command-only flow statements.
+isTopLevelCtrlScope :: [CtrlState] -> Bool
+isTopLevelCtrlScope = null
+
+-- | Top-level `return` must be bare: `return;`.
+topLevelReturnValueErrorMsg :: String
+topLevelReturnValueErrorMsg = "top-level `return` must not carry a value"
+
 
 -- | Check a single statement and all of its nested blocks.
 checkStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()
@@ -375,16 +383,24 @@ checkStmt p package envs (AST.Command cmd token) = do
     let ctrls = ctrlStack cState
 
     case cmd of
+        AST.Pass ->
+            pure ()
+
         AST.Continue ->
-            if isContinueValid ctrls then pure ()
+            if isContinueValid ctrls || isTopLevelCtrlScope ctrls then pure ()
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] continueCtrlErrorMsg
 
         AST.Break ->
-            if isBreakValid ctrls then pure ()
+            if isBreakValid ctrls || isTopLevelCtrlScope ctrls then pure ()
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] breakCtrlErrorMsg
 
         AST.Return mExpr ->
-            if isReturnValid ctrls then let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
+            if isReturnValid ctrls || isTopLevelCtrlScope ctrls
+                then case mExpr of
+                    Just _ | isTopLevelCtrlScope ctrls ->
+                        addErr $ UE.Syntax $ UE.makeError p [tokenPos token] topLevelReturnValueErrorMsg
+                    _ ->
+                        let checkReturnExpr = maybe (pure ()) (checkExpr p package envs) in checkReturnExpr mExpr
             else addErr $ UE.Syntax $ UE.makeError p [tokenPos token] returnCtrlErrorMsg
 checkStmt p package envs stmt
     | Just (isFieldDecl, isConstDecl, names, mDeclType, mRhs, toks) <- declLikeParts stmt =

@@ -36,11 +36,12 @@ data Symbol
     -- Bitwise operators
     | BitRShift        -- ">>"
     | BitLShift        -- "<<"
-    | BitOr            -- "|"
-    | BitXor           -- "^"
-    | BitXnor          -- "!^"
-    | BitAnd           -- "&"
-    | BitNot           -- "!"
+    
+    | LogicalOr        -- "|"
+    | LogicalXor       -- "^"
+    | LogicalXnor      -- "!^"
+    | LogicalAnd       -- "&"
+    | LogicalNot       -- "!"
 
     -- Arithmetic operators
     | Plus             -- "+"
@@ -153,3 +154,4 @@ tokenPos (Symbol _ p) = p
 tokenPos (NumberConst _ p) = p
 tokenPos (CharConst _ p) = p
 tokenPos (StrConst _ p) = p
+

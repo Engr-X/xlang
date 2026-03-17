@@ -686,6 +686,7 @@ defaultAtomForClass cls = case cls of
 
 stmtsLowing :: [Statement] -> TACM [IRStmt]
 stmtsLowing [] = return []
+stmtsLowing ((AST.Command AST.Pass _):stmts) = stmtsLowing stmts
 stmtsLowing ((AST.Command AST.Continue _):stmts) = do
     (startId, _) <- getCurrentLoop
     phis <- getCurrentLoopPhis
