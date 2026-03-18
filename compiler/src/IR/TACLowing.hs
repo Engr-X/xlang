@@ -379,6 +379,14 @@ exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
 exprLowing (AST.Binary AST.Assign _ _ _) = error "cannot be assign in his case. the error should be catched in context check"
 
 
+exprLowing (AST.Binary AST.LogicalAnd e1 e2 _) = shortCircuitLogical AST.LogicalAnd e1 e2
+exprLowing (AST.Binary AST.LogicalNand e1 e2 _) = shortCircuitLogical AST.LogicalNand e1 e2
+exprLowing (AST.Binary AST.LogicalOr e1 e2 _) = shortCircuitLogical AST.LogicalOr e1 e2
+exprLowing (AST.Binary AST.LogicalNor e1 e2 _) = shortCircuitLogical AST.LogicalNor e1 e2
+exprLowing (AST.Binary AST.LogicalImply e1 e2 _) = shortCircuitLogical AST.LogicalImply e1 e2
+exprLowing (AST.Binary AST.LogicalNimply e1 e2 _) = shortCircuitLogical AST.LogicalNimply e1 e2
+
+
 exprLowing (AST.Binary op e1 e2 _) = do
     (instr1, oAtom1) <- if AST.isAtom e1 then atomLowing e1 else exprLowing e1
     (instr2, oAtom2) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
@@ -498,6 +506,173 @@ exprLowing (AST.Call funName params) = do
 exprLowing (AST.CallT {}) = error "template is not support!"
 
 exprLowing _ = error "other type is not support for IR ast"
+
+
+shortCircuitLogical :: AST.Operator -> Expression -> Expression -> TACM ([IRStmt], IRAtom)
+shortCircuitLogical op e1 e2 = do
+    (lhsInstrs, lhsAtom0) <- if AST.isAtom e1 then atomLowing e1 else exprLowing e1
+    (rhsInstrs, rhsAtom0) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+
+    lhsClass <- getAtomType lhsAtom0
+    rhsClass <- getAtomType rhsAtom0
+
+    (lhsCastInstrs, lhsAtom) <- castIfNeeded lhsClass lhsAtom0 Bool
+    (rhsCastInstrs, rhsAtom) <- castIfNeeded rhsClass rhsAtom0 Bool
+
+    nAtom <- newSubCVar Bool
+
+    case op of
+        AST.LogicalAnd -> do
+            lRhs <- incBlockId
+            lFalse <- incBlockId
+            lJoin <- incBlockId
+
+            let condStmts = appendAfterCond (reverse lhsInstrs) (
+                    lhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
+                        TAC.IRInstr (TAC.Jump lFalse)])
+                rhsBody = appendAfterCond (reverse rhsInstrs) (
+                    rhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.IAssign nAtom rhsAtom),
+                        TAC.IRInstr (TAC.Jump lJoin)])
+                falseBody = [
+                    TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC False)),
+                    TAC.IRInstr (TAC.Jump lJoin)]
+                rhsBlock = TAC.IRBlockStmt (TAC.IRBlock (lRhs, rhsBody))
+                falseBlock = TAC.IRBlockStmt (TAC.IRBlock (lFalse, falseBody))
+                phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lRhs, rhsAtom), (lFalse, TAC.BoolC False)]))
+                joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+                seqFwd = condStmts ++ [rhsBlock, falseBlock, joinBlock]
+
+            return (reverse seqFwd, nAtom)
+
+        AST.LogicalNand -> do
+            lTrue <- incBlockId
+            lRhs <- incBlockId
+            lJoin <- incBlockId
+            rhsNot <- newSubCVar Bool
+
+            let condStmts = appendAfterCond (reverse lhsInstrs) (
+                    lhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
+                        TAC.IRInstr (TAC.Jump lTrue)])
+                trueBody = [
+                    TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC True)),
+                    TAC.IRInstr (TAC.Jump lJoin)]
+                rhsBody = appendAfterCond (reverse rhsInstrs) (
+                    rhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.IUnary rhsNot AST.LogicalNot rhsAtom),
+                        TAC.IRInstr (TAC.IAssign nAtom rhsNot),
+                        TAC.IRInstr (TAC.Jump lJoin)])
+                trueBlock = TAC.IRBlockStmt (TAC.IRBlock (lTrue, trueBody))
+                rhsBlock = TAC.IRBlockStmt (TAC.IRBlock (lRhs, rhsBody))
+                phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lTrue, TAC.BoolC True), (lRhs, rhsNot)]))
+                joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+                seqFwd = condStmts ++ [trueBlock, rhsBlock, joinBlock]
+
+            return (reverse seqFwd, nAtom)
+
+        AST.LogicalOr -> do
+            lTrue <- incBlockId
+            lRhs <- incBlockId
+            lJoin <- incBlockId
+
+            let condStmts = appendAfterCond (reverse lhsInstrs) (
+                    lhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lTrue),
+                        TAC.IRInstr (TAC.Jump lRhs)])
+                trueBody = [
+                    TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC True)),
+                    TAC.IRInstr (TAC.Jump lJoin)]
+                rhsBody = appendAfterCond (reverse rhsInstrs) (
+                    rhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.IAssign nAtom rhsAtom),
+                        TAC.IRInstr (TAC.Jump lJoin)])
+                trueBlock = TAC.IRBlockStmt (TAC.IRBlock (lTrue, trueBody))
+                rhsBlock = TAC.IRBlockStmt (TAC.IRBlock (lRhs, rhsBody))
+                phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lTrue, TAC.BoolC True), (lRhs, rhsAtom)]))
+                joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+                seqFwd = condStmts ++ [trueBlock, rhsBlock, joinBlock]
+
+            return (reverse seqFwd, nAtom)
+
+        AST.LogicalNor -> do
+            lFalse <- incBlockId
+            lRhs <- incBlockId
+            lJoin <- incBlockId
+            rhsNot <- newSubCVar Bool
+
+            let condStmts = appendAfterCond (reverse lhsInstrs) (
+                    lhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lFalse),
+                        TAC.IRInstr (TAC.Jump lRhs)])
+                falseBody = [
+                    TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC False)),
+                    TAC.IRInstr (TAC.Jump lJoin)]
+                rhsBody = appendAfterCond (reverse rhsInstrs) (
+                    rhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.IUnary rhsNot AST.LogicalNot rhsAtom),
+                        TAC.IRInstr (TAC.IAssign nAtom rhsNot),
+                        TAC.IRInstr (TAC.Jump lJoin)])
+                falseBlock = TAC.IRBlockStmt (TAC.IRBlock (lFalse, falseBody))
+                rhsBlock = TAC.IRBlockStmt (TAC.IRBlock (lRhs, rhsBody))
+                phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lFalse, TAC.BoolC False), (lRhs, rhsNot)]))
+                joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+                seqFwd = condStmts ++ [falseBlock, rhsBlock, joinBlock]
+
+            return (reverse seqFwd, nAtom)
+
+        AST.LogicalImply -> do
+            lRhs <- incBlockId
+            lTrue <- incBlockId
+            lJoin <- incBlockId
+
+            let condStmts = appendAfterCond (reverse lhsInstrs) (
+                    lhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
+                        TAC.IRInstr (TAC.Jump lTrue)])
+                rhsBody = appendAfterCond (reverse rhsInstrs) (
+                    rhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.IAssign nAtom rhsAtom),
+                        TAC.IRInstr (TAC.Jump lJoin)])
+                trueBody = [
+                    TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC True)),
+                    TAC.IRInstr (TAC.Jump lJoin)]
+                rhsBlock = TAC.IRBlockStmt (TAC.IRBlock (lRhs, rhsBody))
+                trueBlock = TAC.IRBlockStmt (TAC.IRBlock (lTrue, trueBody))
+                phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lRhs, rhsAtom), (lTrue, TAC.BoolC True)]))
+                joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+                seqFwd = condStmts ++ [rhsBlock, trueBlock, joinBlock]
+
+            return (reverse seqFwd, nAtom)
+
+        AST.LogicalNimply -> do
+            lRhs <- incBlockId
+            lFalse <- incBlockId
+            lJoin <- incBlockId
+            rhsNot <- newSubCVar Bool
+
+            let condStmts = appendAfterCond (reverse lhsInstrs) (
+                    lhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
+                        TAC.IRInstr (TAC.Jump lFalse)])
+                rhsBody = appendAfterCond (reverse rhsInstrs) (
+                    rhsCastInstrs ++ [
+                        TAC.IRInstr (TAC.IUnary rhsNot AST.LogicalNot rhsAtom),
+                        TAC.IRInstr (TAC.IAssign nAtom rhsNot),
+                        TAC.IRInstr (TAC.Jump lJoin)])
+                falseBody = [
+                    TAC.IRInstr (TAC.IAssign nAtom (TAC.BoolC False)),
+                    TAC.IRInstr (TAC.Jump lJoin)]
+                rhsBlock = TAC.IRBlockStmt (TAC.IRBlock (lRhs, rhsBody))
+                falseBlock = TAC.IRBlockStmt (TAC.IRBlock (lFalse, falseBody))
+                phiInstr = TAC.IRInstr (TAC.IAssign nAtom (TAC.Phi [(lRhs, rhsNot), (lFalse, TAC.BoolC False)]))
+                joinBlock = TAC.IRBlockStmt (TAC.IRBlock (lJoin, [phiInstr]))
+                seqFwd = condStmts ++ [rhsBlock, falseBlock, joinBlock]
+
+            return (reverse seqFwd, nAtom)
+
+        _ -> error "shortCircuitLogical only supports LogicalAnd / LogicalNand / LogicalOr / LogicalNor / LogicalImply / LogicalNimply"
 
 
 type VarKey = (String, Int)

@@ -363,7 +363,6 @@ binaryOpMap = Map.fromList [
     (BitXor, JVM.Xor),
     (LogicalAnd, JVM.And),
     (LogicalOr, JVM.Or),
-    (LogicalXor, JVM.Xor),
     (BitLShift, JVM.Shl),
     (BitRShift, JVM.Shr),
     (BitURShift, JVM.UShr)]

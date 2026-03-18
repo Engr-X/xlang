@@ -86,102 +86,106 @@ Postfix :: { Expression }
 
 
 Expr :: { Expression }
-    -- 0: assignment
-    : LValue '=' Expr                           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
-    | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
+    -- 0: atom/call/cast
+    : QName ArgumentsOpt                        { Call (qnameToExpr $1) $2 }
+    | QName GenericParamList ArgumentsOpt       { CallT (qnameToExpr $1) $2 $3 }
+    | Postfix                                   { $1 }
+
+    -- 1: postfix ++/-- (handled in Postfix)
+    -- 2: prefix ++/-- (handled in Atom)
+    -- 3: unary plus/minus (handled in Atom)
+    -- 4: unary logical/bit not (handled in Atom)
+
+    -- 5: power
+    | Expr '**' Expr                            { Binary Pow $1 $3 $2 }
+    | Expr '**' error                           { Error [$2] (expectedExpression 1 "**") }
+
+    -- 6: multiplicative
+    | Expr '*' Expr                             { Binary Mul $1 $3 $2 }
+    | Expr '*' error                            { Error [$2] (expectedExpression 1 "*") }
+    | Expr '/' Expr                             { Binary Div $1 $3 $2 }
+    | Expr '/' error                            { Error [$2] (expectedExpression 1 "/") }
+    | Expr '%' Expr                             { Binary Mod $1 $3 $2 }
+    | Expr '%' error                            { Error [$2] (expectedExpression 1 "%") }
+
+    -- 7: additive
+    | Expr '+' Expr                             { Binary Add $1 $3 $2 }
+    | Expr '+' error                            { Error [$2] (expectedExpression 1 "+") }
+    | Expr '-' Expr                             { Binary Sub $1 $3 $2 }
+    | Expr '-' error                            { Error [$2] (expectedExpression 1 "-") }
+
+    -- 8: shift (reserved)
+    | Expr 'shl' Expr                           { Binary BitLShift $1 $3 $2 }
+    | Expr 'shl' error                          { Error [$2] (expectedExpression 1 "shl") }
+    | Expr 'shr' Expr                           { Binary BitRShift $1 $3 $2 }
+    | Expr 'shr' error                          { Error [$2] (expectedExpression 1 "shr") }
+    | Expr 'ushr' Expr                          { Binary BitURShift $1 $3 $2 }
+    | Expr 'ushr' error                         { Error [$2] (expectedExpression 1 "ushr") }
+
+    -- 9: relational
+    | Expr '>' Expr                             { Binary GreaterThan $1 $3 $2 }
+    | Expr '>' error                            { Error [$2] (expectedExpression 1 ">") }
+    | Expr '<' Expr                             { Binary LessThan $1 $3 $2 }
+    | Expr '<' error                            { Error [$2] (expectedExpression 1 "<") }
+    | Expr '>=' Expr                            { Binary GreaterEqual $1 $3 $2 }
+    | Expr '>=' error                           { Error [$2] (expectedExpression 1 ">=") }
+    | Expr '<=' Expr                            { Binary LessEqual $1 $3 $2 }
+    | Expr '<=' error                           { Error [$2] (expectedExpression 1 "<=") }
+
+    -- 10: equality
+    | Expr '!=' Expr                            { Binary NotEqual $1 $3 $2 }
+    | Expr '!=' error                           { Error [$2] (expectedExpression 1 "!=") }
+    | Expr '==' Expr                            { Binary Equal $1 $3 $2 }
+    | Expr '==' error                           { Error [$2] (expectedExpression 1 "==") }
+
+    -- 11: bit-and (reserved)
+    | Expr 'and' Expr                           { Binary BitAnd $1 $3 $2 }
+    | Expr 'and' error                          { Error [$2] (expectedExpression 1 "and") }
+    | Expr 'nand' Expr                          { Binary BitNand $1 $3 $2 }
+    | Expr 'nand' error                         { Error [$2] (expectedExpression 1 "nand") }
+
+    -- 12: bit-xor / bit-xnor (reserved)
+    | Expr 'xor' Expr                           { Binary BitXor $1 $3 $2 }
+    | Expr 'xor' error                          { Error [$2] (expectedExpression 1 "xor") }
+    | Expr 'xnor' Expr                          { Binary BitXnor $1 $3 $2 }
+    | Expr 'xnor' error                         { Error [$2] (expectedExpression 1 "xnor") }
+
+    -- 13: bit-or, bit-nor (reserved)
+    | Expr 'or' Expr                            { Binary BitOr $1 $3 $2 }
+    | Expr 'or' error                           { Error [$2] (expectedExpression 1 "or") }
+    | Expr 'nor' Expr                           { Binary BitNor $1 $3 $2 }
+    | Expr 'nor' error                          { Error [$2] (expectedExpression 1 "nor") }
+
+    -- 14: bit implication
+    | Expr 'imp' Expr                           { Binary BitImply $1 $3 $2 }
+    | Expr 'imp' error                          { Error [$2] (expectedExpression 1 "imp") }
+    | Expr 'nimp' Expr                          { Binary BitNimply $1 $3 $2 }
+    | Expr 'nimp' error                         { Error [$2] (expectedExpression 1 "nimp") }
+
+    -- 15: logical-and (reserved)
+    | Expr '&&' Expr                            { Binary LogicalAnd $1 $3 $2 }
+    | Expr '&&' error                           { Error [$2] (expectedExpression 1 "&&") }
+    | Expr '!&&' Expr                           { Binary LogicalNand $1 $3 $2 }
+    | Expr '!&&' error                          { Error [$2] (expectedExpression 1 "!&&") }
+
+    -- 16: logical-xor / logical-xnor (reserved)
+
+    -- 17: logical-or (reserved)
+    | Expr '||' Expr                            { Binary LogicalOr $1 $3 $2 }
+    | Expr '||' error                           { Error [$2] (expectedExpression 1 "||") }
+    | Expr '!||' Expr                           { Binary LogicalNor $1 $3 $2 }
+    | Expr '!||' error                          { Error [$2] (expectedExpression 1 "!||") }
+
+    -- 18: logical-implication (reserved)
+    | Expr '->' Expr                            { Binary LogicalImply $1 $3 $2 }
+    | Expr '->' error                           { Error [$2] (expectedExpression 1 "->") }
+    | Expr '!->' Expr                           { Binary LogicalNimply $1 $3 $2 }
+    | Expr '!->' error                          { Error [$2] (expectedExpression 1 "!->") }
 
     -- helper precedence for ternary "if ... else ..."
     | Expr KW_IF Expr KW_ELSE Expr %prec KW_IF  { Ternary $3 ($1, $5) [$2, $4] }
 
-    -- 1: bit implication
-    | Expr 'imp' Expr                   { Binary BitImply $1 $3 $2 }
-    | Expr 'imp' error                  { Error [$2] (expectedExpression 1 "imp") }
-    | Expr 'nimp' Expr                  { Binary BitNimply $1 $3 $2 }
-    | Expr 'nimp' error                 { Error [$2] (expectedExpression 1 "nimp") }
-
-    -- 2: logical-or (reserved)
-    -- 3: logical-xor / logical-xnor (reserved)
-    -- 4: logical-and (reserved)
-
-    -- 5: bit-or, bit-nor (reserved)
-    | Expr 'or' Expr                    { Binary BitOr $1 $3 $2 }
-    | Expr 'or' error                   { Error [$2] (expectedExpression 1 "or") }
-
-    | Expr 'nor' Expr                   { Binary BitNor $1 $3 $2  }
-    | Expr 'nor' error                  { Error [$2] (expectedExpression 1 "nor") }
-
-    -- 6: bit-xor / bit-xnor (reserved)
-    | Expr 'xor' Expr                   { Binary BitXor $1 $3 $2 }
-    | Expr 'xor' error                  { Error [$2] (expectedExpression 1 "xor") }
-
-    | Expr 'xnor' Expr                  { Binary BitXnor $1 $3 $2 }
-    | Expr 'xnor' error                 { Error [$2] (expectedExpression 1 "xnor") }
-
-    -- 7: bit-and (reserved)
-    | Expr 'and' Expr                   { Binary BitAnd $1 $3 $2 }
-    | Expr 'and' error                  { Error [$2] (expectedExpression 1 "and") }
-
-    | Expr 'nand' Expr                   { Binary BitNand $1 $3 $2  }
-    | Expr 'nand' error                  { Error [$2] (expectedExpression 1 "nand") }
-
-    -- 8: equality
-    | Expr '==' Expr                    { Binary Equal $1 $3 $2 }
-    | Expr '==' error                   { Error [$2] (expectedExpression 1 "==") }
-
-    | Expr '!=' Expr                    { Binary NotEqual $1 $3 $2 }
-    | Expr '!=' error                   { Error [$2] (expectedExpression 1 "!=") }
-
-    -- 9: relational
-    | Expr '>' Expr                     { Binary GreaterThan $1 $3 $2 }
-    | Expr '>' error                    { Error [$2] (expectedExpression 1 ">") }
-
-    | Expr '>=' Expr                    { Binary GreaterEqual $1 $3 $2 }
-    | Expr '>=' error                   { Error [$2] (expectedExpression 1 ">=") }
-
-    | Expr '<' Expr                     { Binary LessThan $1 $3 $2 }
-    | Expr '<' error                    { Error [$2] (expectedExpression 1 "<") }
-
-    | Expr '<=' Expr                    { Binary LessEqual $1 $3 $2 }
-    | Expr '<=' error                   { Error [$2] (expectedExpression 1 "<=") }
-
-    -- 10: shift (reserved)
-    | Expr 'shl' Expr                    { Binary BitLShift $1 $3 $2 }
-    | Expr 'shl' error                   { Error [$2] (expectedExpression 1 "shl") }
-
-    | Expr 'shr' Expr                    { Binary BitRShift $1 $3 $2 }
-    | Expr 'shr' error                   { Error [$2] (expectedExpression 1 "shr") }
-
-    | Expr 'ushr' Expr                   { Binary BitURShift $1 $3 $2 }
-    | Expr 'ushr' error                  { Error [$2] (expectedExpression 1 "ushr") }
-
-    -- 11: additive
-    | Expr '+' Expr                     { Binary Add $1 $3 $2 }
-    | Expr '+' error                    { Error [$2] (expectedExpression 1 "+") }
-
-    | Expr '-' Expr                     { Binary Sub $1 $3 $2 }
-    | Expr '-' error                    { Error [$2] (expectedExpression 1 "-") }
-
-    -- 12: multiplicative
-    | Expr '*' Expr                     { Binary Mul $1 $3 $2 }
-    | Expr '*' error                    { Error [$2] (expectedExpression 1 "*") }
-
-    | Expr '/' Expr                     { Binary Div $1 $3 $2 }
-    | Expr '/' error                    { Error [$2] (expectedExpression 1 "/") }
-
-    | Expr '%' Expr                     { Binary Mod $1 $3 $2 }
-    | Expr '%' error                    { Error [$2] (expectedExpression 1 "%") }
-
-    -- 13: power
-    | Expr '**' Expr                    { Binary Pow $1 $3 $2 }
-    | Expr '**' error                   { Error [$2] (expectedExpression 1 "**") }
-
-    -- 14: unary logical/bit not (handled in Atom)
-    -- 15: unary plus/minus (handled in Atom)
-    -- 16: prefix ++/-- (handled in Atom)
-    -- 17: postfix ++/-- (handled in Postfix)
-
-    -- 18: atom/call/cast
-    | QName ArgumentsOpt                        { Call (qnameToExpr $1) $2 }
-    | QName GenericParamList ArgumentsOpt       { CallT (qnameToExpr $1) $2 $3 }
-    | Postfix                           { $1 }
+    -- 19: assignment
+    | LValue '=' Expr                           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
+    | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
     ;

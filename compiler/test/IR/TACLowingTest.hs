@@ -1,5 +1,6 @@
 module IR.TACLowingTest where
 
+import Control.Monad.State.Strict (evalState)
 import IR.TAC (IRAtom(..), IRFunction(..), IRMemberType(..))
 import IR.TACLowing
 import Parse.ParserBasic (AccessModified(..))
@@ -8,8 +9,10 @@ import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty
 import Test.Tasty.HUnit
 
+import qualified Lex.Token as LT
 import qualified Data.Map.Strict as Map
 import qualified IR.TAC as TAC
+import qualified Parse.SyntaxTree as AST
 
 
 stripIntSuffixTests :: TestTree
@@ -93,6 +96,154 @@ detectMainKindTests = testGroup "IR.TACLowing.detectMainKind" $ map (uncurry tes
             IRFunction (Public, []) name (FunSig params ret) Map.empty [] MemberClass
 
 
+shortCircuitLogicalTests :: TestTree
+shortCircuitLogicalTests = testGroup "IR.TACLowing.shortCircuitLogical" [
+    testCase "logical && lowers to branch form (not IBinary LogicalAnd)" $ do
+        let expr = AST.Binary AST.LogicalAnd
+                    (AST.BoolConst True LT.dummyToken)
+                    (AST.BoolConst False LT.dummyToken)
+                    LT.dummyToken
+            stmts = lowerExprStmts expr
+            instrs = collectInstrs stmts
+        assertBool "&& should contain conditional jump" (any isCondJump instrs)
+        assertBool "&& should not emit IBinary LogicalAnd" (not (any isLogicalAndBinary instrs))
+        assertBool "&& should emit phi-join assignment" (any isPhiAssign instrs)
+        assertBool "&& should create branch blocks" (countBlocks stmts >= 3),
+
+    testCase "logical !&& lowers to branch form with !rhs and phi" $ do
+        let expr = AST.Binary AST.LogicalNand
+                    (AST.BoolConst True LT.dummyToken)
+                    (AST.BoolConst False LT.dummyToken)
+                    LT.dummyToken
+            stmts = lowerExprStmts expr
+            instrs = collectInstrs stmts
+        assertBool "!&& should contain conditional jump" (any isCondJump instrs)
+        assertBool "!&& should not emit IBinary LogicalNand" (not (any isLogicalNandBinary instrs))
+        assertBool "!&& should emit unary logical not for rhs" (any isLogicalNotUnary instrs)
+        assertBool "!&& should emit phi-join assignment" (any isPhiAssign instrs)
+        assertBool "!&& should create branch blocks" (countBlocks stmts >= 3),
+
+    testCase "logical || lowers to branch form (not IBinary LogicalOr)" $ do
+        let expr = AST.Binary AST.LogicalOr
+                    (AST.BoolConst True LT.dummyToken)
+                    (AST.BoolConst False LT.dummyToken)
+                    LT.dummyToken
+            stmts = lowerExprStmts expr
+            instrs = collectInstrs stmts
+        assertBool "|| should contain conditional jump" (any isCondJump instrs)
+        assertBool "|| should not emit IBinary LogicalOr" (not (any isLogicalOrBinary instrs))
+        assertBool "|| should emit phi-join assignment" (any isPhiAssign instrs)
+        assertBool "|| should create branch blocks" (countBlocks stmts >= 3),
+
+    testCase "logical !|| lowers to branch form with !rhs and phi" $ do
+        let expr = AST.Binary AST.LogicalNor
+                    (AST.BoolConst True LT.dummyToken)
+                    (AST.BoolConst False LT.dummyToken)
+                    LT.dummyToken
+            stmts = lowerExprStmts expr
+            instrs = collectInstrs stmts
+        assertBool "!|| should contain conditional jump" (any isCondJump instrs)
+        assertBool "!|| should not emit IBinary LogicalNor" (not (any isLogicalNorBinary instrs))
+        assertBool "!|| should emit unary logical not for rhs" (any isLogicalNotUnary instrs)
+        assertBool "!|| should emit phi-join assignment" (any isPhiAssign instrs)
+        assertBool "!|| should create branch blocks" (countBlocks stmts >= 3),
+
+    testCase "logical -> lowers to branch form (if a then b else true)" $ do
+        let expr = AST.Binary AST.LogicalImply
+                    (AST.BoolConst True LT.dummyToken)
+                    (AST.BoolConst False LT.dummyToken)
+                    LT.dummyToken
+            stmts = lowerExprStmts expr
+            instrs = collectInstrs stmts
+        assertBool "-> should contain conditional jump" (any isCondJump instrs)
+        assertBool "-> should not emit IBinary LogicalImply" (not (any isLogicalImplyBinary instrs))
+        assertBool "-> should emit phi-join assignment" (any isPhiAssign instrs)
+        assertBool "-> should create branch blocks" (countBlocks stmts >= 3),
+
+    testCase "logical !-> lowers to branch form (if a then !b else false)" $ do
+        let expr = AST.Binary AST.LogicalNimply
+                    (AST.BoolConst True LT.dummyToken)
+                    (AST.BoolConst False LT.dummyToken)
+                    LT.dummyToken
+            stmts = lowerExprStmts expr
+            instrs = collectInstrs stmts
+        assertBool "!-> should contain conditional jump" (any isCondJump instrs)
+        assertBool "!-> should not emit IBinary LogicalNimply" (not (any isLogicalNimplyBinary instrs))
+        assertBool "!-> should emit unary logical not for rhs" (any isLogicalNotUnary instrs)
+        assertBool "!-> should emit phi-join assignment" (any isPhiAssign instrs)
+        assertBool "!-> should create branch blocks" (countBlocks stmts >= 3)
+    ]
+    where
+        lowerExprStmts expr =
+            let st0 = TAC.mkTACState Map.empty Map.empty
+                (revStmts, _) = evalState (TAC.runTACM (exprLowing expr)) st0
+            in reverse revStmts
+
+        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
+        collectInstrs = concatMap go
+            where
+                go stmt = case stmt of
+                    TAC.IRInstr instr -> [instr]
+                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+
+        countBlocks :: [TAC.IRStmt] -> Int
+        countBlocks = sum . map go
+            where
+                go stmt = case stmt of
+                    TAC.IRInstr _ -> 0
+                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> 1 + countBlocks body
+
+        isCondJump :: TAC.IRInstr -> Bool
+        isCondJump instr = case instr of
+            TAC.Ifeq {} -> True
+            TAC.Ifne {} -> True
+            TAC.Iflt {} -> True
+            TAC.Ifle {} -> True
+            TAC.Ifgt {} -> True
+            TAC.Ifge {} -> True
+            _ -> False
+
+        isLogicalAndBinary :: TAC.IRInstr -> Bool
+        isLogicalAndBinary instr = case instr of
+            TAC.IBinary _ AST.LogicalAnd _ _ -> True
+            _ -> False
+
+        isLogicalNandBinary :: TAC.IRInstr -> Bool
+        isLogicalNandBinary instr = case instr of
+            TAC.IBinary _ AST.LogicalNand _ _ -> True
+            _ -> False
+
+        isLogicalOrBinary :: TAC.IRInstr -> Bool
+        isLogicalOrBinary instr = case instr of
+            TAC.IBinary _ AST.LogicalOr _ _ -> True
+            _ -> False
+
+        isLogicalNorBinary :: TAC.IRInstr -> Bool
+        isLogicalNorBinary instr = case instr of
+            TAC.IBinary _ AST.LogicalNor _ _ -> True
+            _ -> False
+
+        isLogicalImplyBinary :: TAC.IRInstr -> Bool
+        isLogicalImplyBinary instr = case instr of
+            TAC.IBinary _ AST.LogicalImply _ _ -> True
+            _ -> False
+
+        isLogicalNimplyBinary :: TAC.IRInstr -> Bool
+        isLogicalNimplyBinary instr = case instr of
+            TAC.IBinary _ AST.LogicalNimply _ _ -> True
+            _ -> False
+
+        isLogicalNotUnary :: TAC.IRInstr -> Bool
+        isLogicalNotUnary instr = case instr of
+            TAC.IUnary _ AST.LogicalNot _ -> True
+            _ -> False
+
+        isPhiAssign :: TAC.IRInstr -> Bool
+        isPhiAssign instr = case instr of
+            TAC.IAssign _ (TAC.Phi _) -> True
+            _ -> False
+
+
 tests :: TestTree
 tests = testGroup "IR.TACLowing" [
     stripIntSuffixTests,
@@ -101,5 +252,6 @@ tests = testGroup "IR.TACLowing" [
     wrapIntTests,
     lookupParamIndexTests,
     defaultAtomForClassTests,
-    detectMainKindTests
+    detectMainKindTests,
+    shortCircuitLogicalTests
     ]

@@ -122,6 +122,9 @@ tokens :-
 <0> "!^="               { eatSymbol BitXnorAssign }
 <0> "**="               { eatSymbol PowerAssign }
 <0> "?->"               { eatSymbol QuestionArrow }
+<0> "!&&"               { eatSymbol LogicalNand }
+<0> "!||"               { eatSymbol LogicalNor }
+<0> "!->"               { eatSymbol NotArrow }
 
 
 -- symbol 2 (17)
@@ -140,8 +143,6 @@ tokens :-
 
 <0> ">>"                { eatSymbol BitRShift }
 <0> "<<"                { eatSymbol BitLShift }
-<0> "^^"                { eatSymbol LogicalXor }
-<0> "!^"                { eatSymbol LogicalXnor }
 <0> "||"                { eatSymbol LogicalOr }
 <0> "&&"                { eatSymbol LogicalAnd }
 
@@ -161,7 +162,7 @@ tokens :-
 <0> ">"                 { eatSymbol GreaterThan }
 <0> "<"                 { eatSymbol LessThan }
 
-<0> "^"                 { eatSymbol LogicalXor }
+<0> "^"                 { lexError }
 <0> "!"                 { eatSymbol LogicalNot }
 
 <0> "+"                 { eatSymbol Plus }

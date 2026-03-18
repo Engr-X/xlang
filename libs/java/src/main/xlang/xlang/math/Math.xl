@@ -28,11 +28,11 @@ val SQRT2: double = 1.41421356237309504880
 val SQRT1_2: double = 0.70710678118654752440
 
 
-fun succ(x: int) -> int = Math.addExact(x, 1)
+fun succ(x: int) => int = Math.addExact(x, 1)
 
-fun succ(x: long) -> long = Math.addExact(x, 1 as long)
+fun succ(x: long) => long = Math.addExact(x, 1 as long)
 
 
-fun pred(x: int) -> int = Math.subtractExact(x, 1)
+fun pred(x: int) => int = Math.subtractExact(x, 1)
 
-fun pred(x: long) -> long = Math.subtractExact(x, 1 as long)
+fun pred(x: long) => long = Math.subtractExact(x, 1 as long)

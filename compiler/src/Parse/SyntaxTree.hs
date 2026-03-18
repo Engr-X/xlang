@@ -90,63 +90,62 @@ prettyCmd n (Return e) = concat [insertTab n, "return ", prettyExpr 0 e]
 -- | Operators grouped by precedence level.
 --   Includes assignment, arithmetic, bitwise, unary, and pointer operators.
 data Operator = 
-    -- 0
-    Assign | BitLShiftAssign | BitRShiftAssign | BitOrAssign | BitXorAssign | BitXnorAssign |
-    PlusAssign | MinusAssign | MultiplyAssign | DivideAssign | ModuloAssign | PowerAssign |
+    -- 0: atom/call/cast (no operator)
 
-    -- 1
-    BitImply | BitNimply |
-
-    -- 2
-    LogicalOr |
-
-    -- 3
-    LogicalXor | LogicalXnor |
-
-    -- 4
-    LogicalAnd |
-
-    -- 5
-    BitOr | BitNor |
-
-    -- 6
-    BitXor | BitXnor |
-
-    -- 7
-    BitAnd | BitNand |
-
-    -- 8
-    Equal | NotEqual |
-
-    -- 9
-    GreaterThan | LessThan | GreaterEqual | LessEqual |
-
-    -- 10
-    BitLShift | BitRShift | BitURShift |
-
-    -- 11
-    Add | Sub |
-
-    -- 12
-    Mul | Div | Mod |
-
-    -- 13
-    Pow |
-
-    -- 14
-    LogicalNot | BitInv |
-
-    -- 15
-    UnaryPlus | UnaryMinus |
-
-    -- 16
-    IncSelf | DecSelf |
-
-    -- 17
+    -- 1: postfix ++/--
     SelfInc | SelfDec |
 
-    -- 18
-    AddrOf | DeRef
+    -- 2: prefix ++/-- (and pointer prefix ops)
+    IncSelf | DecSelf | AddrOf | DeRef |
+
+    -- 3: unary plus/minus
+    UnaryPlus | UnaryMinus |
+
+    -- 4: unary logical/bit not ('!' / 'inv')
+    LogicalNot | BitInv |
+
+    -- 5: power
+    Pow |
+
+    -- 6: multiplicative
+    Mul | Div | Mod |
+
+    -- 7: additive
+    Add | Sub |
+
+    -- 8: shift
+    BitLShift | BitRShift | BitURShift |
+
+    -- 9: relational
+    GreaterThan | LessThan | GreaterEqual | LessEqual |
+
+    -- 10: equality
+    Equal | NotEqual |
+
+    -- 11: bit-and
+    BitAnd | BitNand |
+
+    -- 12: bit-xor / bit-xnor
+    BitXor | BitXnor |
+
+    -- 13: bit-or / bit-nor
+    BitOr | BitNor |
+
+    -- 14: bit-implication
+    BitImply | BitNimply |
+
+    -- 15: logical-and
+    LogicalAnd | LogicalNand |
+
+    -- 16: logical-or
+    LogicalOr | LogicalNor |
+
+    -- 17: logical-implication (reserved)
+    LogicalImply | LogicalNimply |
+
+    -- 18: assignment
+    Assign | BitLShiftAssign | BitRShiftAssign | BitOrAssign | BitXorAssign | BitXnorAssign |
+    PlusAssign | MinusAssign | MultiplyAssign | DivideAssign | ModuloAssign | PowerAssign
    
     deriving (Eq, Ord, Enum, Show)
 
@@ -168,7 +167,8 @@ operatorTextMap = Map.fromList [
     
     (BitRShift, ">>"), (BitLShift, "<<"), (BitURShift, ">>>"),
     
-    (LogicalOr, "|"), (LogicalXor, "^"), (LogicalXnor, "!^"), (LogicalAnd, "&"), (LogicalNot, "!"),
+    (LogicalOr, "|"), (LogicalNor, "!||"), (LogicalAnd, "&"), (LogicalNand, "!&&"),
+    (LogicalImply, "->"), (LogicalNimply, "!->"), (LogicalNot, "!"),
     (BitOr, "|"), (BitNor, "nor"), (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNand, "nand"), (BitInv, "~"),
     
     (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),

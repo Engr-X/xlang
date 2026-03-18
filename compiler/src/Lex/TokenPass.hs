@@ -1,8 +1,8 @@
 module Lex.TokenPass where
 
 import Data.HashSet (HashSet)
-import Lex.Token
-import Util.Type
+import Lex.Token (Token(EOF, TokenPass, Symbol), tokenPos)
+import Util.Type (Position(line, len, column), makePosition)
 
 import qualified Data.HashSet as HashSet
 import qualified Lex.Token as Lex
@@ -21,7 +21,7 @@ banPrevSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalXor, Lex.LogicalXnor, Lex.LogicalAnd, Lex.LogicalNot,
+    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalAnd, Lex.LogicalNot, Lex.LogicalNand, Lex.LogicalNor, Lex.NotArrow, Lex.Arrow,
 
     Lex.Plus, Lex.Minus, Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
@@ -41,7 +41,7 @@ banNextSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalXor, Lex.LogicalXnor, Lex.LogicalAnd,
+    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalAnd, Lex.LogicalNand, Lex.LogicalNor, Lex.NotArrow, Lex.Arrow,
 
     Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 

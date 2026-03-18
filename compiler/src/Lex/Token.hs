@@ -37,10 +37,11 @@ data Symbol
     | BitRShift        -- ">>"
     | BitLShift        -- "<<"
     
-    | LogicalOr        -- "|"
-    | LogicalXor       -- "^"
-    | LogicalXnor      -- "!^"
-    | LogicalAnd       -- "&"
+    | LogicalOr        -- "||"
+    | LogicalNor        -- "!||"
+
+    | LogicalAnd       -- "&&"
+    | LogicalNand       -- "!&&"
     | LogicalNot       -- "!"
 
     -- Arithmetic operators
@@ -72,6 +73,7 @@ data Symbol
     | Colon            -- ":"
     | DoubleColon      -- "::" 
     | Arrow            -- "->"
+    | NotArrow         -- "!->"
     | FatArrow         -- "\=>"
     | QuestionArrow    -- "?->"
     | Dot              -- "."
@@ -154,4 +156,3 @@ tokenPos (Symbol _ p) = p
 tokenPos (NumberConst _ p) = p
 tokenPos (CharConst _ p) = p
 tokenPos (StrConst _ p) = p
-
