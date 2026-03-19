@@ -40,6 +40,7 @@ import qualified Util.Exception as UE
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
     KW_WHILE            { t@(Lex.Ident "while" _) }
+    KW_LOOP             { t@(Lex.Ident "loop" _) }
 
     KW_BREAK            { t@(Lex.Ident "break" _) }
     KW_CONTINUE         { t@(Lex.Ident "continue" _) }

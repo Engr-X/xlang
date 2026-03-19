@@ -453,6 +453,16 @@ checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
         for_ forBlock (withCtrlScope InLoop . checkBlock p package envs)
 
 -- while
+checkStmt p package envs stmt@(AST.Loop loopBlock _) = do
+    c <- get
+    let cState = st c
+    let parentCtrl = parentCtrlFor cState
+    when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
+
+    for_ loopBlock (withCtrlScope InLoop . checkBlock p package envs)
+
+-- while
 checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
     c <- get
     let cState = st c

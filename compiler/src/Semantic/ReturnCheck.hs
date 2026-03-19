@@ -31,6 +31,7 @@ checkStmt path stmt = case stmt of
     If _ mb1 mb2 _ ->
         maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
     For (_, _, _) mb _ -> maybe [] (checkBlock path) mb
+    Loop mb _ -> maybe [] (checkBlock path) mb
     While _ mb1 mb2 _ ->
         maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
     DoWhile mb1 _ mb2 _ ->

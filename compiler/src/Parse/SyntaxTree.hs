@@ -385,6 +385,7 @@ data Statement =
     BlockStmt Block |
     If Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (if keyword - maybe else)
     For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) Token | -- (for keyword)
+    Loop (Maybe Block) Token |
     While Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- while else -- (while keyword - maybe else keyword)
     DoWhile (Maybe Block) Expression (Maybe Block) (Token, Token, Maybe Token) | -- (do keyword, while keyword, maybe else keyword)
     Switch Expression [SwitchCase] Token | -- (switch keyword)
@@ -399,7 +400,7 @@ data Statement =
     -- template function: return_type + pos, name, template params + position, params + position, body
     deriving (Eq, Show)
 
-{-# COMPLETE Command, DefField, DefConstField, DefVar, DefConstVar, Expr, BlockStmt, If, For, While, DoWhile, Switch, Function, FunctionT #-}
+{-# COMPLETE Command, DefField, DefConstField, DefVar, DefConstVar, Expr, BlockStmt, If, For, Loop, While, DoWhile, Switch, Function, FunctionT #-}
 
 -- beter toString for string instance
 prettyStmt :: Int -> Maybe Statement -> String
@@ -456,6 +457,10 @@ prettyStmt n (Just (For (s1, s2, s3) Nothing _)) = let s = intercalate ";" $ map
     concat [insertTab n, "for(", s, ");\n"]
 prettyStmt n (Just (For (s1, s2, s3) (Just b) _)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
     unlines [concat [insertTab n, "for(", s, ")"], prettyBlock n b]
+
+-- loop (while true)
+prettyStmt n (Just (Loop Nothing _)) = insertTab n ++ "loop;\n"
+prettyStmt n (Just (Loop (Just b) _)) = unlines [insertTab n ++ "loop", prettyBlock n b]
 
 -- while
 prettyStmt n (Just (While e Nothing Nothing _)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
@@ -526,6 +531,8 @@ stmtTokens (If e b1 b2 (ifTok, elseTok)) = concat [
 stmtTokens (For (e1, e2, e3) b forTok) = concat [
     [forTok], concatMap exprTokens (catMaybes [e1, e2, e3]), blockTokens b]
 
+stmtTokens (Loop b loopTok) = [loopTok] ++ blockTokens b
+
 stmtTokens (While e b1 b2 (whileTok, elseTok)) = concat [
     [whileTok], exprTokens e, blockTokens b1,
     maybe [] pure elseTok, blockTokens b2]
@@ -559,6 +566,7 @@ flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)
 flattenStatement (Just (For (e1, e2, e3) b _)) = catMaybes [e1, e2, e3] ++ flattenBlock b
+flattenStatement (Just (Loop b _)) = flattenBlock b
 flattenStatement (Just (While e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (DoWhile b1 e b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (Switch e scs _)) = e : concatMap (flattenCase . Just) scs

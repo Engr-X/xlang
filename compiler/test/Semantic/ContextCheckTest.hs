@@ -422,14 +422,16 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
             "    y = 2"
         ], stInBlock),
         ("3", Right doWhileStmt, stInBlock),
-        ("4", Right forStmt, stInBlockWithSum)]
+        ("4", Right forStmt, stInBlockWithSum),
+        ("5", Right loopStmt, stInBlock)]
     where
-        tokDo, tokWhile, tokElse, tokTrue, tokFor :: Lex.Token
+        tokDo, tokWhile, tokElse, tokTrue, tokFor, tokLoop :: Lex.Token
         tokDo = Lex.Ident "do" pos1
         tokWhile = Lex.Ident "while" pos2
         tokElse = Lex.Ident "else" pos3
         tokTrue = Lex.Ident "true" pos4
         tokFor = Lex.Ident "for" pos1
+        tokLoop = Lex.Ident "loop" pos1
 
         tokX, tokY, tokI, tokSum, tokAssign, tokPlusAssign, tokInc, tokLt, tokNum0, tokNum1, tokNum2, tokNum10 :: Lex.Token
         tokX = Lex.Ident "x" pos1
@@ -470,6 +472,12 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
                     AST.Expr (AST.Binary AST.PlusAssign (AST.Variable "sum" tokSum) (AST.Variable "i" tokI) tokPlusAssign)
                 ]))
                 tokFor
+
+        loopStmt :: AST.Statement
+        loopStmt =
+            AST.Loop
+                (Just (AST.Multiple [assignX]))
+                tokLoop
 
 checkSwitchCaseTests :: TestTree
 checkSwitchCaseTests = testGroup "Semantic.ContextCheck.checkSwitchCase" $ map (\(name, sc, initSt, expected, extra) ->

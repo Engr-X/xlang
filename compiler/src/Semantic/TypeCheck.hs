@@ -813,6 +813,9 @@ inferStmt path packages envs (For (e1, e2, e3) forBlock _) = do
         maybe (pure ()) (void . inferExpr path packages envs) e3
         inferOptBlock path packages envs forBlock
 
+inferStmt path packages envs (Loop loopBlock _) = do
+    inferOptBlock path packages envs loopBlock
+
 inferStmt path packages envs (While e whileBlock elseBlock _) = do
     t <- inferExpr path packages envs e
     checkCondBool path (map Lex.tokenPos (exprTokens e)) t

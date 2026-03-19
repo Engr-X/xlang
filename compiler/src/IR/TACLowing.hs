@@ -759,6 +759,7 @@ collectAssignKeysBlock (AST.Multiple ss) = do
                 ks2 <- maybe (return []) collectAssignKeysBlock b1
                 ks3 <- maybe (return []) collectAssignKeysBlock b2
                 return $ concat[ks1, ks2, ks3]
+            AST.Loop b _ -> maybe (return []) collectAssignKeysBlock b
             AST.DoWhile b1 e b2 _ -> do
                 ks1 <- maybe (return []) collectAssignKeysBlock b1
                 ks2 <- collectAssignKeysExpr e
@@ -900,6 +901,10 @@ stmtsLowing ((AST.BlockStmt b):stmts) = do
     current <- blockLowing b
     rest <- stmtsLowing stmts
     return $ appendAfterCond current rest
+
+-- loop is an infinite loop: equivalent to `while true` without else
+stmtsLowing ((AST.Loop bodyB loopTok):stmts) =
+    stmtsLowing (AST.While (AST.BoolConst True loopTok) bodyB Nothing (loopTok, Nothing) : stmts)
 
 stmtsLowing ((AST.DefField names mDeclType mRhs toks):stmts) =
     stmtsLowing (AST.DefVar names mDeclType mRhs toks:stmts)

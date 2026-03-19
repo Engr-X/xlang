@@ -168,15 +168,13 @@ Expr :: { Expression }
     | Expr '!&&' Expr                           { Binary LogicalNand $1 $3 $2 }
     | Expr '!&&' error                          { Error [$2] (expectedExpression 1 "!&&") }
 
-    -- 16: logical-xor / logical-xnor (reserved)
-
-    -- 17: logical-or (reserved)
+    -- 16: logical-or (reserved)
     | Expr '||' Expr                            { Binary LogicalOr $1 $3 $2 }
     | Expr '||' error                           { Error [$2] (expectedExpression 1 "||") }
     | Expr '!||' Expr                           { Binary LogicalNor $1 $3 $2 }
     | Expr '!||' error                          { Error [$2] (expectedExpression 1 "!||") }
 
-    -- 18: logical-implication (reserved)
+    -- 17: logical-implication (reserved)
     | Expr '->' Expr                            { Binary LogicalImply $1 $3 $2 }
     | Expr '->' error                           { Error [$2] (expectedExpression 1 "->") }
     | Expr '!->' Expr                           { Binary LogicalNimply $1 $3 $2 }
@@ -185,7 +183,7 @@ Expr :: { Expression }
     -- helper precedence for ternary "if ... else ..."
     | Expr KW_IF Expr KW_ELSE Expr %prec KW_IF  { Ternary $3 ($1, $5) [$2, $4] }
 
-    -- 19: assignment
+    -- 18: assignment
     | LValue '=' Expr                           { if isVariable $1 then Binary Assign $1 $3 $2 else Error [$2] assignErrorMsg }
     | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
     ;

@@ -663,6 +663,17 @@ inferStmtPassTests = testGroup "Semantic.TypeCheck.inferStmtPass" $ map (\(name,
         ("2", Just Int32T),
         ("3", Just (Class ["Foo"] []))]
 
+inferStmtLoopTests :: TestTree
+inferStmtLoopTests = testGroup "Semantic.TypeCheck.inferStmtLoop" [
+    testCase "0" $ do
+        let tokLoop = Lex.Ident "loop" pos1
+            stmt = Loop Nothing tokLoop
+            ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
+            (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
+        assertTcErrs Nothing ctx1
+        assertWarnCount 0 ctx1
+    ]
+
 
 conditionBoolTests :: TestTree
 conditionBoolTests = testGroup "Semantic.TypeCheck.conditionBool" $ map (uncurry testCase) [
@@ -937,7 +948,7 @@ tests = testGroup "Semantic.TypeCheck" [
     inferThisTests, inferThisFieldTests, inferLiteralTests,
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
-    inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, conditionBoolTests,
+    inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, conditionBoolTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 
 

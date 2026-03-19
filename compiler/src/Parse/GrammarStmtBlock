@@ -16,6 +16,14 @@ StmtSeqOpt :: { [Statement] }
     ;
 
 
+BlockLike :: { Block }
+    : ':' Stmt                      { Multiple [$2] }
+    | Block Sep                     { fromMaybe (Multiple []) $1 }
+    | NL Block Sep                  { fromMaybe (Multiple []) $2 }
+    ;
+
+
+
 ElseBlock :: { (Maybe Block, Token) }
     : KW_ELSE ';'                       { (Nothing, $1) }
     | KW_ELSE BlockLike                 { (Just $2, $1) }
@@ -28,6 +36,13 @@ IfStmt :: { Statement }
     | KW_IF Expr BlockLike                %prec IFX { If $2 (Just $3) Nothing ($1, Nothing) }
     | KW_IF Expr BlockLike ElseBlock                { If $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
     ;
+
+
+-- loop
+LoopStmt :: { Statement }
+    : KW_LOOP ';'                         %prec IFX { Loop Nothing $1 }
+    | KW_LOOP BlockLike                             { Loop (Just $2) $1 }
+    ;               
 
 
 -- while
@@ -182,6 +197,7 @@ Stmt :: { Statement }
     | TypedLeadStmt                 { $1 }
     | Block Sep                     { BlockStmt $ fromMaybe (Multiple []) $1 }
     | IfStmt                        { $1 }
+    | LoopStmt                      { $1 }
     | WhileStmt                     { $1 }
     | FunctionStmt                  { $1 }
     ;
@@ -191,10 +207,4 @@ Stmt :: { Statement }
 Block :: { Maybe Block }
     : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
     | '{' Sep '}'               { Nothing }
-    ;
-
-BlockLike :: { Block }
-    : ':' Stmt                      { Multiple [$2] }
-    | Block Sep                     { fromMaybe (Multiple []) $1 }
-    | NL Block Sep                  { fromMaybe (Multiple []) $2 }
     ;
