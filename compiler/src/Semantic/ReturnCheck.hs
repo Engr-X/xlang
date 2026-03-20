@@ -30,11 +30,20 @@ checkStmt path stmt = case stmt of
     BlockStmt b -> checkBlock path b
     If _ mb1 mb2 _ ->
         maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
-    For (_, _, _) mb _ -> maybe [] (checkBlock path) mb
+    For (s1, _, s3) mb1 mb2 _ ->
+        maybe [] (checkStmt path) s1 ++
+        maybe [] (checkStmt path) s3 ++
+        maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
     Loop mb _ -> maybe [] (checkBlock path) mb
+    Repeat _ mb1 mb2 _ ->
+        maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
     While _ mb1 mb2 _ ->
         maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
+    Until _ mb1 mb2 _ ->
+        maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
     DoWhile mb1 _ mb2 _ ->
+        maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
+    DoUntil mb1 _ mb2 _ ->
         maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
     Switch _ cases _ -> concatMap (checkSwitchCase path) cases
     _ -> []

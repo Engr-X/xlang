@@ -684,22 +684,49 @@ conditionBoolTests = testGroup "Semantic.TypeCheck.conditionBool" $ map (uncurry
         let stmt = While intExpr Nothing Nothing (tokWhile, Nothing)
         assertCondErr stmt),
     ("2", do
-        let stmt = For (Nothing, Just intExpr, Nothing) Nothing tokFor
+        let stmt = For (Nothing, Just intExpr, Nothing) Nothing Nothing (tokFor, Nothing)
         assertCondErr stmt),
     ("3", do
         let stmt = DoWhile Nothing intExpr Nothing (tokDo, tokWhile, Nothing)
+        assertCondErr stmt),
+    ("4", do
+        let stmt = Until intExpr Nothing Nothing (tokUntil, Nothing)
+        assertCondErr stmt),
+    ("5", do
+        let stmt = DoUntil Nothing intExpr Nothing (tokDo, tokUntil, Nothing)
         assertCondErr stmt)]
     where
         intExpr = IntConst "1" (Lex.NumberConst "1" pos1)
         expected = UE.conditionBoolMsg (prettyClass Int32T)
         tokIf = Lex.Ident "if" pos1
         tokWhile = Lex.Ident "while" pos1
+        tokUntil = Lex.Ident "until" pos1
         tokFor = Lex.Ident "for" pos1
         tokDo = Lex.Ident "do" pos1
         assertCondErr stmt = do
             let ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
                 (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
             assertTcErrs (Just expected) ctx1
+
+repeatCountTypeTests :: TestTree
+repeatCountTypeTests = testGroup "Semantic.TypeCheck.repeatCountType" [
+    testCase "0" $ do
+        let tokRepeat = Lex.Ident "repeat" pos1
+            countExpr = FloatConst "1.0" (Lex.NumberConst "1.0" pos1)
+            stmt = Repeat countExpr Nothing Nothing (tokRepeat, Nothing)
+            expected = UE.repeatCountTypeMsg (prettyClass Float32T)
+            ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
+            (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
+        assertTcErrs (Just expected) ctx1,
+
+    testCase "1" $ do
+        let tokRepeat = Lex.Ident "repeat" pos1
+            countExpr = IntConst "10" (Lex.NumberConst "10" pos1)
+            stmt = Repeat countExpr Nothing Nothing (tokRepeat, Nothing)
+            ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
+            (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
+        assertTcErrs Nothing ctx1
+    ]
 
 
 inferSwitchCaseTests :: TestTree
@@ -949,6 +976,7 @@ tests = testGroup "Semantic.TypeCheck" [
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
     inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, conditionBoolTests,
+    repeatCountTypeTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 
 

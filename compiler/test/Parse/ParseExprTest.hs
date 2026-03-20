@@ -79,6 +79,69 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
                     (mkSym Lex.Plus 1 11 1))
                 (mkSym Lex.Assign 1 7 1))
             (mkSym Lex.Assign 1 3 1)),
+
+    ("3a", "x = x / i", Right $
+        Binary Assign
+            (Variable "x" $ mkId "x" 1 1 1)
+            (Binary Div
+                (Variable "x" $ mkId "x" 1 5 1)
+                (Variable "i" $ mkId "i" 1 9 1)
+                (mkSym Lex.Divide 1 7 1))
+            (mkSym Lex.Assign 1 3 1)),
+
+    ("3a1", "a -= 1", Right $
+        Binary Assign
+            (Variable "a" $ mkId "a" 1 1 1)
+            (Binary Sub
+                (Variable "a" $ mkId "a" 1 1 1)
+                (IntConst "1" $ mkNum "1" 1 6 1)
+                (mkSym Lex.MinusAssign 1 3 2))
+            (mkSym Lex.MinusAssign 1 3 2)),
+
+    ("3a2", "a *= 2", Right $
+        Binary Assign
+            (Variable "a" $ mkId "a" 1 1 1)
+            (Binary Mul
+                (Variable "a" $ mkId "a" 1 1 1)
+                (IntConst "2" $ mkNum "2" 1 6 1)
+                (mkSym Lex.MultiplyAssign 1 3 2))
+            (mkSym Lex.MultiplyAssign 1 3 2)),
+
+    ("3a3", "a /= 3", Right $
+        Binary Assign
+            (Variable "a" $ mkId "a" 1 1 1)
+            (Binary Div
+                (Variable "a" $ mkId "a" 1 1 1)
+                (IntConst "3" $ mkNum "3" 1 6 1)
+                (mkSym Lex.DivideAssign 1 3 2))
+            (mkSym Lex.DivideAssign 1 3 2)),
+
+    ("3a4", "a %= 4", Right $
+        Binary Assign
+            (Variable "a" $ mkId "a" 1 1 1)
+            (Binary Mod
+                (Variable "a" $ mkId "a" 1 1 1)
+                (IntConst "4" $ mkNum "4" 1 6 1)
+                (mkSym Lex.ModuloAssign 1 3 2))
+            (mkSym Lex.ModuloAssign 1 3 2)),
+
+    ("3a5", "a **= 5", Right $
+        Binary Assign
+            (Variable "a" $ mkId "a" 1 1 1)
+            (Binary Pow
+                (Variable "a" $ mkId "a" 1 1 1)
+                (IntConst "5" $ mkNum "5" 1 7 1)
+                (mkSym Lex.PowerAssign 1 3 3))
+            (mkSym Lex.PowerAssign 1 3 3)),
+
+    ("3b", "x % i == 0", Right $
+        Binary Equal
+            (Binary Mod
+                (Variable "x" $ mkId "x" 1 1 1)
+                (Variable "i" $ mkId "i" 1 5 1)
+                (mkSym Lex.Modulo 1 3 1))
+            (IntConst "0" $ mkNum "0" 1 10 1)
+            (mkSym Lex.Equal 1 7 2)),
             
     ("4", "a + 1 > b * 2 + (c - 3)", Right $
         Binary GreaterThan

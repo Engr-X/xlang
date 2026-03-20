@@ -22,7 +22,6 @@ import qualified Util.Exception as UE
 isAssignOp :: AST.Operator -> Bool
 isAssignOp op = op `elem` [
     AST.Assign,
-    AST.BitLShiftAssign, AST.BitRShiftAssign, AST.BitOrAssign, AST.BitXorAssign, AST.BitXnorAssign,
     AST.PlusAssign, AST.MinusAssign, AST.MultiplyAssign, AST.DivideAssign, AST.ModuloAssign, AST.PowerAssign]
 
 -- | Predicate: operator is an inc/dec op.
@@ -409,6 +408,12 @@ checkStmt p package envs (AST.Expr e) = do
     if not (isStmtExpr e)
         then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
         else checkExpr p package envs e
+checkStmt p package envs (AST.Exprs es) = do
+    let checkOne e = do
+            if not (isStmtExpr e)
+                then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
+                else checkExpr p package envs e
+    mapM_ checkOne es
 
 -- block
 checkStmt p package envs stmt@(AST.BlockStmt block) = do
@@ -434,7 +439,7 @@ checkStmt p package envs stmt@(AST.If e ifBlock elseBlock _) = do
     for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
 -- for
-checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
+checkStmt p package envs stmt@(AST.For (s1, e2, s3) forBlock elseBlock _) = do
     c <- get
     let cState = st c
     let parentCtrl = parentCtrlFor cState
@@ -442,15 +447,16 @@ checkStmt p package envs stmt@(AST.For (e1, e2, e3) forBlock _) = do
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     withScope $ do
-        for_ e1 (checkExpr p package envs)
+        for_ s1 (checkForInitStmt p package envs)
         
         for_ e2 $ \cond -> do
             when (hasAssign cond) $
                 addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens cond) loopCondAssignMsg
             checkExpr p package envs cond
 
-        for_ e3 (checkExpr p package envs)
+        for_ s3 (checkForStepStmt p package envs)
         for_ forBlock (withCtrlScope InLoop . checkBlock p package envs)
+        for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
 -- while
 checkStmt p package envs stmt@(AST.Loop loopBlock _) = do
@@ -461,6 +467,18 @@ checkStmt p package envs stmt@(AST.Loop loopBlock _) = do
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     for_ loopBlock (withCtrlScope InLoop . checkBlock p package envs)
+
+-- repeat(count)
+checkStmt p package envs stmt@(AST.Repeat e repeatBlock elseBlock _) = do
+    c <- get
+    let cState = st c
+    let parentCtrl = parentCtrlFor cState
+    when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
+
+    checkExpr p package envs e
+    for_ repeatBlock (withCtrlScope InLoop . checkBlock p package envs)
+    for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
 -- while
 checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
@@ -474,6 +492,18 @@ checkStmt p package envs stmt@(AST.While e whileBlock elseBlock _) = do
     for_ whileBlock (withCtrlScope InLoop . checkBlock p package envs)
     for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
+-- until
+checkStmt p package envs stmt@(AST.Until e untilBlock elseBlock _) = do
+    c <- get
+    let cState = st c
+    let parentCtrl = parentCtrlFor cState
+    when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
+
+    checkExpr p package envs e
+    for_ untilBlock (withCtrlScope InLoop . checkBlock p package envs)
+    for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
+
 -- do while
 checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
     c <- get
@@ -483,6 +513,18 @@ checkStmt p package envs stmt@(AST.DoWhile whileBlock e elseBlock _) = do
         (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
 
     for_ whileBlock (withCtrlScope InLoop . checkBlock p package envs)
+    checkExpr p package envs e
+    for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
+
+-- do until
+checkStmt p package envs stmt@(AST.DoUntil untilBlock e elseBlock _) = do
+    c <- get
+    let cState = st c
+    let parentCtrl = parentCtrlFor cState
+    when (forbiddenFor parentCtrl InLoop) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
+        (illegalStatementMsg (prettyCtrlState InLoop) (prettyCtrlState (fromMaybe InClass parentCtrl)))
+
+    for_ untilBlock (withCtrlScope InLoop . checkBlock p package envs)
     checkExpr p package envs e
     for_ elseBlock (withCtrlScope InElse . checkBlock p package envs)
 
@@ -544,6 +586,39 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
 
         firstVoidParam :: [(AST.Class, String, [Token])] -> Maybe (AST.Class, String, [Token])
         firstVoidParam = find (\(clazz, _, _) -> clazz == AST.Void)
+
+
+checkForInitStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()
+checkForInitStmt p package envs forInitStmt = case forInitStmt of
+    AST.Expr e -> checkExprInit e
+    AST.Exprs es -> mapM_ checkExprInit es
+    AST.DefField {} -> checkStmt p package envs forInitStmt
+    AST.DefConstField {} -> checkStmt p package envs forInitStmt
+    AST.DefVar {} -> checkStmt p package envs forInitStmt
+    AST.DefConstVar {} -> checkStmt p package envs forInitStmt
+    AST.BlockStmt (AST.Multiple ss) -> mapM_ (checkForInitStmt p package envs) ss
+    _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens forInitStmt) invalidExprStmtMsg
+    where
+        checkExprInit :: Expression -> CheckM ()
+        checkExprInit initExpr = do
+            case initExpr of
+                AST.Binary AST.Assign _ _ _ -> pure ()
+                _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens initExpr) UE.forInitAssignMsg
+            checkExpr p package envs initExpr
+
+
+checkForStepStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()
+checkForStepStmt p package envs forStepStmt = case forStepStmt of
+    AST.Expr e -> checkExprStep e
+    AST.Exprs es -> mapM_ checkExprStep es
+    AST.BlockStmt (AST.Multiple ss) -> mapM_ (checkForStepStmt p package envs) ss
+    _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens forStepStmt) invalidExprStmtMsg
+    where
+        checkExprStep :: Expression -> CheckM ()
+        checkExprStep e = do
+            if not (isStmtExpr e)
+                then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
+                else checkExpr p package envs e
 
 
 -- | Check a single switch case (case/default).

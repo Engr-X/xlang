@@ -133,10 +133,11 @@ flattenStatementTests = testGroup "Parse.SyntaxTree.flattenStatement" $ map (\(i
         If (BoolConst True $ mkIdD "true") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing (dummyTok, Nothing)), [
         BoolConst True $ mkIdD "true", IntConst "1" $ mkNumD "1"]),
 
-    ("4", Just (For (Just (IntConst "1" $ mkNumD "1"), Just (IntConst "2" $ mkNumD "2"), Just (IntConst "3" $ mkNumD "3")) (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")])) dummyTok),
+    ("4", Just (For (Just (Expr (IntConst "1" $ mkNumD "1")), Just (IntConst "2" $ mkNumD "2"), Just (Expr (IntConst "3" $ mkNumD "3")))
+        (Just (Multiple [Expr (IntConst "4" $ mkNumD "4")])) Nothing (dummyTok, Nothing)),
         [IntConst "1" $ mkNumD "1", IntConst "2" $ mkNumD "2", IntConst "3" $ mkNumD "3", IntConst "4" $ mkNumD "4"]),
 
-    ("5", Just (For (Nothing, Just (IntConst "2" $ mkNumD "2"), Nothing) Nothing dummyTok), [IntConst "2" $ mkNumD "2"]),
+    ("5", Just (For (Nothing, Just (IntConst "2" $ mkNumD "2"), Nothing) Nothing Nothing (dummyTok, Nothing)), [IntConst "2" $ mkNumD "2"]),
 
     ("6", Just (While (Variable "cond" $ mkIdD "cond") (Just (Multiple [Expr (IntConst "1" $ mkNumD "1")])) Nothing (dummyTok, Nothing)),
         [Variable "cond" $ mkIdD "cond", IntConst "1" $ mkNumD "1"]),
@@ -211,8 +212,13 @@ isAssignmentTests = testGroup "Parse.SyntaxTree.isAssignment" $ map (\(i, stmt, 
     testCase i $ isAssignment stmt @=? out) [
         ("0", Expr (Binary Assign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.Assign)), True),
         ("1", Expr (Binary PlusAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.PlusAssign)), True),
-        ("2", Expr (Binary Add (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.Plus)), False),
-        ("3", Command (Return Nothing) (mkIdD "return"), False)
+        ("2", Expr (Binary MinusAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.MinusAssign)), True),
+        ("3", Expr (Binary MultiplyAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.MultiplyAssign)), True),
+        ("4", Expr (Binary DivideAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.DivideAssign)), True),
+        ("5", Expr (Binary ModuloAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.ModuloAssign)), True),
+        ("6", Expr (Binary PowerAssign (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.PowerAssign)), True),
+        ("7", Expr (Binary Add (Variable "a" $ mkIdD "a") (IntConst "1" $ mkNumD "1") (mkSymD Lex.Plus)), False),
+        ("8", Command (Return Nothing) (mkIdD "return"), False)
     ]
 
 
@@ -597,12 +603,13 @@ prettyProgmTests = testGroup "Parse.SyntaxTree.prettyProgm" $ map (\(i, inp, out
             "while(t<100)"]),
             
     ("6", ([], [
-        For (Just (Binary Assign (Variable "i" dummyTok) (IntConst "0" dummyTok) dummyTok),
+        For (Just (Expr (Binary Assign (Variable "i" dummyTok) (IntConst "0" dummyTok) dummyTok)),
              Just (Binary LessThan (Variable "i" dummyTok) (IntConst "10" dummyTok) dummyTok),
-             Just (Unary SelfInc (Variable "i" dummyTok) dummyTok))
+             Just (Expr (Unary SelfInc (Variable "i" dummyTok) dummyTok)))
                 (Just (Multiple [
                     Expr (Binary Add (Variable "sum" dummyTok) (Variable "i" dummyTok) dummyTok)]))
-                dummyTok]),
+                Nothing
+                (dummyTok, Nothing)]),
         
         unlines [
             "for(i=0;i<10;++i)",

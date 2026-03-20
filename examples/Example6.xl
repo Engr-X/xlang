@@ -49,4 +49,10 @@ void main()
         if score > 79: level = "B"
         else: level = "C"
     }
+
+    // if / elif / else chain
+    if score > 100: level = "S"
+    elif score == 100: level = "A+"
+    elif score >= 90: level = "A"
+    else: level = "B"
 }

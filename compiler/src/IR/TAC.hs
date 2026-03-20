@@ -99,6 +99,7 @@ expandStmt e@(AST.Command (AST.Return Nothing) _) = [e]
 expandStmt (AST.Command (AST.Return (Just e)) tok) = let (ss, e') = expandExpr e in ss ++ [AST.Command (AST.Return (Just e')) tok]
 
 expandStmt (AST.Expr e) = let (ss, e') = expandExpr e in ss ++ [AST.Expr e']
+expandStmt (AST.Exprs es) = let (ss, es') = expandExprList es in ss ++ [AST.Exprs es']
 expandStmt (AST.BlockStmt b) = [AST.BlockStmt $ expandBlock b]
 expandStmt (AST.If cond th el toks) =
     let (ssC, cond') = expandExpr cond
@@ -106,23 +107,64 @@ expandStmt (AST.If cond th el toks) =
         el' = fmap expandBlock el
     in ssC ++ [AST.If cond' th' el' toks]
 
-expandStmt (AST.For (mi, mc, ms) body tokFor) =
+expandStmt (AST.For (mi, mc, ms) body elseB tokFor) =
     let
-        (ssi, mi') = expandMaybeExpr mi
+        (ssi, mi') = expandMaybeStmt mi
         (_, mc') = expandMaybeExpr mc
-        (sss, ms') = expandMaybeExpr ms
+        (sss, ms') = expandMaybeStmt ms
         (AST.Multiple body') = maybe (AST.Multiple []) expandBlock body
         bodyFinal = Just $ AST.Multiple (body' ++ sss)
+        elseFinal = fmap expandBlock elseB
 
     in
         -- Execute lifted init statements once before the loop
-        ssi ++ [AST.For (mi', mc', ms') bodyFinal tokFor]
+        ssi ++ [AST.For (mi', mc', ms') bodyFinal elseFinal tokFor]
     where
         expandMaybeExpr :: Maybe Expression -> ([Statement], Maybe Expression)
         expandMaybeExpr Nothing  = ([], Nothing)
         expandMaybeExpr (Just e) =
             let (ss, e') = expandExpr e
             in (ss, Just e')
+
+        expandMaybeStmt :: Maybe Statement -> ([Statement], Maybe Statement)
+        expandMaybeStmt Nothing = ([], Nothing)
+        expandMaybeStmt (Just st) = case st of
+            AST.Expr e ->
+                let (ss, e') = expandExpr e in (ss, Just (AST.Expr e'))
+            AST.Exprs es ->
+                let (ss, es') = expandExprList es in (ss, Just (AST.Exprs es'))
+            AST.BlockStmt b ->
+                ([], Just (AST.BlockStmt (expandBlock b)))
+            other ->
+                ([], Just other)
+
+expandStmt (AST.Repeat countExpr body elseB tokRepeat) =
+    let
+        (ss, countExpr') = expandExpr countExpr
+        body' = fmap expandBlock body
+        elseB' = fmap expandBlock elseB
+    in ss ++ [AST.Repeat countExpr' body' elseB' tokRepeat]
+
+expandStmt (AST.Until cond body elseB tokUntil) =
+    let
+        (ss, cond') = expandExpr cond
+        body' = fmap expandBlock body
+        elseB' = fmap expandBlock elseB
+    in ss ++ [AST.Until cond' body' elseB' tokUntil]
+
+expandStmt (AST.DoWhile body cond elseB tokDoWhile) =
+    let
+        body' = fmap expandBlock body
+        (ss, cond') = expandExpr cond
+        elseB' = fmap expandBlock elseB
+    in ss ++ [AST.DoWhile body' cond' elseB' tokDoWhile]
+
+expandStmt (AST.DoUntil body cond elseB tokDoUntil) =
+    let
+        body' = fmap expandBlock body
+        (ss, cond') = expandExpr cond
+        elseB' = fmap expandBlock elseB
+    in ss ++ [AST.DoUntil body' cond' elseB' tokDoUntil]
 
 -- Fallback: leave other statements unchanged for now.
 expandStmt s = [s]

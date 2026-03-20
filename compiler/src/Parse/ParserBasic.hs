@@ -5,7 +5,7 @@ import Data.List (find, sort)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
 import Parse.SyntaxTree
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
-import Util.Exception (ErrorKind, expectedExpression)
+import Util.Exception (ErrorKind, expectedExpression, assignErrorMsg)
 import Util.Type (Path, makePosition)
 
 import qualified Lex.Token as Lex
@@ -132,3 +132,17 @@ stmtToBlock s = Multiple [s]
 stmtToExpr :: Token -> Statement -> Expression
 stmtToExpr _ (Expr e) = e
 stmtToExpr t _ = Error [t] (expectedExpression 1 $ show t)
+
+
+-- Build an assignment expression with LHS validity check.
+mkAssignExpr :: Expression -> Expression -> Token -> Expression
+mkAssignExpr lhs rhs tok =
+    if isVariable lhs
+        then Binary Assign lhs rhs tok
+        else Error [tok] assignErrorMsg
+
+
+-- Build an augmented assignment expression by desugaring to plain assignment.
+mkAugAssignExpr :: Operator -> Expression -> Expression -> Token -> Expression
+mkAugAssignExpr baseOp lhs rhs tok =
+    mkAssignExpr lhs (Binary baseOp lhs rhs tok) tok

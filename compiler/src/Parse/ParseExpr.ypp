@@ -61,6 +61,12 @@ import qualified Util.Exception as UE
     '||'                { t@(Lex.Symbol Lex.LogicalOr _)}
     '!||'                { t@(Lex.Symbol Lex.LogicalNor _)}
     '='                 { t@(Lex.Symbol Lex.Assign _) }
+    '+='                { t@(Lex.Symbol Lex.PlusAssign _) }
+    '-='                { t@(Lex.Symbol Lex.MinusAssign _) }
+    '*='                { t@(Lex.Symbol Lex.MultiplyAssign _) }
+    '/='                { t@(Lex.Symbol Lex.DivideAssign _) }
+    '%='                { t@(Lex.Symbol Lex.ModuloAssign _) }
+    '**='               { t@(Lex.Symbol Lex.PowerAssign _) }
 
     identity            { t@(Lex.Ident _ _) }
     number              { t@(Lex.NumberConst _ _) }
@@ -75,62 +81,64 @@ import qualified Util.Exception as UE
     '!->'                { t@(Lex.Symbol Lex.NotArrow _) }
     '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
 
--- 0: atom/call/cast
+-- Happy precedence declarations are from low to high.
 
--- 1: postfix ++/-- (handled in Postfix rules)
-
--- 2: prefix ++/-- (handled in Atom rules)
-
--- 3: unary plus/minus
-%right UPLUS UMINUS
-
--- 4: unary logical/bit not ('!' / 'inv')
-%right '!' 'inv'
-
--- 5: power
-%left '**'
-
--- 6: multiplicative
-%left '*' '/' '%'
-
--- 7: additive
-%left '+' '-'
-
--- 8: shift (reserved)
-%left 'shl' 'shr' 'ushr'
-
--- 9: relational
-%left '>' '<' '>=' '<='
-
--- 10: equality
-%left '!=' '=='
-
--- 11: bit-and (reserved)
-%left 'and' 'nand'
-
--- 12: bit-xor / bit-xnor (reserved)
-%left 'xor' 'xnor'
-
--- 13: bit-or (reserved)
-%left 'or' 'nor'
-
--- 14: bit-implication
-%right 'imp' 'nimp'
-
--- 15: logical-and
-%left '&&' '!&&'
-
--- 16: logical-or
-%left '||' '!||'
-
--- 17: logical-implication
-%right '->' '!->'
+-- 18: assignment
+%right '=' '+=' '-=' '*=' '/=' '%=' '**='
 
 -- helper precedence for ternary "if ... else ..."
 %right KW_IF
 
--- 18: assignment
-%right '='
+-- 17: logical-implication
+%right '->' '!->'
+
+-- 16: logical-or
+%left '||' '!||'
+
+-- 15: logical-and
+%left '&&' '!&&'
+
+-- 14: bit-implication
+%right 'imp' 'nimp'
+
+-- 13: bit-or (reserved)
+%left 'or' 'nor'
+
+-- 12: bit-xor / bit-xnor (reserved)
+%left 'xor' 'xnor'
+
+-- 11: bit-and (reserved)
+%left 'and' 'nand'
+
+-- 10: equality
+%left '!=' '=='
+
+-- 9: relational
+%left '>' '<' '>=' '<='
+
+-- 8: shift (reserved)
+%left 'shl' 'shr' 'ushr'
+
+-- 7: additive
+%left '+' '-'
+
+-- 6: multiplicative
+%left '*' '/' '%'
+
+-- 5: power
+%left '**'
+
+-- 4: unary logical/bit not ('!' / 'inv')
+%right '!' 'inv'
+
+-- 3: unary plus/minus
+%right UPLUS UMINUS
+
+-- 2: prefix ++/-- (handled in Atom rules)
+
+-- 1: postfix ++/-- (handled in Postfix rules)
+
+-- 0: atom/call/cast
 
 %%
 

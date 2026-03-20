@@ -168,6 +168,11 @@ incDecOperandTypeMsg :: String -> String
 incDecOperandTypeMsg actual =
     "++/-- operand must be numeric or char, got " ++ actual
 
+-- | repeat(count) requires an integer count up to long.
+repeatCountTypeMsg :: String -> String
+repeatCountTypeMsg actual =
+    "repeat count must be byte/short/int/long, got " ++ actual
+
 
 -- | possible overflow warning message for casts
 overflowCastMsg :: String -> String -> String

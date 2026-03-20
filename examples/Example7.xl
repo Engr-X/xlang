@@ -45,5 +45,44 @@ int main()
         sum = sum + 100
     } else: sum = sum + 1
 
-    return sum + x + n
+    // for ... else (with multi init/step)
+    for (var f: int = 0, t: int = 0; f < 3; f++, t += f):
+        sum += 1
+    else:
+        sum += 10
+
+    // repeat ... else
+    repeat 2:
+        sum += 2
+    else:
+        sum += 3
+
+    // until ... else
+    var u: int = 0
+    until u >= 2:
+        u++
+    else:
+        sum += 4
+
+    // do ... while ... else
+    var dw: int = 0
+    do:
+        dw++
+    while dw < 1;
+    else:
+        sum += 5
+
+    // do ... until ... else
+    var du: int = 0
+    do:
+        du++
+    until du >= 1;
+    else:
+        sum += 6
+
+    // loop syntax sample (infinite loop):
+    // loop:
+    //     putln("tick")
+
+    return sum + x + n + u + dw + du
 }

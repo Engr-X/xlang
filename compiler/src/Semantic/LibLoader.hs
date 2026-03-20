@@ -191,18 +191,18 @@ filterEnvelopeByImports imports (LibEnvelope classes)
     normalizeImportPattern = map (\c -> if c == '/' then '.' else c)
 
     globMatch :: String -> String -> Bool
-    globMatch patternText value = go patternText value
-      where
-        go :: String -> String -> Bool
-        go [] [] = True
-        go [] _ = False
-        go ('*':ps) xs = go ps xs || case xs of
-            [] -> False
-            (_:rest) -> go ('*':ps) rest
-        go (p:ps) (x:xs)
-            | p == x = go ps xs
-            | otherwise = False
-        go _ _ = False
+    globMatch = go
+        where
+            go :: String -> String -> Bool
+            go [] [] = True
+            go [] _ = False
+            go ('*':ps) xs = go ps xs || case xs of
+                [] -> False
+                (_:rest) -> go ('*':ps) rest
+            go (p:ps) (x:xs)
+                | p == x = go ps xs
+                | otherwise = False
+            go _ _ = False
 
 
 buildEnv :: Path -> LibEnvelope -> (ImportEnv, TypedImportEnv)
@@ -285,7 +285,6 @@ normalizeOwnerType :: String -> String
 normalizeOwnerType raw =
     let s = map toLower raw
     in case s of
-        "xlang-class" -> "xlang-class"
         "xlang-top-level" -> "xlang-top-level"
         _ -> "xlang-class"
 
@@ -302,16 +301,21 @@ parseTypeParts parts =
 
 
 normalizePrimitive :: String -> String
-normalizePrimitive raw = case map toLower raw of
-    "boolean" -> "bool"
-    "byte" -> "int8"
-    "short" -> "int16"
-    "int" -> "int32"
-    "long" -> "int64"
-    "float" -> "float32"
-    "double" -> "float64"
-    "string" -> "String"
-    _ -> raw
+normalizePrimitive raw =
+    let normalized = map toLower raw
+    in Map.findWithDefault raw normalized primitiveTypeMap
+
+
+primitiveTypeMap :: Map String String
+primitiveTypeMap = Map.fromList [
+    ("boolean", "bool"),
+    ("byte", "int8"),
+    ("short", "int16"),
+    ("int", "int32"),
+    ("long", "int64"),
+    ("float", "float32"),
+    ("double", "float64"),
+    ("string", "String")]
 
 
 mkSyntax :: Path -> String -> ErrorKind

@@ -1,5 +1,20 @@
 # Revision history for xlang
 
+## Beta-1.0.0 -- 2026-03-20
+
+### Release Description
+
+Beta 1.0.0 focuses on language feature expansion and control-flow completeness,
+including new short-circuit logical operators, richer loop forms (`loop`,
+`repeat`, `until`, `do-while`, `do-until`, `for-else`), `if/elif/else`, comma
+expression statements for `for` init/step, and expanded augmented assignment support.
+
+Detailed updates are tracked in:
+
+- `compiler/CHANGELOG.md`
+- `libs/java/CHANGELOG.md`
+- `tools/BytecodeToolkit/CHANGELOG.md`
+
 ## Alpha-1.0.0 -- 2026-03-14
 
 ### Release Description

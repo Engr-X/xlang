@@ -172,7 +172,90 @@ typedDeclSyntaxTests = testGroup "typed_decl_syntax"
         case replLexparseStmt "final int a = 10;" of
             Right (DefConstField ["a"] (Just _) (Just _) _) -> pure ()
             other -> assertFailure ("expected typed DefConstField with init, got: " ++ show other)
+    , testCase "var_multi_mixed_types" $
+        case replLexparseStmt "var a: int = 1, b: double = 2;" of
+            Right (BlockStmt (Multiple
+                [ DefField ["a"] (Just Int32T) (Just (IntConst "1" _)) _
+                , DefField ["b"] (Just Float64T) (Just (IntConst "2" _)) _
+                ])) -> pure ()
+            other -> assertFailure ("expected multi var decl block, got: " ++ show other)
+    , testCase "var_multi_infer" $
+        case replLexparseStmt "var a = 10, b = 20;" of
+            Right (BlockStmt (Multiple
+                [ DefField ["a"] Nothing (Just (IntConst "10" _)) _
+                , DefField ["b"] Nothing (Just (IntConst "20" _)) _
+                ])) -> pure ()
+            other -> assertFailure ("expected multi inferred var decl block, got: " ++ show other)
+    , testCase "c_like_multi_same_type" $
+        case replLexparseStmt "int a = 10, b = 10;" of
+            Right (BlockStmt (Multiple
+                [ DefField ["a"] (Just Int32T) (Just (IntConst "10" _)) _
+                , DefField ["b"] (Just Int32T) (Just (IntConst "10" _)) _
+                ])) -> pure ()
+            other -> assertFailure ("expected c-like multi typed decl block, got: " ++ show other)
+    ]
+
+loopSyntaxTests :: TestTree
+loopSyntaxTests = testGroup "loop_syntax"
+    [ testCase "until_else_block" $
+        case replLexparseStmt (unlines
+            [ "until false:"
+            , "    x = 1"
+            , "else:"
+            , "    x = 2"
+            ]) of
+            Right (Until
+                (BoolConst False _)
+                (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "1" _) _)]))
+                (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "2" _) _)]))
+                _) -> pure ()
+            other -> assertFailure ("expected until-else statement, got: " ++ show other)
+
+    , testCase "for_var_multi_init_and_expr_step_list" $
+        case replLexparseStmt "for (var i: int = 0, sum: int = 0; i < 10; i++, sum = sum + i);" of
+            Right (For
+                ( Just (BlockStmt (Multiple
+                    [ DefField ["i"] (Just Int32T) (Just (IntConst "0" _)) _
+                    , DefField ["sum"] (Just Int32T) (Just (IntConst "0" _)) _
+                    ]))
+                , Just (Binary LessThan (Variable "i" _) (IntConst "10" _) _)
+                , Just (Exprs
+                    [ Unary SelfInc (Variable "i" _) _
+                    , Binary Assign (Variable "sum" _)
+                        (Binary Add (Variable "sum" _) (Variable "i" _) _)
+                        _
+                    ])
+                )
+                Nothing
+                Nothing
+                _) -> pure ()
+            other -> assertFailure ("expected for with multi init/step list, got: " ++ show other)
+    ]
+
+ifElifSyntaxTests :: TestTree
+ifElifSyntaxTests = testGroup "if_elif_syntax"
+    [ testCase "if_elif_else_desugars_to_nested_if" $
+        case replLexparseStmt (unlines
+            [ "if a:"
+            , "    x = 1"
+            , "elif b:"
+            , "    x = 2"
+            , "else:"
+            , "    x = 3"
+            ]) of
+            Right (If
+                (Variable "a" _)
+                (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "1" _) _)]))
+                (Just (Multiple
+                    [ If
+                        (Variable "b" _)
+                        (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "2" _) _)]))
+                        (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "3" _) _)]))
+                        _
+                    ]))
+                _) -> pure ()
+            other -> assertFailure ("expected nested If desugaring for elif, got: " ++ show other)
     ]
 
 tests :: TestTree
-tests = testGroup "Parse.ParseStmt" [normalTests, valStmtTests, typedDeclSyntaxTests]
+tests = testGroup "Parse.ParseStmt" [normalTests, valStmtTests, typedDeclSyntaxTests, loopSyntaxTests, ifElifSyntaxTests]

@@ -175,7 +175,7 @@ isAssignOpTests :: TestTree
 isAssignOpTests = testGroup "Semantic.ContextCheck.isAssignOp" $
     map (\(name, op, out) -> testCase name $ isAssignOp op @?= out) [
         ("0", AST.Assign, True),
-        ("1", AST.BitXorAssign, True),
+        ("1", AST.DivideAssign, True),
         ("2", AST.PowerAssign, True),
         ("3", AST.Add, False)]
 
@@ -422,12 +422,14 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
             "    y = 2"
         ], stInBlock),
         ("3", Right doWhileStmt, stInBlock),
-        ("4", Right forStmt, stInBlockWithSum),
-        ("5", Right loopStmt, stInBlock)]
+        ("4", Right doUntilStmt, stInBlock),
+        ("5", Right forStmt, stInBlockWithSum),
+        ("6", Right loopStmt, stInBlock)]
     where
-        tokDo, tokWhile, tokElse, tokTrue, tokFor, tokLoop :: Lex.Token
+        tokDo, tokWhile, tokUntil, tokElse, tokTrue, tokFor, tokLoop :: Lex.Token
         tokDo = Lex.Ident "do" pos1
         tokWhile = Lex.Ident "while" pos2
+        tokUntil = Lex.Ident "until" pos2
         tokElse = Lex.Ident "else" pos3
         tokTrue = Lex.Ident "true" pos4
         tokFor = Lex.Ident "for" pos1
@@ -461,17 +463,26 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
                 (Just (AST.Multiple [assignY]))
                 (tokDo, tokWhile, Just tokElse)
 
+        doUntilStmt :: AST.Statement
+        doUntilStmt =
+            AST.DoUntil
+                (Just (AST.Multiple [assignX]))
+                (AST.BoolConst True tokTrue)
+                (Just (AST.Multiple [assignY]))
+                (tokDo, tokUntil, Just tokElse)
+
         forStmt :: AST.Statement
         forStmt =
             AST.For
-                ( Just (AST.Binary AST.Assign (AST.Variable "i" tokI) (AST.IntConst "0" tokNum0) tokAssign)
+                ( Just (AST.Expr (AST.Binary AST.Assign (AST.Variable "i" tokI) (AST.IntConst "0" tokNum0) tokAssign))
                 , Just (AST.Binary AST.LessThan (AST.Variable "i" tokI) (AST.IntConst "10" tokNum10) tokLt)
-                , Just (AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc)
+                , Just (AST.Expr (AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc))
                 )
                 ( Just (AST.Multiple [
                     AST.Expr (AST.Binary AST.PlusAssign (AST.Variable "sum" tokSum) (AST.Variable "i" tokI) tokPlusAssign)
                 ]))
-                tokFor
+                Nothing
+                (tokFor, Nothing)
 
         loopStmt :: AST.Statement
         loopStmt =
@@ -883,12 +894,13 @@ forScopeTests = testGroup "Semantic.ContextCheck.forScope" [
         forStmt :: AST.Statement
         forStmt =
             AST.For
-                ( Just (AST.Binary AST.Assign (AST.Variable "i" tokI) (AST.IntConst "0" tokNum0) tokAssign)
+                ( Just (AST.Expr (AST.Binary AST.Assign (AST.Variable "i" tokI) (AST.IntConst "0" tokNum0) tokAssign))
                 , Just (AST.Binary AST.LessThan (AST.Variable "i" tokI) (AST.IntConst "10" tokNum10) tokLt)
-                , Just (AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc)
+                , Just (AST.Expr (AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokInc))
                 )
                 ( Just (AST.Multiple []))
-                tokFor
+                Nothing
+                (tokFor, Nothing)
 
 
 declKindLoweringTests :: TestTree

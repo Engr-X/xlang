@@ -8,11 +8,13 @@ import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty
 import Test.Tasty.HUnit
+import Util.Type (makePosition)
 
 import qualified Lex.Token as LT
 import qualified Data.Map.Strict as Map
 import qualified IR.TAC as TAC
 import qualified Parse.SyntaxTree as AST
+import qualified Semantic.TypeEnv as TEnv
 
 
 stripIntSuffixTests :: TestTree
@@ -94,6 +96,33 @@ detectMainKindTests = testGroup "IR.TACLowing.detectMainKind" $ map (uncurry tes
         mkFun :: String -> [Class] -> Class -> IRFunction
         mkFun name params ret =
             IRFunction (Public, []) name (FunSig params ret) Map.empty [] MemberClass
+
+
+loopAssignKeyTests :: TestTree
+loopAssignKeyTests = testGroup "IR.TACLowing.collectAssignKeysBlock" [
+    testCase "self-inc is treated as loop-carried assignment key" $ do
+        let posI = makePosition 1 1 1
+            tokI = LT.Ident "i" posI
+            expr = AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokI
+            blk = AST.Multiple [AST.Expr expr]
+            vUses = Map.fromList [([posI], TEnv.VarLocal (Public, []) "i" 0)]
+            st0 = TAC.mkTACState vUses Map.empty
+            keys = evalState (TAC.runTACM (collectAssignKeysBlock blk)) st0
+        keys @?= [("i", 0)],
+
+    testCase "plus-assign is treated as loop-carried assignment key" $ do
+        let posI = makePosition 2 1 1
+            posN = makePosition 2 6 1
+            tokI = LT.Ident "i" posI
+            tokPlusAssign = LT.Symbol LT.PlusAssign (makePosition 2 3 2)
+            tokN = LT.NumberConst "1" posN
+            expr = AST.Binary AST.PlusAssign (AST.Variable "i" tokI) (AST.IntConst "1" tokN) tokPlusAssign
+            blk = AST.Multiple [AST.Expr expr]
+            vUses = Map.fromList [([posI], TEnv.VarLocal (Public, []) "i" 0)]
+            st0 = TAC.mkTACState vUses Map.empty
+            keys = evalState (TAC.runTACM (collectAssignKeysBlock blk)) st0
+        keys @?= [("i", 0)]
+    ]
 
 
 shortCircuitLogicalTests :: TestTree
@@ -243,6 +272,122 @@ shortCircuitLogicalTests = testGroup "IR.TACLowing.shortCircuitLogical" [
             TAC.IAssign _ (TAC.Phi _) -> True
             _ -> False
 
+untilLoweringTests :: TestTree
+untilLoweringTests = testGroup "IR.TACLowing.untilLowering" [
+    testCase "until condition branches on false" $ do
+        let tokUntil = LT.dummyToken
+            stmt = AST.Until (AST.BoolConst True LT.dummyToken) Nothing Nothing (tokUntil, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "until should branch when cond == false" (any isEqFalseJump instrs),
+
+    testCase "until should not branch on cond == true" $ do
+        let tokUntil = LT.dummyToken
+            stmt = AST.Until (AST.BoolConst True LT.dummyToken) Nothing Nothing (tokUntil, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "until should not branch with == true guard" (not (any isEqTrueJump instrs))
+    ]
+    where
+        lowerStmtStmts :: AST.Statement -> [TAC.IRStmt]
+        lowerStmtStmts stmt =
+            let st0 = TAC.mkTACState Map.empty Map.empty
+            in evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+
+        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
+        collectInstrs = concatMap go
+            where
+                go irStmt = case irStmt of
+                    TAC.IRInstr instr -> [instr]
+                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+
+        isEqFalseJump :: TAC.IRInstr -> Bool
+        isEqFalseJump instr = case instr of
+            TAC.Ifeq _ (TAC.Int32C 0) _ -> True
+            _ -> False
+
+        isEqTrueJump :: TAC.IRInstr -> Bool
+        isEqTrueJump instr = case instr of
+            TAC.Ifeq _ (TAC.Int32C 1) _ -> True
+            _ -> False
+
+doLoopLoweringTests :: TestTree
+doLoopLoweringTests = testGroup "IR.TACLowing.doLoopLowering" [
+    testCase "do while condition branches on true" $ do
+        let tokDo = LT.dummyToken
+            tokWhile = LT.dummyToken
+            stmt = AST.DoWhile Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokWhile, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "do while should branch with == true guard" (any isEqTrueJump instrs),
+
+    testCase "do while should not branch on false guard" $ do
+        let tokDo = LT.dummyToken
+            tokWhile = LT.dummyToken
+            stmt = AST.DoWhile Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokWhile, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "do while should not branch with == false guard" (not (any isEqFalseJump instrs)),
+
+    testCase "do until condition branches on false" $ do
+        let tokDo = LT.dummyToken
+            tokUntil = LT.dummyToken
+            stmt = AST.DoUntil Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokUntil, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "do until should branch with == false guard" (any isEqFalseJump instrs),
+
+    testCase "do until should not branch on true guard" $ do
+        let tokDo = LT.dummyToken
+            tokUntil = LT.dummyToken
+            stmt = AST.DoUntil Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokUntil, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "do until should not branch with == true guard" (not (any isEqTrueJump instrs))
+    ]
+    where
+        lowerStmtStmts :: AST.Statement -> [TAC.IRStmt]
+        lowerStmtStmts stmt =
+            let st0 = TAC.mkTACState Map.empty Map.empty
+            in evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+
+        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
+        collectInstrs = concatMap go
+            where
+                go irStmt = case irStmt of
+                    TAC.IRInstr instr -> [instr]
+                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+
+        isEqFalseJump :: TAC.IRInstr -> Bool
+        isEqFalseJump instr = case instr of
+            TAC.Ifeq _ (TAC.Int32C 0) _ -> True
+            _ -> False
+
+        isEqTrueJump :: TAC.IRInstr -> Bool
+        isEqTrueJump instr = case instr of
+            TAC.Ifeq _ (TAC.Int32C 1) _ -> True
+            _ -> False
+
+repeatLoweringTests :: TestTree
+repeatLoweringTests = testGroup "IR.TACLowing.repeatLowering" [
+    testCase "repeat counter lowering should not emit phi load for index" $ do
+        let tokRepeat = LT.dummyToken
+            countExpr = AST.IntConst "10" LT.dummyToken
+            stmt = AST.Repeat countExpr Nothing Nothing (tokRepeat, Nothing)
+            instrs = collectInstrs (lowerStmtStmts stmt)
+        assertBool "repeat should not emit IAssign _ (Phi ...)" (not (any isPhiAssign instrs))
+    ]
+    where
+        lowerStmtStmts :: AST.Statement -> [TAC.IRStmt]
+        lowerStmtStmts stmt =
+            let st0 = TAC.mkTACState Map.empty Map.empty
+            in evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+
+        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
+        collectInstrs = concatMap go
+            where
+                go irStmt = case irStmt of
+                    TAC.IRInstr instr -> [instr]
+                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+
+        isPhiAssign :: TAC.IRInstr -> Bool
+        isPhiAssign instr = case instr of
+            TAC.IAssign _ (TAC.Phi _) -> True
+            _ -> False
 
 tests :: TestTree
 tests = testGroup "IR.TACLowing" [
@@ -253,5 +398,9 @@ tests = testGroup "IR.TACLowing" [
     lookupParamIndexTests,
     defaultAtomForClassTests,
     detectMainKindTests,
-    shortCircuitLogicalTests
+    loopAssignKeyTests,
+    shortCircuitLogicalTests,
+    untilLoweringTests,
+    doLoopLoweringTests,
+    repeatLoweringTests
     ]

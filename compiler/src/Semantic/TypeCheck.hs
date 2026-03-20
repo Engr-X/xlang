@@ -3,7 +3,7 @@
 
 module Semantic.TypeCheck where
 
-import Control.Monad (when, void)
+import Control.Monad (when, unless, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
@@ -734,6 +734,40 @@ lookupFun qname scopes = case find (Map.member qname) scopes of
 inferOptBlock :: Path -> QName -> [TypedImportEnv] -> Maybe Block -> TypeM ()
 inferOptBlock _ _ _ Nothing = pure ()
 inferOptBlock path packages envs (Just b) = withScope $ inferBlock path packages envs b
+
+
+inferForInit :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
+inferForInit path packages envs st = case st of
+    Expr initExpr@(Binary Assign _ _ _) ->
+        void (inferExpr path packages envs initExpr)
+    Expr initExpr -> do
+        addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens initExpr)) UE.forInitAssignMsg
+        void (inferExpr path packages envs initExpr)
+    Exprs es -> mapM_ inferInitExpr es
+    DefField {} -> inferDefineStmtFromDecl path packages envs st
+    DefConstField {} -> inferDefineStmtFromDecl path packages envs st
+    DefVar {} -> inferDefineStmtFromDecl path packages envs st
+    DefConstVar {} -> inferDefineStmtFromDecl path packages envs st
+    BlockStmt (Multiple ss) -> mapM_ (inferForInit path packages envs) ss
+    _ -> addErr $ UE.Syntax $ UE.makeError path [] UE.forInitAssignMsg
+    where
+        inferInitExpr initExpr@(Binary Assign _ _ _) = void (inferExpr path packages envs initExpr)
+        inferInitExpr initExpr = do
+            addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens initExpr)) UE.forInitAssignMsg
+            void (inferExpr path packages envs initExpr)
+
+
+inferForStep :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
+inferForStep path packages envs st = case st of
+    Expr e -> void (inferExpr path packages envs e)
+    Exprs es -> mapM_ (void . inferExpr path packages envs) es
+    BlockStmt (Multiple ss) -> mapM_ (inferForStep path packages envs) ss
+    _ -> addErr $ UE.Syntax $ UE.makeError path [] UE.invalidExprStmtMsg
+
+
+isRepeatCountType :: Class -> Bool
+isRepeatCountType t = normalizeTypeAlias t `elem` [Int8T, Int16T, Int32T, Int64T]
+
 -- | Extract common pieces from var/val declarations.
 defineDeclParts :: Statement -> Maybe (Bool, [String], Maybe Class, Maybe Expression, [Lex.Token])
 defineDeclParts stmt = case stmt of
@@ -788,6 +822,7 @@ inferStmt path packages envs stmt@(DefConstVar {}) =
     inferDefineStmtFromDecl path packages envs stmt
 
 inferStmt path packages envs (Expr e) = void $ inferExpr path packages envs e
+inferStmt path packages envs (Exprs es) = mapM_ (void . inferExpr path packages envs) es
 inferStmt path packages envs (BlockStmt block) = withScope $ inferBlock path packages envs block
 
 inferStmt path packages envs (If e ifBlock elseBlock _) = do
@@ -796,25 +831,29 @@ inferStmt path packages envs (If e ifBlock elseBlock _) = do
     inferOptBlock path packages envs ifBlock
     inferOptBlock path packages envs elseBlock
 
-inferStmt path packages envs (For (e1, e2, e3) forBlock _) = do
+inferStmt path packages envs (For (s1, e2, s3) forBlock elseBlock _) = do
     withScope $ do
-        case e1 of
-            Nothing -> pure ()
-            Just initExpr@(Binary Assign _ _ _) ->
-                void (inferExpr path packages envs initExpr)
-            Just initExpr -> do
-                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens initExpr)) UE.forInitAssignMsg
-                void (inferExpr path packages envs initExpr)
+        maybe (pure ()) (inferForInit path packages envs) s1
         case e2 of
             Nothing -> pure ()
             Just condExpr -> do
                 t <- inferExpr path packages envs condExpr
                 checkCondBool path (map Lex.tokenPos (exprTokens condExpr)) t
-        maybe (pure ()) (void . inferExpr path packages envs) e3
+        maybe (pure ()) (inferForStep path packages envs) s3
         inferOptBlock path packages envs forBlock
+        inferOptBlock path packages envs elseBlock
 
 inferStmt path packages envs (Loop loopBlock _) = do
     inferOptBlock path packages envs loopBlock
+
+inferStmt path packages envs (Repeat countExpr repeatBlock elseBlock _) = do
+    t <- inferExpr path packages envs countExpr
+    unless (t == ErrorClass || isRepeatCountType t) $
+        addErr $ UE.Syntax $ UE.makeError path
+            (map Lex.tokenPos (exprTokens countExpr))
+            (UE.repeatCountTypeMsg (prettyClass t))
+    inferOptBlock path packages envs repeatBlock
+    inferOptBlock path packages envs elseBlock
 
 inferStmt path packages envs (While e whileBlock elseBlock _) = do
     t <- inferExpr path packages envs e
@@ -822,8 +861,20 @@ inferStmt path packages envs (While e whileBlock elseBlock _) = do
     inferOptBlock path packages envs whileBlock
     inferOptBlock path packages envs elseBlock
 
+inferStmt path packages envs (Until e untilBlock elseBlock _) = do
+    t <- inferExpr path packages envs e
+    checkCondBool path (map Lex.tokenPos (exprTokens e)) t
+    inferOptBlock path packages envs untilBlock
+    inferOptBlock path packages envs elseBlock
+
 inferStmt path packages envs (DoWhile whileBlock e elseBlock _) = do
     inferOptBlock path packages envs whileBlock
+    t <- inferExpr path packages envs e
+    checkCondBool path (map Lex.tokenPos (exprTokens e)) t
+    inferOptBlock path packages envs elseBlock
+
+inferStmt path packages envs (DoUntil untilBlock e elseBlock _) = do
+    inferOptBlock path packages envs untilBlock
     t <- inferExpr path packages envs e
     checkCondBool path (map Lex.tokenPos (exprTokens e)) t
     inferOptBlock path packages envs elseBlock

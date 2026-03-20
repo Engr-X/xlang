@@ -5,7 +5,7 @@ module Parse.SyntaxTree where
 
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe, fromMaybe, catMaybes, isNothing)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable(..))
 import Lex.Token (Token)
@@ -89,7 +89,7 @@ prettyCmd n (Return e) = concat [insertTab n, "return ", prettyExpr 0 e]
 
 -- | Operators grouped by precedence level.
 --   Includes assignment, arithmetic, bitwise, unary, and pointer operators.
-data Operator = 
+data Operator =
     -- 0: atom/call/cast (no operator)
 
     -- 1: postfix ++/--
@@ -144,9 +144,8 @@ data Operator =
     LogicalImply | LogicalNimply |
 
     -- 18: assignment
-    Assign | BitLShiftAssign | BitRShiftAssign | BitOrAssign | BitXorAssign | BitXnorAssign |
-    PlusAssign | MinusAssign | MultiplyAssign | DivideAssign | ModuloAssign | PowerAssign
-   
+    Assign | PlusAssign | MinusAssign | MultiplyAssign | DivideAssign | ModuloAssign | PowerAssign
+
     deriving (Eq, Ord, Enum, Show)
 
 
@@ -156,28 +155,27 @@ instance Hashable Operator where
 
 operatorTextMap :: Map Operator String
 operatorTextMap = Map.fromList [
-    (Assign, "="), (BitLShiftAssign, "<<="), (BitRShiftAssign, ">>="), (BitOrAssign, "|="), (BitXorAssign, "^="),
-    (BitXnorAssign, "!^="), (PlusAssign, "+="), (MinusAssign, "-="), (MultiplyAssign, "*="), (DivideAssign, "/="),
+    (Assign, "="), (PlusAssign, "+="), (MinusAssign, "-="), (MultiplyAssign, "*="), (DivideAssign, "/="),
     (ModuloAssign, "%="), (PowerAssign, "**="),
-    
+
     (BitImply, "imp"), (BitNimply, "nimp"),
     (Equal, "=="), (NotEqual, "!="),
-    
+
     (GreaterThan, ">"), (LessThan, "<"), (GreaterEqual, ">="), (LessEqual, "<="),
-    
+
     (BitRShift, ">>"), (BitLShift, "<<"), (BitURShift, ">>>"),
-    
+
     (LogicalOr, "|"), (LogicalNor, "!||"), (LogicalAnd, "&"), (LogicalNand, "!&&"),
     (LogicalImply, "->"), (LogicalNimply, "!->"), (LogicalNot, "!"),
     (BitOr, "|"), (BitNor, "nor"), (BitXor, "^"), (BitXnor, "!^"), (BitAnd, "&"), (BitNand, "nand"), (BitInv, "~"),
-    
+
     (Add, "+"), (Sub, "-"), (Mul, "*"), (Div, "/"), (Mod, "%"),
-    
+
     (Pow, "**"), (UnaryPlus, "+"), (UnaryMinus, "-"),
-    
+
     (IncSelf, "++"), (DecSelf, "--"),
     (SelfInc, "++"), (SelfDec, "--"),
-    
+
     (AddrOf, "&"), (DeRef, "*")]
 
 
@@ -188,7 +186,7 @@ prettyOp k = fromMaybe (error "cannot find the error") (Map.lookup k operatorTex
 
 -- | Abstract syntax tree for expressions.
 --   Covers literals, variables, casts, unary/binary operations, and errors.
-data Expression = 
+data Expression =
     Error [Token] String
     | IntConst String Token
     | LongConst String Token
@@ -198,7 +196,7 @@ data Expression =
     | CharConst Char Token
     | StringConst String Token
     | BoolConst Bool Token
-    
+
     | Variable String Token
     | Qualified [String] [Token] -- eg: java.lang.math.PI
 
@@ -267,8 +265,6 @@ exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
 exprTokens (Call e1 es) = concatMap exprTokens (e1 : es)
 exprTokens (CallT e1 cts es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
 exprTokens (Ternary c (e1, e2) ts) = ts ++ exprTokens c ++ exprTokens e1 ++ exprTokens e2
-
-
 
 
 -- | Flatten all expressions contained in a expr.
@@ -371,23 +367,29 @@ flattenCase (Just (Default b _)) = flattenBlock (Just b)
 
 -- | Abstract syntax tree for statements.
 --   Supports control flow constructs and expression statements.
-data Statement = 
+data Statement =
     Command Command Token |
 
     DefField [String] (Maybe Class) (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
     DefConstField [String] (Maybe Class) (Maybe Expression) [Token] | -- this must be [a] = 10, a.b = 10 is not alowed -- this is for class
-    
+
     DefVar [String] (Maybe Class) (Maybe Expression) [Token] | -- this is for static var
     DefConstVar [String] (Maybe Class) (Maybe Expression) [Token] | -- this is for static var
 
 
     Expr Expression |
+    Exprs [Expression] |
     BlockStmt Block |
     If Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (if keyword - maybe else)
-    For (Maybe Expression, Maybe Expression, Maybe Expression) (Maybe Block) Token | -- (for keyword)
+    For (Maybe Statement, Maybe Expression, Maybe Statement) (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (for keyword)
     Loop (Maybe Block) Token |
+    Repeat Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (repeat keyword, maybe else keyword)
     While Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- while else -- (while keyword - maybe else keyword)
+    Until Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- until else -- (while keyword - maybe else keyword)
+
     DoWhile (Maybe Block) Expression (Maybe Block) (Token, Token, Maybe Token) | -- (do keyword, while keyword, maybe else keyword)
+    DoUntil (Maybe Block) Expression (Maybe Block) (Token, Token, Maybe Token) | -- (do keyword, until keyword, maybe else keyword)
+
     Switch Expression [SwitchCase] Token | -- (switch keyword)
 
     InstanceMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
@@ -395,12 +397,14 @@ data Statement =
 
 
     -- function: return_type + pos, name, params + position, body
-    InstanceMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block | 
+    InstanceMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
     StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
     -- template function: return_type + pos, name, template params + position, params + position, body
     deriving (Eq, Show)
 
-{-# COMPLETE Command, DefField, DefConstField, DefVar, DefConstVar, Expr, BlockStmt, If, For, Loop, While, DoWhile, Switch, Function, FunctionT #-}
+{-# COMPLETE
+    Command, DefField, DefConstField, DefVar, DefConstVar, Expr, Exprs, BlockStmt,
+    If, For, Loop, Repeat, While, Until, DoWhile, DoUntil, Switch, Function, FunctionT #-}
 
 -- beter toString for string instance
 prettyStmt :: Int -> Maybe Statement -> String
@@ -435,6 +439,8 @@ prettyStmt n (Just (DefConstVar names mTy me _)) =
             Nothing -> ""
     in insertTab n ++ "val " ++ intercalate "." names ++ tyS ++ rhs ++ "\n"
 prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
+prettyStmt n (Just (Exprs es)) =
+    insertTab n ++ intercalate ", " (map (prettyExpr 0 . Just) es) ++ "\n"
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
 -- if 
@@ -449,18 +455,40 @@ prettyStmt n (Just (If expr Nothing (Just b) _)) = let
     unlines [concat [insertTab n, "if (", prettyExpr 0 (Just expr), ");"], space ++ "else", body]
 prettyStmt n (Just (If expr (Just a) (Just b) _)) = let
     (body1, body2) = (prettyBlock n a, prettyBlock n b)
-    space = insertTab n in 
+    space = insertTab n in
     unlines [concat [space, "if (", prettyExpr 0 (Just expr), ")"], body1, space ++ "else", body2]
 
 -- for loop
-prettyStmt n (Just (For (s1, s2, s3) Nothing _)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
+prettyStmt n (Just (For (s1, s2, s3) Nothing Nothing _)) = let
+    s = intercalate ";" [prettyForPart s1, prettyExpr 0 s2, prettyForPart s3] in
     concat [insertTab n, "for(", s, ");\n"]
-prettyStmt n (Just (For (s1, s2, s3) (Just b) _)) = let s = intercalate ";" $ map (prettyExpr 0) [s1, s2, s3] in
+prettyStmt n (Just (For (s1, s2, s3) Nothing (Just b) _)) = let
+    s = intercalate ";" [prettyForPart s1, prettyExpr 0 s2, prettyForPart s3]
+    space = insertTab n in
+    unlines [concat [space, "for(", s, ");"], space ++ "else", prettyBlock n b]
+prettyStmt n (Just (For (s1, s2, s3) (Just b) Nothing _)) = let
+    s = intercalate ";" [prettyForPart s1, prettyExpr 0 s2, prettyForPart s3] in
     unlines [concat [insertTab n, "for(", s, ")"], prettyBlock n b]
+prettyStmt n (Just (For (s1, s2, s3) (Just b1) (Just b2) _)) = let
+    s = intercalate ";" [prettyForPart s1, prettyExpr 0 s2, prettyForPart s3]
+    space = insertTab n in
+    unlines [concat [space, "for(", s, ")"], prettyBlock n b1, space ++ "else", prettyBlock n b2]
 
 -- loop (while true)
 prettyStmt n (Just (Loop Nothing _)) = insertTab n ++ "loop;\n"
 prettyStmt n (Just (Loop (Just b) _)) = unlines [insertTab n ++ "loop", prettyBlock n b]
+
+-- repeat (counted loop)
+prettyStmt n (Just (Repeat e Nothing Nothing _)) =
+    concat [insertTab n, "repeat(", prettyExpr 0 (Just e), ");\n"]
+prettyStmt n (Just (Repeat e Nothing (Just b) _)) = let
+    space = insertTab n in
+    unlines [concat [space, "repeat(", prettyExpr 0 (Just e), ");"], space ++ "else", prettyBlock n b]
+prettyStmt n (Just (Repeat e (Just b) Nothing _)) =
+    unlines [concat [insertTab n, "repeat(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+prettyStmt n (Just (Repeat e (Just b1) (Just b2) _)) = let
+    space = insertTab n in
+    unlines [concat [space, "repeat(", prettyExpr 0 (Just e), ")"], prettyBlock n b1, space ++ "else", prettyBlock n b2]
 
 -- while
 prettyStmt n (Just (While e Nothing Nothing _)) = concat [insertTab n, "while(", prettyExpr 0 (Just e), ");\n"]
@@ -469,6 +497,14 @@ prettyStmt n (Just (While e Nothing (Just b) _)) = let space = insertTab n in
 prettyStmt n (Just (While e (Just b) Nothing _)) = unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
 prettyStmt n (Just (While e (Just b1) (Just b2) _)) = let space = insertTab n in
     unlines [concat [insertTab n, "while(", prettyExpr 0 (Just e), ")"], prettyBlock n b1, space ++ "else", prettyBlock n b2]
+
+-- until
+prettyStmt n (Just (Until e Nothing Nothing _)) = concat [insertTab n, "until(", prettyExpr 0 (Just e), ");\n"]
+prettyStmt n (Just (Until e Nothing (Just b) _)) = let space = insertTab n in
+    unlines [concat [insertTab n, "until(", prettyExpr 0 (Just e), ");\n"], space ++ "else", prettyBlock n b]
+prettyStmt n (Just (Until e (Just b) Nothing _)) = unlines [concat [insertTab n, "until(", prettyExpr 0 (Just e), ")"], prettyBlock n b]
+prettyStmt n (Just (Until e (Just b1) (Just b2) _)) = let space = insertTab n in
+    unlines [concat [insertTab n, "until(", prettyExpr 0 (Just e), ")"], prettyBlock n b1, space ++ "else", prettyBlock n b2]
 
 -- dowhile
 prettyStmt n (Just (DoWhile Nothing e Nothing _)) = let space = insertTab n in
@@ -479,6 +515,17 @@ prettyStmt n (Just (DoWhile (Just b) e Nothing _)) = let space = insertTab n in
     unlines [space ++ "do",  concat [space, prettyBlock n b, "while(", prettyExpr 0 (Just e), ")"]]
 prettyStmt n (Just (DoWhile (Just b1) e (Just b2) _)) = let space = insertTab n in
         unlines [space ++ "do", concat [space, prettyBlock n b1, "while(", prettyExpr 0 (Just e), ")"],
+            space ++ "else", prettyBlock n b2]
+
+-- dountil
+prettyStmt n (Just (DoUntil Nothing e Nothing _)) = let space = insertTab n in
+    unlines [space ++ "do", concat [space, "until(", prettyExpr 0 (Just e), ")"]]
+prettyStmt n (Just (DoUntil Nothing e (Just b) _)) = let space = insertTab n in
+    unlines [space ++ "do",  concat [space, prettyBlock n b, "until(", prettyExpr 0 (Just e), ")"], space ++ "else", prettyBlock n b]
+prettyStmt n (Just (DoUntil (Just b) e Nothing _)) = let space = insertTab n in
+    unlines [space ++ "do",  concat [space, prettyBlock n b, "until(", prettyExpr 0 (Just e), ")"]]
+prettyStmt n (Just (DoUntil (Just b1) e (Just b2) _)) = let space = insertTab n in
+        unlines [space ++ "do", concat [space, prettyBlock n b1, "until(", prettyExpr 0 (Just e), ")"],
             space ++ "else", prettyBlock n b2]
 
 prettyStmt n (Just (Switch e xs _)) = let space = insertTab n in unlines
@@ -523,23 +570,36 @@ stmtTokens (DefConstField _ _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (DefVar _ _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (DefConstVar _ _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (Expr e) = exprTokens e
+stmtTokens (Exprs es) = concatMap exprTokens es
 stmtTokens (BlockStmt b) = blockTokens (Just b)
 
 stmtTokens (If e b1 b2 (ifTok, elseTok)) = concat [
     [ifTok], exprTokens e, blockTokens b1, maybe [] pure elseTok, blockTokens b2]
 
-stmtTokens (For (e1, e2, e3) b forTok) = concat [
-    [forTok], concatMap exprTokens (catMaybes [e1, e2, e3]), blockTokens b]
+stmtTokens (For (s1, e2, s3) b1 b2 (forTok, elseTok)) = concat [
+    [forTok], maybe [] stmtTokens s1, maybe [] exprTokens e2, maybe [] stmtTokens s3,
+    blockTokens b1, maybe [] pure elseTok, blockTokens b2]
 
-stmtTokens (Loop b loopTok) = [loopTok] ++ blockTokens b
+stmtTokens (Loop b loopTok) = loopTok : blockTokens b
+stmtTokens (Repeat e b1 b2 (repeatTok, elseTok)) = concat [
+    [repeatTok], exprTokens e, blockTokens b1, maybe [] pure elseTok, blockTokens b2]
 
 stmtTokens (While e b1 b2 (whileTok, elseTok)) = concat [
     [whileTok], exprTokens e, blockTokens b1,
     maybe [] pure elseTok, blockTokens b2]
 
+stmtTokens (Until e b1 b2 (untilTok, elseTok)) = concat [
+    [untilTok], exprTokens e, blockTokens b1,
+    maybe [] pure elseTok, blockTokens b2]
+
 stmtTokens (DoWhile b1 e b2 (doTok, whileTok, elseTok)) = concat [
-    [doTok], blockTokens b1, 
+    [doTok], blockTokens b1,
     [whileTok], exprTokens e,
+    maybe [] pure elseTok, blockTokens b2]
+
+stmtTokens (DoUntil b1 e b2 (doTok, untilTok, elseTok)) = concat [
+    [doTok], blockTokens b1,
+    [untilTok], exprTokens e,
     maybe [] pure elseTok, blockTokens b2]
 
 stmtTokens (Switch e scs switchTok) = concat [[switchTok], exprTokens e, concatMap switchCaseTokens scs]
@@ -563,12 +623,17 @@ flattenStatement (Just (DefConstField _ _ me _)) = maybe [] (flattenExpr . Just)
 flattenStatement (Just (DefVar _ _ me _)) = maybe [] (flattenExpr . Just) me
 flattenStatement (Just (DefConstVar _ _ me _)) = maybe [] (flattenExpr . Just) me
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
+flattenStatement (Just (Exprs es)) = concatMap (flattenExpr . Just) es
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)
-flattenStatement (Just (For (e1, e2, e3) b _)) = catMaybes [e1, e2, e3] ++ flattenBlock b
+flattenStatement (Just (For (s1, e2, s3) b1 b2 _)) =
+    flattenStatement s1 ++ maybe [] (flattenExpr . Just) e2 ++ flattenStatement s3 ++ flattenBlock b1 ++ flattenBlock b2
 flattenStatement (Just (Loop b _)) = flattenBlock b
+flattenStatement (Just (Repeat e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (While e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (Until e b1 b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (DoWhile b1 e b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
+flattenStatement (Just (DoUntil b1 e b2 _)) = e : (flattenBlock b1 ++ flattenBlock b2)
 flattenStatement (Just (Switch e scs _)) = e : concatMap (flattenCase . Just) scs
 flattenStatement (Just (Function _ _ params b)) = paramExprs params ++ flattenBlock (Just b)
     where
@@ -590,7 +655,7 @@ flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flatte
 
 
 -- | The declaration of a program, especially import and module
-data Declaration = 
+data Declaration =
     Package [String] [Token] |
     Import [String] [Token] |
     JavaName String Token
@@ -625,8 +690,7 @@ isFunctionT _ = False
 
 assignOps :: HashSet Operator
 assignOps = HashSet.fromList [
-    Assign, BitLShiftAssign, BitRShiftAssign,
-    BitOrAssign, BitXorAssign, BitXnorAssign,
+    Assign,
     PlusAssign, MinusAssign,
     MultiplyAssign, DivideAssign,
     ModuloAssign, PowerAssign]
@@ -635,13 +699,55 @@ assignOps = HashSet.fromList [
 -- | Check whether a statement is an assignment expression statement.
 isAssignment :: Statement -> Bool
 isAssignment (Expr (Binary op _ _ _)) = HashSet.member op assignOps
+isAssignment (Exprs es) = any isAssignExpr es
+    where
+        isAssignExpr (Binary op _ _ _) = HashSet.member op assignOps
+        isAssignExpr _ = False
 isAssignment _ = False
+
+
+prettyForPart :: Maybe Statement -> String
+prettyForPart Nothing = ""
+prettyForPart (Just (Expr e)) = prettyExpr 0 (Just e)
+prettyForPart (Just (Exprs es)) = intercalate ", " (map (prettyExpr 0 . Just) es)
+prettyForPart (Just (DefField names mTy me _)) = "var " ++ declItem names mTy me
+prettyForPart (Just (DefVar names mTy me _)) = "var " ++ declItem names mTy me
+prettyForPart (Just (DefConstField names mTy me _)) = "val " ++ declItem names mTy me
+prettyForPart (Just (DefConstVar names mTy me _)) = "val " ++ declItem names mTy me
+prettyForPart (Just (BlockStmt (Multiple ss))) = case ss of
+    [] -> ""
+    _ -> let asVarItems = map toVarItem ss in
+        case sequence asVarItems of
+            Just items -> "var " ++ intercalate ", " items
+            Nothing -> case mapM toValItem ss of
+                Just items -> "val " ++ intercalate ", " items
+                Nothing -> intercalate ", " (map (trimNewline . prettyStmt 0 . Just) ss)
+    where
+        trimNewline = filter (/= '\n')
+        toVarItem st = case st of
+            DefField names mTy me _ -> Just (declItem names mTy me)
+            DefVar names mTy me _ -> Just (declItem names mTy me)
+            _ -> Nothing
+        toValItem st = case st of
+            DefConstField names mTy me _ -> Just (declItem names mTy me)
+            DefConstVar names mTy me _ -> Just (declItem names mTy me)
+            _ -> Nothing
+prettyForPart (Just other) = trimNewline $ prettyStmt 0 (Just other)
+    where
+        trimNewline = filter (/= '\n')
+
+
+declItem :: [String] -> Maybe Class -> Maybe Expression -> String
+declItem names mTy me =
+    let tyS = maybe "" (\c -> ": " ++ prettyClass c) mTy
+        rhs = maybe "" (\e -> " = " ++ prettyExpr 0 (Just e)) me
+    in intercalate "." names ++ tyS ++ rhs
 
 
 -- | Extract the path segments from a declaration.
 declPath :: Declaration -> [String]
 declPath (Package segs _) = segs
-declPath (Import  segs _) = segs 
+declPath (Import  segs _) = segs
 declPath (JavaName _ _) = []
 
 
@@ -720,23 +826,6 @@ flattenProgram :: Program -> [Expression]
 flattenProgram (_, ss) = concatMap (flattenStatement . Just) ss
 
 
-classesMap :: Map String Class
-classesMap = Map.fromList [
-    ("bool", Bool),
-    ("byte", Int8T), ("int8", Int8T),
-    ("short", Int16T), ("int16", Int16T),
-    ("int", Int32T), ("int32", Int32T), 
-    ("long", Int64T), ("int64", Int64T),
-    
-    ("float", Float32T), ("float32", Float32T),
-    ("double", Float64T), ("float64", Float64T),
-    ("float128", Float128T),
-    
-    ("char", Char),
-    ("String", Class ["java", "lang", "String"] []),
-    ("void", Void)]
-
-
 -- | Normalize a parsed class into canonical forms.
 --   Converts built-in names (e.g. "int") into primitive Class constructors,
 --   and recursively normalizes array/generic elements.
@@ -744,11 +833,30 @@ normalizeClass :: Class -> Class
 normalizeClass cls = case cls of
     Array c n -> Array (normalizeClass c) n
     Class [name] args ->
-        case (Map.lookup name classesMap, args) of
+        case (normalizeBuiltinClass name, args) of
             (Just prim, []) -> prim
             _ -> Class [name] (map normalizeClass args)
     Class names args -> Class names (map normalizeClass args)
     other -> other
+
+
+normalizeBuiltinClass :: String -> Maybe Class
+normalizeBuiltinClass name = Map.lookup name builtinClassMap
+
+
+builtinClassMap :: Map String Class
+builtinClassMap = Map.fromList [
+    ("bool", Bool),
+    ("byte", Int8T), ("int8", Int8T), ("i8", Int8T),
+    ("short", Int16T), ("int16", Int16T), ("i16", Int16T),
+    ("int", Int32T), ("int32", Int32T), ("i32", Int32T),
+    ("long", Int64T), ("int64", Int64T), ("i64", Int64T),
+    ("float", Float32T), ("float32", Float32T), ("f32", Float32T),
+    ("double", Float64T), ("float64", Float64T), ("f64", Float64T),
+    ("float128", Float128T),
+    ("char", Char),
+    ("String", Class ["java", "lang", "String"] []),
+    ("void", Void)]
 
 
 -- | Extract all error expressions from a program.

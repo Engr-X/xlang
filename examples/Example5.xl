@@ -1,0 +1,94 @@
+/*
+Example5: operators and precedence showcase.
+Includes basic operators plus Beta-1.0.0 additions.
+
+Precedence (low -> high, simplified):
+1) assignment / augmented assignment: =, +=, -=, *=, /=, %=, **=
+2) ternary: a if cond else b
+3) logical short-circuit: &&, !&&, ||, !||, ->, !->
+4) equality / relation: ==, !=, >, >=, <, <=
+5) additive: +, -
+6) multiplicative: *, /, %
+7) power: **
+8) unary: -x, !x
+9) cast: expr as Type
+*/
+
+int main()
+{
+    // assignment and chained assignment
+    var a: int = 10
+    var b: int = 3
+    var c: int = 8
+    a = b + 1
+    a = b = c
+
+    // augmented assignment family
+    var aa: int = 10
+    aa += 2
+    aa -= 3
+    aa *= 4
+    aa /= 3
+    aa %= 5
+
+    var pp: double = 2.0
+    pp **= 3.0
+
+    // equality / relation
+    val eq1: bool = a == 4
+    val ne1: bool = a != b
+    val gt1: bool = a > b
+    val lt1: bool = b < a
+
+    // additive / multiplicative / modulo
+    val add1: int = 1 + 2
+    val sub1: int = 7 - 5
+    val mul1: int = 3 * 4
+    val div1: int = 7 / 2
+    val mod1: int = 7 % 2
+
+    // power
+    val pow1: double = 2.0 ** 3.0
+    val pow2: double = (1.0 + 2.0) ** 2.0
+
+    // unary
+    val neg1: int = -5
+    val neg2: int = -(1 + 2)
+
+    // precedence
+    val p1: int = 1 + 2 * 3
+    val p2: int = (1 + 2) * 3
+    val p3: bool = 1 + 2 * 3 == 7
+    val p4: int = 100 if a > b else 200
+
+    // logical short-circuit family
+    val lAnd: bool = true && false
+    val lNand: bool = true !&& false
+    val lOr: bool = false || true
+    val lNor: bool = false !|| false
+    val lImp: bool = true -> false
+    val lNimp: bool = true !-> false
+
+    // cast
+    val c1: double = a as double
+    val c2: int = 3.7 as int
+    val c3: int = (1.0 + 2.9) as int
+
+    // consume values to avoid unused warnings
+    var sink: int = 0
+    sink = sink + (1 if p3 else 0)
+    sink = sink + c2 + c3 + div1 + mod1 + neg1 + neg2
+    sink = sink + (1 if eq1 else 0)
+    sink = sink + (1 if ne1 else 0)
+    sink = sink + (1 if gt1 else 0)
+    sink = sink + (1 if lt1 else 0)
+    sink = sink + aa + (pp as int)
+    sink = sink + (1 if lAnd else 0)
+    sink = sink + (1 if lNand else 0)
+    sink = sink + (1 if lOr else 0)
+    sink = sink + (1 if lNor else 0)
+    sink = sink + (1 if lImp else 0)
+    sink = sink + (1 if lNimp else 0)
+
+    return sink + p1 + p2 + p4 + add1 + sub1 + mul1 + (pow1 as int) + (pow2 as int) + (c1 as int)
+}

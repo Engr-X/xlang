@@ -67,7 +67,7 @@ augAssignOpTests = testGroup "Semantic.OpInfer.augAssignOp" $
     map (\(name, op, expected) -> testCase name $ augAssignOp op @?= expected) [
         ("0", PlusAssign, Just Add),
         ("1", MinusAssign, Just Sub),
-        ("2", BitRShiftAssign, Just BitRShift),
+        ("2", PowerAssign, Just Pow),
         ("3", Assign, Nothing)]
 
 

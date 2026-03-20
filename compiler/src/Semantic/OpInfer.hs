@@ -24,11 +24,6 @@ augAssignOp op = case op of
     DivideAssign -> Just Div
     ModuloAssign -> Just Mod
     PowerAssign -> Just Pow
-    BitLShiftAssign -> Just BitLShift
-    BitRShiftAssign -> Just BitRShift
-    BitOrAssign -> Just BitOr
-    BitXorAssign -> Just BitXor
-    BitXnorAssign -> Just BitXnor
     _ -> Nothing
 
 
