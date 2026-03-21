@@ -4,8 +4,8 @@ Function declaration styles.
 
 1) Modern style (recommended):
 1) 现代风格(推荐):
-fun name(params) -> returnType { ... }
-fun name(params) -> returnType { ... }
+fun name(params) => returnType { ... }
+fun name(params) => returnType { ... }
 
 2) Classic style (C/Java-like):
 2) 经典风格(C/Java 类似):
@@ -22,12 +22,12 @@ returnType name(params) { ... }
 
 // 1) Modern style
 // 1) 现代风格
-fun add(a: int, b: int) -> int
+fun add(a: int, b: int) => int
 {
     return a + b
 }
 
-fun maxOf(a: int, b: int) -> int: return a if a > b else b
+fun maxOf(a: int, b: int) => int: return a if a > b else b
 
 // 2) Classic style
 // 2) 经典风格
@@ -40,7 +40,7 @@ int neg(int x): return -x
 
 // 3) Syntax sugar
 // 3) 语法糖
-fun square(a: int) -> int = a * a
+fun square(a: int) => int = a * a
 int cube(int a) = a * a * a
 
 int main()

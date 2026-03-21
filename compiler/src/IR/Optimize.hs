@@ -1,6 +1,6 @@
 module IR.Optimize where
 
-import IR.TAC (IRProgm(..), IRClass(..), IRFunction(..), IRStmt(..), IRBlock(..),
+import IR.TAC (IRProgm(..), IRClass(..), IRFunction(..), IRBlock(..),
     flattenIRProgm, pruneIRProgm, rmEBInProg)
 
 import qualified IR.TAC as TAC
@@ -12,25 +12,33 @@ stripPhiProgm (IRProgm pkg classes) = IRProgm pkg (map stripPhiClass classes)
 
 
 stripPhiClass :: IRClass -> IRClass
-stripPhiClass (IRClass decl name fields (TAC.StaticInit stmts) atomTypes funs mainKind) =
-    IRClass decl name fields (TAC.StaticInit (stripPhiStmts stmts)) atomTypes (map stripPhiFunction funs) mainKind
+stripPhiClass (IRClass decl name fields (TAC.StaticInit blocks) atomTypes funs mainKind) =
+    IRClass decl name fields (TAC.StaticInit (map stripPhiBlock blocks)) atomTypes (map stripPhiFunction funs) mainKind
 
 
 stripPhiFunction :: IRFunction -> IRFunction
-stripPhiFunction (IRFunction acc name sig atomTypes stmts memberType) =
-    IRFunction acc name sig atomTypes (stripPhiStmts stmts) memberType
+stripPhiFunction (IRFunction acc name sig atomTypes blocks memberType) =
+    IRFunction acc name sig atomTypes (map stripPhiBlock blocks) memberType
 
 
-stripPhiStmts :: [IRStmt] -> [IRStmt]
+stripPhiBlock :: IRBlock -> IRBlock
+stripPhiBlock (IRBlock (bid, instrs)) = IRBlock (bid, stripPhiStmts instrs)
+
+
+stripPhiStmts :: [TAC.IRInstr] -> [TAC.IRInstr]
 stripPhiStmts = concatMap stripPhiStmt
 
 
-stripPhiStmt :: IRStmt -> [IRStmt]
-stripPhiStmt stmt = case stmt of
-    IRInstr (TAC.IAssign _ (TAC.Phi _)) -> []
-    IRInstr _ -> [stmt]
-    IRBlockStmt (IRBlock (bid, stmts)) ->
-        [IRBlockStmt (IRBlock (bid, stripPhiStmts stmts))]
+stripPhiStmt :: TAC.IRInstr -> [TAC.IRInstr]
+stripPhiStmt instr
+    | isPhiAssign instr = []
+    | otherwise = [instr]
+
+
+isPhiAssign :: TAC.IRInstr -> Bool
+isPhiAssign instr = case instr of
+    TAC.IAssign _ (TAC.Phi _) -> True
+    _ -> False
 
 
 -- | Flatten nested blocks, prune redundant gotos, then remove empty blocks.

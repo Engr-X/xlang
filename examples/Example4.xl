@@ -15,12 +15,12 @@ public val apiVersion: int = 1
 private var internalCounter: int = 0
 val defaultPublicValue: int = 42
 
-public fun inc() -> void
+public fun inc() => void
 {
     internalCounter = internalCounter + 1
 }
 
-private fun reset() -> void
+private fun reset() => void
 {
     internalCounter = 0
 }

@@ -17,7 +17,7 @@ mkVoidFun name = IR.IRFunction
     name
     (FunSig [] Void)
     Map.empty
-    [IR.IRInstr IR.Return]
+    [IR.IRBlock (0, [IR.Return])]
     IR.MemberClass
 
 
@@ -56,3 +56,4 @@ specialOptimizationTests = testGroup "Lowing.JVM.specialOptimization" $ map (unc
 
 tests :: TestTree
 tests = testGroup "Lowing.JVM" [specialOptimizationTests]
+

@@ -8,9 +8,9 @@ maintainer:         dw725@ic.ac.uk
 build-type:         Custom
 
 extra-source-files:
-    src/Parse/GrammarExpr.inc,
-    src/Parse/GrammarStmtBlock.inc,
-    src/Parse/GrammarDecl.inc,
+    src/Parse/GrammarExpr,
+    src/Parse/GrammarStmtBlock,
+    src/Parse/GrammarDecl,
     src/Parse/ParseExpr.ypp,
     src/Parse/ParseStmt.ypp,
     src/Parse/ParseBlock.ypp,
@@ -66,6 +66,7 @@ library
         IR.TACLowing
         IR.Optimize
         IR.Lowing
+        IR.Liveness
 
         Lowing.JVM
         Lowing.JVMJson

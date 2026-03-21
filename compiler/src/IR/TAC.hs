@@ -561,6 +561,18 @@ data IRInstr
     deriving (Eq, Show)
 
 
+-- | Collect the successor block id from a control flow instruction, if any.
+getInstrSucc :: IRInstr -> Maybe Int
+getInstrSucc (Jump bid) = Just bid
+getInstrSucc (Ifeq _ _ bid) = Just bid
+getInstrSucc (Ifne _ _ bid) = Just bid
+getInstrSucc (Iflt _ _ bid) = Just bid
+getInstrSucc (Ifle _ _ bid) = Just bid
+getInstrSucc (Ifgt _ _ bid) = Just bid
+getInstrSucc (Ifge _ _ bid) = Just bid
+getInstrSucc _ = Nothing
+
+
 prettyIRInstr :: Int -> IRInstr -> String
 prettyIRInstr n instr = insertTab n ++ case instr of
     Jump bid -> "goto .L" ++ show bid
@@ -589,28 +601,16 @@ prettyIRInstr n instr = insertTab n ++ case instr of
         "putstatic ", intercalate "." qname, " ", prettyIRAtom v]
 
 
--- | A basic block of IR statements.
-newtype IRBlock = IRBlock (Int, [IRStmt])
+-- | A basic block of IR instructions.
+newtype IRBlock = IRBlock (Int, [IRInstr])
     deriving (Eq, Show)
 
 
 prettyIRBlock :: Int -> IRBlock -> String
-prettyIRBlock n (IRBlock (bid, stmts)) =
+prettyIRBlock n (IRBlock (bid, instrs)) =
     let header = concat [insertTab n, ".L", show bid, ":\n"]
-        body = concatMap (prettyStmt (n + 1)) stmts
+        body = concatMap (\instr -> prettyIRInstr (n + 1) instr ++ "\n") instrs
     in header ++ body
-
-
--- | TAC-level statement.
-data IRStmt
-    = IRInstr IRInstr
-    | IRBlockStmt IRBlock -- for branch
-    deriving (Eq, Show)
-
-
-prettyStmt :: Int -> IRStmt -> String
-prettyStmt n (IRInstr instr) = prettyIRInstr n instr ++ "\n"
-prettyStmt n (IRBlockStmt blk) = prettyIRBlock n blk
 
 
 -- | Origin kind for members in IR:
@@ -643,7 +643,7 @@ data IRFunction
         FunSig         -- ^ function signature
         (Map IRAtom Class) -- ^ atom -> type map
 
-        [IRStmt]       -- ^ function body
+        [IRBlock]      -- ^ function body
         IRMemberType   -- ^ origin kind: class / class-wrapped
     deriving (Eq, Show)
 
@@ -654,21 +654,21 @@ prettyIRFunction n (IRFunction decl name sig atomTypes body memberType) =
         declPrefix = if null declS then "" else declS ++ " "
         retS = AST.prettyClass (TEnv.funReturn sig)
         paramS = intercalate ", " (map AST.prettyClass (TEnv.funParams sig))
-        typeS = "[" ++ prettyIRMemberType memberType ++ "] "
+        typeS = concat ["[", prettyIRMemberType memberType, "] "]
         header = concat [indent, typeS, declPrefix, retS, " ", name, "(", paramS, "):\n"]
-        bodyS = concatMap (prettyStmt (n + 1)) body
+        bodyS = concatMap (prettyIRBlock (n + 1)) body
         typesS = prettyTypeMap (n + 1) atomTypes
-    in header ++ bodyS ++ typesS
+    in concat [header, bodyS, typesS]
 
 
--- | Static initializer body statements.
-newtype StaticInit = StaticInit [IRStmt] deriving (Eq, Show)
+-- | Static initializer body blocks.
+newtype StaticInit = StaticInit [IRBlock] deriving (Eq, Show)
 
 prettyStaticInit :: Int -> StaticInit -> String
-prettyStaticInit n (StaticInit stmts) =
+prettyStaticInit n (StaticInit blocks) =
     let indent = insertTab n
         header = indent ++ "static {}:\n"
-        body = concatMap (prettyStmt (n + 1)) stmts
+        body = concatMap (prettyIRBlock (n + 1)) blocks
     in header ++ body
 
 
@@ -746,39 +746,20 @@ prettyIRProgm (IRProgm pkgSegs classes) =
 
 
 -- | Flatten nested IR blocks so that block bodies contain only IRInstr.
---   Nested blocks are lifted in depth-first order.
+--   Since IRBlock now stores only [IRInstr], this is currently identity.
 flattenIRProgm :: IRProgm -> IRProgm
 flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
 
 flattenIRClass :: IRClass -> IRClass
-flattenIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (flattenTopStmts stmts)) atomTypes (map flattenIRFunction funs) mainKind
+flattenIRClass (IRClass decl name fields (StaticInit blocks) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (flattenBlocks blocks)) atomTypes (map flattenIRFunction funs) mainKind
 
 flattenIRFunction :: IRFunction -> IRFunction
-flattenIRFunction (IRFunction acc name sig atomTypes stmts memberType) =
-    IRFunction acc name sig atomTypes (flattenTopStmts stmts) memberType
+flattenIRFunction (IRFunction acc name sig atomTypes blocks memberType) =
+    IRFunction acc name sig atomTypes (flattenBlocks blocks) memberType
 
-flattenTopStmts :: [IRStmt] -> [IRStmt]
-flattenTopStmts [] = []
-flattenTopStmts (IRInstr instr : ss) = IRInstr instr : flattenTopStmts ss
-flattenTopStmts (IRBlockStmt blk : ss) =
-    let (blk', lifted) = flattenBlock blk
-    in IRBlockStmt blk' : lifted ++ flattenTopStmts ss
-
-flattenBlock :: IRBlock -> (IRBlock, [IRStmt])
-flattenBlock (IRBlock (bid, stmts)) =
-    let (flatBody, lifted) = flattenBlockStmts stmts
-    in (IRBlock (bid, flatBody), lifted)
-
-flattenBlockStmts :: [IRStmt] -> ([IRStmt], [IRStmt])
-flattenBlockStmts [] = ([], [])
-flattenBlockStmts (IRInstr instr : ss) =
-    let (flatRest, liftedRest) = flattenBlockStmts ss
-    in (IRInstr instr : flatRest, liftedRest)
-flattenBlockStmts (IRBlockStmt blk : ss) =
-    let (blk', liftedInside) = flattenBlock blk
-        (flatRest, liftedRest) = flattenBlockStmts ss
-    in (flatRest, IRBlockStmt blk' : liftedInside ++ liftedRest)
+flattenBlocks :: [IRBlock] -> [IRBlock]
+flattenBlocks = id
 
 
 -- | Remove redundant gotos:
@@ -788,82 +769,68 @@ pruneIRProgm :: IRProgm -> IRProgm
 pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
 
 pruneIRClass :: IRClass -> IRClass
-pruneIRClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (pruneTopStmts stmts)) atomTypes (map pruneIRFunction funs) mainKind
+pruneIRClass (IRClass decl name fields (StaticInit blocks) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (pruneBlocks blocks)) atomTypes (map pruneIRFunction funs) mainKind
 
 pruneIRFunction :: IRFunction -> IRFunction
-pruneIRFunction (IRFunction acc name sig atomTypes stmts memberType) =
-    IRFunction acc name sig atomTypes (pruneTopStmts stmts) memberType
+pruneIRFunction (IRFunction acc name sig atomTypes blocks memberType) =
+    IRFunction acc name sig atomTypes (pruneBlocks blocks) memberType
 
-pruneTopStmts :: [IRStmt] -> [IRStmt]
-pruneTopStmts [] = []
-pruneTopStmts [s] = [s]
-pruneTopStmts (s1:s2:rest) =
-    case (s1, s2) of
-        (IRInstr (Jump tgt), IRBlockStmt (IRBlock (bid, _))) | tgt == bid ->
-            pruneTopStmts (s2:rest)
-        (IRBlockStmt (IRBlock (bid, stmts)), IRBlockStmt (IRBlock (nextId, _))) ->
-            let stmts' = dropTrailingJump stmts nextId
-            in IRBlockStmt (IRBlock (bid, stmts')) : pruneTopStmts (s2:rest)
-        _ ->
-            s1 : pruneTopStmts (s2:rest)
+pruneBlocks :: [IRBlock] -> [IRBlock]
+pruneBlocks [] = []
+pruneBlocks [blk] = [blk]
+pruneBlocks (IRBlock (bid, instrs) : IRBlock (nextBid, nextInstrs) : rest) =
+    let instrs' = dropTrailingJump instrs nextBid
+    in IRBlock (bid, instrs') : pruneBlocks (IRBlock (nextBid, nextInstrs) : rest)
 
 
-dropTrailingJump :: [IRStmt] -> Int -> [IRStmt]
-dropTrailingJump stmts nextId = case reverse stmts of
-    (IRInstr (Jump tgt) : rest) | tgt == nextId -> reverse rest
-    _ -> stmts
+dropTrailingJump :: [IRInstr] -> Int -> [IRInstr]
+dropTrailingJump instrs nextId = case reverse instrs of
+    (Jump tgt : rest) | tgt == nextId -> reverse rest
+    _ -> instrs
 
 -- | Remove empty blocks after pruning.
 rmEBInProg :: IRProgm -> IRProgm
 rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
 
 rmEBInClass :: IRClass -> IRClass
-rmEBInClass (IRClass decl name fields (StaticInit stmts) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (rmEBInStmts stmts)) atomTypes (map rmEBInFunc funs) mainKind
+rmEBInClass (IRClass decl name fields (StaticInit blocks) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (rmEBInBlocks blocks)) atomTypes (map rmEBInFunc funs) mainKind
 
 rmEBInFunc :: IRFunction -> IRFunction
-rmEBInFunc (IRFunction acc name sig atomTypes stmts memberType) =
-    IRFunction acc name sig atomTypes (unwrapSingleBlock (rmEBInStmts stmts)) memberType
-    where
-        unwrapSingleBlock :: [IRStmt] -> [IRStmt]
-        unwrapSingleBlock [IRBlockStmt (IRBlock (_, stmts'))] = stmts'
-        unwrapSingleBlock stmts' = stmts'
+rmEBInFunc (IRFunction acc name sig atomTypes blocks memberType) =
+    IRFunction acc name sig atomTypes (rmEBInBlocks blocks) memberType
 
-rmEBInStmts :: [IRStmt] -> [IRStmt]
-rmEBInStmts = fixpoint
+rmEBInBlocks :: [IRBlock] -> [IRBlock]
+rmEBInBlocks = fixpoint
     where
-        fixpoint :: [IRStmt] -> [IRStmt]
-        fixpoint stmts =
-            let stmts' = pruneTopStmts (rmEmptyOnce stmts)
-            in if stmts' == stmts then stmts else fixpoint stmts'
+        fixpoint :: [IRBlock] -> [IRBlock]
+        fixpoint blocks =
+            let blocks' = pruneBlocks (rmEmptyOnce blocks)
+            in if blocks' == blocks then blocks else fixpoint blocks'
 
-        rmEmptyOnce :: [IRStmt] -> [IRStmt]
-        rmEmptyOnce stmts =
-            let redirectMap = buildRedirectMap stmts
+        rmEmptyOnce :: [IRBlock] -> [IRBlock]
+        rmEmptyOnce blocks =
+            let redirectMap = buildRedirectMap blocks
                 unresolved = Set.fromList [bid | (bid, Nothing) <- Map.toList redirectMap]
-                rewritten = map (rewriteStmt redirectMap) stmts
+                rewritten = map (rewriteBlock redirectMap) blocks
             in filter (not . isRemovableEmptyBlock unresolved) rewritten
 
-        buildRedirectMap :: [IRStmt] -> Map Int (Maybe Int)
+        buildRedirectMap :: [IRBlock] -> Map Int (Maybe Int)
         buildRedirectMap = Map.fromList . go
             where
                 go [] = []
-                go (IRBlockStmt (IRBlock (bid, stmts)) : rest)
-                    | null stmts = (bid, nextBlockId rest) : go rest
+                go (IRBlock (bid, instrs) : rest)
+                    | null instrs = (bid, nextBlockId rest) : go rest
                     | otherwise = go rest
-                go (_ : rest) = go rest
 
-                nextBlockId :: [IRStmt] -> Maybe Int
+                nextBlockId :: [IRBlock] -> Maybe Int
                 nextBlockId [] = Nothing
-                nextBlockId (IRBlockStmt (IRBlock (bid, _)) : _) = Just bid
-                nextBlockId (_ : _) = Nothing
+                nextBlockId (IRBlock (bid, _) : _) = Just bid
 
-        rewriteStmt :: Map Int (Maybe Int) -> IRStmt -> IRStmt
-        rewriteStmt redirectMap stmt = case stmt of
-            IRInstr instr -> IRInstr (rewriteInstr redirectMap instr)
-            IRBlockStmt (IRBlock (bid, stmts)) ->
-                IRBlockStmt (IRBlock (bid, map (rewriteStmt redirectMap) stmts))
+        rewriteBlock :: Map Int (Maybe Int) -> IRBlock -> IRBlock
+        rewriteBlock redirectMap (IRBlock (bid, instrs)) =
+            IRBlock (bid, map (rewriteInstr redirectMap) instrs)
 
         rewriteInstr :: Map Int (Maybe Int) -> IRInstr -> IRInstr
         rewriteInstr redirectMap instr = case instr of
@@ -888,7 +855,7 @@ rmEBInStmts = fixpoint
                             _ -> cur
 
         -- Keep empty blocks that have no resolvable successor to avoid dangling labels.
-        isRemovableEmptyBlock :: Set Int -> IRStmt -> Bool
-        isRemovableEmptyBlock unresolved (IRBlockStmt (IRBlock (bid, []))) =
+        isRemovableEmptyBlock :: Set Int -> IRBlock -> Bool
+        isRemovableEmptyBlock unresolved (IRBlock (bid, [])) =
             not (Set.member bid unresolved)
         isRemovableEmptyBlock _ _ = False

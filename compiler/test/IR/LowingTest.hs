@@ -1,10 +1,12 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module IR.LowingTest where
 
 import Control.Exception (SomeException, evaluate, try)
 import Data.Aeson (encode)
 import Data.List (find, isInfixOf)
 import IR.Lowing (codeToIRSingleWithRoot)
-import IR.TAC (IRAtom(..), IRBlock (..), IRClass (..), IRFunction (..), IRInstr (..), IRProgm (..), IRStmt (..))
+import IR.TAC (IRAtom(..), IRBlock (..), IRClass (..), IRFunction (..), IRInstr (..), IRProgm (..))
 import Lowing.JVMLowing (jvmProgmLowing)
 import Lowing.JVMJson (jProgmToJSON)
 import Parse.ParserBasic (DeclFlag (..))
@@ -106,12 +108,8 @@ callArgCastTests = testGroup "IR.Lowing.callArgCast" [
                 "    return f(1)",
                 "}"
                 ]
-            collectInstrs :: [IRStmt] -> [IRInstr]
-            collectInstrs = concatMap go
-                where
-                    go stmt = case stmt of
-                        IRInstr instr -> [instr]
-                        IRBlockStmt (IRBlock (_, body)) -> collectInstrs body
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
             hasIntToDoubleCast :: [IRInstr] -> Bool
             hasIntToDoubleCast = any isCast
                 where
@@ -124,9 +122,9 @@ callArgCastTests = testGroup "IR.Lowing.callArgCast" [
             Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) -> do
                 case find (\(IRFunction _ name _ _ _ _) -> name == "g") funs of
                     Nothing -> assertFailure "missing function g"
-                    Just (IRFunction _ _ _ _ stmts _) ->
+                    Just (IRFunction _ _ _ _ blocks _) ->
                         assertBool "g should cast int argument to double before call"
-                            (hasIntToDoubleCast (collectInstrs stmts))
+                            (hasIntToDoubleCast (collectInstrs blocks))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
 
@@ -138,28 +136,21 @@ ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
                 "    return -1 if x < 0 else 0",
                 "}"
                 ]
-            isTopIfeq instr = case instr of
+            instrHasIfeq instr = case instr of
                 Ifeq {} -> True
                 _ -> False
-            isTopSetRet instr = case instr of
+            instrHasSetRet instr = case instr of
                 SetIRet {} -> True
-                _ -> False
-            stmtHasIfeq stmt = case stmt of
-                IRInstr (Ifeq {}) -> True
-                _ -> False
-            stmtHasSetRet stmt = case stmt of
-                IRInstr (SetIRet {}) -> True
                 _ -> False
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "f" _ _ stmts _] _], _) -> do
-                let topInstrs = [instr | IRInstr instr <- stmts]
-                    blockBodies = [body | IRBlockStmt (IRBlock (_, body)) <- stmts]
-                    topHasIfeq = any isTopIfeq topInstrs
-                    topHasSetRet = any isTopSetRet topInstrs
-                    blockHasIfeq = any (any stmtHasIfeq) blockBodies
-                    blockHasSetRet = any (any stmtHasSetRet) blockBodies
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "f" _ _ blocks _] _], _) -> do
+                let blockBodies = [body | IRBlock (_, body) <- blocks]
+                    topHasIfeq = False
+                    topHasSetRet = False
+                    blockHasIfeq = any (any instrHasIfeq) blockBodies
+                    blockHasSetRet = any (any instrHasSetRet) blockBodies
 
                 assertBool "top-level Ifeq should not appear for ternary return" (not topHasIfeq)
                 assertBool "top-level SetIRet should not appear for ternary return" (not topHasSetRet)
@@ -178,12 +169,8 @@ stringLiteralLoweringTests = testGroup "IR.Lowing.stringLiteral" [
                 "    return 0",
                 "}"
                 ]
-            collectInstrs :: [IRStmt] -> [IRInstr]
-            collectInstrs = concatMap go
-                where
-                    go stmt = case stmt of
-                        IRInstr instr -> [instr]
-                        IRBlockStmt (IRBlock (_, body)) -> collectInstrs body
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
             hasStringAssign :: [IRInstr] -> Bool
             hasStringAssign = any isStringAssign
                 where
@@ -193,9 +180,9 @@ stringLiteralLoweringTests = testGroup "IR.Lowing.stringLiteral" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
                 assertBool "main should contain string literal assignment lowering"
-                    (hasStringAssign (collectInstrs stmts))
+                    (hasStringAssign (collectInstrs blocks))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ,
     testCase "jvm json contains reference ops for string local" $ do
@@ -287,8 +274,8 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
-                let instrs = collectInstrs stmts
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+                let instrs = collectInstrs blocks
                 assertBool "postfix ++ should generate add op" (any isAdd instrs)
                 assertBool "postfix ++ should not generate sub op in this snippet" (not (any isSub instrs))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
@@ -303,8 +290,8 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
-                let instrs = collectInstrs stmts
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+                let instrs = collectInstrs blocks
                 assertBool "postfix -- should generate sub op" (any isSub instrs)
                 assertBool "postfix -- should not generate add op in this snippet" (not (any isAdd instrs))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
@@ -318,8 +305,8 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
-                assertBool "prefix ++ should generate add op" (any isAdd (collectInstrs stmts))
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+                assertBool "prefix ++ should generate add op" (any isAdd (collectInstrs blocks))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
 
     testCase "prefix -- on var lowers with sub" $ do
@@ -331,17 +318,13 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ stmts _] _], _) -> do
-                assertBool "prefix -- should generate sub op" (any isSub (collectInstrs stmts))
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+                assertBool "prefix -- should generate sub op" (any isSub (collectInstrs blocks))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
     where
-        collectInstrs :: [IRStmt] -> [IRInstr]
-        collectInstrs = concatMap go
-            where
-                go stmt = case stmt of
-                    IRInstr instr -> [instr]
-                    IRBlockStmt (IRBlock (_, body)) -> collectInstrs body
+        collectInstrs :: [IRBlock] -> [IRInstr]
+        collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
 
         isAdd :: IRInstr -> Bool
         isAdd instr = case instr of

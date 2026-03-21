@@ -132,95 +132,87 @@ shortCircuitLogicalTests = testGroup "IR.TACLowing.shortCircuitLogical" [
                     (AST.BoolConst True LT.dummyToken)
                     (AST.BoolConst False LT.dummyToken)
                     LT.dummyToken
-            stmts = lowerExprStmts expr
-            instrs = collectInstrs stmts
+            blocks = lowerExprBlocks expr
+            instrs = collectInstrs blocks
         assertBool "&& should contain conditional jump" (any isCondJump instrs)
         assertBool "&& should not emit IBinary LogicalAnd" (not (any isLogicalAndBinary instrs))
         assertBool "&& should emit phi-join assignment" (any isPhiAssign instrs)
-        assertBool "&& should create branch blocks" (countBlocks stmts >= 3),
+        assertBool "&& should create branch blocks" (countBlocks blocks >= 3),
 
     testCase "logical !&& lowers to branch form with !rhs and phi" $ do
         let expr = AST.Binary AST.LogicalNand
                     (AST.BoolConst True LT.dummyToken)
                     (AST.BoolConst False LT.dummyToken)
                     LT.dummyToken
-            stmts = lowerExprStmts expr
-            instrs = collectInstrs stmts
+            blocks = lowerExprBlocks expr
+            instrs = collectInstrs blocks
         assertBool "!&& should contain conditional jump" (any isCondJump instrs)
         assertBool "!&& should not emit IBinary LogicalNand" (not (any isLogicalNandBinary instrs))
         assertBool "!&& should emit unary logical not for rhs" (any isLogicalNotUnary instrs)
         assertBool "!&& should emit phi-join assignment" (any isPhiAssign instrs)
-        assertBool "!&& should create branch blocks" (countBlocks stmts >= 3),
+        assertBool "!&& should create branch blocks" (countBlocks blocks >= 3),
 
     testCase "logical || lowers to branch form (not IBinary LogicalOr)" $ do
         let expr = AST.Binary AST.LogicalOr
                     (AST.BoolConst True LT.dummyToken)
                     (AST.BoolConst False LT.dummyToken)
                     LT.dummyToken
-            stmts = lowerExprStmts expr
-            instrs = collectInstrs stmts
+            blocks = lowerExprBlocks expr
+            instrs = collectInstrs blocks
         assertBool "|| should contain conditional jump" (any isCondJump instrs)
         assertBool "|| should not emit IBinary LogicalOr" (not (any isLogicalOrBinary instrs))
         assertBool "|| should emit phi-join assignment" (any isPhiAssign instrs)
-        assertBool "|| should create branch blocks" (countBlocks stmts >= 3),
+        assertBool "|| should create branch blocks" (countBlocks blocks >= 3),
 
     testCase "logical !|| lowers to branch form with !rhs and phi" $ do
         let expr = AST.Binary AST.LogicalNor
                     (AST.BoolConst True LT.dummyToken)
                     (AST.BoolConst False LT.dummyToken)
                     LT.dummyToken
-            stmts = lowerExprStmts expr
-            instrs = collectInstrs stmts
+            blocks = lowerExprBlocks expr
+            instrs = collectInstrs blocks
         assertBool "!|| should contain conditional jump" (any isCondJump instrs)
         assertBool "!|| should not emit IBinary LogicalNor" (not (any isLogicalNorBinary instrs))
         assertBool "!|| should emit unary logical not for rhs" (any isLogicalNotUnary instrs)
         assertBool "!|| should emit phi-join assignment" (any isPhiAssign instrs)
-        assertBool "!|| should create branch blocks" (countBlocks stmts >= 3),
+        assertBool "!|| should create branch blocks" (countBlocks blocks >= 3),
 
     testCase "logical -> lowers to branch form (if a then b else true)" $ do
         let expr = AST.Binary AST.LogicalImply
                     (AST.BoolConst True LT.dummyToken)
                     (AST.BoolConst False LT.dummyToken)
                     LT.dummyToken
-            stmts = lowerExprStmts expr
-            instrs = collectInstrs stmts
+            blocks = lowerExprBlocks expr
+            instrs = collectInstrs blocks
         assertBool "-> should contain conditional jump" (any isCondJump instrs)
         assertBool "-> should not emit IBinary LogicalImply" (not (any isLogicalImplyBinary instrs))
         assertBool "-> should emit phi-join assignment" (any isPhiAssign instrs)
-        assertBool "-> should create branch blocks" (countBlocks stmts >= 3),
+        assertBool "-> should create branch blocks" (countBlocks blocks >= 3),
 
     testCase "logical !-> lowers to branch form (if a then !b else false)" $ do
         let expr = AST.Binary AST.LogicalNimply
                     (AST.BoolConst True LT.dummyToken)
                     (AST.BoolConst False LT.dummyToken)
                     LT.dummyToken
-            stmts = lowerExprStmts expr
-            instrs = collectInstrs stmts
+            blocks = lowerExprBlocks expr
+            instrs = collectInstrs blocks
         assertBool "!-> should contain conditional jump" (any isCondJump instrs)
         assertBool "!-> should not emit IBinary LogicalNimply" (not (any isLogicalNimplyBinary instrs))
         assertBool "!-> should emit unary logical not for rhs" (any isLogicalNotUnary instrs)
         assertBool "!-> should emit phi-join assignment" (any isPhiAssign instrs)
-        assertBool "!-> should create branch blocks" (countBlocks stmts >= 3)
+        assertBool "!-> should create branch blocks" (countBlocks blocks >= 3)
     ]
     where
-        lowerExprStmts expr =
+        lowerExprBlocks expr =
             let st0 = TAC.mkTACState Map.empty Map.empty
                 (revStmts, _) = evalState (TAC.runTACM (exprLowing expr)) st0
-            in reverse revStmts
+            in packIRBlocks (reverse revStmts)
 
-        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
-        collectInstrs = concatMap go
-            where
-                go stmt = case stmt of
-                    TAC.IRInstr instr -> [instr]
-                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+        collectInstrs :: [TAC.IRBlock] -> [TAC.IRInstr]
+        collectInstrs = concatMap (\(TAC.IRBlock (_, body)) -> body)
 
-        countBlocks :: [TAC.IRStmt] -> Int
-        countBlocks = sum . map go
-            where
-                go stmt = case stmt of
-                    TAC.IRInstr _ -> 0
-                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> 1 + countBlocks body
+        countBlocks :: [TAC.IRBlock] -> Int
+        countBlocks = length
 
         isCondJump :: TAC.IRInstr -> Bool
         isCondJump instr = case instr of
@@ -277,27 +269,24 @@ untilLoweringTests = testGroup "IR.TACLowing.untilLowering" [
     testCase "until condition branches on false" $ do
         let tokUntil = LT.dummyToken
             stmt = AST.Until (AST.BoolConst True LT.dummyToken) Nothing Nothing (tokUntil, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "until should branch when cond == false" (any isEqFalseJump instrs),
 
     testCase "until should not branch on cond == true" $ do
         let tokUntil = LT.dummyToken
             stmt = AST.Until (AST.BoolConst True LT.dummyToken) Nothing Nothing (tokUntil, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "until should not branch with == true guard" (not (any isEqTrueJump instrs))
     ]
     where
-        lowerStmtStmts :: AST.Statement -> [TAC.IRStmt]
-        lowerStmtStmts stmt =
+        lowerStmtBlocks :: AST.Statement -> [TAC.IRBlock]
+        lowerStmtBlocks stmt =
             let st0 = TAC.mkTACState Map.empty Map.empty
-            in evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+                nodes = evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+            in packIRBlocks nodes
 
-        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
-        collectInstrs = concatMap go
-            where
-                go irStmt = case irStmt of
-                    TAC.IRInstr instr -> [instr]
-                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+        collectInstrs :: [TAC.IRBlock] -> [TAC.IRInstr]
+        collectInstrs = concatMap (\(TAC.IRBlock (_, body)) -> body)
 
         isEqFalseJump :: TAC.IRInstr -> Bool
         isEqFalseJump instr = case instr of
@@ -315,42 +304,39 @@ doLoopLoweringTests = testGroup "IR.TACLowing.doLoopLowering" [
         let tokDo = LT.dummyToken
             tokWhile = LT.dummyToken
             stmt = AST.DoWhile Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokWhile, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "do while should branch with == true guard" (any isEqTrueJump instrs),
 
     testCase "do while should not branch on false guard" $ do
         let tokDo = LT.dummyToken
             tokWhile = LT.dummyToken
             stmt = AST.DoWhile Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokWhile, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "do while should not branch with == false guard" (not (any isEqFalseJump instrs)),
 
     testCase "do until condition branches on false" $ do
         let tokDo = LT.dummyToken
             tokUntil = LT.dummyToken
             stmt = AST.DoUntil Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokUntil, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "do until should branch with == false guard" (any isEqFalseJump instrs),
 
     testCase "do until should not branch on true guard" $ do
         let tokDo = LT.dummyToken
             tokUntil = LT.dummyToken
             stmt = AST.DoUntil Nothing (AST.BoolConst True LT.dummyToken) Nothing (tokDo, tokUntil, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "do until should not branch with == true guard" (not (any isEqTrueJump instrs))
     ]
     where
-        lowerStmtStmts :: AST.Statement -> [TAC.IRStmt]
-        lowerStmtStmts stmt =
+        lowerStmtBlocks :: AST.Statement -> [TAC.IRBlock]
+        lowerStmtBlocks stmt =
             let st0 = TAC.mkTACState Map.empty Map.empty
-            in evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+                nodes = evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+            in packIRBlocks nodes
 
-        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
-        collectInstrs = concatMap go
-            where
-                go irStmt = case irStmt of
-                    TAC.IRInstr instr -> [instr]
-                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+        collectInstrs :: [TAC.IRBlock] -> [TAC.IRInstr]
+        collectInstrs = concatMap (\(TAC.IRBlock (_, body)) -> body)
 
         isEqFalseJump :: TAC.IRInstr -> Bool
         isEqFalseJump instr = case instr of
@@ -368,21 +354,18 @@ repeatLoweringTests = testGroup "IR.TACLowing.repeatLowering" [
         let tokRepeat = LT.dummyToken
             countExpr = AST.IntConst "10" LT.dummyToken
             stmt = AST.Repeat countExpr Nothing Nothing (tokRepeat, Nothing)
-            instrs = collectInstrs (lowerStmtStmts stmt)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
         assertBool "repeat should not emit IAssign _ (Phi ...)" (not (any isPhiAssign instrs))
     ]
     where
-        lowerStmtStmts :: AST.Statement -> [TAC.IRStmt]
-        lowerStmtStmts stmt =
+        lowerStmtBlocks :: AST.Statement -> [TAC.IRBlock]
+        lowerStmtBlocks stmt =
             let st0 = TAC.mkTACState Map.empty Map.empty
-            in evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+                nodes = evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+            in packIRBlocks nodes
 
-        collectInstrs :: [TAC.IRStmt] -> [TAC.IRInstr]
-        collectInstrs = concatMap go
-            where
-                go irStmt = case irStmt of
-                    TAC.IRInstr instr -> [instr]
-                    TAC.IRBlockStmt (TAC.IRBlock (_, body)) -> collectInstrs body
+        collectInstrs :: [TAC.IRBlock] -> [TAC.IRInstr]
+        collectInstrs = concatMap (\(TAC.IRBlock (_, body)) -> body)
 
         isPhiAssign :: TAC.IRInstr -> Bool
         isPhiAssign instr = case instr of
@@ -404,3 +387,7 @@ tests = testGroup "IR.TACLowing" [
     doLoopLoweringTests,
     repeatLoweringTests
     ]
+
+
+
+

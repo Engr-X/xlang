@@ -76,19 +76,17 @@ ensureJvmInstr instr = case instr of
     IR.IGetStatic dst _ -> ensureJvmAtom dst
     IR.IPutStatic _ v -> ensureJvmAtom v
 
-ensureJvmStmt :: IR.IRStmt -> ()
-ensureJvmStmt stmt = case stmt of
-    IR.IRInstr instr -> ensureJvmInstr instr
-    IR.IRBlockStmt (IR.IRBlock (_, stmts)) -> ensureAll stmts ensureJvmStmt
+ensureJvmBlock :: IR.IRBlock -> ()
+ensureJvmBlock (IR.IRBlock (_, instrs)) = ensureAll instrs ensureJvmInstr
 
 ensureJvmFunction :: IR.IRFunction -> ()
-ensureJvmFunction (IR.IRFunction _ name sig atomT body _) =
+ensureJvmFunction (IR.IRFunction _ name sig atomT blocks _) =
     ensureJvmClass ("function " ++ name ++ " return type") (TEnv.funReturn sig)
         `seq` ensureAll (zip [0 :: Int ..] (TEnv.funParams sig))
             (\(idx, cls) -> ensureJvmClass ("function " ++ name ++ " param #" ++ show idx) cls)
         `seq` ensureAll (Map.toList atomT)
             (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("function " ++ name ++ " inferred type") cls)
-        `seq` ensureAll body ensureJvmStmt
+        `seq` ensureAll blocks ensureJvmBlock
 
 ensureJvmIRClass :: IR.IRClass -> ()
 ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit sBody) atomT funs _) =
@@ -96,24 +94,19 @@ ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit sBody) atomT funs _) =
         (\(_, cls, fieldName, _) -> ensureJvmClass ("class " ++ name ++ " field " ++ fieldName) cls)
         `seq` ensureAll (Map.toList atomT)
             (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("class " ++ name ++ " static inferred type") cls)
-        `seq` ensureAll sBody ensureJvmStmt
+        `seq` ensureAll sBody ensureJvmBlock
         `seq` ensureAll funs ensureJvmFunction
 
 
--- | Lower a list of IR statements into JVM command stream.
-jvmLowerStmts :: [IR.IRStmt] -> State LowerState [JVM.JCommand]
-jvmLowerStmts stmts = fmap concat (mapM lowerStmt stmts)
+jvmLowerBlocks :: [IR.IRBlock] -> State LowerState [JVM.JCommand]
+jvmLowerBlocks blocks = fmap concat (mapM lowerBlock blocks)
 
 
--- | Lower a single IR statement (instruction or block) into JVM commands.
-lowerStmt :: IR.IRStmt -> State LowerState [JVM.JCommand]
-lowerStmt stmt = case stmt of
-    IR.IRInstr instr -> do
-        ops <- lowerInstr instr
-        return (map JVM.OP ops)
-    IR.IRBlockStmt (IR.IRBlock (bid, stmts)) -> do
-        cmds <- jvmLowerStmts stmts
-        return [JVM.Label (bid, cmds)]
+lowerBlock :: IR.IRBlock -> State LowerState [JVM.JCommand]
+lowerBlock (IR.IRBlock (bid, instrs)) = do
+    ops <- fmap concat (mapM lowerInstr instrs)
+    let cmds = map JVM.OP ops
+    return [JVM.Label (bid, cmds)]
 
 
 -- | Lower a single IR instruction into JVM ops (stack machine).
@@ -497,7 +490,7 @@ jvmLowingFun (IR.IRFunction decl name sig atomT body ownerType) =
                 cls -> Just cls,
             retLocal = retLocalSlot
         }
-        (cmds, _) = runState (jvmLowerStmts body) initState
+        (cmds, _) = runState (jvmLowerBlocks body) initState
     in JVM.JFunction decl name sig (ownerTypeToString ownerType) cmds
 
 
@@ -512,7 +505,7 @@ jvmClinitLowing (IR.StaticInit body) atomT =
             retType = Nothing,
             retLocal = Nothing
         }
-        (cmds, _) = runState (jvmLowerStmts body) initState
+        (cmds, _) = runState (jvmLowerBlocks body) initState
     in JVM.JClinit cmds
 
 

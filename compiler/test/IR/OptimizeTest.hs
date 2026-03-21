@@ -1,7 +1,7 @@
 module IR.OptimizeTest where
 
 import IR.Optimize
-import IR.TAC (IRAtom(..), IRBlock(..), IRClass(..), IRFunction(..), IRInstr(..), IRMemberType(..), IRProgm(..), IRStmt(..), MainKind(..), StaticInit(..))
+import IR.TAC (IRAtom(..), IRBlock(..), IRClass(..), IRFunction(..), IRInstr(..), IRMemberType(..), IRProgm(..), MainKind(..), StaticInit(..))
 import Parse.ParserBasic (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
@@ -11,53 +11,38 @@ import Test.Tasty.HUnit
 import qualified Data.Map.Strict as Map
 
 
-decl0 :: (AccessModified, [a])
-decl0 = (Public, [])
-
 phiAtom :: IRAtom
 phiAtom = Phi [(1, Int32C 1), (2, Int32C 2)]
 
 lhsAtom :: IRAtom
 lhsAtom = Var ("x", 0, 0)
 
-keepStmt :: IRStmt
-keepStmt = IRInstr (IAssign lhsAtom (Int32C 7))
+keepInstr :: IRInstr
+keepInstr = IAssign lhsAtom (Int32C 7)
 
-phiStmt :: IRStmt
-phiStmt = IRInstr (IAssign lhsAtom phiAtom)
+phiInstr :: IRInstr
+phiInstr = IAssign lhsAtom phiAtom
 
-mkFun :: [IRStmt] -> IRFunction
-mkFun stmts =
-    IRFunction (Public, []) "f" (FunSig [] Void) Map.empty stmts MemberClass
+mkFun :: [IRInstr] -> IRFunction
+mkFun instrs =
+    IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [IRBlock (0, instrs)] MemberClass
 
-mkClass :: [IRStmt] -> [IRFunction] -> IRClass
-mkClass staticStmts funs =
-    IRClass (Public, []) "C" [] (StaticInit staticStmts) Map.empty funs NoMain
+mkClass :: [IRInstr] -> [IRFunction] -> IRClass
+mkClass staticInstrs funs =
+    IRClass (Public, []) "C" [] (StaticInit [IRBlock (0, staticInstrs)]) Map.empty funs NoMain
 
 
 stripPhiStmtTests :: TestTree
 stripPhiStmtTests = testGroup "IR.Optimize.stripPhiStmt" $ map (uncurry testCase) [
-    ("0", stripPhiStmt phiStmt @?= []),
-    ("1", stripPhiStmt keepStmt @?= [keepStmt]),
-    ("2", do
-        let stmt = IRBlockStmt (IRBlock (1, [phiStmt, keepStmt]))
-            out = IRBlockStmt (IRBlock (1, [keepStmt]))
-        stripPhiStmt stmt @?= [out]),
-    ("3", do
-        let nested = IRBlockStmt (IRBlock (1, [IRBlockStmt (IRBlock (2, [phiStmt, keepStmt]))]))
-            out = IRBlockStmt (IRBlock (1, [IRBlockStmt (IRBlock (2, [keepStmt]))]))
-        stripPhiStmt nested @?= [out])]
+    ("0", stripPhiStmt phiInstr @?= []),
+    ("1", stripPhiStmt keepInstr @?= [keepInstr])]
 
 
 stripPhiStmtsTests :: TestTree
 stripPhiStmtsTests = testGroup "IR.Optimize.stripPhiStmts" $ map (uncurry testCase) [
     ("0", stripPhiStmts [] @?= []),
-    ("1", stripPhiStmts [phiStmt, keepStmt] @?= [keepStmt]),
-    ("2", do
-        let inp = [IRBlockStmt (IRBlock (1, [phiStmt, keepStmt]))]
-            out = [IRBlockStmt (IRBlock (1, [keepStmt]))]
-        stripPhiStmts inp @?= out),
-    ("3", stripPhiStmts [phiStmt, phiStmt] @?= [])]
+    ("1", stripPhiStmts [phiInstr, keepInstr] @?= [keepInstr]),
+    ("2", stripPhiStmts [phiInstr, phiInstr] @?= [])]
 
 
 stripPhiProgmTests :: TestTree
@@ -66,18 +51,12 @@ stripPhiProgmTests = testGroup "IR.Optimize.stripPhiProgm" $ map (uncurry testCa
         let p = IRProgm [] []
         stripPhiProgm p @?= p),
     ("1", do
-        let p = IRProgm [] [mkClass [phiStmt, keepStmt] []]
-            out = IRProgm [] [mkClass [keepStmt] []]
+        let p = IRProgm [] [mkClass [phiInstr, keepInstr] []]
+            out = IRProgm [] [mkClass [keepInstr] []]
         stripPhiProgm p @?= out),
     ("2", do
-        let p = IRProgm [] [mkClass [] [mkFun [phiStmt, keepStmt]]]
-            out = IRProgm [] [mkClass [] [mkFun [keepStmt]]]
-        stripPhiProgm p @?= out),
-    ("3", do
-        let nested = IRBlockStmt (IRBlock (1, [phiStmt, keepStmt]))
-            p = IRProgm [] [mkClass [] [mkFun [nested]]]
-            outNested = IRBlockStmt (IRBlock (1, [keepStmt]))
-            out = IRProgm [] [mkClass [] [mkFun [outNested]]]
+        let p = IRProgm [] [mkClass [] [mkFun [phiInstr, keepInstr]]]
+            out = IRProgm [] [mkClass [] [mkFun [keepInstr]]]
         stripPhiProgm p @?= out)]
 
 
