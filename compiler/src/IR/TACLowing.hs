@@ -152,6 +152,22 @@ stripFloatSuffix s = case reverse s of
     (c:cs) | c `elem` "fFlL" -> reverse cs
     _ -> s
 
+-- | Normalize floating literals for `readMaybe`:
+--   - ".5"   -> "0.5"
+--   - "-.5"  -> "-0.5"
+--   - "10."  -> "10.0"
+normalizeFloatLiteral :: String -> String
+normalizeFloatLiteral raw =
+    let s0 = stripFloatSuffix raw
+        s1 = case s0 of
+            ('.':_) -> '0' : s0
+            ('-':'.':rest) -> "-0." ++ rest
+            ('+':'.':rest) -> "+0." ++ rest
+            _ -> s0
+    in case reverse s1 of
+        ('.':_) -> s1 ++ "0"
+        _ -> s1
+
 -- | Read integer literals supporting hex (0x/0X) and optional suffix.
 readIntegerLiteral :: String -> Maybe Integer
 readIntegerLiteral raw =
@@ -199,7 +215,7 @@ safeInteger pos (minI, maxI) raw = do
 safeRational :: Position -> (Rational, Rational) -> String -> TACM Rational
 safeRational pos (minR, maxR) raw = do
     let warn msg = TAC.addWarn $ OverflowWarning (UE.makeError tacWarnPath [pos] msg)
-    case readMaybe (stripFloatSuffix raw) :: Maybe Double of
+    case readMaybe (normalizeFloatLiteral raw) :: Maybe Double of
         Nothing -> error "this string must be valid any how"
         Just n
             | isNaN n -> do
@@ -221,7 +237,7 @@ safeRational pos (minR, maxR) raw = do
 safeDouble :: Position -> (Double, Double) -> String -> TACM Double
 safeDouble pos (minD, maxD) raw = do
     let warn msg = TAC.addWarn $ OverflowWarning (UE.makeError tacWarnPath [pos] msg)
-    case readMaybe (stripFloatSuffix raw) :: Maybe Double of
+    case readMaybe (normalizeFloatLiteral raw) :: Maybe Double of
         Nothing -> error "this string must be valid any how"
         Just n
             | n > maxD -> do

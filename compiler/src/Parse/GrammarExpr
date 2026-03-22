@@ -77,6 +77,10 @@ GenericParamList :: { [(Class, [Token])] }
 Postfix :: { Expression }
     : Atom                      { $1 }
 
+    -- calls (highest precedence, before cast/postfix ops)
+    | QName ArgumentsOpt                        { Call (qnameToExpr $1) $2 }
+    | QName GenericParamList ArgumentsOpt       { CallT (qnameToExpr $1) $2 $3 }
+
     | Postfix '++'              { Unary SelfInc $1 $2 }
     | Postfix '--'              { Unary SelfDec $1 $2 }
 
@@ -87,9 +91,7 @@ Postfix :: { Expression }
 
 Expr :: { Expression }
     -- 0: atom/call/cast
-    : QName ArgumentsOpt                        { Call (qnameToExpr $1) $2 }
-    | QName GenericParamList ArgumentsOpt       { CallT (qnameToExpr $1) $2 $3 }
-    | Postfix                                   { $1 }
+    : Postfix                                   { $1 }
 
     -- 1: postfix ++/-- (handled in Postfix)
     -- 2: prefix ++/-- (handled in Atom)

@@ -34,6 +34,14 @@ stripFloatSuffixTests = testGroup "IR.TACLowing.stripFloatSuffix" $ map (uncurry
     ("3", stripFloatSuffix "4.0" @?= "4.0")
     ]
 
+normalizeFloatLiteralTests :: TestTree
+normalizeFloatLiteralTests = testGroup "IR.TACLowing.normalizeFloatLiteral" $ map (uncurry testCase) [
+    ("0", normalizeFloatLiteral ".5f" @?= "0.5"),
+    ("1", normalizeFloatLiteral "-.25F" @?= "-0.25"),
+    ("2", normalizeFloatLiteral "10." @?= "10.0"),
+    ("3", normalizeFloatLiteral "6.02e23" @?= "6.02e23")
+    ]
+
 
 readIntegerLiteralTests :: TestTree
 readIntegerLiteralTests = testGroup "IR.TACLowing.readIntegerLiteral" $ map (uncurry testCase) [
@@ -376,6 +384,7 @@ tests :: TestTree
 tests = testGroup "IR.TACLowing" [
     stripIntSuffixTests,
     stripFloatSuffixTests,
+    normalizeFloatLiteralTests,
     readIntegerLiteralTests,
     wrapIntTests,
     lookupParamIndexTests,

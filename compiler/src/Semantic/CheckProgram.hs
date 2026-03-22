@@ -623,7 +623,7 @@ checkOneProgram path prog0 importEnvs typedEnvs =
                     TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
     where
         defaultImportedSpecs :: [ImportSpec]
-        defaultImportedSpecs = [ImportWildcard ["xlang", "io"], ImportWildcard ["java", "lang"]]
+        defaultImportedSpecs = [ImportWildcard ["xlang", "io"]]
 
 
 buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport

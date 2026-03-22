@@ -42,6 +42,7 @@ import qualified Util.FileHelper as FileHelper
     KW_PACKAGE          { t@(Lex.Ident "package" _) }
     KW_IMPORT           { t@(Lex.Ident "import" _) }
     KW_JAVANAME         { t@(Lex.Ident "javaname" _) }
+    KW_JVMCLASS         { t@(Lex.Ident "JvmClass" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
@@ -111,6 +112,7 @@ import qualified Util.FileHelper as FileHelper
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
+    '@'                 { t@(Lex.Symbol Lex.At _) }
     
     ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
     ','                 { t@(Lex.Symbol Lex.Comma _) }

@@ -421,6 +421,12 @@ incDecParseTests = testGroup "Parse.ParseExpr.incDec" [
         case replLexparseExpr "a++ as int" of
             Right (Cast (Int32T, _) (Unary SelfInc (Variable "a" _) _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
+    ,
+
+    testCase "call result can be cast directly" $
+        case replLexparseExpr "StrictMath.sqrt(x) as int" of
+            Right (Cast (Int32T, _) (Call (Qualified ["StrictMath", "sqrt"] _) [Variable "x" _]) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 
 

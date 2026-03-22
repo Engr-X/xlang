@@ -563,9 +563,9 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
                     (["java", "lang", "abs"], ([FunSig [Int32T] Int32T], [pos 2], ["java", "lang", "MathX", "abs"]))
                     ]
             }
-        case checkOneProgram "a.x" prog [ien] [ten] of
-            Right _ -> pure ()
-            Left e -> assertFailure ("expected Right, got Left: " ++ show e)),
+        assertLeftWith (checkOneProgram "a.x" prog [ien] [ten]) $ \errs ->
+            assertBool "without explicit java.lang import, abs should be undefined"
+                (any (isInfixOf "is not defined in this context" . errWhy) errs)),
 
     ("7", do
         let prog = mkProgram [] [["xlang", "math"]] [assignStmt "b" (intExpr 1 1) 1]
@@ -588,6 +588,19 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
                     ]
             }
         case checkOneProgram "a.x" prog [] [ten] of
+            Right _ -> pure ()
+            Left e -> assertFailure ("expected Right, got Left: " ++ show e)),
+
+    ("9", do
+        let callStmt = Expr (Binary Assign (varExpr "b" 1) (Call (varExpr "abs" 2) [intExpr 1 3]) (symTok Lex.Assign 4))
+            prog = mkProgram [] [["java", "lang", "MathX"]] [callStmt]
+            ien = IEnv "java-base.x" Map.empty (Map.fromList [(["java", "lang", "abs"], [pos 2])])
+            ten = (emptyTypedImportEnv "java-base.x") {
+                tFuncs = Map.fromList [
+                    (["java", "lang", "abs"], ([FunSig [Int32T] Int32T], [pos 2], ["java", "lang", "MathX", "abs"]))
+                    ]
+            }
+        case checkOneProgram "a.x" prog [ien] [ten] of
             Right _ -> pure ()
             Left e -> assertFailure ("expected Right, got Left: " ++ show e))
     ]

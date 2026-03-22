@@ -31,6 +31,7 @@ val xlangJobs = providers.gradleProperty("xlangJobs")
 
 val xlangFiles = fileTree(xlangSourceRoot) {
     include("**/*.x")
+    include("**/*.xl")
 }
 
 val compileXlang = tasks.register("compileXlang") {

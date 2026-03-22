@@ -19,6 +19,9 @@ mkNum s a b c = Lex.NumberConst s $ Position a b c
 mkId :: String -> Int -> Int -> Int -> Token
 mkId s a b c = Lex.Ident s $ Position a b c
 
+mkStr :: String -> Int -> Int -> Int -> Token
+mkStr s a b c = Lex.StrConst s $ Position a b c
+
 
 lexparseProgmTests :: TestTree
 lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src, expected) ->
@@ -458,7 +461,16 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
             mkId "lang" 1 13 4,
             mkSym Lex.Dot 1 17 1,
             mkSym Lex.Multiply 1 18 1
-            ]], []))]
+            ]], [])),
+
+        ("14", unlines [
+            "@JvmClass(\"Math\")",
+            "package xlang.math"],
+        ([JavaName "Math" (mkStr "Math" 1 11 6),
+          Package ["xlang", "math"] [
+            mkId "xlang" 2 9 5,
+            mkId "math" 2 15 4
+          ]], []))]
         
 
 tests :: TestTree

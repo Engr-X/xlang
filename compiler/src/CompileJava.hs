@@ -324,7 +324,7 @@ collectSourceImports sources =
             cls <- HashSet.toList classSet]
   where
     defaultImportPatterns :: [String]
-    defaultImportPatterns = ["xlang.io.*", "java.lang.*"]
+    defaultImportPatterns = ["xlang.io.*"]
 
     parseProgram :: (FilePath, String) -> Maybe AST.Program
     parseProgram (path, code) =
