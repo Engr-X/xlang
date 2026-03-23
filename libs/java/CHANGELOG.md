@@ -8,7 +8,7 @@
 - xlang annotation package:
     - `xlang.annotation.Metadata`
     - binary-retained marker used by compiler/tooling to identify owner type semantics
-- `xlang.io` console API (`ConsoleX`):
+- `xlang.io` console API (`Console`):
     - top-level `put(...)` and `putln(...)` overloads for:
         - `Boolean`, `Char`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `String`, `Any`
     - top-level `print(...)` vararg overloads with:

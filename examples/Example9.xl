@@ -10,8 +10,8 @@ import java.lang.Math
 import java.lang.Math
 import java.lang.*
 import java.lang.*
-import xlang.io.ConsoleX
-import xlang.io.ConsoleX
+import xlang.io.Console
+import xlang.io.Console
 invalid:
 非法:
 import java.lang
@@ -35,16 +35,16 @@ then call Math.abs / Math.max.
 
 4) Another class import example:
 4) top-level 省略类名:
-import xlang.io.ConsoleX
-import xlang.io.ConsoleX
+import xlang.io.Console
+import xlang.io.Console
 call with class name:
 带类名调用:
-ConsoleX.putln(1)
-ConsoleX.putln(1)
+Console.putln(1)
+Console.putln(1)
 */
 
 import java.lang.Math
-import xlang.io.ConsoleX
+import xlang.io.Console
 
 void main() {
     val a: int = Math.abs(-10)
@@ -56,5 +56,5 @@ void main() {
     putln(a)
     putln(b)
     putln(c)
-    ConsoleX.putln(d)
+    Console.putln(d)
 }

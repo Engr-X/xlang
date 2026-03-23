@@ -336,6 +336,32 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
             IBinary _ AST.Sub _ _ -> True
             _ -> False
 
+assignmentRhsIsolationTests :: TestTree
+assignmentRhsIsolationTests = testGroup "IR.Lowing.assignmentRhsIsolation" [
+    testCase "rhs temporaries should not reuse lhs var versions" $ do
+        let src = unlines [
+                "int main() {",
+                "    var x = 10.0",
+                "    val eta = 0.1",
+                "    x = x - eta * 2.0 * x",
+                "    return 0",
+                "}"
+                ]
+            isBuggySelfMul instr = case instr of
+                IBinary _ AST.Mul (Var (n1, _, v1)) (Var (n2, _, v2)) ->
+                    n1 == "x" && n2 == "x" && v1 == v2
+                _ -> False
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) ->
+                assertBool "rhs lowering should not turn eta*2*x into x*x"
+                    (not (any isBuggySelfMul (collectInstrs blocks)))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+
 
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
@@ -346,4 +372,5 @@ tests = testGroup "IR.Lowing" [
     staticFieldReadLoweringTests,
     doubleCmpLoweringTests,
     float128JvmRejectTests,
-    incDecLoweringTests]
+    incDecLoweringTests,
+    assignmentRhsIsolationTests]

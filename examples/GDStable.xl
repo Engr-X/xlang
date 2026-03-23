@@ -1,0 +1,25 @@
+/*
+Gradient descent demo for f(x) = x^2.
+Update rule: x_{k+1} = x_k - eta * 2 * x_k.
+With eta = 0.1, multiplier is 0.8 and x should stay positive.
+*/
+
+void main()
+{
+    var x = 10.0
+    val eta = 0.1
+
+    for (var i = 0; i < 20; i++)
+    {
+        val grad = 2.0 * x
+        val next = x - eta * grad
+
+        // print: iter, current x, gradient, next x
+        putln(i)
+        putln(x)
+        putln(grad)
+        putln(next)
+
+        x = next
+    }
+}

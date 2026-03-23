@@ -459,12 +459,16 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
             isStatic <- isStaticVar key
 
             oldCur <- TAC.getCurrentVar
-                    
-            TAC.setCurrentVar (Just key)
 
+            -- Keep RHS lowering in the original current-var context.
+            -- If we force current-var to the assignment target here, RHS
+            -- temporaries may become target versions and pollute reads like:
+            --   x = x - eta * 2.0 * x
+            -- into effectively using updated x-temps on RHS.
+            TAC.setCurrentVar oldCur
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
             clazz <- getAtomType rhsAtom
-            lhsAtom <- newSubCVar clazz
+            lhsAtom <- newSubVar clazz key
 
             TAC.setCurrentVar oldCur
 

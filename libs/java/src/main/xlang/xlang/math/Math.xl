@@ -445,3 +445,13 @@ fun isPrime(x: long) => bool
     }
 }
 
+fun isEven(x: int) => bool = x and 1 == 0
+
+
+fun isEven(x: long) => bool = x and 1L == 0
+
+
+fun isOdd(x: int) => bool = x and 1 == 1
+
+
+fun isOdd(x: long) => bool = x and 1L == 0
