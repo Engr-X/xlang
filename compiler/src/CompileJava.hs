@@ -6,6 +6,10 @@ module CompileJava (
     duplicateLibRefs,
     findDefaultLibJars,
     findDefaultNativeJsons,
+    isDefaultStdlibJar,
+    hasJavaImportPrefix,
+    isJavaNativeMetadataPath,
+    sourceNeedsJavaMetadata,
     compileJVM,
     compileJVMToJar
 ) where
@@ -17,7 +21,7 @@ import Control.Monad (when)
 import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Char (toLower)
-import Data.List (foldl', intercalate, sort, sortOn, nub)
+import Data.List (foldl', intercalate, sort, sortOn, nub, isPrefixOf)
 import Data.Maybe (mapMaybe)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
@@ -271,7 +275,9 @@ findDefaultLibJars exeDir = do
     exists <- doesDirectoryExist libsDir
     if not exists
         then pure []
-        else sort <$> collect libsDir
+        else do
+            jars <- collect libsDir
+            pure (sort (filter isDefaultStdlibJar jars))
   where
     collect :: FilePath -> IO [FilePath]
     collect dir = do
@@ -284,6 +290,11 @@ findDefaultLibJars exeDir = do
                     then collect path
                     else pure [path | map toLower (takeExtension path) == ".jar"])
             names
+
+
+isDefaultStdlibJar :: FilePath -> Bool
+isDefaultStdlibJar path =
+    map toLower (takeFileName path) == "xlang-stdlib-alpha.jar"
 
 
 findDefaultNativeJsons :: FilePath -> Int -> IO [FilePath]
@@ -338,6 +349,34 @@ collectSourceImports sources =
     toPattern :: [String] -> String -> String
     toPattern pkg cls = intercalate "." (pkg ++ [cls])
 
+
+sourceNeedsJavaMetadata :: [FilePath] -> IO Bool
+sourceNeedsJavaMetadata srcPaths = do
+    loaded <- mapM
+        (\path -> do
+            res <- FH.readFile path
+            pure (path, res))
+        srcPaths
+    let sources = [(path, code) | (path, Right code) <- loaded]
+        imports = collectSourceImports sources
+    pure (hasJavaImportPrefix imports)
+
+
+hasJavaImportPrefix :: [String] -> Bool
+hasJavaImportPrefix =
+    any (\imp -> "java." `isPrefixOf` map toLower imp)
+
+
+isJavaNativeMetadataPath :: FilePath -> Bool
+isJavaNativeMetadataPath path =
+    hasJavaNativeSegments (map (map toLower) (splitDirectories (normalise path)))
+  where
+    hasJavaNativeSegments :: [FilePath] -> Bool
+    hasJavaNativeSegments ("libs":"java-native":_) = True
+    hasJavaNativeSegments (_:rest) = hasJavaNativeSegments rest
+    hasJavaNativeSegments [] = False
+
+
 compileJVMCore :: Int -> Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> Maybe FilePath -> Bool -> IO (Maybe ([TAC.IRProgm], CompileTimingSummary))
 compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debugOut = do
     sourceRes <- mapConcurrentlyLimit jobs
@@ -355,7 +394,10 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
             pure Nothing
         else do
             let sourceImports = collectSourceImports sources
-            (libsRes, libsTime) <- timedIO (LibLoader.loadLibEnvsWithJobs jobs toolkitJar libPaths sourceImports)
+                effectiveLibPaths
+                    | hasJavaImportPrefix sourceImports = libPaths
+                    | otherwise = filter (not . isJavaNativeMetadataPath) libPaths
+            (libsRes, libsTime) <- timedIO (LibLoader.loadLibEnvsWithJobs jobs toolkitJar effectiveLibPaths sourceImports)
             case libsRes of
                 Left errs -> do
                     mapM_ (putStrLn . UE.errorToString) errs

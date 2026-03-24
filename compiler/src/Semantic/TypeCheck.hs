@@ -748,6 +748,7 @@ inferForInit path packages envs st = case st of
     DefConstField {} -> inferDefineStmtFromDecl path packages envs st
     DefVar {} -> inferDefineStmtFromDecl path packages envs st
     DefConstVar {} -> inferDefineStmtFromDecl path packages envs st
+    StmtGroup ss -> mapM_ (inferForInit path packages envs) ss
     BlockStmt (Multiple ss) -> mapM_ (inferForInit path packages envs) ss
     _ -> addErr $ UE.Syntax $ UE.makeError path [] UE.forInitAssignMsg
     where
@@ -761,6 +762,7 @@ inferForStep :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
 inferForStep path packages envs st = case st of
     Expr e -> void (inferExpr path packages envs e)
     Exprs es -> mapM_ (void . inferExpr path packages envs) es
+    StmtGroup ss -> mapM_ (inferForStep path packages envs) ss
     BlockStmt (Multiple ss) -> mapM_ (inferForStep path packages envs) ss
     _ -> addErr $ UE.Syntax $ UE.makeError path [] UE.invalidExprStmtMsg
 
@@ -823,6 +825,7 @@ inferStmt path packages envs stmt@(DefConstVar {}) =
 
 inferStmt path packages envs (Expr e) = void $ inferExpr path packages envs e
 inferStmt path packages envs (Exprs es) = mapM_ (void . inferExpr path packages envs) es
+inferStmt path packages envs (StmtGroup ss) = mapM_ (inferStmt path packages envs) ss
 inferStmt path packages envs (BlockStmt block) = withScope $ inferBlock path packages envs block
 
 inferStmt path packages envs (If e ifBlock elseBlock _) = do
@@ -1046,10 +1049,18 @@ inferBlock path package envs (Multiple ss) = inferStmts path package envs ss
 -- | Infer types in a list of statements, preloading function signatures first.
 inferStmts :: Path -> QName -> [TypedImportEnv] -> [Statement] -> TypeM ()
 inferStmts path package envs stmts = do
-    let funDefs = filter isFunctionStmt stmts
+    let stmts' = flattenStmtGroups stmts
+        funDefs = filter isFunctionStmt stmts'
     mapM_ preloadFun funDefs
-    mapM_ (inferStmt path package envs) stmts
+    mapM_ (inferStmt path package envs) stmts'
     where
+        flattenStmtGroups :: [Statement] -> [Statement]
+        flattenStmtGroups = concatMap go
+            where
+                go :: Statement -> [Statement]
+                go (StmtGroup ss) = flattenStmtGroups ss
+                go st = [st]
+
         functionSigParts :: Statement -> Maybe (Expression, [(Class, String, [Lex.Token])], Class, Maybe [(Class, [Lex.Token])])
         functionSigParts stmt = case stmt of
             Function (retT, _) name params _ -> Just (name, params, retT, Nothing)

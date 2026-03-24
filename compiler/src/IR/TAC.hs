@@ -100,6 +100,7 @@ expandStmt (AST.Command (AST.Return (Just e)) tok) = let (ss, e') = expandExpr e
 
 expandStmt (AST.Expr e) = let (ss, e') = expandExpr e in ss ++ [AST.Expr e']
 expandStmt (AST.Exprs es) = let (ss, es') = expandExprList es in ss ++ [AST.Exprs es']
+expandStmt (AST.StmtGroup ss) = [AST.StmtGroup (concatMap expandStmt ss)]
 expandStmt (AST.BlockStmt b) = [AST.BlockStmt $ expandBlock b]
 expandStmt (AST.If cond th el toks) =
     let (ssC, cond') = expandExpr cond
@@ -133,6 +134,8 @@ expandStmt (AST.For (mi, mc, ms) body elseB tokFor) =
                 let (ss, e') = expandExpr e in (ss, Just (AST.Expr e'))
             AST.Exprs es ->
                 let (ss, es') = expandExprList es in (ss, Just (AST.Exprs es'))
+            AST.StmtGroup ss ->
+                ([], Just (AST.StmtGroup (concatMap expandStmt ss)))
             AST.BlockStmt b ->
                 ([], Just (AST.BlockStmt (expandBlock b)))
             other ->

@@ -414,6 +414,8 @@ checkStmt p package envs (AST.Exprs es) = do
                 then addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e) invalidExprStmtMsg
                 else checkExpr p package envs e
     mapM_ checkOne es
+checkStmt p package envs (AST.StmtGroup ss) =
+    mapM_ (checkStmt p package envs) ss
 
 -- block
 checkStmt p package envs stmt@(AST.BlockStmt block) = do
@@ -596,6 +598,7 @@ checkForInitStmt p package envs forInitStmt = case forInitStmt of
     AST.DefConstField {} -> checkStmt p package envs forInitStmt
     AST.DefVar {} -> checkStmt p package envs forInitStmt
     AST.DefConstVar {} -> checkStmt p package envs forInitStmt
+    AST.StmtGroup ss -> mapM_ (checkForInitStmt p package envs) ss
     AST.BlockStmt (AST.Multiple ss) -> mapM_ (checkForInitStmt p package envs) ss
     _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens forInitStmt) invalidExprStmtMsg
     where
@@ -611,6 +614,7 @@ checkForStepStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()
 checkForStepStmt p package envs forStepStmt = case forStepStmt of
     AST.Expr e -> checkExprStep e
     AST.Exprs es -> mapM_ checkExprStep es
+    AST.StmtGroup ss -> mapM_ (checkForStepStmt p package envs) ss
     AST.BlockStmt (AST.Multiple ss) -> mapM_ (checkForStepStmt p package envs) ss
     _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens forStepStmt) invalidExprStmtMsg
     where
@@ -637,9 +641,10 @@ checkBlock p q envs (AST.Multiple ss) = checkStmts p q envs ss
 -- | Check a list of statements, preloading function signatures first.
 checkStmts :: Path -> QName -> [ImportEnv] -> [Statement] -> CheckM ()
 checkStmts path package envs' stmts = do
-    let funDefs = filter isFunction stmts
+    let stmts' = flattenStmtGroups stmts
+        funDefs = filter isFunction stmts'
     mapM_ defineOne funDefs
-    mapM_ (checkStmt path package envs') stmts
+    mapM_ (checkStmt path package envs') stmts'
     where
         defineOne :: Statement -> CheckM ()
         defineOne stmt = do
@@ -648,6 +653,13 @@ checkStmts path package envs' stmts = do
             case defineFunc path stmt cState of
                 Left err -> addErr err
                 Right cState' -> put $ c { st = cState' }
+
+        flattenStmtGroups :: [Statement] -> [Statement]
+        flattenStmtGroups = concatMap go
+            where
+                go :: Statement -> [Statement]
+                go (AST.StmtGroup ss) = flattenStmtGroups ss
+                go stmt0 = [stmt0]
                             
                             
 -- | Run context checking for a whole program.

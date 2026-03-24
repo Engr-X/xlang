@@ -379,6 +379,9 @@ data Statement =
 
     Expr Expression |
     Exprs [Expression] |
+    -- | A transparent statement group used for parser desugaring
+    --   (for example: `var a = 1, b = 2`). It does not imply a new scope.
+    StmtGroup [Statement] |
     BlockStmt Block |
     If Expression (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (if keyword - maybe else)
     For (Maybe Statement, Maybe Expression, Maybe Statement) (Maybe Block) (Maybe Block) (Token, Maybe Token) | -- (for keyword)
@@ -403,7 +406,7 @@ data Statement =
     deriving (Eq, Show)
 
 {-# COMPLETE
-    Command, DefField, DefConstField, DefVar, DefConstVar, Expr, Exprs, BlockStmt,
+    Command, DefField, DefConstField, DefVar, DefConstVar, Expr, Exprs, StmtGroup, BlockStmt,
     If, For, Loop, Repeat, While, Until, DoWhile, DoUntil, Switch, Function, FunctionT #-}
 
 -- beter toString for string instance
@@ -441,6 +444,7 @@ prettyStmt n (Just (DefConstVar names mTy me _)) =
 prettyStmt n (Just (Expr e)) = prettyExpr n (Just e) ++ "\n"
 prettyStmt n (Just (Exprs es)) =
     insertTab n ++ intercalate ", " (map (prettyExpr 0 . Just) es) ++ "\n"
+prettyStmt n (Just (StmtGroup ss)) = concatMap (prettyStmt n . Just) ss
 prettyStmt n (Just (BlockStmt b)) = prettyBlock n b
 
 -- if 
@@ -571,6 +575,7 @@ stmtTokens (DefVar _ _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (DefConstVar _ _ me toks) = toks ++ maybe [] exprTokens me
 stmtTokens (Expr e) = exprTokens e
 stmtTokens (Exprs es) = concatMap exprTokens es
+stmtTokens (StmtGroup ss) = concatMap stmtTokens ss
 stmtTokens (BlockStmt b) = blockTokens (Just b)
 
 stmtTokens (If e b1 b2 (ifTok, elseTok)) = concat [
@@ -624,6 +629,7 @@ flattenStatement (Just (DefVar _ _ me _)) = maybe [] (flattenExpr . Just) me
 flattenStatement (Just (DefConstVar _ _ me _)) = maybe [] (flattenExpr . Just) me
 flattenStatement (Just (Expr e)) = flattenExpr (Just e)
 flattenStatement (Just (Exprs es)) = concatMap (flattenExpr . Just) es
+flattenStatement (Just (StmtGroup ss)) = concatMap (flattenStatement . Just) ss
 flattenStatement (Just (BlockStmt b)) = flattenBlock (Just b)
 flattenStatement (Just (If e b c _)) = e : (flattenBlock b ++ flattenBlock c)
 flattenStatement (Just (For (s1, e2, s3) b1 b2 _)) =
@@ -703,6 +709,7 @@ isAssignment (Exprs es) = any isAssignExpr es
     where
         isAssignExpr (Binary op _ _ _) = HashSet.member op assignOps
         isAssignExpr _ = False
+isAssignment (StmtGroup ss) = any isAssignment ss
 isAssignment _ = False
 
 
@@ -714,7 +721,15 @@ prettyForPart (Just (DefField names mTy me _)) = "var " ++ declItem names mTy me
 prettyForPart (Just (DefVar names mTy me _)) = "var " ++ declItem names mTy me
 prettyForPart (Just (DefConstField names mTy me _)) = "val " ++ declItem names mTy me
 prettyForPart (Just (DefConstVar names mTy me _)) = "val " ++ declItem names mTy me
-prettyForPart (Just (BlockStmt (Multiple ss))) = case ss of
+prettyForPart (Just (StmtGroup ss)) = prettyForPartDecls ss
+prettyForPart (Just (BlockStmt (Multiple ss))) = prettyForPartDecls ss
+prettyForPart (Just other) = trimNewline $ prettyStmt 0 (Just other)
+    where
+        trimNewline = filter (/= '\n')
+
+
+prettyForPartDecls :: [Statement] -> String
+prettyForPartDecls ss = case ss of
     [] -> ""
     _ -> let asVarItems = map toVarItem ss in
         case sequence asVarItems of
@@ -732,9 +747,6 @@ prettyForPart (Just (BlockStmt (Multiple ss))) = case ss of
             DefConstField names mTy me _ -> Just (declItem names mTy me)
             DefConstVar names mTy me _ -> Just (declItem names mTy me)
             _ -> Nothing
-prettyForPart (Just other) = trimNewline $ prettyStmt 0 (Just other)
-    where
-        trimNewline = filter (/= '\n')
 
 
 declItem :: [String] -> Maybe Class -> Maybe Expression -> String
@@ -786,6 +798,7 @@ promoteTopLevelFunctions (decls, stmts) = (decls, map promote stmts)
         promote (DefConstField names mTy rhs toks) = DefConstVar names mTy rhs toks
         promote (InstanceMethod ret name params body) = StaticMethod ret name params body
         promote (InstanceMethodT ret name gens params body) = StaticMethodT ret name gens params body
+        promote (StmtGroup ss) = StmtGroup (map promote ss)
         promote stmt = stmt
 
 

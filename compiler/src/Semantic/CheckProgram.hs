@@ -697,7 +697,7 @@ collectFunctions path = collectFunctionsWithClass (fileClassName path)
 
 
 collectFunctionsWithClass :: String -> QName -> [Statement] -> [(QName, QName, FunSig, [Position])]
-collectFunctionsWithClass fileCls pkg = concatMap one
+collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
     where
         one :: Statement -> [(QName, QName, FunSig, [Position])]
         one stmt@(Function (retT, retToks) nameExpr params _) =
@@ -743,7 +743,7 @@ collectTopLevelVars path = collectTopLevelVarsWithClass (fileClassName path)
 
 
 collectTopLevelVarsWithClass :: String -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
-collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one stmts >>= expandAlias
+collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one (flattenTopStmtGroups stmts) >>= expandAlias
     where
         varUses = CC.varUses (TC.tcCtx ctx)
         varTypes = TC.tcVarTypes ctx
@@ -780,6 +780,14 @@ collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one stmts >>= expa
             let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
                 keys = map (applyVisibilityKey access) aliases
             in [ (key, fullQn, cls, pos) | key <- keys ]
+
+
+flattenTopStmtGroups :: [Statement] -> [Statement]
+flattenTopStmtGroups = concatMap go
+    where
+        go :: Statement -> [Statement]
+        go (StmtGroup ss) = flattenTopStmtGroups ss
+        go st = [st]
 
 
 symbolAliases :: Path -> QName -> String -> (QName, [QName])

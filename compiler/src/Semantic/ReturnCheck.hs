@@ -27,6 +27,7 @@ checkStmt path stmt = case stmt of
         checkFunc path retT retToks name params Nothing body ++ checkBlock path body
     FunctionT (retT, retToks) name tparams params body ->
         checkFunc path retT retToks name params (Just tparams) body ++ checkBlock path body
+    StmtGroup ss -> concatMap (checkStmt path) ss
     BlockStmt b -> checkBlock path b
     If _ mb1 mb2 _ ->
         maybe [] (checkBlock path) mb1 ++ maybe [] (checkBlock path) mb2
@@ -117,6 +118,7 @@ stmtsReturn (s:ss) = case s of
 -- | Whether a single statement guarantees a return.
 stmtReturns :: Statement -> Bool
 stmtReturns stmt = case stmt of
+    StmtGroup ss -> stmtsReturn ss
     BlockStmt b -> blockReturns b
     If _ mb1 mb2 _ ->
         case mb2 of

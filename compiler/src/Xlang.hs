@@ -1,6 +1,6 @@
 module Xlang where
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Data.Char (isDigit)
 import Data.Foldable (for_)
 import Data.List (intercalate, sort, stripPrefix)
@@ -341,8 +341,8 @@ printHelp = putStrLn $ unlines [
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
     "   -lib <files...>  external libs (.class/.jar/.json/.db/.jmod), e.g. -lib a.jar b.class c.json d.db e.jmod",
-    "                    plus default: all .jar under <xlang.exe dir>/libs and .class/.jar/.json/.db/.jmod under <xlang.exe dir>/libs/java-native/jdk-<target>",
-    "                    fallback for legacy metadata: all .class/.jar/.json/.db/.jmod under <xlang.exe dir>/libs/java-native",
+    "                    plus default: <xlang.exe dir>/libs/**/xlang-stdlib-alpha.jar",
+    "                    java-native metadata under <xlang.exe dir>/libs/java-native/** is loaded only when source imports include java.*",
     "   --main=<qname.main>",
     "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
     "                    class-only is also accepted: --main=com.wangdi.MainKt",
@@ -350,7 +350,7 @@ printHelp = putStrLn $ unlines [
     "                    if .jar: classes are emitted to <root>/out, then packed",
     "                    manifest includes: build by xlang",
     "   --include-runtime",
-    "   -include-runtime  merge all -lib files and default <xlang.exe>/libs jars into output jar",
+    "   -include-runtime  merge all -lib files and default xlang stdlib jar into output jar",
     "                    requires: -d <something>.jar",
     "   --debug|-debug   write debug.json and Ir.txt next to source(s)",
     "   -d               debug shorthand when used without output path",
@@ -383,24 +383,33 @@ main = do
                         setNumCapabilities (optJobs opts)
 
                         let mTargetJvm = optTargetJvm opts
-                        for_ mTargetJvm (ensureTargetJdkMetadata exeDir)
-                        defaultLibJars <- CJ.findDefaultLibJars exeDir
-                        defaultNativeJsons <-
-                            case mTargetJvm of
-                                Just targetJvm -> CJ.findDefaultNativeJsons exeDir targetJvm
-                                Nothing -> pure []
-
-                        let toolkitJar = bytecodegenFile exeDir
                             srcPaths = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
                             userLibPaths = map (CJ.resolveFromRoot rootAbs) (optLibs opts)
-                            combinedLibPaths = userLibPaths ++ defaultLibJars ++ defaultNativeJsons
-                            duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
-                            libPaths = combinedLibPaths
                             invalidInputs = CJ.invalidSourceFiles srcPaths
                             invalidLibs = CJ.invalidLibFiles userLibPaths
                             includeRuntime = optIncludeRuntime opts
                             jobs = optJobs opts
                             mMainClassOverride = optMainEntry opts
+                            toolkitJar = bytecodegenFile exeDir
+
+                        needsJavaNative <- case mTargetJvm of
+                            Just _ | not (null srcPaths) && null invalidInputs ->
+                                CJ.sourceNeedsJavaMetadata srcPaths
+                            _ -> pure False
+
+                        for_ mTargetJvm $ \targetJvm ->
+                            when needsJavaNative (ensureTargetJdkMetadata exeDir targetJvm)
+
+                        defaultLibJars <- CJ.findDefaultLibJars exeDir
+                        defaultNativeJsons <-
+                            case mTargetJvm of
+                                Just targetJvm | needsJavaNative ->
+                                    CJ.findDefaultNativeJsons exeDir targetJvm
+                                _ -> pure []
+
+                        let combinedLibPaths = userLibPaths ++ defaultLibJars ++ defaultNativeJsons
+                            duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
+                            libPaths = combinedLibPaths
 
                         case (optTargetJvm opts, srcPaths, optOutput opts) of
                             (Just _, [], _) -> do

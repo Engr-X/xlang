@@ -363,6 +363,54 @@ assignmentRhsIsolationTests = testGroup "IR.Lowing.assignmentRhsIsolation" [
     ]
 
 
+shortCircuitAssignPlacementTests :: TestTree
+shortCircuitAssignPlacementTests = testGroup "IR.Lowing.shortCircuitAssignPlacement" [
+    testCase "repeat body assignments after !&& should not be placed after unconditional jump" $ do
+        let src = unlines [
+                "void main() {",
+                "    val s = true, r = true",
+                "    var p = false, q = false",
+                "    repeat 3 {",
+                "        val newP = q !&& s, newQ = p !&& r",
+                "        p = newP",
+                "        q = newQ",
+                "    }",
+                "}"
+                ]
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+                let bad = findBlockWithTrailingInstrAfterTerminator blocks
+                case bad of
+                    Nothing -> pure ()
+                    Just (bid, termInstr, trailing) ->
+                        assertFailure ("block " ++ show bid ++ " has instructions after terminator " ++ show termInstr ++ ": " ++ show trailing)
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+    where
+        findBlockWithTrailingInstrAfterTerminator :: [IRBlock] -> Maybe (Int, IRInstr, [IRInstr])
+        findBlockWithTrailingInstrAfterTerminator = findOne
+            where
+                findOne [] = Nothing
+                findOne (IRBlock (bid, body) : rest) = case splitBad body of
+                    Just bad -> Just (bid, fst bad, snd bad)
+                    Nothing -> findOne rest
+
+                splitBad :: [IRInstr] -> Maybe (IRInstr, [IRInstr])
+                splitBad [] = Nothing
+                splitBad (instr:xs)
+                    | isUnconditionalTerminator instr && not (null xs) = Just (instr, xs)
+                    | otherwise = splitBad xs
+
+        isUnconditionalTerminator :: IRInstr -> Bool
+        isUnconditionalTerminator instr = case instr of
+            Jump {} -> True
+            Return -> True
+            IReturn -> True
+            _ -> False
+
+
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
@@ -373,4 +421,5 @@ tests = testGroup "IR.Lowing" [
     doubleCmpLoweringTests,
     float128JvmRejectTests,
     incDecLoweringTests,
-    assignmentRhsIsolationTests]
+    assignmentRhsIsolationTests,
+    shortCircuitAssignPlacementTests]

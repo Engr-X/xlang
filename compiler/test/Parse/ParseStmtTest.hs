@@ -174,24 +174,24 @@ typedDeclSyntaxTests = testGroup "typed_decl_syntax"
             other -> assertFailure ("expected typed DefConstField with init, got: " ++ show other)
     , testCase "var_multi_mixed_types" $
         case replLexparseStmt "var a: int = 1, b: double = 2;" of
-            Right (BlockStmt (Multiple
+            Right (StmtGroup
                 [ DefField ["a"] (Just Int32T) (Just (IntConst "1" _)) _
                 , DefField ["b"] (Just Float64T) (Just (IntConst "2" _)) _
-                ])) -> pure ()
+                ]) -> pure ()
             other -> assertFailure ("expected multi var decl block, got: " ++ show other)
     , testCase "var_multi_infer" $
         case replLexparseStmt "var a = 10, b = 20;" of
-            Right (BlockStmt (Multiple
+            Right (StmtGroup
                 [ DefField ["a"] Nothing (Just (IntConst "10" _)) _
                 , DefField ["b"] Nothing (Just (IntConst "20" _)) _
-                ])) -> pure ()
+                ]) -> pure ()
             other -> assertFailure ("expected multi inferred var decl block, got: " ++ show other)
     , testCase "c_like_multi_same_type" $
         case replLexparseStmt "int a = 10, b = 10;" of
-            Right (BlockStmt (Multiple
+            Right (StmtGroup
                 [ DefField ["a"] (Just Int32T) (Just (IntConst "10" _)) _
                 , DefField ["b"] (Just Int32T) (Just (IntConst "10" _)) _
-                ])) -> pure ()
+                ]) -> pure ()
             other -> assertFailure ("expected c-like multi typed decl block, got: " ++ show other)
     ]
 
@@ -214,10 +214,10 @@ loopSyntaxTests = testGroup "loop_syntax"
     , testCase "for_var_multi_init_and_expr_step_list" $
         case replLexparseStmt "for (var i: int = 0, sum: int = 0; i < 10; i++, sum = sum + i);" of
             Right (For
-                ( Just (BlockStmt (Multiple
+                ( Just (StmtGroup
                     [ DefField ["i"] (Just Int32T) (Just (IntConst "0" _)) _
                     , DefField ["sum"] (Just Int32T) (Just (IntConst "0" _)) _
-                    ]))
+                    ])
                 , Just (Binary LessThan (Variable "i" _) (IntConst "10" _) _)
                 , Just (Exprs
                     [ Unary SelfInc (Variable "i" _) _

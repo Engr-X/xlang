@@ -472,14 +472,20 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
 
             TAC.setCurrentVar oldCur
 
-            return $
-                if isStatic
-                    then (IRInstr (TAC.IPutStatic [realName] lhsAtom) : IRInstr (TAC.IAssign lhsAtom rhsAtom) : instrs, lhsAtom)
-                    else (IRInstr (TAC.IAssign lhsAtom rhsAtom) : instrs, lhsAtom)
-            
+            let rhsForward = reverse instrs
+                assignTail = IRInstr (TAC.IAssign lhsAtom rhsAtom)
+                writeTail =
+                    if isStatic
+                        then [assignTail, IRInstr (TAC.IPutStatic [realName] lhsAtom)]
+                        else [assignTail]
+                seqForward = appendAfterCond rhsForward writeTail
+            return (reverse seqForward, lhsAtom)
+             
         TEnv.VarImported _ _ _ fullQname -> do
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-            return (IRInstr (TAC.IPutStatic fullQname rhsAtom) : instrs, rhsAtom)
+            let rhsForward = reverse instrs
+                seqForward = appendAfterCond rhsForward [IRInstr (TAC.IPutStatic fullQname rhsAtom)]
+            return (reverse seqForward, rhsAtom)
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -490,7 +496,9 @@ exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
             case vinfo of
                 TEnv.VarImported _ _ _ fullQname -> do
                     (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-                    return (IRInstr (TAC.IPutStatic fullQname rhsAtom) : instrs, rhsAtom)
+                    let rhsForward = reverse instrs
+                        seqForward = appendAfterCond rhsForward [IRInstr (TAC.IPutStatic fullQname rhsAtom)]
+                    return (reverse seqForward, rhsAtom)
                 _ -> error "assign lhs is not an imported qualified name"
 
 
@@ -860,6 +868,7 @@ collectAssignKeysBlock (AST.Multiple ss) = do
                     maybe (return []) collectAssignKeysExpr mRhs
             AST.Expr e -> collectAssignKeysExpr e
             AST.Exprs es -> concat <$> mapM collectAssignKeysExpr es
+            AST.StmtGroup groupStmts -> concat <$> mapM collectAssignKeysStmt groupStmts
             AST.Command (AST.Return (Just e)) _ -> collectAssignKeysExpr e
             AST.BlockStmt b -> collectAssignKeysBlock b
             AST.If e b1 b2 _ -> do
@@ -1059,6 +1068,8 @@ stmtsLowing ((AST.Exprs es):stmts) = do
             (instrs, _) <- if AST.isAtom e then atomLowing e else exprLowing e
             return (reverse instrs)
 
+stmtsLowing ((AST.StmtGroup ss):stmts) = stmtsLowing (ss ++ stmts)
+
 stmtsLowing ((AST.BlockStmt b):stmts) = do
     current <- blockLowing b
     rest <- stmtsLowing stmts
@@ -1145,6 +1156,7 @@ stmtsLowing ((AST.For (mInit, mCond, mStep) bodyB elseB (forTok, _)):stmts) = do
         lowerForPartStmt st = case st of
             AST.Expr e -> lowerForPartExpr e
             AST.Exprs es -> fmap concat $ mapM lowerForPartExpr es
+            AST.StmtGroup ss -> fmap concat $ mapM lowerForPartStmt ss
             AST.BlockStmt b -> blockLowing b
             AST.DefField {} -> stmtsLowing [st]
             AST.DefConstField {} -> stmtsLowing [st]

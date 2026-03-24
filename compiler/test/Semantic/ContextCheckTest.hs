@@ -857,6 +857,20 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
         let src = unlines
                 [ "public var x = 1"
                 , "y = x + 1" ]
+        assertCheckProgm (checkProgmFromSrc src) Nothing,
+
+        testCase "20" $ do
+        let src = unlines
+                [ "int main() {"
+                , "    val s = false, r = false"
+                , "    var p = false, q = false"
+                , "    repeat 3 {"
+                , "        val newP = q nand s"
+                , "        val newQ = p and r"
+                , "        p = newP"
+                , "        q = newQ"
+                , "    }"
+                , "}" ]
         assertCheckProgm (checkProgmFromSrc src) Nothing
     ])
     where

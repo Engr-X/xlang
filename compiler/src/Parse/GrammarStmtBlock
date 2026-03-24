@@ -155,7 +155,7 @@ ForVarInit :: { Statement }
               decls = map mkDecl $2
           in case decls of
               [one] -> one;
-              _ -> BlockStmt (Multiple decls) }
+              _ -> StmtGroup decls }
     ;
 
 MaybeForInit :: { Maybe Statement }
@@ -256,7 +256,7 @@ VarDeclStmt :: { Statement }
               decls = map mkDecl $2
           in case decls of
               [one] -> one;
-              _ -> BlockStmt (Multiple decls) }
+              _ -> StmtGroup decls }
     ;
 
 CDeclItem :: { ([String], Maybe Expression, [Token]) }
@@ -306,7 +306,7 @@ TypedLeadStmt :: { Statement }
               decls = map mkDecl $2
           in case decls of
               [one] -> one;
-              _ -> BlockStmt (Multiple decls) }
+              _ -> StmtGroup decls }
 
     | ConstKw Clazz CDeclItems Sep
         { let
@@ -314,7 +314,7 @@ TypedLeadStmt :: { Statement }
               decls = map mkDecl $3
           in case decls of
               [one] -> one;
-              _ -> BlockStmt (Multiple decls) }
+              _ -> StmtGroup decls }
 
     | AccessOpt Clazz CDeclItems Sep
         { let
@@ -322,7 +322,7 @@ TypedLeadStmt :: { Statement }
               decls = map mkDecl $3
           in case decls of
               [one] -> one;
-              _ -> BlockStmt (Multiple decls) }
+              _ -> StmtGroup decls }
 
     | AccessOpt ConstKw Clazz CDeclItems Sep
         { let
@@ -330,7 +330,7 @@ TypedLeadStmt :: { Statement }
               decls = map mkDecl $4
           in case decls of
               [one] -> one;
-              _ -> BlockStmt (Multiple decls) }
+              _ -> StmtGroup decls }
     ;
 
 

@@ -182,6 +182,7 @@ test-suite compiler-test
         Semantic.SemanticDebugTest
 
         Util.BasicTest
+        Util.CompileJavaPolicyTest
         Util.ExceptionTest
         Util.TypeTest
 
@@ -213,5 +214,4 @@ test-suite compiler-test
                             src/Parse/ParseBlock.y,
                             src/Parse/ParseProgm.y
     x-happy-output-dir:     src/Parse
-
 
