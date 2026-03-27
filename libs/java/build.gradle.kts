@@ -3,6 +3,7 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.Sync
 import org.gradle.kotlin.dsl.the
+import java.io.File
 
 plugins {
     kotlin("jvm") version "2.2.21"
@@ -78,6 +79,13 @@ val compileXlang = tasks.register("compileXlang") {
             project.exec {
                 workingDir = repoRoot
                 commandLine(args)
+                val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
+                val javaBin = File(javaHome, "bin").absolutePath
+                val oldPath = System.getenv("Path") ?: System.getenv("PATH") ?: ""
+                val mergedPath = javaBin + File.pathSeparator + oldPath
+                environment("JAVA_HOME", javaHome)
+                environment("PATH", mergedPath)
+                environment("Path", mergedPath)
             }
         }
     }
@@ -108,4 +116,3 @@ kotlin {
 tasks.test {
     useJUnitPlatform()
 }
-

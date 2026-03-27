@@ -273,16 +273,16 @@ CDeclItems :: { [([String], Maybe Expression, [Token])] }
 
 
 FunctionStmt :: { Statement }
-    : KW_FUNC QName FunctionParams '=>' Clazz FunctionBlock
+    : KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
         { InstanceMethod (fst $5, snd $5) (qnameToExpr $2) $3 $6 }
 
-    | KW_FUNC QName GenericParamList FunctionParams '=>' Clazz FunctionBlock
+    | KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock
         { InstanceMethodT (fst $6, snd $6) (qnameToExpr $2) $3 $4 $7 }
 
-    | AccessOpt KW_FUNC QName FunctionParams '=>' Clazz FunctionBlock
+    | AccessOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
         { InstanceMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 $7 }
 
-    | AccessOpt KW_FUNC QName GenericParamList FunctionParams '=>' Clazz FunctionBlock
+    | AccessOpt KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock
         { InstanceMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 $8 }
     ;
 

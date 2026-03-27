@@ -18,8 +18,10 @@ import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
+import System.Directory (doesFileExist)
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode(..))
-import System.FilePath (takeExtension)
+import System.FilePath ((</>), takeExtension)
 import System.IO.Error (catchIOError)
 import System.Process (readProcessWithExitCode)
 
@@ -155,10 +157,11 @@ loadJsonOne imports libPath = do
 loadNonJsonBatch :: FilePath -> [String] -> [Path] -> IO (Either [ErrorKind] (Maybe (ImportEnv, TypedImportEnv)))
 loadNonJsonBatch _ _ [] = pure (Right Nothing)
 loadNonJsonBatch toolkitJar imports libPaths = do
+    javaExe <- resolveJavaExe
     let importArgs = if null imports then [] else ["--imports", intercalate "," imports]
         readArgs = concatMap (\path -> ["--read", path]) libPaths
         args = ["-jar", toolkitJar] ++ readArgs ++ importArgs
-    (ec, out, errText) <- readProcessWithExitCode "java" args ""
+    (ec, out, errText) <- readProcessWithExitCode javaExe args ""
     case ec of
         ExitSuccess ->
             case eitherDecode (BL.pack out) of
@@ -173,6 +176,22 @@ loadNonJsonBatch toolkitJar imports libPaths = do
   where
     trim :: String -> String
     trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
+
+
+resolveJavaExe :: IO FilePath
+resolveJavaExe = do
+    mJavaHome <- lookupEnv "JAVA_HOME"
+    case mJavaHome of
+        Nothing -> pure "java"
+        Just javaHome -> do
+            let javaExe = javaHome </> "bin" </> "java.exe"
+                javaBin = javaHome </> "bin" </> "java"
+            hasExe <- doesFileExist javaExe
+            if hasExe
+                then pure javaExe
+                else do
+                    hasBin <- doesFileExist javaBin
+                    if hasBin then pure javaBin else pure "java"
 
 
 filterEnvelopeByImports :: [String] -> LibEnvelope -> LibEnvelope

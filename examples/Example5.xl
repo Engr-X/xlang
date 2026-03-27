@@ -2,16 +2,25 @@
 Example5: operators and precedence showcase.
 Includes basic operators plus Beta-1.0.0 additions.
 
-Precedence (low -> high, simplified):
-1) assignment / augmented assignment: =, +=, -=, *=, /=, %=, **=
-2) ternary: a if cond else b
-3) logical short-circuit: &&, !&&, ||, !||, ->, !->
-4) equality / relation: ==, !=, >, >=, <, <=
-5) additive: +, -
-6) multiplicative: *, /, %
-7) power: **
-8) unary: -x, !x
-9) cast: expr as Type
+Precedence (high -> low, simplified):
+1) atom/call/cast: x, f(...), expr as Type
+2) postfix: x++, x--
+3) prefix/unary: ++x, --x, +x, -x, !x
+4) power: **
+5) multiplicative: *, /, %
+6) additive: +, -
+7) shift: shl, shr, ushr
+8) relation: >, >=, <, <=
+9) equality: ==, !=
+10) bit-and family: and, nand
+11) bit-xor family: xor, xnor
+12) bit-or family: or, nor
+13) bit implication: imp, nimp
+14) logical and: &&, !&&
+15) logical or: ||, !||
+16) logical implication: ->, !->
+17) ternary: a if cond else b
+18) assignment / augmented assignment: =, +=, -=, *=, /=, %=, **=
 */
 
 int main()
@@ -55,6 +64,13 @@ int main()
     val neg1: int = -5
     val neg2: int = -(1 + 2)
 
+    // prefix / postfix increment-decrement
+    var incdec: int = 5
+    val preInc: int = ++incdec
+    val postInc: int = incdec++
+    val preDec: int = --incdec
+    val postDec: int = incdec--
+
     // precedence
     val p1: int = 1 + 2 * 3
     val p2: int = (1 + 2) * 3
@@ -89,6 +105,7 @@ int main()
     sink = sink + (1 if lNor else 0)
     sink = sink + (1 if lImp else 0)
     sink = sink + (1 if lNimp else 0)
+    sink = sink + preInc + postInc + preDec + postDec + incdec
 
     return sink + p1 + p2 + p4 + add1 + sub1 + mul1 + (pow1 as int) + (pow2 as int) + (c1 as int)
 }

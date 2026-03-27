@@ -139,8 +139,9 @@ private val RADIANS_TO_DEGREES: double = 57.29577951308232
  *
  * @param x input integer
  * @return {@code x + 1} when no overflow occurs
+ * @since beta-1.0.0
  */
-fun succ(x: int) => int = Math.addExact(x, 1)
+fun succ(x: int) -> int = Math.addExact(x, 1)
 
 
 /**
@@ -150,8 +151,9 @@ fun succ(x: int) => int = Math.addExact(x, 1)
  *
  * @param x input long integer
  * @return {@code x + 1} when no overflow occurs
+ * @since beta-1.0.0
  */
-fun succ(x: long) => long = Math.addExact(x, 1L)
+fun succ(x: long) -> long = Math.addExact(x, 1L)
 
 
 /**
@@ -161,8 +163,9 @@ fun succ(x: long) => long = Math.addExact(x, 1L)
  *
  * @param x input integer
  * @return {@code x - 1} when no overflow occurs
+ * @since beta-1.0.0
  */
-fun pred(x: int) => int = Math.subtractExact(x, 1)
+fun pred(x: int) -> int = Math.subtractExact(x, 1)
 
 
 /**
@@ -172,8 +175,9 @@ fun pred(x: int) => int = Math.subtractExact(x, 1)
  *
  * @param x input long integer
  * @return {@code x - 1} when no overflow occurs
+ * @since beta-1.0.0
  */
-fun pred(x: long) => long = Math.subtractExact(x, 1L)
+fun pred(x: long) -> long = Math.subtractExact(x, 1L)
 
 
 /**
@@ -193,8 +197,9 @@ fun pred(x: long) => long = Math.subtractExact(x, 1L)
  *
  * @param x an angle, in radians
  * @return the sine of {@code x}
+ * @since beta-1.0.0
  */
-fun sin(x: double) => double = StrictMath.sin(x)
+fun sin(x: double) -> double = StrictMath.sin(x)
 
 
 /**
@@ -214,8 +219,9 @@ fun sin(x: double) => double = StrictMath.sin(x)
  *
  * @param x an angle, in radians
  * @return the cosine of {@code x}
+ * @since beta-1.0.0
  */
-fun cos(x: double) => double = StrictMath.cos(x)
+fun cos(x: double) -> double = StrictMath.cos(x)
 
 
 /**
@@ -234,8 +240,9 @@ fun cos(x: double) => double = StrictMath.cos(x)
  *
  * @param x an angle, in radians
  * @return the tangent of {@code x}
+ * @since beta-1.0.0
  */
-fun tan(x: double) => double = StrictMath.tan(x)
+fun tan(x: double) -> double = StrictMath.tan(x)
 
 
 /**
@@ -251,8 +258,9 @@ fun tan(x: double) => double = StrictMath.tan(x)
  *
  * @param x an angle, in radians
  * @return the secant of {@code x}
+ * @since beta-1.0.0
  */
-fun sec(x: double) => double = 1.0 / StrictMath.cos(x)
+fun sec(x: double) -> double = 1.0 / StrictMath.cos(x)
 
 
 /**
@@ -268,8 +276,9 @@ fun sec(x: double) => double = 1.0 / StrictMath.cos(x)
  *
  * @param x an angle, in radians
  * @return the cosecant of {@code x}
+ * @since beta-1.0.0
  */
-fun csc(x: double) => double = 1.0 / StrictMath.sin(x)
+fun csc(x: double) -> double = 1.0 / StrictMath.sin(x)
 
 
 /**
@@ -285,8 +294,9 @@ fun csc(x: double) => double = 1.0 / StrictMath.sin(x)
  *
  * @param x an angle, in radians
  * @return the cotangent of {@code x}
+ * @since beta-1.0.0
  */
-fun cot(x: double) => double = 1.0 / StrictMath.tan(x)
+fun cot(x: double) -> double = 1.0 / StrictMath.tan(x)
 
 
 /**
@@ -305,8 +315,9 @@ fun cot(x: double) => double = 1.0 / StrictMath.tan(x)
  *
  * @param x value whose arcsine is requested
  * @return angle y such that {@code sin(y) = x}, within {@code [-PI/2, PI/2]}
+ * @since beta-1.0.0
 */
-fun asin(x: double) => double = StrictMath.asin(x)
+fun asin(x: double) -> double = StrictMath.asin(x)
 
 
 /**
@@ -324,8 +335,9 @@ fun asin(x: double) => double = StrictMath.asin(x)
  *
  * @param x value whose arccosine is requested
  * @return angle y such that {@code cos(y) = x}, within {@code [0, PI]}
+ * @since beta-1.0.0
  */
-fun acos(x: double) => double = StrictMath.acos(x)
+fun acos(x: double) -> double = StrictMath.acos(x)
 
 
 /**
@@ -344,8 +356,9 @@ fun acos(x: double) => double = StrictMath.acos(x)
  *
  * @param x value whose arctangent is requested
  * @return angle y such that {@code tan(y) = x}, within {@code [-PI/2, PI/2]}
+ * @since beta-1.0.0
  */
-fun atan(x: double) => double = StrictMath.atan(x)
+fun atan(x: double) -> double = StrictMath.atan(x)
 
 
 /**
@@ -362,8 +375,9 @@ fun atan(x: double) => double = StrictMath.atan(x)
  *
  * @param x value whose arcsecant is requested
  * @return arcsecant of {@code x}, computed as {@code acos(1 / x)}
+ * @since beta-1.0.0
  */
-fun asec(x: double) => double = StrictMath.acos(1.0 / x)
+fun asec(x: double) -> double = StrictMath.acos(1.0 / x)
 
 
 /**
@@ -380,8 +394,9 @@ fun asec(x: double) => double = StrictMath.acos(1.0 / x)
  *
  * @param x value whose arccosecant is requested
  * @return arccosecant of {@code x}, computed as {@code asin(1 / x)}
+ * @since beta-1.0.0
  */
-fun acsc(x: double) => double = StrictMath.asin(1.0 / x)
+fun acsc(x: double) -> double = StrictMath.asin(1.0 / x)
 
 
 /**
@@ -399,9 +414,105 @@ fun acsc(x: double) => double = StrictMath.asin(1.0 / x)
  *
  * @param x value whose arccotangent is requested
  * @return arccotangent of {@code x}, computed as {@code atan(1 / x)}
+ * @since beta-1.0.0
  */
-fun acot(x: double) => double = StrictMath.atan(1.0 / x)
+fun acot(x: double) -> double = StrictMath.atan(1.0 / x)
 
+
+/**
+ * Converts an angle measured in degrees to radians.
+ *
+ * <p>This uses the identity {@code radians = degrees * (PI / 180)}.
+ *
+ * @param angdeg angle value in degrees
+ * @return the equivalent angle in radians
+ * @since beta-1.0.0
+ */
+fun toRadians(angdeg: double) -> double = angdeg * DEGREES_TO_RADIANS;
+
+
+/**
+ * Converts an angle measured in radians to degrees.
+ *
+ * <p>This uses the identity {@code degrees = radians * (180 / PI)}.
+ *
+ * @param angrad angle value in radians
+ * @return the equivalent angle in degrees
+ * @since beta-1.0.0
+ */
+fun toDegrees(angrad: double) -> double = angrad * RADIANS_TO_DEGREES;
+
+
+/**
+ * Returns Euler's number {@code e} raised to the power of {@code x}.
+ *
+ * <p>This delegates to {@code StrictMath.exp}.
+ *
+ * @param x exponent value
+ * @return {@code e^x}
+ * @since beta-1.0.0
+ */
+fun exp(x: double) -> double = StrictMath.exp(x)
+
+
+/**
+ * Returns the natural logarithm (base {@code e}) of a value.
+ *
+ * <p>This delegates to {@code StrictMath.log}.
+ *
+ * @param x input value
+ * @return {@code ln(x)}
+ * @since beta-1.0.0
+ */
+fun ln(x: double) -> double = StrictMath.log(x)
+
+
+/**
+ * Returns the base-2 logarithm of a value.
+ *
+ * <p>This is computed as {@code log(x) / log(2)} using natural logarithms.
+ *
+ * @param x input value
+ * @return {@code log2(x)}
+ * @since beta-1.0.0
+ */
+fun log2(x: double) -> double = StrictMath.log(x) / StrictMath.log(2.0);
+
+
+/**
+ * Returns the base-10 logarithm of a value.
+ *
+ * <p>This delegates to {@code StrictMath.log10}.
+ *
+ * @param x input value
+ * @return {@code log10(x)}
+ * @since beta-1.0.0
+ */
+fun log10(x: double) -> double = StrictMath.log10(x)
+
+
+/**
+ * Returns the correctly rounded positive square root of a value.
+ *
+ * <p>This delegates to {@code StrictMath.sqrt}.
+ *
+ * @param x input value
+ * @return {@code sqrt(x)}
+ * @since beta-1.0.0
+ */
+fun sqrt(x: double) -> double = StrictMath.sqrt(x)
+
+
+/**
+ * Returns the cube root of a value.
+ *
+ * <p>This delegates to {@code StrictMath.cbrt}.
+ *
+ * @param x input value
+ * @return {@code cbrt(x)}
+ * @since beta-1.0.0
+ */
+fun cbrt(x: double) -> double = StrictMath.cbrt(x)
 
 
 /**
@@ -413,8 +524,9 @@ fun acot(x: double) => double = StrictMath.atan(1.0 / x)
  *
  * @param x the value to test.
  * @return true if x is prime; otherwise false.
+ * @since beta-1.0.0
  */
-fun isPrime(x: int) => bool
+fun isPrime(x: int) -> bool
 {
     if x <= 1:
         return false
@@ -422,7 +534,7 @@ fun isPrime(x: int) => bool
         return true
     else
     {
-        val half: int = StrictMath.sqrt(x) as int
+        val half: int = StrictMath.sqrt(x as double) as int
 
         for (var i: int = 2; i <= half; i++)
         {
@@ -444,20 +556,21 @@ fun isPrime(x: int) => bool
  *
  * @param x the value to test.
  * @return true if x is prime; otherwise false.
+ * @since beta-1.0.0
  */
-fun isPrime(x: long) => bool
+fun isPrime(x: long) -> bool
 {
-    if x <= 1:
+    if x <= 1L:
         return false
-    elif x == 2:
+    elif x == 2L:
         return true
     else
     {
-        val half: long = StrictMath.sqrt(x) as long
+        val half: long = StrictMath.sqrt(x as double) as long
 
         for (var i: long = 2L; i <= half; i++)
         {
-            if x % i == 0:
+            if x % i == 0L:
                 return false
         }
 
@@ -473,8 +586,9 @@ fun isPrime(x: long) => bool
  *
  * @param x the value to test.
  * @return true if x is even; otherwise false.
+ * @since beta-1.0.0
  */
-fun isEven(x: int) => bool = x and 1 == 0
+fun isEven(x: int) -> bool = (x and 1) == 0
 
 
 /**
@@ -484,8 +598,9 @@ fun isEven(x: int) => bool = x and 1 == 0
  *
  * @param x the value to test.
  * @return true if x is even; otherwise false.
+ * @since beta-1.0.0
  */
-fun isEven(x: long) => bool = x and 1L == 0
+fun isEven(x: long) -> bool = (x and 1L) == 0L
 
 
 /**
@@ -495,8 +610,9 @@ fun isEven(x: long) => bool = x and 1L == 0
  *
  * @param x the value to test.
  * @return true if x is odd; otherwise false.
+ * @since beta-1.0.0
  */
-fun isOdd(x: int) => bool = x and 1 == 1
+fun isOdd(x: int) -> bool = (x and 1) == 1
 
 
 /**
@@ -506,5 +622,6 @@ fun isOdd(x: int) => bool = x and 1 == 1
  *
  * @param x the value to test.
  * @return true if x is odd; otherwise false.
+ * @since beta-1.0.0
  */
-fun isOdd(x: long) => bool = x and 1L == 1
+fun isOdd(x: long) -> bool = (x and 1L) == 1L

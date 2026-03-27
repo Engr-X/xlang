@@ -29,7 +29,7 @@ void main()
 If you prefer Java/C style, this version is also accepted.
 濡傛灉浣犳洿鍠滄 Java/C 椋庢牸, 涔熷彲浠ュ啓鎴愪笅闈㈣繖鏍?
 
-fun main() => void:
+fun main() -> void:
 {
     putln("Hello, World!")
 }

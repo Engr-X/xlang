@@ -25,6 +25,7 @@ import Data.List (foldl', intercalate, sort, sortOn, nub, isPrefixOf)
 import Data.Maybe (mapMaybe)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
+import System.Environment (lookupEnv)
 import System.Directory (
     copyFile,
     createDirectoryIfMissing,
@@ -367,6 +368,22 @@ hasJavaImportPrefix =
     any (\imp -> "java." `isPrefixOf` map toLower imp)
 
 
+resolveJavaExe :: IO FilePath
+resolveJavaExe = do
+    mJavaHome <- lookupEnv "JAVA_HOME"
+    case mJavaHome of
+        Nothing -> pure "java"
+        Just javaHome -> do
+            let javaExe = javaHome </> "bin" </> "java.exe"
+                javaBin = javaHome </> "bin" </> "java"
+            hasExe <- doesFileExist javaExe
+            if hasExe
+                then pure javaExe
+                else do
+                    hasBin <- doesFileExist javaBin
+                    if hasBin then pure javaBin else pure "java"
+
+
 isJavaNativeMetadataPath :: FilePath -> Bool
 isJavaNativeMetadataPath path =
     hasJavaNativeSegments (map (map toLower) (splitDirectories (normalise path)))
@@ -439,13 +456,14 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
                             when debugOut $ BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
                             when debugOut $ writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
 
+                            javaExe <- resolveJavaExe
                             (_, emitTimeNs) <- timedIO $
                                 case mOutput of
                                     Just outPath -> do
                                         createDirectoryIfMissing True outPath
-                                        callProcess "java" (["-jar", toolkitJar, "-s", jsonStr] ++ jobsArgs ++ ["-o", outPath])
+                                        callProcess javaExe (["-jar", toolkitJar, "-s", jsonStr] ++ jobsArgs ++ ["-o", outPath])
                                     Nothing ->
-                                        callProcess "java" (["-jar", toolkitJar, "-s", jsonStr] ++ jobsArgs)
+                                        callProcess javaExe (["-jar", toolkitJar, "-s", jsonStr] ++ jobsArgs)
 
                             let summary = CompileTimingSummary {
                                     tokenizeTimings = [

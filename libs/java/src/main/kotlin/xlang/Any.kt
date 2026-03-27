@@ -3,7 +3,7 @@ package xlang
 import xlang.annotation.Arithmetic
 
 
-class Any : kotlin.Any(), Arithmetic<Any>, Cloneable
+open class Any : kotlin.Any(), Arithmetic<Any>
 {
-    override fun clone(): Any = throw NotImplementedError("Clone method is not implemented")
+    override fun <V : Any> add(a: Arithmetic<V>) = throw NotImplementedError("Not yet implemented")
 }
