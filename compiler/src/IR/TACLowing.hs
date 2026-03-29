@@ -7,14 +7,14 @@ module IR.TACLowing where
 import Data.Bits ((.&.))
 import Control.Monad.State.Strict (evalState)
 import Data.List (partition, foldl')
-import Data.Char (toUpper)
+import Data.Char (toUpper, toLower)
 import Text.Read (readMaybe)
 import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
 import Data.Foldable (foldrM)
 import Data.Map.Strict (Map)
 import Numeric (readHex)
 
-import Lex.Token (Token, tokenPos)
+import Lex.Token (Token(..), tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
 import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isBasicType, isCompareOp, promoteBasicType)
 import IR.TAC (IRInstr, IRAtom, TACM, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
@@ -1792,7 +1792,7 @@ collectAtomTypesStatic stmts = do
 
 
 functionLowering :: Statement -> TACM IRFunction
-functionLowering (AST.Function (clazz, _) (AST.Variable funName _) args functB) = do
+functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args functB) = do
     -- load all args
     atoms <- mapM loadArgs args
     let _argsMap = genArgMap atoms -- TODO: use this map to rewrite args into Param 0..n
@@ -1812,7 +1812,11 @@ functionLowering (AST.Function (clazz, _) (AST.Variable funName _) args functB) 
     atomTypes <- collectAtomTypes funSig stmtsWithRet
     let bodyBlocks = packIRBlocks stmtsWithRet
 
-    let decl = (PB.Public, [PB.Static]) -- default: public static
+    let access0 = accessFromDeclTokens declToks
+        generated = '$' `elem` funName
+        access = if generated then PB.Private else access0
+        flags = if generated then [PB.Static, PB.Final] else [PB.Static]
+        decl = (access, flags)
     return $ TAC.IRFunction decl funName funSig atomTypes bodyBlocks TAC.MemberClassWrapped
         
     where
@@ -1829,9 +1833,19 @@ functionLowering (AST.Function (clazz, _) (AST.Variable funName _) args functB) 
         genArgMap :: [IRAtom] -> Map Int IRAtom
         genArgMap atoms = Map.fromList $ zip [0..] atoms
 
-
 functionLowering (AST.Function _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
 functionLowering _ = error "this is not a function!!!"
+
+accessFromDeclTokens :: [Token] -> PB.AccessModified
+accessFromDeclTokens toks = case toks of
+    (Ident s _ : _) ->
+        let k = map toLower s
+        in if k == "private"
+            then PB.Private
+            else if k == "protected"
+                then PB.Protected
+                else PB.Public
+    _ -> PB.Public
 
 
 -- | Lower non-function class statements into a synthetic class:

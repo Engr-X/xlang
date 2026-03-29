@@ -871,7 +871,15 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
                 , "        q = newQ"
                 , "    }"
                 , "}" ]
-        assertCheckProgm (checkProgmFromSrc src) Nothing
+        assertCheckProgm (checkProgmFromSrc src) Nothing,
+
+        testCase "21" $ do
+        let src = unlines
+                [ "int outer() {"
+                , "    private int inner() { }"
+                , "    return inner()"
+                , "}" ]
+        assertCheckProgm (checkProgmFromSrc src) (Just UE.nestedFunctionModifierMsg)
     ])
     where
         mkCase (name, src, expected) =

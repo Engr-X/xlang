@@ -12,5 +12,4 @@ open class Int(private val value: kotlin.Int) : Number()
     override fun toFloat(): Float = this.value.toFloat()
 
     override fun toDouble(): Double = this.value.toDouble()
-
 }

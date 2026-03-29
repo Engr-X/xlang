@@ -3,13 +3,14 @@ module Semantic.ContextCheck where
 import Semantic.NameEnv
 import Control.Monad (when, unless)
 import Data.List (intercalate, find)
+import Data.Char (toLower)
 import Data.Map.Strict (Map)
 import Data.Maybe (listToMaybe, fromMaybe, isNothing)
 import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (Token, tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -553,6 +554,8 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
             c <- get
             let cState = st c
             let parentCtrl = parentCtrlFor cState
+            when (parentCtrl == Just InFunction && hasFunctionModifier declToks) $
+                addErr $ UE.Syntax $ UE.makeError p (map tokenPos declToks) nestedFunctionModifierMsg
             when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
                 (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState (fromMaybe InClass parentCtrl)))
             case firstVoidParam params of
@@ -588,6 +591,15 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
 
         firstVoidParam :: [(AST.Class, String, [Token])] -> Maybe (AST.Class, String, [Token])
         firstVoidParam = find (\(clazz, _, _) -> clazz == AST.Void)
+
+        hasFunctionModifier :: [Token] -> Bool
+        hasFunctionModifier = any isFunctionModifier
+
+        isFunctionModifier :: Token -> Bool
+        isFunctionModifier (Lex.Ident s _) =
+            let k = map toLower s
+            in k == "public" || k == "private" || k == "protected" || k == "static" || k == "final" || k == "const"
+        isFunctionModifier _ = False
 
 
 checkForInitStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()

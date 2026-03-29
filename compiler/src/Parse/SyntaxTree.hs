@@ -5,10 +5,11 @@ module Parse.SyntaxTree where
 
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe, fromMaybe, isNothing)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing, mapMaybe)
+import Data.Char (toLower)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable(..))
-import Lex.Token (Token)
+import Lex.Token (Token, tokenPos)
 import Util.Basic (insertTab, splitLast)
 
 import qualified Data.Map.Strict as Map
@@ -786,13 +787,29 @@ isJavaNameDecl _ = False
 type Program = ([Declaration], [Statement])
 
 
+type ParamDecl = (Class, String, [Token])
+
+
+data HoistCallSpec = HoistCallSpec {
+    hoistCalleeName :: String,
+    hoistExtraArgs :: [Expression]
+}
+
+
 -- | Promote top-level declarations into static form.
 --   - top-level instance functions -> static functions
 --   - top-level fields/const-fields -> static vars/const-vars
 --   Nested declarations in blocks are left unchanged.
 promoteTopLevelFunctions :: Program -> Program
-promoteTopLevelFunctions (decls, stmts) = (decls, map promote stmts)
+promoteTopLevelFunctions (decls, stmts) = (decls, map promote (concatMap hoistTopFunction stmts))
     where
+        hoistTopFunction :: Statement -> [Statement]
+        hoistTopFunction stmt = case functionNameVar stmt of
+            Just (fnName, _) ->
+                let (stmt', hoisted) = hoistFunctionBody [fnName] Nothing stmt
+                in hoisted ++ [stmt']
+            Nothing -> [stmt]
+
         promote :: Statement -> Statement
         promote (DefField names mTy rhs toks) = DefVar names mTy rhs toks
         promote (DefConstField names mTy rhs toks) = DefConstVar names mTy rhs toks
@@ -800,6 +817,298 @@ promoteTopLevelFunctions (decls, stmts) = (decls, map promote stmts)
         promote (InstanceMethodT ret name gens params body) = StaticMethodT ret name gens params body
         promote (StmtGroup ss) = StmtGroup (map promote ss)
         promote stmt = stmt
+
+
+-- | Hoist nested functions inside a function body into top-level sibling functions.
+--   `path` is lexical function path, e.g. ["foo","inner1"].
+--   `mSelfAlias` is used for recursive calls after renaming:
+--   (old local name, capture params appended to this function).
+hoistFunctionBody :: [String] -> Maybe (String, [ParamDecl]) -> Statement -> (Statement, [Statement])
+hoistFunctionBody path mSelfAlias stmt =
+    case functionParamsAndBody stmt of
+        Nothing -> (stmt, [])
+        Just (params, body) ->
+            let selfCallMap = case mSelfAlias of
+                    Nothing -> Map.empty
+                    Just (oldName, captures) ->
+                        case functionNameVar stmt of
+                            Just (newName, fallbackTok) ->
+                                let extra = map (paramToVarExpr fallbackTok) captures
+                                in Map.singleton oldName (HoistCallSpec newName extra)
+                            Nothing -> Map.empty
+                (body', hoisted) = hoistBlockInFunction path params selfCallMap body
+            in (setFunctionBody body' stmt, hoisted)
+
+
+hoistBlockInFunction :: [String] -> [ParamDecl] -> Map String HoistCallSpec -> Block -> (Block, [Statement])
+hoistBlockInFunction path outerParams baseCallMap (Multiple stmts0) =
+    let stmts = flattenStmtGroups stmts0
+        directFns = mapMaybe (prepareDirectNestedFunction path outerParams) stmts
+        directCallMap = Map.fromList [(oldName, spec) | (oldName, spec, _) <- directFns]
+        callMap = Map.union directCallMap baseCallMap
+        hoistedFromDirect = concatMap (\(_, _, hs) -> hs) directFns
+        step :: ([Statement], [[Statement]]) -> Statement -> ([Statement], [[Statement]])
+        step (accStmts, accHoisted) stmt =
+            if isHoistableFunctionDef stmt
+                then (accStmts, accHoisted)
+                else
+                    let (stmt', hoisted) = hoistStmtInFunction path outerParams callMap stmt
+                    in (stmt' : accStmts, hoisted : accHoisted)
+        (stmtsKeptRev, hoistedRev) = foldl step ([], []) stmts
+    in (Multiple (reverse stmtsKeptRev), hoistedFromDirect ++ concat (reverse hoistedRev))
+
+
+prepareDirectNestedFunction :: [String] -> [ParamDecl] -> Statement -> Maybe (String, HoistCallSpec, [Statement])
+prepareDirectNestedFunction path outerParams stmt = do
+    (oldName, nameTok) <- functionNameVar stmt
+    params <- functionParams stmt
+    let innerParamNames = map (\(_, n, _) -> n) params
+        captures = filter (\(_, n, _) -> n `notElem` innerParamNames) outerParams
+        generatedName = intercalate "$" (path ++ [oldName])
+        renamed = renameGeneratedFunction generatedName nameTok captures stmt
+        (renamed', hoistedChildren) = hoistFunctionBody (path ++ [oldName]) (Just (oldName, captures)) renamed
+        callSpec = HoistCallSpec generatedName (map (paramToVarExpr nameTok) captures)
+        hoistedAll = hoistedChildren ++ [renamed']
+    pure (oldName, callSpec, hoistedAll)
+
+
+hoistStmtInFunction :: [String] -> [ParamDecl] -> Map String HoistCallSpec -> Statement -> (Statement, [Statement])
+hoistStmtInFunction path outerParams callMap stmt = case stmt of
+    Command (Return me) tok -> (Command (Return (fmap (rewriteExprCalls callMap) me)) tok, [])
+    Command _ _ -> (stmt, [])
+    Expr e -> (Expr (rewriteExprCalls callMap e), [])
+    Exprs es -> (Exprs (map (rewriteExprCalls callMap) es), [])
+    DefField names mTy mRhs toks -> (DefField names mTy (fmap (rewriteExprCalls callMap) mRhs) toks, [])
+    DefConstField names mTy mRhs toks -> (DefConstField names mTy (fmap (rewriteExprCalls callMap) mRhs) toks, [])
+    DefVar names mTy mRhs toks -> (DefVar names mTy (fmap (rewriteExprCalls callMap) mRhs) toks, [])
+    DefConstVar names mTy mRhs toks -> (DefConstVar names mTy (fmap (rewriteExprCalls callMap) mRhs) toks, [])
+    StmtGroup ss ->
+        let (Multiple ss', hoisted) = hoistBlockInFunction path outerParams callMap (Multiple ss)
+        in (StmtGroup ss', hoisted)
+    BlockStmt b ->
+        let (b', hoisted) = hoistBlockInFunction path outerParams callMap b
+        in (BlockStmt b', hoisted)
+    If e b1 b2 toks ->
+        let (b1', h1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', h2) = hoistMaybeBlock path outerParams callMap b2
+        in (If (rewriteExprCalls callMap e) b1' b2' toks, h1 ++ h2)
+    For (s1, e2, s3) b1 b2 toks ->
+        let (s1', h1) = hoistMaybeStmt path outerParams callMap s1
+            (s3', h3) = hoistMaybeStmt path outerParams callMap s3
+            (b1', hb1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', hb2) = hoistMaybeBlock path outerParams callMap b2
+        in (For (s1', fmap (rewriteExprCalls callMap) e2, s3') b1' b2' toks, h1 ++ h3 ++ hb1 ++ hb2)
+    Loop b tok ->
+        let (b', h) = hoistMaybeBlock path outerParams callMap b
+        in (Loop b' tok, h)
+    Repeat e b1 b2 toks ->
+        let (b1', h1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', h2) = hoistMaybeBlock path outerParams callMap b2
+        in (Repeat (rewriteExprCalls callMap e) b1' b2' toks, h1 ++ h2)
+    While e b1 b2 toks ->
+        let (b1', h1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', h2) = hoistMaybeBlock path outerParams callMap b2
+        in (While (rewriteExprCalls callMap e) b1' b2' toks, h1 ++ h2)
+    Until e b1 b2 toks ->
+        let (b1', h1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', h2) = hoistMaybeBlock path outerParams callMap b2
+        in (Until (rewriteExprCalls callMap e) b1' b2' toks, h1 ++ h2)
+    DoWhile b1 e b2 toks ->
+        let (b1', h1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', h2) = hoistMaybeBlock path outerParams callMap b2
+        in (DoWhile b1' (rewriteExprCalls callMap e) b2' toks, h1 ++ h2)
+    DoUntil b1 e b2 toks ->
+        let (b1', h1) = hoistMaybeBlock path outerParams callMap b1
+            (b2', h2) = hoistMaybeBlock path outerParams callMap b2
+        in (DoUntil b1' (rewriteExprCalls callMap e) b2' toks, h1 ++ h2)
+    Switch e scs tok ->
+        let (scs', hs) = hoistSwitchCases path outerParams callMap scs
+        in (Switch (rewriteExprCalls callMap e) scs' tok, hs)
+    _ -> (stmt, [])
+
+
+hoistSwitchCases :: [String] -> [ParamDecl] -> Map String HoistCallSpec -> [SwitchCase] -> ([SwitchCase], [Statement])
+hoistSwitchCases path outerParams callMap scs =
+    let (scsRev, hsRev) = foldl step ([], []) scs
+    in (reverse scsRev, reverse hsRev >>= id)
+    where
+        step :: ([SwitchCase], [[Statement]]) -> SwitchCase -> ([SwitchCase], [[Statement]])
+        step (accScs, accHs) sc = case sc of
+            Case e mb tok ->
+                let (mb', h) = hoistMaybeBlock path outerParams callMap mb
+                in (Case (rewriteExprCalls callMap e) mb' tok : accScs, h : accHs)
+            Default b tok ->
+                let (b', h) = hoistBlockInFunction path outerParams callMap b
+                in (Default b' tok : accScs, h : accHs)
+
+
+hoistMaybeBlock :: [String] -> [ParamDecl] -> Map String HoistCallSpec -> Maybe Block -> (Maybe Block, [Statement])
+hoistMaybeBlock _ _ _ Nothing = (Nothing, [])
+hoistMaybeBlock path outerParams callMap (Just b) =
+    let (b', h) = hoistBlockInFunction path outerParams callMap b
+    in (Just b', h)
+
+
+hoistMaybeStmt :: [String] -> [ParamDecl] -> Map String HoistCallSpec -> Maybe Statement -> (Maybe Statement, [Statement])
+hoistMaybeStmt _ _ _ Nothing = (Nothing, [])
+hoistMaybeStmt path outerParams callMap (Just st) =
+    let (st', h) = hoistStmtInFunction path outerParams callMap st
+    in (Just st', h)
+
+
+rewriteExprCalls :: Map String HoistCallSpec -> Expression -> Expression
+rewriteExprCalls callMap expr = case expr of
+    Error _ _ -> expr
+    IntConst _ _ -> expr
+    LongConst _ _ -> expr
+    FloatConst _ _ -> expr
+    DoubleConst _ _ -> expr
+    LongDoubleConst _ _ -> expr
+    CharConst _ _ -> expr
+    StringConst _ _ -> expr
+    BoolConst _ _ -> expr
+    Variable _ _ -> expr
+    Qualified _ _ -> expr
+    Cast ty e tok -> Cast ty (rewriteExprCalls callMap e) tok
+    Unary op e tok -> Unary op (rewriteExprCalls callMap e) tok
+    Binary op e1 e2 tok -> Binary op (rewriteExprCalls callMap e1) (rewriteExprCalls callMap e2) tok
+    Ternary c (tExpr, fExpr) toks ->
+        Ternary (rewriteExprCalls callMap c) (rewriteExprCalls callMap tExpr, rewriteExprCalls callMap fExpr) toks
+    Call callee args ->
+        let callee' = rewriteExprCalls callMap callee
+            args' = map (rewriteExprCalls callMap) args
+        in case callee' of
+            Variable name tok -> case Map.lookup name callMap of
+                Just spec ->
+                    let newName = hoistCalleeName spec
+                        extra = map (rewriteExprCalls callMap) (hoistExtraArgs spec)
+                    in Call (Variable newName (renameIdentToken newName tok)) (args' ++ extra)
+                Nothing -> Call callee' args'
+            _ -> Call callee' args'
+    CallT callee tys args ->
+        let callee' = rewriteExprCalls callMap callee
+            args' = map (rewriteExprCalls callMap) args
+        in case callee' of
+            Variable name tok -> case Map.lookup name callMap of
+                Just spec ->
+                    let newName = hoistCalleeName spec
+                        extra = map (rewriteExprCalls callMap) (hoistExtraArgs spec)
+                    in CallT (Variable newName (renameIdentToken newName tok)) tys (args' ++ extra)
+                Nothing -> CallT callee' tys args'
+            _ -> CallT callee' tys args'
+
+
+isHoistableFunctionDef :: Statement -> Bool
+isHoistableFunctionDef = maybe False (const True) . functionNameVar
+
+
+functionNameVar :: Statement -> Maybe (String, Token)
+functionNameVar stmt = case stmt of
+    InstanceMethod _ (Variable name tok) _ _ -> Just (name, tok)
+    StaticMethod _ (Variable name tok) _ _ -> Just (name, tok)
+    InstanceMethodT _ (Variable name tok) _ _ _ -> Just (name, tok)
+    StaticMethodT _ (Variable name tok) _ _ _ -> Just (name, tok)
+    _ -> Nothing
+
+
+functionParams :: Statement -> Maybe [ParamDecl]
+functionParams stmt = case stmt of
+    InstanceMethod _ _ params _ -> Just params
+    StaticMethod _ _ params _ -> Just params
+    InstanceMethodT _ _ _ params _ -> Just params
+    StaticMethodT _ _ _ params _ -> Just params
+    _ -> Nothing
+
+
+functionParamsAndBody :: Statement -> Maybe ([ParamDecl], Block)
+functionParamsAndBody stmt = case stmt of
+    InstanceMethod _ _ params body -> Just (params, body)
+    StaticMethod _ _ params body -> Just (params, body)
+    InstanceMethodT _ _ _ params body -> Just (params, body)
+    StaticMethodT _ _ _ params body -> Just (params, body)
+    _ -> Nothing
+
+
+setFunctionBody :: Block -> Statement -> Statement
+setFunctionBody body stmt = case stmt of
+    InstanceMethod ret name params _ -> InstanceMethod ret name params body
+    StaticMethod ret name params _ -> StaticMethod ret name params body
+    InstanceMethodT ret name gens params _ -> InstanceMethodT ret name gens params body
+    StaticMethodT ret name gens params _ -> StaticMethodT ret name gens params body
+    _ -> stmt
+
+
+renameGeneratedFunction :: String -> Token -> [ParamDecl] -> Statement -> Statement
+renameGeneratedFunction newName fallbackTok captures stmt = case stmt of
+    InstanceMethod (retC, retToks) (Variable _ nameTok) params body ->
+        InstanceMethod
+            (retC, generatedRetTokens nameTok retToks)
+            (Variable newName (renameIdentToken newName nameTok))
+            (params ++ captures)
+            body
+    StaticMethod (retC, retToks) (Variable _ nameTok) params body ->
+        StaticMethod
+            (retC, generatedRetTokens nameTok retToks)
+            (Variable newName (renameIdentToken newName nameTok))
+            (params ++ captures)
+            body
+    InstanceMethodT (retC, retToks) (Variable _ nameTok) gens params body ->
+        InstanceMethodT
+            (retC, generatedRetTokens nameTok retToks)
+            (Variable newName (renameIdentToken newName nameTok))
+            gens
+            (params ++ captures)
+            body
+    StaticMethodT (retC, retToks) (Variable _ nameTok) gens params body ->
+        StaticMethodT
+            (retC, generatedRetTokens nameTok retToks)
+            (Variable newName (renameIdentToken newName nameTok))
+            gens
+            (params ++ captures)
+            body
+    _ ->
+        case stmt of
+            InstanceMethod (retC, retToks) name params body ->
+                InstanceMethod (retC, generatedRetTokens fallbackTok retToks) name (params ++ captures) body
+            StaticMethod (retC, retToks) name params body ->
+                StaticMethod (retC, generatedRetTokens fallbackTok retToks) name (params ++ captures) body
+            InstanceMethodT (retC, retToks) name gens params body ->
+                InstanceMethodT (retC, generatedRetTokens fallbackTok retToks) name gens (params ++ captures) body
+            StaticMethodT (retC, retToks) name gens params body ->
+                StaticMethodT (retC, generatedRetTokens fallbackTok retToks) name gens (params ++ captures) body
+            _ -> stmt
+
+
+generatedRetTokens :: Token -> [Token] -> [Token]
+generatedRetTokens nameTok toks =
+    Lex.Ident "private" (tokenPos nameTok) : dropWhile isFunctionModifierToken toks
+
+
+isFunctionModifierToken :: Token -> Bool
+isFunctionModifierToken (Lex.Ident s _) =
+    let k = map toLower s
+    in k == "public" || k == "private" || k == "protected" || k == "static" || k == "final" || k == "const"
+isFunctionModifierToken _ = False
+
+
+renameIdentToken :: String -> Token -> Token
+renameIdentToken newName tok = case tok of
+    Lex.Ident _ p -> Lex.Ident newName p
+    _ -> Lex.Ident newName (tokenPos tok)
+
+
+paramToVarExpr :: Token -> ParamDecl -> Expression
+paramToVarExpr fallbackTok (_, name, toks) = case toks of
+    (t:_) -> Variable name (renameIdentToken name t)
+    [] -> Variable name (renameIdentToken name fallbackTok)
+
+
+flattenStmtGroups :: [Statement] -> [Statement]
+flattenStmtGroups = concatMap go
+    where
+        go :: Statement -> [Statement]
+        go (StmtGroup ss) = flattenStmtGroups ss
+        go st = [st]
 
 
 -- | Get the declared package path from a program header.

@@ -1,9 +1,9 @@
 package xlang
 
-import xlang.annotation.Arithmetic
 
-
-open class Any : kotlin.Any(), Arithmetic<Any>
+open class Any : kotlin.Any(), Cloneable
 {
-    override fun <V : Any> add(a: Arithmetic<V>) = throw NotImplementedError("Not yet implemented")
+    fun <V : Any> add(a: V): Unit = throw NotImplementedError("${this.javaClass}")
+
+    fun <V : Any, R : Any> plus(a: V): R = 
 }

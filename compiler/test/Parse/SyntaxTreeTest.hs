@@ -476,6 +476,95 @@ stmtTokensTests = testGroup "Parse.SyntaxTree.stmtTokens" $ map (\(n, s, ts) -> 
 
 
 
+promoteTopLevelFunctionsTests :: TestTree
+promoteTopLevelFunctionsTests = testGroup "Parse.SyntaxTree.promoteTopLevelFunctions" [
+    testCase "hoist nested functions with $ names and rewrite calls" $ do
+        let tokFn = mkIdD "fn"
+            tokRet = mkIdD "int"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokInner1 = mkIdD "inner1"
+            tokInner2 = mkIdD "inner2"
+            tokReturn = mkIdD "return"
+            tokPlus = mkSymD Lex.Plus
+            tokMul = mkSymD Lex.Multiply
+
+            pA = (Int32T, "a", [tokA])
+            pB = (Int32T, "b", [tokB])
+
+            inner2Body = Multiple [
+                Command (Return (Just (Binary Add (Variable "b" tokB) (IntConst "1" (mkNumD "1")) tokPlus))) tokReturn
+                ]
+            inner2Fun = Function (Int32T, [tokRet]) (Variable "inner2" tokInner2) [pB] inner2Body
+
+            inner1Body = Multiple [
+                inner2Fun,
+                Command (Return (Just (
+                    Binary Add
+                        (Binary Mul (Variable "a" tokA) (IntConst "2" (mkNumD "2")) tokMul)
+                        (Call (Variable "inner2" tokInner2) [Variable "b" tokB])
+                        tokPlus
+                    ))) tokReturn
+                ]
+            inner1Fun = Function (Int32T, [tokRet]) (Variable "inner1" tokInner1) [pA] inner1Body
+
+            fooBody = Multiple [
+                inner1Fun,
+                Command (Return (Just (
+                    Binary Mul
+                        (Call (Variable "inner1" tokInner1) [Variable "a" tokA])
+                        (IntConst "2" (mkNumD "2"))
+                        tokMul
+                    ))) tokReturn
+                ]
+            fooFun = Function (Int32T, [tokRet]) (Variable "foo" tokFn) [pA, pB] fooBody
+
+            (_, outStmts) = promoteTopLevelFunctions ([], [fooFun])
+            outFns = [ (name, declToks, map (\(_, n, _) -> n) params, body)
+                     | Function (_, declToks) (Variable name _) params body <- outStmts ]
+
+        map (\(name, _, _, _) -> name) outFns @?=
+            ["foo$inner1$inner2", "foo$inner1", "foo"]
+
+        let isPrivate (Lex.Ident "private" _) = True
+            isPrivate _ = False
+            isGeneratedName n = '$' `elem` n
+            generatedDecls = [declToks | (name, declToks, _, _) <- outFns, isGeneratedName name]
+        assertBool "generated functions should carry private token" $
+            all (\declToks -> case declToks of
+                    (t:_) -> isPrivate t
+                    _ -> False) generatedDecls
+
+        let lookupFn n = case [x | x@(name, _, _, _) <- outFns, name == n] of
+                [x] -> x
+                _ -> error ("function not found: " ++ n)
+
+            (_, _, inner1Params, inner1BodyOut) = lookupFn "foo$inner1"
+            (_, _, _, inner2BodyOut) = lookupFn "foo$inner1$inner2"
+            (_, _, _, fooBodyOut) = lookupFn "foo"
+
+            callNamesInExpr :: Expression -> [String]
+            callNamesInExpr e = [name | x <- flattenExpr (Just e), Call (Variable name _) _ <- [x]]
+
+            callNamesInBody :: Block -> [String]
+            callNamesInBody (Multiple ss) = concat [
+                callNamesInExpr e | Expr e <- ss ] ++ concat [
+                maybe [] callNamesInExpr me | Command (Return me) _ <- ss
+                ]
+            inner1Calls = callNamesInBody inner1BodyOut
+            fooCalls = callNamesInBody fooBodyOut
+            inner2Calls = callNamesInBody inner2BodyOut
+
+        inner1Params @?= ["a", "b"]
+        assertBool ("inner1 calls: " ++ show inner1Calls) $
+            "foo$inner1$inner2" `elem` inner1Calls
+        assertBool ("foo calls: " ++ show fooCalls) $
+            "foo$inner1" `elem` fooCalls
+        assertBool ("inner2 calls: " ++ show inner2Calls) $
+            "inner2" `notElem` inner2Calls
+    ]
+
+
 prettyExprTests :: TestTree
 prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, out) -> testCase i $ prettyExpr n inp @=? out) [
     ("0", 0, Nothing, ""),
@@ -663,4 +752,4 @@ tests = testGroup "Parse.SyntaxTree" [
      
     isPackageDeclTests, isImportDeclTests, isClassDeclarTests,
     isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests,
-    collectInputProgramTests, collectInputProgramsTests]
+    collectInputProgramTests, collectInputProgramsTests, promoteTopLevelFunctionsTests]
