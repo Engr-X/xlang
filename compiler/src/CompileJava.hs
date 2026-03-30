@@ -5,6 +5,7 @@ module CompileJava (
     invalidLibFiles,
     duplicateLibRefs,
     findDefaultLibJars,
+    findDefaultRuntimeLibJars,
     findDefaultNativeJsons,
     isDefaultStdlibJar,
     hasJavaImportPrefix,
@@ -16,12 +17,13 @@ module CompileJava (
 
 import Control.Concurrent.Async (forConcurrently)
 import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
-import Control.Exception (bracket_, evaluate, finally)
-import Control.Monad (when)
+import Control.Exception (IOException, bracket_, evaluate, finally, try)
+import Control.Monad (filterM, when)
 import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.Char (toLower)
-import Data.List (foldl', intercalate, sort, sortOn, nub, isPrefixOf)
+import Data.Char (isSpace, toLower)
+import Data.Int (Int64)
+import Data.List (dropWhileEnd, foldl', intercalate, sort, sortOn, nub, isPrefixOf)
 import Data.Maybe (mapMaybe)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
@@ -30,16 +32,22 @@ import System.Directory (
     copyFile,
     createDirectoryIfMissing,
     doesFileExist,
+    findExecutable,
+    getTemporaryDirectory,
     doesDirectoryExist,
     listDirectory,
     removeFile,
     removePathForcibly,
     withCurrentDirectory
     )
+import System.Exit (ExitCode(..))
 import System.FilePath ((</>), isAbsolute, makeRelative, normalise, splitDirectories, takeDirectory, takeExtension, takeFileName)
+import System.IO (hClose, openTempFile)
+import System.IO.Error (isDoesNotExistError)
 import System.IO.Error (catchIOError)
+import System.Info (os)
 import Text.Printf (printf)
-import System.Process (callProcess)
+import System.Process (callProcess, readProcessWithExitCode)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.HashSet as HashSet
@@ -293,6 +301,27 @@ findDefaultLibJars exeDir = do
             names
 
 
+findDefaultRuntimeLibJars :: FilePath -> IO [FilePath]
+findDefaultRuntimeLibJars exeDir = do
+    let libsDir = exeDir </> "libs"
+    exists <- doesDirectoryExist libsDir
+    if not exists
+        then pure []
+        else sort <$> collect libsDir
+  where
+    collect :: FilePath -> IO [FilePath]
+    collect dir = do
+        names <- listDirectory dir
+        concat <$> mapM
+            (\name -> do
+                let path = dir </> name
+                isDir <- doesDirectoryExist path
+                if isDir
+                    then collect path
+                    else pure [path | map toLower (takeExtension path) == ".jar"])
+            names
+
+
 isDefaultStdlibJar :: FilePath -> Bool
 isDefaultStdlibJar path =
     map toLower (takeFileName path) == "xlang-stdlib-alpha.jar"
@@ -368,20 +397,134 @@ hasJavaImportPrefix =
     any (\imp -> "java." `isPrefixOf` map toLower imp)
 
 
-resolveJavaExe :: IO FilePath
-resolveJavaExe = do
+resolveJavaCommands :: IO [FilePath]
+resolveJavaCommands = do
     mJavaHome <- lookupEnv "JAVA_HOME"
-    case mJavaHome of
-        Nothing -> pure "java"
-        Just javaHome -> do
-            let javaExe = javaHome </> "bin" </> "java.exe"
-                javaBin = javaHome </> "bin" </> "java"
-            hasExe <- doesFileExist javaExe
-            if hasExe
-                then pure javaExe
-                else do
-                    hasBin <- doesFileExist javaBin
-                    if hasBin then pure javaBin else pure "java"
+    let fromHomeRaw = case fmap normalizeJavaHome mJavaHome of
+            Just home | not (null home) -> [home </> "bin" </> "java.exe", home </> "bin" </> "java"]
+            _ -> []
+    fromHome <- filterM doesFileExist fromHomeRaw
+    fromPath <- mapMaybe id <$> mapM findExecutable ["java", "java.exe"]
+    pure (nub (fromHome ++ fromPath ++ ["java", "java.exe"]))
+  where
+    normalizeJavaHome :: String -> String
+    normalizeJavaHome = stripWrappingQuotes . trimSpaces
+
+    trimSpaces :: String -> String
+    trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+    stripWrappingQuotes :: String -> String
+    stripWrappingQuotes raw
+        | length raw >= 2
+        , let h = head raw
+        , let t = last raw
+        , (h == '"' && t == '"') || (h == '\'' && t == '\'') =
+            init (tail raw)
+        | otherwise = raw
+
+
+callJavaProcess :: [String] -> String -> IO ()
+callJavaProcess args stdIn = do
+    commands <- resolveJavaCommands
+    go commands Nothing
+  where
+    go :: [FilePath] -> Maybe IOException -> IO ()
+    go [] (Just e) = ioError e
+    go [] Nothing = ioError (userError "java executable not found")
+    go (cmd:rest) _ = do
+        res <- try (runOne cmd args stdIn) :: IO (Either IOException ())
+        case res of
+            Right () -> pure ()
+            Left e
+                | isDoesNotExistError e -> go rest (Just e)
+                | otherwise -> ioError e
+
+    runOne :: FilePath -> [String] -> String -> IO ()
+    runOne cmd cmdArgs input
+        | os == "mingw32" = runViaPowerShell cmd cmdArgs input
+        | null input = callProcess cmd cmdArgs
+        | otherwise = do
+            (ec, out, errText) <- readProcessWithExitCode cmd cmdArgs input
+            case ec of
+                ExitSuccess -> pure ()
+                ExitFailure code ->
+                    let details = trim (if null errText then out else errText)
+                    in ioError (userError ("java process failed (exit " ++ show code ++ "): " ++ details))
+
+    runViaPowerShell :: FilePath -> [String] -> String -> IO ()
+    runViaPowerShell cmd cmdArgs input = do
+        psCommands <- resolvePowerShellCommands
+        psCmd <- case psCommands of
+            (one:_) -> pure one
+            [] -> ioError (userError "powershell executable not found")
+        let script = "& " ++ quotePS cmd ++ concatMap ((" " ++) . quotePS) cmdArgs
+        (ec, out, errText) <- readProcessWithExitCode psCmd ["-NoProfile", "-Command", script] input
+        case ec of
+            ExitSuccess -> pure ()
+            ExitFailure code ->
+                let details = trim (if null errText then out else errText)
+                in ioError (userError ("java process failed (exit " ++ show code ++ "): " ++ details))
+
+    quotePS :: String -> String
+    quotePS s = "'" ++ concatMap escapeChar s ++ "'"
+      where
+        escapeChar '\'' = "''"
+        escapeChar c = [c]
+
+    trim :: String -> String
+    trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
+
+    resolvePowerShellCommands :: IO [FilePath]
+    resolvePowerShellCommands = do
+        mSystemRoot <- lookupEnv "SystemRoot"
+        mWinDir <- lookupEnv "WINDIR"
+        let envRoots = nub [
+                normalizeEnvPath root
+                | Just root <- [mSystemRoot, mWinDir]
+                , not (null (normalizeEnvPath root))
+                ]
+            fromEnvRaw = [
+                root </> "System32" </> "WindowsPowerShell" </> "v1.0" </> "powershell.exe"
+                | root <- envRoots
+                ]
+        fromEnv <- filterM doesFileExist fromEnvRaw
+        fromPath <- mapMaybe id <$> mapM findExecutable ["powershell", "powershell.exe", "pwsh", "pwsh.exe"]
+        pure (nub (fromEnv ++ fromPath))
+
+    normalizeEnvPath :: String -> String
+    normalizeEnvPath = stripWrappingQuotes . trimSpaces
+
+    trimSpaces :: String -> String
+    trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+    stripWrappingQuotes :: String -> String
+    stripWrappingQuotes raw
+        | length raw >= 2
+        , let h = head raw
+        , let t = last raw
+        , (h == '"' && t == '"') || (h == '\'' && t == '\'') =
+            init (tail raw)
+        | otherwise = raw
+
+
+windowsStdioFallbackThresholdBytes :: Int64
+windowsStdioFallbackThresholdBytes = 1024 * 1024
+
+
+shouldUseTempJsonFile :: BL.ByteString -> Bool
+shouldUseTempJsonFile jsonBytes =
+    -- cmd stdout itself has no practical fixed cap for piped output, but
+    -- large stdin payloads over nested process/powershell calls can be flaky.
+    os == "mingw32" && BL.length jsonBytes > windowsStdioFallbackThresholdBytes
+
+
+withJsonInputFile :: BL.ByteString -> (FilePath -> IO a) -> IO a
+withJsonInputFile jsonBytes action = do
+    tmpDir <- getTemporaryDirectory
+    (tmpPath, h) <- openTempFile tmpDir "xlang-bytecode-input.json"
+    hClose h
+    BL.writeFile tmpPath jsonBytes
+    action tmpPath `finally` (removeFile tmpPath `catchIOError` (\_ -> pure ()))
 
 
 isJavaNativeMetadataPath :: FilePath -> Bool
@@ -447,7 +590,9 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
                             let irs = map snd irPairs
                                 classes = concat [jClasses | (_, jClasses, _) <- lowered]
                                 jsonVal = JVMJson.jProgmToJSON targetJvm classes
-                                jsonStr = BL.unpack (encode jsonVal)
+                                jsonBytes = encode jsonVal
+                                jsonText = BL.unpack jsonBytes
+                                useTempJsonFile = shouldUseTempJsonFile jsonBytes
                                 debugDir = case srcPaths of
                                     [one] -> takeDirectory one
                                     _ -> rootPath
@@ -456,14 +601,22 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
                             when debugOut $ BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
                             when debugOut $ writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
 
-                            javaExe <- resolveJavaExe
                             (_, emitTimeNs) <- timedIO $
-                                case mOutput of
-                                    Just outPath -> do
-                                        createDirectoryIfMissing True outPath
-                                        callProcess javaExe (["-jar", toolkitJar, "-s", jsonStr] ++ jobsArgs ++ ["-o", outPath])
-                                    Nothing ->
-                                        callProcess javaExe (["-jar", toolkitJar, "-s", jsonStr] ++ jobsArgs)
+                                if useTempJsonFile
+                                    then withJsonInputFile jsonBytes $ \jsonPath ->
+                                        case mOutput of
+                                            Just outPath -> do
+                                                createDirectoryIfMissing True outPath
+                                                callJavaProcess (["-jar", toolkitJar, "-f", jsonPath] ++ jobsArgs ++ ["-o", outPath]) ""
+                                            Nothing ->
+                                                callJavaProcess (["-jar", toolkitJar, "-f", jsonPath] ++ jobsArgs) ""
+                                    else
+                                        case mOutput of
+                                            Just outPath -> do
+                                                createDirectoryIfMissing True outPath
+                                                callJavaProcess (["-jar", toolkitJar, "--stdin"] ++ jobsArgs ++ ["-o", outPath]) jsonText
+                                            Nothing ->
+                                                callJavaProcess (["-jar", toolkitJar, "--stdin"] ++ jobsArgs) jsonText
 
                             let summary = CompileTimingSummary {
                                     tokenizeTimings = [
@@ -558,8 +711,8 @@ mergeLibsIntoJar rootPath libPaths jarOutput = do
             _ -> pure ()
 
 
-compileJVMToJar :: Int -> Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> Maybe [String] -> IO ()
-compileJVMToJar jobs targetJvm toolkitJar rootPath srcPaths libPaths jarOutput includeRuntime debugOut mMainClassOverride = do
+compileJVMToJar :: Int -> Int -> FilePath -> FilePath -> [FilePath] -> [FilePath] -> [FilePath] -> FilePath -> Bool -> Bool -> Maybe [String] -> IO ()
+compileJVMToJar jobs targetJvm toolkitJar rootPath srcPaths compileLibPaths runtimeLibPaths jarOutput includeRuntime debugOut mMainClassOverride = do
     let classesOut = rootPath </> "out"
         cleanupOut = do
             exists <- doesDirectoryExist classesOut
@@ -570,7 +723,7 @@ compileJVMToJar jobs targetJvm toolkitJar rootPath srcPaths libPaths jarOutput i
     putStrLn ("[INFO] -d is jar; classes output dir: " ++ classesOut)
 
     (`finally` cleanupOut) $ do
-        mRes <- compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths (Just classesOut) debugOut
+        mRes <- compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths compileLibPaths (Just classesOut) debugOut
         case mRes of
             Just (irs, summary) -> do
                 let mMainClassAuto = selectJarMainClass irs
@@ -586,8 +739,8 @@ compileJVMToJar jobs targetJvm toolkitJar rootPath srcPaths libPaths jarOutput i
                             Nothing -> putStrLn "[WARN] no wrapped-class main found; jar has no Main-Class"
                 mergeTimeNs <- if includeRuntime
                     then do
-                        putStrLn ("[INFO] include-runtime: merging " ++ show (length libPaths) ++ " lib(s) into jar")
-                        snd <$> timedIO (mergeLibsIntoJar rootPath libPaths jarOutput)
+                        putStrLn ("[INFO] include-runtime: merging " ++ show (length runtimeLibPaths) ++ " lib(s) into jar")
+                        snd <$> timedIO (mergeLibsIntoJar rootPath runtimeLibPaths jarOutput)
                     else pure 0
                 when debugOut $
                     printCompileSummary summary (jarPackTimeNs + mergeTimeNs)

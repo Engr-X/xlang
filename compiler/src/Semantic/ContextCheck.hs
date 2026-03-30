@@ -10,7 +10,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (Token, tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg, nestedMainFunctionMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -556,6 +556,8 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
             let parentCtrl = parentCtrlFor cState
             when (parentCtrl == Just InFunction && hasFunctionModifier declToks) $
                 addErr $ UE.Syntax $ UE.makeError p (map tokenPos declToks) nestedFunctionModifierMsg
+            when (parentCtrl == Just InFunction && isMainFunction stmt) $
+                addErr $ UE.Syntax $ UE.makeError p (functionNamePos stmt declToks) nestedMainFunctionMsg
             when (forbiddenFor parentCtrl InFunction) $ addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt)
                 (illegalStatementMsg (prettyCtrlState InFunction) (prettyCtrlState (fromMaybe InClass parentCtrl)))
             case firstVoidParam params of
@@ -600,6 +602,21 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
             let k = map toLower s
             in k == "public" || k == "private" || k == "protected" || k == "static" || k == "final" || k == "const"
         isFunctionModifier _ = False
+
+        isMainFunction :: Statement -> Bool
+        isMainFunction s = case functionName s of
+            Just "main" -> True
+            _ -> False
+
+        functionName :: Statement -> Maybe String
+        functionName (AST.Function _ (AST.Variable name _) _ _) = Just name
+        functionName (AST.FunctionT _ (AST.Variable name _) _ _ _) = Just name
+        functionName _ = Nothing
+
+        functionNamePos :: Statement -> [Token] -> [Position]
+        functionNamePos (AST.Function _ (AST.Variable _ tok) _ _) _ = [tokenPos tok]
+        functionNamePos (AST.FunctionT _ (AST.Variable _ tok) _ _ _) _ = [tokenPos tok]
+        functionNamePos _ declToks = map tokenPos declToks
 
 
 checkForInitStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()

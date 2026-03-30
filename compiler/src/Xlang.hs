@@ -1,16 +1,16 @@
 module Xlang where
 
 import Control.Monad (void, when)
-import Data.Char (isDigit)
+import Data.Char (isDigit, toLower)
 import Data.Foldable (for_)
 import Data.List (intercalate, sort, stripPrefix)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
 import GHC.Conc (setNumCapabilities)
-import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, listDirectory)
+import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory)
 import System.Environment (getArgs, getExecutablePath)
 import System.Exit (ExitCode(..))
-import System.FilePath ((</>), takeDirectory, takeFileName)
+import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
 import System.Process (readProcessWithExitCode)
 
 import qualified CompileJava as CJ
@@ -81,6 +81,22 @@ supportedJdkMetadataVersions = sort (Map.keys jdkMetadataUrlMap)
 
 supportedJdkMetadataVersionsText :: String
 supportedJdkMetadataVersionsText = intercalate ", " (map show supportedJdkMetadataVersions)
+
+
+normalizeRootArg :: FilePath -> FilePath
+normalizeRootArg raw =
+    let ext = map toLower (takeExtension raw)
+    in if ext `elem` [".x", ".xl", ".xlang"]
+        then takeDirectory raw
+        else raw
+
+
+canonicalizeIfExists :: FilePath -> IO FilePath
+canonicalizeIfExists path = do
+    isFile <- doesFileExist path
+    if isFile
+        then canonicalizePath path
+        else pure path
 
 
 validateSupportedJvmVersion :: Int -> Either String Int
@@ -165,8 +181,20 @@ parseMainEntryClass raw =
 parseArgs :: [String] -> Options
 parseArgs = go defaultOptions
     where
+        stripWrappingQuotes :: String -> String
+        stripWrappingQuotes raw
+            | length raw >= 2
+            , let h = head raw
+            , let t = last raw
+            , (h == '"' && t == '"') || (h == '\'' && t == '\'') =
+                init (tail raw)
+            | otherwise = raw
+
+        normalizePathArg :: String -> String
+        normalizePathArg = stripWrappingQuotes
+
         addInput :: Options -> FilePath -> Options
-        addInput opts fp = opts {optInputs = optInputs opts ++ [fp]}
+        addInput opts fp = opts {optInputs = optInputs opts ++ [normalizePathArg fp]}
 
         isLikelyPath :: String -> Bool
         isLikelyPath s = not (null s) && head s /= '-'
@@ -230,7 +258,7 @@ parseArgs = go defaultOptions
 
         parseMainValue :: String -> Options -> [String] -> Options
         parseMainValue raw opts xs =
-            case parseMainEntryClass raw of
+            case parseMainEntryClass (stripWrappingQuotes raw) of
                 Left msg -> opts {optHelp = True, optError = Just msg}
                 Right qn -> go opts {optMainEntry = Just qn} xs
 
@@ -264,11 +292,15 @@ parseArgs = go defaultOptions
             | Just mainRaw <- stripPrefix "--main=" arg =
                 parseMainValue mainRaw opts xs
             | Just rootDir <- stripPrefix "--root=" arg =
-                go opts {optRoot = rootDir} xs
-        go opts ("--root" : rootDir : xs) = go opts {optRoot = rootDir} xs
-        go opts ("-r" : rootDir : xs) = go opts {optRoot = rootDir} xs
+                go opts {optRoot = normalizePathArg rootDir} xs
+            | Just rootDir <- stripPrefix "root=" arg =
+                go opts {optRoot = normalizePathArg rootDir} xs
+        go opts ("--root" : rootDir : xs) = go opts {optRoot = normalizePathArg rootDir} xs
+        go opts ("-r" : rootDir : xs) = go opts {optRoot = normalizePathArg rootDir} xs
+        go opts ("root" : rootDir : xs) = go opts {optRoot = normalizePathArg rootDir} xs
         go opts ["--root"] = opts {optHelp = True, optError = Just "missing value for --root"}
         go opts ["-r"] = opts {optHelp = True, optError = Just "missing value for -r"}
+        go opts ["root"] = opts {optHelp = True, optError = Just "missing value for root"}
 
         go opts ("-j" : n : xs) = parseJobsValue n opts xs
         go opts ("--jobs" : n : xs) = parseJobsValue n opts xs
@@ -291,11 +323,11 @@ parseArgs = go defaultOptions
             let (libs, rest) = span isLikelyPath xs
             in if null libs
                 then opts {optHelp = True, optError = Just "missing value(s) for -lib"}
-                else go opts {optLibs = optLibs opts ++ libs} rest
+                else go opts {optLibs = optLibs opts ++ map normalizePathArg libs} rest
 
         -- Kotlin style output: -d <dir|jar>. Keep "-d" alone as debug shorthand.
         go opts ("-d" : out : xs)
-            | isLikelyPath out = go opts {optOutput = Just out} xs
+            | isLikelyPath out = go opts {optOutput = Just (normalizePathArg out)} xs
             | otherwise = go opts {optDebug = True} (out : xs)
         go opts ["-d"] = go opts {optDebug = True} []
 
@@ -316,7 +348,7 @@ printHelp :: IO ()
 printHelp = putStrLn $ unlines [
     "Usage:",
     "   xlang --target-jvm<n> <file.x|file.xl|file.xlang> [more files ...]",
-    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>] [-d <dir|jar>]",
+    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [-d <dir|jar>]",
     "         [--main=<qname.main>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
     "",
     "   xlang -v | --version",
@@ -337,6 +369,9 @@ printHelp = putStrLn $ unlines [
     "   --root=<dir>     source root (preferred form), e.g. --root=./abcde",
     "   --root <dir>     source root (compatible form)",
     "   -r <dir>         source root (short form)",
+    "   root=<dir>       source root (legacy compatible form)",
+    "                    when root points to *.x/*.xl/*.xlang, its parent dir is used",
+    "   <path> in ''/\"\" quoted paths are accepted and unwrapped",
     "   -j<n>, -j <n>, --jobs <n>, --jobs=<n>",
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
@@ -378,13 +413,16 @@ main = do
                 case optDownload opts of
                     Just ver -> downloadJdkMetadata exeDir ver
                     Nothing -> do
-                        rootAbs <- canonicalizePath (optRoot opts)
+                        rootAbs <- canonicalizePath (normalizeRootArg (optRoot opts))
 
                         setNumCapabilities (optJobs opts)
 
+                        let srcPathsRaw = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
+                            userLibPathsRaw = map (CJ.resolveFromRoot rootAbs) (optLibs opts)
+                        srcPaths <- mapM canonicalizeIfExists srcPathsRaw
+                        userLibPaths <- mapM canonicalizeIfExists userLibPathsRaw
+
                         let mTargetJvm = optTargetJvm opts
-                            srcPaths = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
-                            userLibPaths = map (CJ.resolveFromRoot rootAbs) (optLibs opts)
                             invalidInputs = CJ.invalidSourceFiles srcPaths
                             invalidLibs = CJ.invalidLibFiles userLibPaths
                             includeRuntime = optIncludeRuntime opts
@@ -401,6 +439,7 @@ main = do
                             when needsJavaNative (ensureTargetJdkMetadata exeDir targetJvm)
 
                         defaultLibJars <- CJ.findDefaultLibJars exeDir
+                        defaultRuntimeLibJars <- CJ.findDefaultRuntimeLibJars exeDir
                         defaultNativeJsons <-
                             case mTargetJvm of
                                 Just targetJvm | needsJavaNative ->
@@ -410,6 +449,7 @@ main = do
                         let combinedLibPaths = userLibPaths ++ defaultLibJars ++ defaultNativeJsons
                             duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
                             libPaths = combinedLibPaths
+                            runtimeLibPaths = userLibPaths ++ defaultRuntimeLibJars
 
                         case (optTargetJvm opts, srcPaths, optOutput opts) of
                             (Just _, [], _) -> do
@@ -438,7 +478,7 @@ main = do
                                             putStrLn "--main is only valid when -d points to a .jar output"
                                             printHelp
                                         else if CJ.isJarOutput outPath
-                                        then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths outPath includeRuntime (optDebug opts) mMainClassOverride
+                                        then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths runtimeLibPaths outPath includeRuntime (optDebug opts) mMainClassOverride
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
                             (Just targetJvm, _, Nothing) ->
                                 if includeRuntime

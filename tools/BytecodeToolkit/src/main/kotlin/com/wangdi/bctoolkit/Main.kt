@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
 private data class ArgContext(
     var jsonText: String? = null,
     var jsonPath: Path? = null,
+    var jsonFromStdin: Boolean = false,
     val readPaths: MutableList<Path> = mutableListOf(),
     var outPath: Path? = null,
     var imports: List<String>? = null,
@@ -33,6 +34,7 @@ private data class ArgContext(
 private data class Options(
     val jsonText: String?,
     val jsonPath: Path?,
+    val jsonFromStdin: Boolean,
     val readPaths: List<Path>,
     val outPath: Path?,
     val imports: List<String>?,
@@ -160,6 +162,10 @@ private val handlers: Map<String, (ArgContext, Int) -> Int> = mapOf(
         ctx.jsonText = value
         i + 2
     },
+    "--stdin" to { ctx, i ->
+        ctx.jsonFromStdin = true
+        i + 1
+    },
     "-f" to { ctx, i ->
         val value = nextValue(ctx, i) ?: return@to ctx.args.size
         ctx.jsonPath = Paths.get(value)
@@ -281,6 +287,7 @@ private fun parseArgs(args: Array<String>): Options
     return Options(
         ctx.jsonText,
         ctx.jsonPath,
+        ctx.jsonFromStdin,
         ctx.readPaths.toList(),
         ctx.outPath,
         ctx.imports,
@@ -302,6 +309,7 @@ private fun printHelp()
             write mode (json -> class):
                 --string (-s) <json>            JSON string input (wrap in quotes)
                 --file (-f) <path>              JSON file path
+                --stdin                         Read JSON input from stdin
                 --out (-o) <dir>                Output directory (default: .)
                 -j <n>, --jobs <n>              Parallel workers for class generation
 
@@ -324,6 +332,7 @@ private fun printHelp()
         Examples:
             --string '{"class":["Square"],"methods":[]}'
             --string '{"classes":[{"class":["Square"],"methods":[]}]}'
+            type input.json | --stdin --out .
             --file examples/Example.json
             --file examples/Example.json --out .
             --file examples/Example.json --out . --jobs 8
@@ -678,6 +687,15 @@ private fun saveClasses(outDir: Path, classObjects: List<JSONObject>, jobs: Int)
     }
 }
 
+
+/**
+ * Read all JSON text from stdin using UTF-8.
+ *
+ * @return complete stdin text.
+ */
+private fun readStdinAll(): String =
+    System.`in`.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
+
 /**
  * Auto-generated baseline docs for main.
  * Describes the intent and behavior of this function.
@@ -687,7 +705,7 @@ private fun saveClasses(outDir: Path, classObjects: List<JSONObject>, jobs: Int)
 fun main(args: Array<String>)
 {
     val opts: Options = parseArgs(args)
-    val writeMode: Boolean = opts.jsonText != null || opts.jsonPath != null
+    val writeMode: Boolean = opts.jsonText != null || opts.jsonPath != null || opts.jsonFromStdin
     val readMode: Boolean = opts.readPaths.isNotEmpty()
 
     if (opts.showHelp || (!writeMode && !readMode))
@@ -698,14 +716,19 @@ fun main(args: Array<String>)
 
     if (writeMode && readMode)
     {
-        System.err.println("Only one mode is allowed at a time: write mode (-s/-f) or read mode (-r).")
+        System.err.println("Only one mode is allowed at a time: write mode (-s/-f/--stdin) or read mode (-r).")
         printHelp()
         return
     }
 
-    if (opts.jsonText != null && opts.jsonPath != null)
+    val writeInputCount =
+        (if (opts.jsonText != null) 1 else 0) +
+        (if (opts.jsonPath != null) 1 else 0) +
+        (if (opts.jsonFromStdin) 1 else 0)
+
+    if (writeInputCount > 1)
     {
-        System.err.println("Only one input method is allowed: --string or --file.")
+        System.err.println("Only one input method is allowed: --string or --file or --stdin.")
         printHelp()
         return
     }
@@ -753,7 +776,13 @@ fun main(args: Array<String>)
         return
     }
 
-    val jsonText: String = opts.jsonText ?: readFile(opts.jsonPath!!)
+    val jsonText: String = when
+    {
+        opts.jsonText != null -> opts.jsonText
+        opts.jsonPath != null -> readFile(opts.jsonPath)
+        opts.jsonFromStdin -> readStdinAll()
+        else -> throw IllegalStateException("no write input provided")
+    }
     val outDir: Path = opts.outPath ?: Paths.get(".")
 
     val classObjects: List<JSONObject> = GeneratorJsonAdapter.parseClassObjects(jsonText)

@@ -46,7 +46,8 @@ Console.putln(1)
 import java.lang.Math
 import xlang.io.Console
 
-void main() {
+fun main() -> void
+{
     val a: int = Math.abs(-10)
     val b: int = Math.max(3, 7)
 

@@ -3,7 +3,9 @@ package xlang
 
 open class Any : kotlin.Any(), Cloneable
 {
-    fun <V : Any> add(a: V): Unit = throw NotImplementedError("${this.javaClass}")
+    override fun clone(): Any = throw NotImplementedError("${this.javaClass.name}.clone() is not implemented.")
 
-    fun <V : Any, R : Any> plus(a: V): R = 
+    open fun <V : Any> add(other: V): V = throw NotImplementedError("${this.javaClass.name}.add() is not implemented.")
+
+    open fun <V : Any> plus(other: V): V = this.clone().add(other)
 }

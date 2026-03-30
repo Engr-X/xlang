@@ -362,6 +362,38 @@ assignmentRhsIsolationTests = testGroup "IR.Lowing.assignmentRhsIsolation" [
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
 
+nestedFunctionLoweringTests :: TestTree
+nestedFunctionLoweringTests = testGroup "IR.Lowing.nestedFunction" [
+    testCase "nested functions should be hoisted before TAC lowering" $ do
+        let src = unlines [
+                "public fun add(a: int, b: int) -> int {",
+                "    fun inner1(x: int) -> int {",
+                "        fun inner2(y: int) -> int {",
+                "            return x + y",
+                "        }",
+                "        return inner2(b)",
+                "    }",
+                "    return inner1(a)",
+                "}",
+                "public fun main() -> int {",
+                "    return add(2, 3)",
+                "}"
+                ]
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) -> do
+                assertBool "outer function should remain" (any isAdd funs)
+                assertBool "hoisted nested functions should be generated" (any isGenerated funs)
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+    where
+        isAdd :: IRFunction -> Bool
+        isAdd (IRFunction _ "add" _ _ _ _) = True
+        isAdd _ = False
+
+        isGenerated :: IRFunction -> Bool
+        isGenerated (IRFunction _ name _ _ _ _) = '$' `elem` name
+
 
 shortCircuitAssignPlacementTests :: TestTree
 shortCircuitAssignPlacementTests = testGroup "IR.Lowing.shortCircuitAssignPlacement" [
@@ -422,4 +454,5 @@ tests = testGroup "IR.Lowing" [
     float128JvmRejectTests,
     incDecLoweringTests,
     assignmentRhsIsolationTests,
+    nestedFunctionLoweringTests,
     shortCircuitAssignPlacementTests]

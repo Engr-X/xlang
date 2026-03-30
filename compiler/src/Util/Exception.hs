@@ -220,6 +220,10 @@ publicScopeMsg = "`public` is only allowed at top level or class scope"
 nestedFunctionModifierMsg :: String
 nestedFunctionModifierMsg = "nested function cannot declare public/private/protected/static/final/const modifiers"
 
+-- | Inner (nested) functions cannot be named `main`.
+nestedMainFunctionMsg :: String
+nestedMainFunctionMsg = "nested function cannot be named 'main'"
+
 -- | Illegal statement means that this one cannot 
 illegalStatementMsg :: String -> String -> String
 illegalStatementMsg child parrent = concat ["Illegal statement ", child, " in ", parrent," body"]

@@ -18,6 +18,7 @@ import Lex.Token (Token(..), tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
 import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isBasicType, isCompareOp, promoteBasicType)
 import IR.TAC (IRInstr, IRAtom, TACM, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
+    resolveVarKey,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
     getVarStacks, setVarStacks, pushLoopPhis, popLoopPhis, getCurrentLoopPhis, getAtomTypes)
 import Semantic.NameEnv (QName)
@@ -280,7 +281,7 @@ atomLowing (AST.Variable _ tok) = do
     case vinfo of
         -- ????????? VarId + ??????
         TEnv.VarLocal _ realName vid -> do
-            let key = (realName, vid)
+            key <- resolveVarKey (realName, vid)
             isStatic <- isStaticVar key
             if isStatic
                 then do
@@ -288,8 +289,9 @@ atomLowing (AST.Variable _ tok) = do
                     nAtom <- newSubCVar clazz
                     return ([IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
                 else do
+                    let (resolvedName, resolvedVid) = key
                     (_, ver) <- peekVarStack key
-                    let atom = TAC.Var (realName, vid, ver)
+                    let atom = TAC.Var (resolvedName, resolvedVid, ver)
 
                     mFun <- TAC.getCurrentFunMaybe
                     case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
@@ -455,7 +457,7 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
     vinfo <- getVar [pos]
     case vinfo of
         TEnv.VarLocal _ realName vid -> do
-            let key = (realName, vid)
+            key <- resolveVarKey (realName, vid)
             isStatic <- isStaticVar key
 
             oldCur <- TAC.getCurrentVar
@@ -960,7 +962,9 @@ collectAssignKeysBlock (AST.Multiple ss) = do
             AST.Variable _ tok -> do
                 vinfo <- getVar [tokenPos tok]
                 case vinfo of
-                    TEnv.VarLocal _ realName vid -> return [(realName, vid)]
+                    TEnv.VarLocal _ realName vid -> do
+                        key <- resolveVarKey (realName, vid)
+                        return [key]
                     _ -> return []
             _ -> return []
 
@@ -994,7 +998,8 @@ emitDefaultDeclInit mTy nameTok = do
     vinfo <- getVar [tokenPos nameTok]
     case vinfo of
         TEnv.VarLocal _ realName vid -> do
-            let key = (realName, vid)
+            key <- resolveVarKey (realName, vid)
+            let
                 declT = fromMaybe Int32T mTy
             lhsAtom <- newSubVar declT key
             isStatic <- isStaticVar key
@@ -1069,6 +1074,11 @@ stmtsLowing ((AST.Exprs es):stmts) = do
             return (reverse instrs)
 
 stmtsLowing ((AST.StmtGroup ss):stmts) = stmtsLowing (ss ++ stmts)
+
+-- Nested functions are hoisted by 'promoteTopLevelFunctions' before lowering.
+-- Keep this as a safe fallback to avoid internal compiler panics.
+stmtsLowing ((AST.Function {}):stmts) = stmtsLowing stmts
+stmtsLowing ((AST.FunctionT {}):stmts) = stmtsLowing stmts
 
 stmtsLowing ((AST.BlockStmt b):stmts) = do
     current <- blockLowing b
@@ -1962,11 +1972,12 @@ classLowing _ = error "the class is not implement"
 --   extract class declarations, and wrap remaining stmts into a synthetic class.
 progmLowing :: Path -> Program -> IRProgm
 progmLowing path (decls, stmts) =
-    let (classStmts, otherStmts) = partition AST.isClassDeclar stmts
-        pkgSegs = case filter AST.isPackageDecl decls of
+    let (decls', stmts') = AST.promoteTopLevelFunctions (decls, stmts)
+        (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
+        pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d
             [] -> []
-        mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls, stmts))
+        mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls', stmts'))
         action = do
             classIRs <- mapM classLowing classStmts
             extraIRs <- if null otherStmts

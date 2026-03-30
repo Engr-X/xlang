@@ -398,7 +398,26 @@ peekVarStack key = TACM $ do
     return $ case Map.lookup key stacks of
         Just (x:_) -> x
         Just [] -> error "stack is empty!"
-        Nothing -> error "cannot fin the variable!"
+        Nothing ->
+            let names = map fst (Map.keys stacks)
+            in error ("peekVarStack: missing key " ++ show key ++ ", available names=" ++ show names)
+
+
+-- | Resolve a var key against current stacks.
+--   If exact (name, vid) is missing but there is exactly one key with the same
+--   name, return that key as a fallback. This helps synthetic/hoisted nodes
+--   where source-position keyed var-use may carry an outdated vid.
+resolveVarKey :: VarKey -> TACM VarKey
+resolveVarKey key@(name, _) = TACM $ do
+    st <- get
+    let stacks = tacVarStacks st
+    case Map.lookup key stacks of
+        Just _ -> pure key
+        Nothing ->
+            let sameName = [k | k@(n, _) <- Map.keys stacks, n == name]
+            in case sameName of
+                [k] -> pure k
+                _ -> pure key
 
 
 -- | Get the full var stacks map.
@@ -471,12 +490,12 @@ data IRAtom
     | CharC Char
     | StringC String
     | Int8C Int
-    | Int16C Int 
+    | Int16C Int
     | Int32C Int
-    | Int64C Int64 
-    | Float32C Double 
-    | Float64C Double 
-    | Float128C Rational 
+    | Int64C Int64
+    | Float32C Double
+    | Float64C Double
+    | Float128C Rational
     | Var (String, Int, Int)                      -- name, varId, versionIndex
     | Phi [(Int, IRAtom)]                         -- incoming block id -> atom
     | Param Int                                   -- param for function and class
@@ -525,14 +544,16 @@ getAtomType (Var (name, varId, index)) = let varKey = (name, varId) in do
 
     case classId of
         Just list -> let rel = filter (\(_, num) -> num == index) list in return $ fst $ head rel
-        Nothing -> error "cannot find atom in VarStackMap!"
+        Nothing ->
+            error ("getAtomType: cannot find key " ++ show varKey ++ " for atom index " ++ show index ++
+                ", available keys=" ++ show (Map.keys stackMap))
 
 getAtomType (Phi _) = error "getAtomType: phi should be stripped before type query"
 
 getAtomType (Param index) = do
     (funSig, _, _) <- getCurrentFun
     return $ TEnv.funParams funSig !! index
-    
+
 
 data IRInstr
     = Jump Int                                      -- jump to intId
@@ -579,12 +600,12 @@ getInstrSucc _ = Nothing
 prettyIRInstr :: Int -> IRInstr -> String
 prettyIRInstr n instr = insertTab n ++ case instr of
     Jump bid -> "goto .L" ++ show bid
-    Ifeq a b t -> concat ["if ", prettyIRAtom a, " == ", prettyIRAtom b, " goto .L" ++ show t]
-    Ifne a b t -> concat ["if ", prettyIRAtom a, " != ", prettyIRAtom b, " goto .L" ++ show t]
-    Iflt a b t -> concat ["if ", prettyIRAtom a, " < ", prettyIRAtom b, " goto .L" ++ show t]
-    Ifle a b t -> concat ["if ", prettyIRAtom a, " <= ", prettyIRAtom b, " goto .L" ++ show t]
-    Ifgt a b t -> concat ["if ", prettyIRAtom a, " > ", prettyIRAtom b, " goto .L" ++ show t]
-    Ifge a b t -> concat ["if ", prettyIRAtom a, " >= ", prettyIRAtom b, " goto .L" ++ show t]
+    Ifeq a b t -> concat ["if ", prettyIRAtom a, " == ", prettyIRAtom b, " goto .L", show t]
+    Ifne a b t -> concat ["if ", prettyIRAtom a, " != ", prettyIRAtom b, " goto .L", show t]
+    Iflt a b t -> concat ["if ", prettyIRAtom a, " < ", prettyIRAtom b, " goto .L", show t]
+    Ifle a b t -> concat ["if ", prettyIRAtom a, " <= ", prettyIRAtom b, " goto .L", show t]
+    Ifgt a b t -> concat ["if ", prettyIRAtom a, " > ", prettyIRAtom b, " goto .L", show t]
+    Ifge a b t -> concat ["if ", prettyIRAtom a, " >= ", prettyIRAtom b, " goto .L", show t]
     SetIRet atom -> "$ret = " ++ prettyIRAtom atom
     IReturn -> "ireturn"
     Return -> "return"
@@ -692,8 +713,8 @@ prettyMainKind kind = case kind of
     MainVoid qn -> "void main() @ " ++ intercalate "." qn
     MainIntArgs qn -> "int main(String[]) @ " ++ intercalate "." qn
     MainVoidArgs qn -> "void main(String[]) @ " ++ intercalate "." qn
-    
- 
+
+
 -- | Class definition: name, static init, methods.
 data IRClass
     = IRClass
@@ -847,7 +868,7 @@ rmEBInBlocks = fixpoint
             _ -> instr
 
         redirect :: Map Int (Maybe Int) -> Int -> Int
-        redirect redirectMap tgt = go Set.empty tgt
+        redirect redirectMap = go Set.empty
             where
                 go :: Set Int -> Int -> Int
                 go seen cur

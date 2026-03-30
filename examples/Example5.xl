@@ -23,7 +23,7 @@ Precedence (high -> low, simplified):
 18) assignment / augmented assignment: =, +=, -=, *=, /=, %=, **=
 */
 
-int main()
+fun main() -> void
 {
     // assignment and chained assignment
     var a: int = 10

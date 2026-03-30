@@ -254,11 +254,12 @@ lowerWithUses ::
     Map [Position] FullFunctionTable ->
     (TAC.IRProgm, [Warning])
 lowerWithUses path (decls, stmts) vUses fUses =
-    let (classStmts, otherStmts) = partition AST.isClassDeclar stmts
-        pkgSegs = case filter AST.isPackageDecl decls of
+    let (decls', stmts') = AST.promoteTopLevelFunctions (decls, stmts)
+        (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
+        pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d
             [] -> []
-        mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls, stmts))
+        mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls', stmts'))
         action = do
             classIRs <- mapM Low.classLowing classStmts
             extraIRs <- if null otherStmts

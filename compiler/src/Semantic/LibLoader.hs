@@ -7,22 +7,25 @@ module Semantic.LibLoader (
 
 import Control.Concurrent.Async (forConcurrently)
 import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
-import Control.Exception (bracket_)
+import Control.Exception (IOException, bracket_, try)
+import Control.Monad (filterM)
 import Data.Aeson (FromJSON(..), Value(Object), (.:), (.:?), (.!=), withObject, eitherDecode)
-import Data.Char (toLower)
+import Data.Char (isSpace, toLower)
 import Data.Either (lefts, rights)
-import Data.List (foldl', intercalate, nub, partition)
+import Data.List (dropWhileEnd, foldl', intercalate, nub, partition)
 import Data.Map.Strict (Map)
+import Data.Maybe (mapMaybe)
 import Parse.SyntaxTree (Class(..), normalizeClass)
 import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
 import Util.Type (Path, Position)
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, findExecutable)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>), takeExtension)
-import System.IO.Error (catchIOError)
+import System.IO.Error (catchIOError, isDoesNotExistError)
+import System.Info (os)
 import System.Process (readProcessWithExitCode)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -157,11 +160,10 @@ loadJsonOne imports libPath = do
 loadNonJsonBatch :: FilePath -> [String] -> [Path] -> IO (Either [ErrorKind] (Maybe (ImportEnv, TypedImportEnv)))
 loadNonJsonBatch _ _ [] = pure (Right Nothing)
 loadNonJsonBatch toolkitJar imports libPaths = do
-    javaExe <- resolveJavaExe
     let importArgs = if null imports then [] else ["--imports", intercalate "," imports]
         readArgs = concatMap (\path -> ["--read", path]) libPaths
         args = ["-jar", toolkitJar] ++ readArgs ++ importArgs
-    (ec, out, errText) <- readProcessWithExitCode javaExe args ""
+    (ec, out, errText) <- readJavaProcessWithExitCode args ""
     case ec of
         ExitSuccess ->
             case eitherDecode (BL.pack out) of
@@ -178,20 +180,99 @@ loadNonJsonBatch toolkitJar imports libPaths = do
     trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
 
 
-resolveJavaExe :: IO FilePath
-resolveJavaExe = do
+resolveJavaCommands :: IO [FilePath]
+resolveJavaCommands = do
     mJavaHome <- lookupEnv "JAVA_HOME"
-    case mJavaHome of
-        Nothing -> pure "java"
-        Just javaHome -> do
-            let javaExe = javaHome </> "bin" </> "java.exe"
-                javaBin = javaHome </> "bin" </> "java"
-            hasExe <- doesFileExist javaExe
-            if hasExe
-                then pure javaExe
-                else do
-                    hasBin <- doesFileExist javaBin
-                    if hasBin then pure javaBin else pure "java"
+    let fromHomeRaw = case fmap normalizeJavaHome mJavaHome of
+            Just home | not (null home) -> [home </> "bin" </> "java.exe", home </> "bin" </> "java"]
+            _ -> []
+    fromHome <- filterM doesFileExist fromHomeRaw
+    fromPath <- mapMaybe id <$> mapM findExecutable ["java", "java.exe"]
+    pure (nub (fromHome ++ fromPath ++ ["java", "java.exe"]))
+  where
+    normalizeJavaHome :: String -> String
+    normalizeJavaHome = stripWrappingQuotes . trimSpaces
+
+    trimSpaces :: String -> String
+    trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+    stripWrappingQuotes :: String -> String
+    stripWrappingQuotes raw
+        | length raw >= 2
+        , let h = head raw
+        , let t = last raw
+        , (h == '"' && t == '"') || (h == '\'' && t == '\'') =
+            init (tail raw)
+        | otherwise = raw
+
+
+readJavaProcessWithExitCode :: [String] -> String -> IO (ExitCode, String, String)
+readJavaProcessWithExitCode args stdIn = do
+    commands <- resolveJavaCommands
+    go commands Nothing
+  where
+    go :: [FilePath] -> Maybe IOException -> IO (ExitCode, String, String)
+    go [] (Just e) = ioError e
+    go [] Nothing = ioError (userError "java executable not found")
+    go (cmd:rest) _ = do
+        res <- try (runOne cmd args stdIn) :: IO (Either IOException (ExitCode, String, String))
+        case res of
+            Right out -> pure out
+            Left e
+                | isDoesNotExistError e -> go rest (Just e)
+                | otherwise -> ioError e
+
+    runOne :: FilePath -> [String] -> String -> IO (ExitCode, String, String)
+    runOne cmd cmdArgs input
+        | os == "mingw32" = runViaPowerShell cmd cmdArgs input
+        | otherwise = readProcessWithExitCode cmd cmdArgs input
+
+    runViaPowerShell :: FilePath -> [String] -> String -> IO (ExitCode, String, String)
+    runViaPowerShell cmd cmdArgs input = do
+        psCommands <- resolvePowerShellCommands
+        psCmd <- case psCommands of
+            (one:_) -> pure one
+            [] -> ioError (userError "powershell executable not found")
+        let script = "& " ++ quotePS cmd ++ concatMap ((" " ++) . quotePS) cmdArgs
+        readProcessWithExitCode psCmd ["-NoProfile", "-Command", script] input
+
+    quotePS :: String -> String
+    quotePS s = "'" ++ concatMap escapeChar s ++ "'"
+      where
+        escapeChar '\'' = "''"
+        escapeChar c = [c]
+
+    resolvePowerShellCommands :: IO [FilePath]
+    resolvePowerShellCommands = do
+        mSystemRoot <- lookupEnv "SystemRoot"
+        mWinDir <- lookupEnv "WINDIR"
+        let envRoots = nub [
+                normalizeEnvPath root
+                | Just root <- [mSystemRoot, mWinDir]
+                , not (null (normalizeEnvPath root))
+                ]
+            fromEnvRaw = [
+                root </> "System32" </> "WindowsPowerShell" </> "v1.0" </> "powershell.exe"
+                | root <- envRoots
+                ]
+        fromEnv <- filterM doesFileExist fromEnvRaw
+        fromPath <- mapMaybe id <$> mapM findExecutable ["powershell", "powershell.exe", "pwsh", "pwsh.exe"]
+        pure (nub (fromEnv ++ fromPath))
+
+    normalizeEnvPath :: String -> String
+    normalizeEnvPath = stripWrappingQuotes . trimSpaces
+
+    trimSpaces :: String -> String
+    trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+    stripWrappingQuotes :: String -> String
+    stripWrappingQuotes raw
+        | length raw >= 2
+        , let h = head raw
+        , let t = last raw
+        , (h == '"' && t == '"') || (h == '\'' && t == '\'') =
+            init (tail raw)
+        | otherwise = raw
 
 
 filterEnvelopeByImports :: [String] -> LibEnvelope -> LibEnvelope

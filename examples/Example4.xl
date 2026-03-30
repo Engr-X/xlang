@@ -25,7 +25,7 @@ private fun reset() -> void
     internalCounter = 0
 }
 
-void main()
+fun main() -> void
 {
     inc()
     inc()

@@ -18,7 +18,7 @@ else: statement
 3) 多语句代码块风格.
 */
 
-void main()
+fun main(): void
 {
     var score: int = 86
     var passed: bool = false

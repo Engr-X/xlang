@@ -3,13 +3,14 @@
 module Semantic.CheckProgram where
 
 import Control.Monad (foldM)
-import Data.Char (toUpper)
+import Data.Char (toLower, toUpper)
 import Data.Graph (SCC(..), stronglyConnComp)
 import Data.List (foldl', intercalate, isPrefixOf, stripPrefix, maximumBy, sortOn)
 import Data.Map.Strict (Map)
 import Data.HashSet (HashSet)
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Ord (comparing)
+import System.Info (os)
 import Parse.SyntaxTree (Declaration(..), Expression(..), Program, Statement(..), pattern Function, pattern FunctionT, declPath, getJavaName, getPackage, isImportDecl, normalizeClass)
 import Parse.ParserBasic (AccessModified(..))
 import Semantic.NameEnv (ImportEnv(..), QName, defaultImportEnv, getPackageName, toHiddenQName)
@@ -48,10 +49,15 @@ data ModuleExport = ModuleExport {
 }
 
 splitPath :: Path -> [String]
-splitPath = filter validSeg . go . map slash
+splitPath = filter validSeg . go . normalizeCase . map slash
     where
         slash '\\' = '/'
         slash c = c
+
+        normalizeCase :: String -> String
+        normalizeCase
+            | os == "mingw32" = map toLower
+            | otherwise = id
 
         validSeg :: String -> Bool
         validSeg s = not (null s) && s /= "."

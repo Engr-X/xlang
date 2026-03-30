@@ -11,7 +11,7 @@ Loop examples.
 4) while ... else
 */
 
-int main()
+fun main() -> void
 {
     var i: int = 0
     var sum: int = 0
