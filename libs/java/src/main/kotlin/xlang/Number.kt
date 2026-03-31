@@ -1,7 +1,7 @@
 package xlang
 
 
-abstract class Number() : Any()
+abstract class Number : Any()
 {
     abstract fun toBool(): kotlin.Boolean
 

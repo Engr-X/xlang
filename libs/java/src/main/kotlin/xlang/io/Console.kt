@@ -284,6 +284,7 @@ private val STDIN_READER: BufferedReader = BufferedReader(InputStreamReader(Syst
 @SuppressWarnings("unused")
 fun input(prompt: String = "", file: BufferedReader = STDIN_READER): String
 {
+    var b = 10;
     if (prompt.isNotEmpty())
         kotlin.io.print(prompt)
 

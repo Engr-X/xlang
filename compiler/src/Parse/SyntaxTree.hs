@@ -795,6 +795,267 @@ data HoistCallSpec = HoistCallSpec {
     hoistExtraArgs :: [Expression]
 }
 
+data InlineFunSpec = InlineFunSpec {
+    inlineParamNames :: [String],
+    inlineBodyExpr :: Expression
+}
+
+
+-- | Inline function calls for functions marked with `inline`.
+--   This pass only rewrites function calls; variable reads/writes are unchanged.
+--   Only single-expression inline functions are expanded:
+--     inline fun f(...) -> T { return <expr> }
+inlineProgramFunctions :: Program -> Program
+inlineProgramFunctions (decls, stmts) =
+    let specs = filterNonRecursiveInlineSpecs (collectInlineSpecs stmts)
+        stmts' = map (rewriteStmtInline specs []) stmts
+    in (decls, stmts')
+    where
+        collectInlineSpecs :: [Statement] -> Map String InlineFunSpec
+        collectInlineSpecs = foldl step Map.empty
+            where
+                step :: Map String InlineFunSpec -> Statement -> Map String InlineFunSpec
+                step acc stmt = case inlineSpecOf stmt of
+                    Just (name, spec) -> Map.insert name spec acc
+                    Nothing -> acc
+
+        inlineSpecOf :: Statement -> Maybe (String, InlineFunSpec)
+        inlineSpecOf stmt = do
+            (name, _) <- functionNameVar stmt
+            params <- functionParams stmt
+            bodyExpr <- inlineReturnExpr stmt
+            let retToks = functionRetTokens stmt
+            if hasInlineToken retToks
+                then Just (name, InlineFunSpec (map (\(_, n, _) -> n) params) bodyExpr)
+                else Nothing
+
+        inlineReturnExpr :: Statement -> Maybe Expression
+        inlineReturnExpr stmt = do
+            (_, body) <- functionParamsAndBody stmt
+            case body of
+                Multiple [Command (Return (Just e)) _] -> Just e
+                _ -> Nothing
+
+        functionRetTokens :: Statement -> [Token]
+        functionRetTokens stmt = case stmt of
+            InstanceMethod (_, toks) _ _ _ -> toks
+            StaticMethod (_, toks) _ _ _ -> toks
+            InstanceMethodT (_, toks) _ _ _ _ -> toks
+            StaticMethodT (_, toks) _ _ _ _ -> toks
+            _ -> []
+
+        hasInlineToken :: [Token] -> Bool
+        hasInlineToken = any isInlineToken
+
+        isInlineToken :: Token -> Bool
+        isInlineToken (Lex.Ident s _) = map toLower s == "inline"
+        isInlineToken _ = False
+
+        filterNonRecursiveInlineSpecs :: Map String InlineFunSpec -> Map String InlineFunSpec
+        filterNonRecursiveInlineSpecs specs =
+            let recursiveNames = recursiveInlineNames specs
+            in HashSet.foldl' (flip Map.delete) specs recursiveNames
+
+        recursiveInlineNames :: Map String InlineFunSpec -> HashSet String
+        recursiveInlineNames specs =
+            let inlineNames = HashSet.fromList (Map.keys specs)
+                callGraph =
+                    Map.map
+                        (\spec -> HashSet.filter (`HashSet.member` inlineNames) (exprCallees (inlineBodyExpr spec)))
+                        specs
+                isRecursiveFrom :: String -> Bool
+                isRecursiveFrom start = dfsFrom start HashSet.empty start
+                    where
+                        dfsFrom :: String -> HashSet String -> String -> Bool
+                        dfsFrom root visited node =
+                            case Map.lookup node callGraph of
+                                Nothing -> False
+                                Just nexts ->
+                                    HashSet.foldr
+                                        (\n acc ->
+                                            acc ||
+                                            if n == root
+                                                then True
+                                                else
+                                                    if HashSet.member n visited
+                                                        then False
+                                                        else dfsFrom root (HashSet.insert n visited) n
+                                        )
+                                        False
+                                        nexts
+            in HashSet.fromList (filter isRecursiveFrom (Map.keys specs))
+
+        exprCallees :: Expression -> HashSet String
+        exprCallees expr = case expr of
+            Call callee args ->
+                let selfCall = case callee of
+                        Variable name _ -> HashSet.singleton name
+                        _ -> HashSet.empty
+                in HashSet.unions (selfCall : exprCallees callee : map exprCallees args)
+            CallT callee _ args ->
+                let selfCall = case callee of
+                        Variable name _ -> HashSet.singleton name
+                        _ -> HashSet.empty
+                in HashSet.unions (selfCall : exprCallees callee : map exprCallees args)
+            Cast _ e _ -> exprCallees e
+            Unary _ e _ -> exprCallees e
+            Binary _ e1 e2 _ -> HashSet.union (exprCallees e1) (exprCallees e2)
+            Ternary c (tExpr, fExpr) _ ->
+                HashSet.unions [exprCallees c, exprCallees tExpr, exprCallees fExpr]
+            _ -> HashSet.empty
+
+        rewriteStmtInline :: Map String InlineFunSpec -> [String] -> Statement -> Statement
+        rewriteStmtInline specs stack stmt = case stmt of
+            Command (Return me) tok -> Command (Return (fmap (rewriteExprInline specs stack) me)) tok
+            Command _ _ -> stmt
+            Expr e -> Expr (rewriteExprInline specs stack e)
+            Exprs es -> Exprs (map (rewriteExprInline specs stack) es)
+            DefField names mTy mRhs toks -> DefField names mTy (fmap (rewriteExprInline specs stack) mRhs) toks
+            DefConstField names mTy mRhs toks -> DefConstField names mTy (fmap (rewriteExprInline specs stack) mRhs) toks
+            DefVar names mTy mRhs toks -> DefVar names mTy (fmap (rewriteExprInline specs stack) mRhs) toks
+            DefConstVar names mTy mRhs toks -> DefConstVar names mTy (fmap (rewriteExprInline specs stack) mRhs) toks
+            StmtGroup ss -> StmtGroup (map (rewriteStmtInline specs stack) ss)
+            BlockStmt b -> BlockStmt (rewriteBlockInline specs stack b)
+            If e b1 b2 toks ->
+                If
+                    (rewriteExprInline specs stack e)
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            For (s1, e2, s3) b1 b2 toks ->
+                For
+                    ( fmap (rewriteStmtInline specs stack) s1
+                    , fmap (rewriteExprInline specs stack) e2
+                    , fmap (rewriteStmtInline specs stack) s3
+                    )
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            Loop b tok -> Loop (fmap (rewriteBlockInline specs stack) b) tok
+            Repeat e b1 b2 toks ->
+                Repeat
+                    (rewriteExprInline specs stack e)
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            While e b1 b2 toks ->
+                While
+                    (rewriteExprInline specs stack e)
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            Until e b1 b2 toks ->
+                Until
+                    (rewriteExprInline specs stack e)
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            DoWhile b1 e b2 toks ->
+                DoWhile
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (rewriteExprInline specs stack e)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            DoUntil b1 e b2 toks ->
+                DoUntil
+                    (fmap (rewriteBlockInline specs stack) b1)
+                    (rewriteExprInline specs stack e)
+                    (fmap (rewriteBlockInline specs stack) b2)
+                    toks
+            Switch e scs tok ->
+                Switch (rewriteExprInline specs stack e) (map (rewriteSwitchCaseInline specs stack) scs) tok
+            _ -> case functionNameVar stmt of
+                Just (fname, _) ->
+                    case functionParamsAndBody stmt of
+                        Just (_, body) -> setFunctionBody (rewriteBlockInline specs (fname : stack) body) stmt
+                        Nothing -> stmt
+                Nothing -> stmt
+
+        rewriteSwitchCaseInline :: Map String InlineFunSpec -> [String] -> SwitchCase -> SwitchCase
+        rewriteSwitchCaseInline specs stack sc = case sc of
+            Case e mb tok -> Case (rewriteExprInline specs stack e) (fmap (rewriteBlockInline specs stack) mb) tok
+            Default b tok -> Default (rewriteBlockInline specs stack b) tok
+
+        rewriteBlockInline :: Map String InlineFunSpec -> [String] -> Block -> Block
+        rewriteBlockInline specs stack (Multiple ss) = Multiple (map (rewriteStmtInline specs stack) ss)
+
+        rewriteExprInline :: Map String InlineFunSpec -> [String] -> Expression -> Expression
+        rewriteExprInline specs stack expr = case expr of
+            Error _ _ -> expr
+            IntConst _ _ -> expr
+            LongConst _ _ -> expr
+            FloatConst _ _ -> expr
+            DoubleConst _ _ -> expr
+            LongDoubleConst _ _ -> expr
+            CharConst _ _ -> expr
+            StringConst _ _ -> expr
+            BoolConst _ _ -> expr
+            Variable _ _ -> expr
+            Qualified _ _ -> expr
+            Cast ty e tok -> Cast ty (rewriteExprInline specs stack e) tok
+            Unary op e tok -> Unary op (rewriteExprInline specs stack e) tok
+            Binary op e1 e2 tok -> Binary op (rewriteExprInline specs stack e1) (rewriteExprInline specs stack e2) tok
+            Ternary c (tExpr, fExpr) toks ->
+                Ternary
+                    (rewriteExprInline specs stack c)
+                    (rewriteExprInline specs stack tExpr, rewriteExprInline specs stack fExpr)
+                    toks
+            Call callee args ->
+                inlineCall specs stack (Call callee args)
+            CallT callee tys args ->
+                inlineCallT specs stack (CallT callee tys args)
+
+        inlineCall :: Map String InlineFunSpec -> [String] -> Expression -> Expression
+        inlineCall specs stack (Call callee args) =
+            let callee' = rewriteExprInline specs stack callee
+                args' = map (rewriteExprInline specs stack) args
+            in case callee' of
+                Variable name _ -> case Map.lookup name specs of
+                    Just spec
+                        | name `notElem` stack && length args' == length (inlineParamNames spec) ->
+                            let subst = Map.fromList (zip (inlineParamNames spec) args')
+                                body' = substInlineExpr subst (inlineBodyExpr spec)
+                            in rewriteExprInline specs (name : stack) body'
+                    _ -> Call callee' args'
+                _ -> Call callee' args'
+        inlineCall _ _ e = e
+
+        inlineCallT :: Map String InlineFunSpec -> [String] -> Expression -> Expression
+        inlineCallT specs stack (CallT callee tys args) =
+            let callee' = rewriteExprInline specs stack callee
+                args' = map (rewriteExprInline specs stack) args
+            in case callee' of
+                Variable name _ -> case Map.lookup name specs of
+                    Just spec
+                        | name `notElem` stack && length args' == length (inlineParamNames spec) ->
+                            let subst = Map.fromList (zip (inlineParamNames spec) args')
+                                body' = substInlineExpr subst (inlineBodyExpr spec)
+                            in rewriteExprInline specs (name : stack) body'
+                    _ -> CallT callee' tys args'
+                _ -> CallT callee' tys args'
+        inlineCallT _ _ e = e
+
+        substInlineExpr :: Map String Expression -> Expression -> Expression
+        substInlineExpr subst expr = case expr of
+            Variable name tok -> fromMaybe (Variable name tok) (Map.lookup name subst)
+            Error _ _ -> expr
+            IntConst _ _ -> expr
+            LongConst _ _ -> expr
+            FloatConst _ _ -> expr
+            DoubleConst _ _ -> expr
+            LongDoubleConst _ _ -> expr
+            CharConst _ _ -> expr
+            StringConst _ _ -> expr
+            BoolConst _ _ -> expr
+            Qualified _ _ -> expr
+            Cast ty e tok -> Cast ty (substInlineExpr subst e) tok
+            Unary op e tok -> Unary op (substInlineExpr subst e) tok
+            Binary op e1 e2 tok -> Binary op (substInlineExpr subst e1) (substInlineExpr subst e2) tok
+            Ternary c (tExpr, fExpr) toks ->
+                Ternary (substInlineExpr subst c) (substInlineExpr subst tExpr, substInlineExpr subst fExpr) toks
+            Call callee args -> Call (substInlineExpr subst callee) (map (substInlineExpr subst) args)
+            CallT callee tys args -> CallT (substInlineExpr subst callee) tys (map (substInlineExpr subst) args)
+
 
 -- | Promote top-level declarations into static form.
 --   - top-level instance functions -> static functions

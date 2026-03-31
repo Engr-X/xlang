@@ -25,7 +25,7 @@ import qualified Util.FileHelper as FileHelper
 --   Runs ReturnCheck, then ContextCheck, then TypeCheck.
 checkProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
 checkProgm path prog0 importEnvs typedEnvs = do
-    let prog@(decls, stmts) = AST.promoteTopLevelFunctions prog0
+    let prog@(decls, stmts) = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions prog0)
     case RC.returnCheckProg path prog of
         Left errs -> Left errs
         Right () -> do

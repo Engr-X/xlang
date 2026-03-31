@@ -609,7 +609,7 @@ typedToImportEnv env =
 
 checkOneProgram :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
 checkOneProgram path prog0 importEnvs typedEnvs =
-    let prog@(decls, stmts) = AST.promoteTopLevelFunctions prog0
+    let prog@(decls, stmts) = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions prog0)
     in
     case RC.returnCheckProg path prog of
         Left errs -> Left errs

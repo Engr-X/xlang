@@ -11,10 +11,10 @@ import qualified Data.Map.Strict as Map
 
 
 iRet :: IRInstr
-iRet = Return
+iRet = VReturn
 
 iIRet :: IRInstr
-iIRet = IReturn
+iIRet = Return
 
 blk :: Int -> [IRInstr] -> IRBlock
 blk bid body = IRBlock (bid, body)

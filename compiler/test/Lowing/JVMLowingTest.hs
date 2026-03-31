@@ -170,7 +170,7 @@ jvmLowingFunTests = testGroup "Lowing.JVMLowing.jvmLowingFun" $ map (uncurry tes
                 "main"
                 (FunSig [] Int32T)
                 Map.empty
-                [IR.IRBlock (0, [(IR.SetIRet (IR.Int32C 1)), IR.IReturn])]
+                [IR.IRBlock (0, [(IR.SetRet (IR.Int32C 1)), IR.Return])]
                 IR.MemberClass
             JVM.JFunction _ _ _ _ body = JL.jvmLowingFun fun
         assertBool "should emit int return op" (any isIntReturn body)),
@@ -181,7 +181,7 @@ jvmLowingFunTests = testGroup "Lowing.JVMLowing.jvmLowingFun" $ map (uncurry tes
                 "main"
                 (FunSig [] Void)
                 Map.empty
-                [IR.IRBlock (0, [IR.Return])]
+                [IR.IRBlock (0, [IR.VReturn])]
                 IR.MemberClass
             JVM.JFunction _ _ _ _ body = JL.jvmLowingFun fun
         assertBool "should emit void return op" (any isVoidReturn body)),
@@ -195,8 +195,8 @@ jvmLowingFunTests = testGroup "Lowing.JVMLowing.jvmLowingFun" $ map (uncurry tes
                 (Map.fromList [(v0, Int32T)])
                 [ IR.IRBlock (0,
                     [ (IR.IAssign v0 (IR.Int32C 1))
-                    , (IR.SetIRet v0)
-                    , IR.IReturn
+                    , (IR.SetRet v0)
+                    , IR.Return
                     ])
                 ]
                 IR.MemberClass
@@ -209,7 +209,7 @@ jvmLowingFunTests = testGroup "Lowing.JVMLowing.jvmLowingFun" $ map (uncurry tes
                 "w"
                 (FunSig [] Void)
                 Map.empty
-                [IR.IRBlock (0, [IR.Return])]
+                [IR.IRBlock (0, [IR.VReturn])]
                 IR.MemberClassWrapped
             JVM.JFunction _ _ _ owner _ = JL.jvmLowingFun fun
         owner @?= "xlang-top-level")
@@ -236,7 +236,7 @@ jvmProgramLoweringTests = testGroup "Lowing.JVMLowing.jvmProgramLowering" $ map 
     ("0", length (JL.jvmProgmLowing (IR.IRProgm [] [])) @?= 0),
 
     ("1", do
-        let fun = IR.IRFunction (Public, []) "main" (FunSig [] Void) Map.empty [IR.IRBlock (0, [IR.Return])] IR.MemberClass
+        let fun = IR.IRFunction (Public, []) "main" (FunSig [] Void) Map.empty [IR.IRBlock (0, [IR.VReturn])] IR.MemberClass
             cls = IR.IRClass (Public, []) "MainX" [] (IR.StaticInit []) Map.empty [fun] IR.NoMain
             out = JL.jvmProgmLowing (IR.IRProgm [] [cls])
         case out of
@@ -246,7 +246,7 @@ jvmProgramLoweringTests = testGroup "Lowing.JVMLowing.jvmProgramLowering" $ map 
             _ -> assertFailure ("unexpected class count: " ++ show (length out))),
 
     ("2", do
-        let fun = IR.IRFunction (Public, []) "main" (FunSig [] Void) Map.empty [IR.IRBlock (0, [IR.Return])] IR.MemberClass
+        let fun = IR.IRFunction (Public, []) "main" (FunSig [] Void) Map.empty [IR.IRBlock (0, [IR.VReturn])] IR.MemberClass
             c1 = IR.IRClass (Public, []) "A" [] (IR.StaticInit []) Map.empty [fun] IR.NoMain
             c2 = IR.IRClass (Public, []) "B" [] (IR.StaticInit []) Map.empty [fun] IR.NoMain
             out = JL.jvmProgmsLowing [IR.IRProgm [] [c1], IR.IRProgm [] [c2]]
@@ -278,4 +278,3 @@ tests = testGroup "Lowing.JVMLowing" [
     jvmLowingFunTests,
     jvmProgramLoweringTests
     ]
-

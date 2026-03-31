@@ -258,3 +258,112 @@ splitShiftInGenerics = go 0
         withLen n pos = pos { len = n }
 
 
+-- English comment:
+-- Rewrite concise template-call syntax:
+--   add<int>(x)
+-- into lexer-normalized form:
+--   add::<int>(x)
+--
+-- This keeps grammar unambiguous (generic calls still parse via '::' '<...>'),
+-- while allowing users to omit '::' at call site.
+--
+-- Heuristics to avoid rewriting relational expressions:
+-- 1) callee and '<' must be adjacent (no whitespace gap)
+-- 2) generic close and '(' must be adjacent
+-- 3) content inside '<...>' must be type-like tokens only
+--
+-- Example rewritten:
+--   foo<HashMap::<List::<Int>>>(h)
+normalizeTemplateCallSyntax :: [Token] -> [Token]
+normalizeTemplateCallSyntax = go Nothing
+    where
+        go :: Maybe Token -> [Token] -> [Token]
+        go _ [] = []
+        go prev (t:ts)
+            | isLessThan t
+            , Just prevTok <- prev
+            , isIdent prevTok
+            , isAdjacent prevTok t
+            , Just (genericChunk, rest, closeTok) <- takeTypeLikeAngleChunk (t:ts)
+            , (openParen:_) <- rest
+            , isLParen openParen
+            , isAdjacent closeTok openParen =
+                let dc = mkInsertedDoubleColon t
+                    emitted = dc : genericChunk
+                    nextPrev = Just (last emitted)
+                in emitted ++ go nextPrev rest
+            | otherwise = t : go (Just t) ts
+
+        takeTypeLikeAngleChunk :: [Token] -> Maybe ([Token], [Token], Token)
+        takeTypeLikeAngleChunk [] = Nothing
+        takeTypeLikeAngleChunk (lt:rest)
+            | not (isLessThan lt) = Nothing
+            | otherwise = scan 1 [lt] rest
+
+        scan :: Int -> [Token] -> [Token] -> Maybe ([Token], [Token], Token)
+        scan _ _ [] = Nothing
+        scan depth revAcc (x:xs)
+            | isLessThan x =
+                scan (depth + 1) (x : revAcc) xs
+            | isGreaterThan x =
+                let depth' = depth - 1
+                in if depth' == 0
+                    then let chunk = reverse (x : revAcc)
+                        in Just (chunk, xs, x)
+                    else if depth' > 0
+                        then scan depth' (x : revAcc) xs
+                        else Nothing
+            | isBitRShift x =
+                if depth <= 1
+                    then Nothing
+                    else
+                        let depth' = depth - 2
+                        in if depth' == 0
+                            then let chunk = reverse (x : revAcc)
+                                in Just (chunk, xs, x)
+                            else if depth' > 0
+                                then scan depth' (x : revAcc) xs
+                                else Nothing
+            | isTypeLikeInner x =
+                scan depth (x : revAcc) xs
+            | otherwise = Nothing
+
+        isTypeLikeInner :: Token -> Bool
+        isTypeLikeInner (Lex.Ident _ _) = True
+        isTypeLikeInner (Symbol Lex.Dot _) = True
+        isTypeLikeInner (Symbol Lex.Comma _) = True
+        isTypeLikeInner (Symbol Lex.DoubleColon _) = True
+        isTypeLikeInner _ = False
+
+        isIdent :: Token -> Bool
+        isIdent (Lex.Ident _ _) = True
+        isIdent _ = False
+
+        isLessThan :: Token -> Bool
+        isLessThan (Symbol Lex.LessThan _) = True
+        isLessThan _ = False
+
+        isGreaterThan :: Token -> Bool
+        isGreaterThan (Symbol Lex.GreaterThan _) = True
+        isGreaterThan _ = False
+
+        isBitRShift :: Token -> Bool
+        isBitRShift (Symbol Lex.BitRShift _) = True
+        isBitRShift _ = False
+
+        isLParen :: Token -> Bool
+        isLParen (Symbol Lex.LParen _) = True
+        isLParen _ = False
+
+        isAdjacent :: Token -> Token -> Bool
+        isAdjacent a b =
+            let pa = tokenPos a
+                pb = tokenPos b
+            in line pa == line pb && (column pa + len pa == column pb)
+
+        mkInsertedDoubleColon :: Token -> Token
+        mkInsertedDoubleColon anchor =
+            let p = tokenPos anchor
+            in Symbol Lex.DoubleColon (p { len = 2 })
+
+

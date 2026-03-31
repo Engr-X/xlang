@@ -9,7 +9,7 @@ import Data.Map.Strict (Map)
 import Data.List (find, intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr, promoteTopLevelFunctions)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr, promoteTopLevelFunctions, inlineProgramFunctions)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineDeclaredVar, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
@@ -943,10 +943,17 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
             (tok:_) ->
                 let vid = vc
                     pos = Lex.tokenPos tok
+                    isMutParam = any isMutToken toks
+                    flags = if isMutParam then [] else [Final]
                     m'  = Map.insert name (vid, pos) m
                     vt' = Map.insert vid (t, pos) vt
-                    vf' = Map.insert vid [] vf
+                    vf' = Map.insert vid flags vf
                 in (succ vc, m', vt', vf')
+
+        isMutToken :: Lex.Token -> Bool
+        isMutToken tok = case tok of
+            Lex.Ident "mut" _ -> True
+            _ -> False
 
 
 inferStmt _ _ _ (FunctionT {}) = do
@@ -1129,7 +1136,7 @@ inferStmts path package envs stmts = do
 --   Requires context checking results and typed import environments.
 inferProgm :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TypeCtx
 inferProgm path prog0 importEnvs typedEnvs = do
-    let prog@(decls, stmts) = promoteTopLevelFunctions prog0
+    let prog@(decls, stmts) = inlineProgramFunctions (promoteTopLevelFunctions prog0)
     packageName <- getPackageName path decls
     case CC.checkProgmWithUses path prog importEnvs of
         Left errs -> Left errs

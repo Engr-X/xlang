@@ -257,5 +257,58 @@ ifElifSyntaxTests = testGroup "if_elif_syntax"
             other -> assertFailure ("expected nested If desugaring for elif, got: " ++ show other)
     ]
 
+inlineFunctionSyntaxTests :: TestTree
+inlineFunctionSyntaxTests = testGroup "inline_function_syntax"
+    [ testCase "inline fun parses and keeps inline modifier token" $
+        case replLexparseStmt "inline fun add(a: int, b: int) -> int = a + b;" of
+            Right (Function (Int32T, retToks) (Variable "add" _) _ (Multiple [Command (Return (Just _)) _])) ->
+                assertBool "inline token should exist in return-token list" (hasInlineTok retToks)
+            other -> assertFailure ("expected inline function statement, got: " ++ show other)
+    , testCase "inline var is rejected (inline is function-only)" $
+        case replLexparseStmt "inline var x: int = 1;" of
+            Left _ -> pure ()
+            Right stmt -> assertFailure ("expected parse failure for inline var, got: " ++ show stmt)
+    ]
+    where
+        hasInlineTok :: [Token] -> Bool
+        hasInlineTok = any isInlineTok
+
+        isInlineTok :: Token -> Bool
+        isInlineTok (Lex.Ident "inline" _) = True
+        isInlineTok _ = False
+
+mutParamSyntaxTests :: TestTree
+mutParamSyntaxTests = testGroup "mut_param_syntax"
+    [ testCase "fun param supports mut x: int" $
+        case replLexparseStmt "fun even(mut x: int) -> bool = true;" of
+            Right (Function (Bool, _) (Variable "even" _) [(Int32T, "x", paramToks)] (Multiple [Command (Return (Just _)) _])) ->
+                assertBool "param token list should contain mut" (any isMutTok paramToks)
+            other -> assertFailure ("expected function with mut parameter, got: " ++ show other)
+    ]
+    where
+        isMutTok :: Token -> Bool
+        isMutTok tok = case tok of
+            Lex.Ident "mut" _ -> True
+            _ -> False
+
+templateFunctionSyntaxTests :: TestTree
+templateFunctionSyntaxTests = testGroup "template_function_syntax"
+    [ testCase "fun add<T>(...) parses without :: in declaration" $
+        case replLexparseStmt "fun add<T>(a: T, b: T) -> T = a + b;" of
+            Right (FunctionT (Class ["T"] _, _) (Variable "add" _) [tpl] params (Multiple [Command (Return (Just _)) _])) -> do
+                fst tpl @?= Class ["T"] []
+                length params @?= 2
+            other -> assertFailure ("expected template function declaration without ::, got: " ++ show other)
+    ]
+
 tests :: TestTree
-tests = testGroup "Parse.ParseStmt" [normalTests, valStmtTests, typedDeclSyntaxTests, loopSyntaxTests, ifElifSyntaxTests]
+tests = testGroup "Parse.ParseStmt" [
+    normalTests,
+    valStmtTests,
+    typedDeclSyntaxTests,
+    loopSyntaxTests,
+    ifElifSyntaxTests,
+    inlineFunctionSyntaxTests,
+    mutParamSyntaxTests,
+    templateFunctionSyntaxTests
+    ]

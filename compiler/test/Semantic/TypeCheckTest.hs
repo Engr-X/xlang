@@ -879,7 +879,7 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
     ], Just (UE.typeMismatchMsg "(int)" "(bool)"), noExtraTc),
 
     ("8", unlines [
-        "float f(float x) {",
+        "float f(mut x: float) {",
         "    while true:",
         "        x = x + 1;",
         "    else:",
@@ -953,7 +953,23 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
     ("16", unlines [
         "val x = 1",
         "x = 2"
-    ], Just (UE.immutableVariableMsg "x"), noExtraTc)]
+    ], Just (UE.immutableVariableMsg "x"), noExtraTc),
+
+    ("17", unlines [
+        "fun inc(x: int) -> int {",
+        "    x = x + 1;",
+        "    return x;",
+        "}",
+        "a = inc(1);"
+    ], Just (UE.immutableVariableMsg "x"), noExtraTc),
+
+    ("18", unlines [
+        "fun inc(mut x: int) -> int {",
+        "    x = x + 1;",
+        "    return x;",
+        "}",
+        "a = inc(1);"
+    ], Nothing, noExtraTc)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do
             prog <- parseProgmOrFail src

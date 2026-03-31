@@ -1051,7 +1051,7 @@ stmtsLowing ((AST.Command (AST.Return Nothing) _):stmts) = do
 stmtsLowing ((AST.Command (AST.Return (Just e)) _):stmts) = do
     (_, retBId, _) <- getCurrentFun
     (setInstrs, returnAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
-    let setReturnStmt = IRInstr (TAC.SetIRet returnAtom)
+    let setReturnStmt = IRInstr (TAC.SetRet returnAtom)
         retStmts = appendAfterCond (reverse setInstrs)
             [setReturnStmt, IRInstr (TAC.Jump retBId)]
     rest <- stmtsLowing stmts
@@ -1716,9 +1716,9 @@ collectAtomTypes sig stmts = do
             TAC.Ifle a b _ -> [a, b]
             TAC.Ifgt a b _ -> [a, b]
             TAC.Ifge a b _ -> [a, b]
-            TAC.SetIRet atom -> [atom]
-            TAC.IReturn -> []
+            TAC.SetRet atom -> [atom]
             TAC.Return -> []
+            TAC.VReturn -> []
             TAC.IAssign dst src -> [dst, src]
             TAC.IUnary dst _ x -> [dst, x]
             TAC.IBinary dst _ x y -> [dst, x, y]
@@ -1786,9 +1786,9 @@ collectAtomTypesStatic stmts = do
             TAC.Ifle a b _ -> [a, b]
             TAC.Ifgt a b _ -> [a, b]
             TAC.Ifge a b _ -> [a, b]
-            TAC.SetIRet atom -> [atom]
-            TAC.IReturn -> []
+            TAC.SetRet atom -> [atom]
             TAC.Return -> []
+            TAC.VReturn -> []
             TAC.IAssign dst src -> [dst, src]
             TAC.IUnary dst _ x -> [dst, x]
             TAC.IBinary dst _ x y -> [dst, x, y]
@@ -1814,7 +1814,7 @@ functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args f
     }
 
     retBId <- incBlockId
-    let retInstr = if clazz == Void then TAC.Return else TAC.IReturn
+    let retInstr = if clazz == Void then TAC.VReturn else TAC.Return
     let retBlock = IRBlockStmt (retBId, [IRInstr retInstr])
 
     funStmts <- TAC.withFun (funSig, retBId, _argsMap) $ blockLowing functB
@@ -1972,7 +1972,7 @@ classLowing _ = error "the class is not implement"
 --   extract class declarations, and wrap remaining stmts into a synthetic class.
 progmLowing :: Path -> Program -> IRProgm
 progmLowing path (decls, stmts) =
-    let (decls', stmts') = AST.promoteTopLevelFunctions (decls, stmts)
+    let (decls', stmts') = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions (decls, stmts))
         (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
         pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d

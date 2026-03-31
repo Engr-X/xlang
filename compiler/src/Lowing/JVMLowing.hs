@@ -58,9 +58,9 @@ ensureJvmInstr instr = case instr of
     IR.Ifle a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
     IR.Ifgt a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
     IR.Ifge a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.SetIRet atom -> ensureJvmAtom atom
-    IR.IReturn -> ()
+    IR.SetRet atom -> ensureJvmAtom atom
     IR.Return -> ()
+    IR.VReturn -> ()
     IR.IAssign dst src -> ensureJvmAtom dst `seq` ensureJvmAtom src
     IR.IUnary dst _ src -> ensureJvmAtom dst `seq` ensureJvmAtom src
     IR.IBinary dst _ a b -> ensureJvmAtom dst `seq` ensureJvmAtom a `seq` ensureJvmAtom b
@@ -118,20 +118,20 @@ lowerInstr (IR.Iflt a b bid) = lowerCmp CmpLt a b bid
 lowerInstr (IR.Ifle a b bid) = lowerCmp CmpLe a b bid
 lowerInstr (IR.Ifgt a b bid) = lowerCmp CmpGt a b bid
 lowerInstr (IR.Ifge a b bid) = lowerCmp CmpGe a b bid
-lowerInstr (IR.SetIRet atom) = do
+lowerInstr (IR.SetRet atom) = do
     ops <- loadAtom atom
     st <- get
     cls <- atomClass atom
     case retLocal st of
         Just idx -> return (ops ++ [JVM.Store cls idx])
-        Nothing -> error "SetIRet in void function"
+        Nothing -> error "SetRet in void function"
 
-lowerInstr IR.IReturn = do
+lowerInstr IR.Return = do
     st <- get
     case (retType st, retLocal st) of
         (Just cls, Just idx) -> return [JVM.Load cls idx, JVM.ReturnWV cls]
-        _ -> error "IReturn in void function"
-lowerInstr IR.Return = return [JVM.Return]
+        _ -> error "Return in void function"
+lowerInstr IR.VReturn = return [JVM.Return]
 
 lowerInstr (IR.IAssign dst src) = do
     srcOps <- loadAtom src

@@ -186,14 +186,24 @@ ForStmt :: { Statement }
 TypedParams :: { [(Class, String, [Token])] }
     : Clazz identity                            { [(fst $1, identText $2, $2 : snd $1)] }
     | identity ':' Clazz                        { [(fst $3, identText $1, [$1, $2] ++ snd $3)] }
+    | KW_MUT identity ':' Clazz                 { [(fst $4, identText $2, [$1, $2, $3] ++ snd $4)] }
 
     | TypedParams ',' Clazz identity            { (fst $3, identText $4, $4 : snd $3) : $1 }
     | TypedParams ',' identity ':' Clazz        { (fst $5, identText $3, [$3, $4] ++ snd $5) : $1 }
+    | TypedParams ',' KW_MUT identity ':' Clazz { (fst $6, identText $4, [$3, $4, $5] ++ snd $6) : $1 }
     ;
 
 FunctionParams :: { [(Class, String, [Token])] }
     : '(' ')'                       { [] }
     | '(' TypedParams ')'           { reverse $2 }
+    ;
+
+-- generic parameters for function declarations:
+-- support both legacy '::<T>' and simplified '<T>'
+DeclGenericParamList :: { [(Class, [Token])] }
+    : GenericParamList            { $1 }
+    | '<' '>'                     { [] }
+    | '<' ClazzList '>'           { reverse $2 }
     ;
 
 FunctionBlock :: { Block }
@@ -211,6 +221,23 @@ AccessOpt :: { [Token] }
 AccessOptOpt :: { [Token] }
     : {- empty -}                   { [] }
     | AccessOpt                     { $1 }
+    ;
+
+FunModifier :: { Token }
+    : KW_PRIVATE                    { $1 }
+    | KW_PROTECTED                  { $1 }
+    | KW_PUBLIC                     { $1 }
+    | KW_INLINE                     { $1 }
+    ;
+
+FunModifierSeq :: { [Token] }
+    : FunModifier                   { [$1] }
+    | FunModifierSeq FunModifier    { $1 ++ [$2] }
+    ;
+
+FunModifierSeqOpt :: { [Token] }
+    : {- empty -}                   { [] }
+    | FunModifierSeq                { $1 }
     ;
 
 VarKind :: { (Bool, Token) }
@@ -273,16 +300,10 @@ CDeclItems :: { [([String], Maybe Expression, [Token])] }
 
 
 FunctionStmt :: { Statement }
-    : KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
-        { InstanceMethod (fst $5, snd $5) (qnameToExpr $2) $3 $6 }
-
-    | KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock
-        { InstanceMethodT (fst $6, snd $6) (qnameToExpr $2) $3 $4 $7 }
-
-    | AccessOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
+    : FunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
         { InstanceMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 $7 }
 
-    | AccessOpt KW_FUNC QName GenericParamList FunctionParams '->' Clazz FunctionBlock
+    | FunModifierSeqOpt KW_FUNC QName DeclGenericParamList FunctionParams '->' Clazz FunctionBlock
         { InstanceMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 $8 }
     ;
 
@@ -290,13 +311,13 @@ TypedLeadStmt :: { Statement }
     : Clazz QName FunctionParams FunctionBlock
         { InstanceMethod (fst $1, snd $1) (qnameToExpr $2) $3 $4 }
 
-    | Clazz QName GenericParamList FunctionParams FunctionBlock
+    | Clazz QName DeclGenericParamList FunctionParams FunctionBlock
         { InstanceMethodT (fst $1, snd $1) (qnameToExpr $2) $3 $4 $5 }
 
     | AccessOpt Clazz QName FunctionParams FunctionBlock
         { InstanceMethod (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 }
 
-    | AccessOpt Clazz QName GenericParamList FunctionParams FunctionBlock
+    | AccessOpt Clazz QName DeclGenericParamList FunctionParams FunctionBlock
         { InstanceMethodT (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 $6 }
 
     -- C-like declarations: int a; / int a = 10, b = 20;

@@ -30,13 +30,14 @@ prettyAccess Public = "public"
 
 
 -- | Declaration flags (used by variables/functions).
-data DeclFlag = Static | Final
+data DeclFlag = Static | Final | Inline
     deriving (Eq, Ord, Show)
 
 
 prettyDeclFlag :: DeclFlag -> String
 prettyDeclFlag Static = "static"
 prettyDeclFlag Final = "final"
+prettyDeclFlag Inline = "inline"
 
 
 type DeclFlags = [DeclFlag]

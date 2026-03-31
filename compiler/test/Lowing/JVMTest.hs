@@ -17,7 +17,7 @@ mkVoidFun name = IR.IRFunction
     name
     (FunSig [] Void)
     Map.empty
-    [IR.IRBlock (0, [IR.Return])]
+    [IR.IRBlock (0, [IR.VReturn])]
     IR.MemberClass
 
 

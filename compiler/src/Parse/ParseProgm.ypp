@@ -38,6 +38,8 @@ import qualified Util.FileHelper as FileHelper
     KW_VAL              { t@(Lex.Ident "val" _) }
     KW_CONST            { t@(Lex.Ident "const" _) }
     KW_FINAL            { t@(Lex.Ident "final" _) }
+    KW_MUT              { t@(Lex.Ident "mut" _) }
+    KW_INLINE           { t@(Lex.Ident "inline" _) }
 
     KW_PACKAGE          { t@(Lex.Ident "package" _) }
     KW_IMPORT           { t@(Lex.Ident "import" _) }

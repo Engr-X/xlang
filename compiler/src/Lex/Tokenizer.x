@@ -481,7 +481,7 @@ tokenize p str =
     case alexScanTokens str of
         Left _ -> ([UE.Unkown p], [])
         Right tokens -> let (errs, correct) = partition isErrToken tokens
-            in (map (convertErrToken p) errs, splitShiftInGenerics correct)
+            in (map (convertErrToken p) errs, splitShiftInGenerics (normalizeTemplateCallSyntax correct))
 
 
 -- | tokenize and automatically add NL 

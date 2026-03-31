@@ -355,7 +355,13 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
     )]
 
 tests :: TestTree
-tests = testGroup "Parse.ParseExpr" [lexparseExprTests, ternaryParseTests, incDecParseTests, andOrParseTests]
+tests = testGroup "Parse.ParseExpr" [
+    lexparseExprTests,
+    ternaryParseTests,
+    incDecParseTests,
+    andOrParseTests,
+    genericCallSyntaxTests
+    ]
 
 
 ternaryParseTests :: TestTree
@@ -440,6 +446,19 @@ andOrParseTests = testGroup "Parse.ParseExpr.andOr" [
     testCase "left associativity for or" $
         case replLexparseExpr "a or b or c" of
             Right (Binary BitOr (Binary BitOr (Variable "a" _) (Variable "b" _) _) (Variable "c" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+
+genericCallSyntaxTests :: TestTree
+genericCallSyntaxTests = testGroup "Parse.ParseExpr.generic_call_syntax" [
+    testCase "template call supports concise add<int>(...)" $
+        case replLexparseExpr "add<int>(m, 1)" of
+            Right (CallT (Variable "add" _) [(Int32T, _)] [Variable "m" _, IntConst "1" _]) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "relational a < b still parses as less-than" $
+        case replLexparseExpr "a < b" of
+            Right (Binary LessThan (Variable "a" _) (Variable "b" _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 

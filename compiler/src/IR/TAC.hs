@@ -1,13 +1,16 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module IR.TAC where
 
 import Control.Monad.State.Strict (State, get, put, modify, MonadState)
 import Data.Int (Int64)
+import Data.Hashable (Hashable)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
+import GHC.Generics (Generic)
 import Parse.SyntaxTree (Block, Class, Expression, Operator, Statement)
 import Parse.ParserBasic (Decl, prettyDecl)
 import Semantic.NameEnv (QName)
@@ -499,7 +502,9 @@ data IRAtom
     | Var (String, Int, Int)                      -- name, varId, versionIndex
     | Phi [(Int, IRAtom)]                         -- incoming block id -> atom
     | Param Int                                   -- param for function and class
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
+
+instance Hashable IRAtom
 
 
 prettyIRAtom :: IRAtom -> String
@@ -518,6 +523,21 @@ prettyIRAtom (Phi pairs) =
     let showPair (bid, atom) = concat [".L", show bid, ":", prettyIRAtom atom]
     in concat ["phi(", intercalate ", " (map showPair pairs), ")"]
 prettyIRAtom (Param i) = "param" ++ show i
+
+
+isConstAtom :: IRAtom -> Bool
+isConstAtom (BoolC _) = True
+isConstAtom (CharC _) = True
+isConstAtom (StringC _) = True
+isConstAtom (Int8C _) = True
+isConstAtom (Int16C _) = True
+isConstAtom (Int32C _) = True
+isConstAtom (Int64C _) = True
+isConstAtom (Float32C _) = True
+isConstAtom (Float64C _) = True
+isConstAtom (Float128C _) = True
+isConstAtom _ = False
+
 
 
 getVarKey :: IRAtom -> (String, Int, Int)
@@ -564,9 +584,9 @@ data IRInstr
     | Ifgt IRAtom IRAtom Int                        -- if a > b then jump
     | Ifge IRAtom IRAtom Int                        -- if a >= b then jump
 
-    | SetIRet IRAtom                                -- set return value
-    | IReturn                                       -- return with RetVar
-    | Return                                        -- this is return void
+    | SetRet IRAtom                                 -- set return value
+    | Return                                        -- return with RetVar
+    | VReturn                                       -- this is return void
 
     | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
@@ -606,9 +626,9 @@ prettyIRInstr n instr = insertTab n ++ case instr of
     Ifle a b t -> concat ["if ", prettyIRAtom a, " <= ", prettyIRAtom b, " goto .L", show t]
     Ifgt a b t -> concat ["if ", prettyIRAtom a, " > ", prettyIRAtom b, " goto .L", show t]
     Ifge a b t -> concat ["if ", prettyIRAtom a, " >= ", prettyIRAtom b, " goto .L", show t]
-    SetIRet atom -> "$ret = " ++ prettyIRAtom atom
-    IReturn -> "ireturn"
-    Return -> "return"
+    SetRet atom -> "$ret = " ++ prettyIRAtom atom
+    Return -> "ireturn"
+    VReturn -> "return"
     IAssign dst src -> concat [prettyIRAtom dst, " = ", prettyIRAtom src]
     IUnary dst op x -> concat [prettyIRAtom dst, " = ", AST.prettyOp op, prettyIRAtom x]
     IBinary dst op x y -> concat [prettyIRAtom dst, " = ", prettyIRAtom x, " ", AST.prettyOp op, " ", prettyIRAtom y]

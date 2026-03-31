@@ -128,6 +128,102 @@ callArgCastTests = testGroup "IR.Lowing.callArgCast" [
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
 
+inlineFunctionLoweringTests :: TestTree
+inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
+    testCase "inline function call should be expanded without ICall" $ do
+        let src = unlines [
+                "inline fun add(a: int, b: int) -> int = a + b;",
+                "int main() {",
+                "    return add(2, 3)",
+                "}"
+                ]
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
+            hasCallInstr :: [IRInstr] -> Bool
+            hasCallInstr = any isCallInstr
+                where
+                    isCallInstr instr = case instr of
+                        ICall {} -> True
+                        ICallStatic {} -> True
+                        _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) ->
+                case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
+                    Nothing -> assertFailure "missing function main"
+                    Just (IRFunction _ _ _ _ blocks _) ->
+                        assertBool "inline call should not emit call instructions" (not (hasCallInstr (collectInstrs blocks)))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ,
+    testCase "nested inline function should be expanded in caller body" $ do
+        let src = unlines [
+                "int main() {",
+                "    inline fun add1(x: int) -> int = x + 1;",
+                "    return add1(2)",
+                "}"
+                ]
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
+            hasCallInstr :: [IRInstr] -> Bool
+            hasCallInstr = any isCallInstr
+                where
+                    isCallInstr instr = case instr of
+                        ICall {} -> True
+                        ICallStatic {} -> True
+                        _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) ->
+                case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
+                    Nothing -> assertFailure "missing function main"
+                    Just (IRFunction _ _ _ _ blocks _) ->
+                        assertBool "nested inline call should not emit call instructions" (not (hasCallInstr (collectInstrs blocks)))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ,
+    testCase "recursive inline function should not inline into caller" $ do
+        let src = unlines [
+                "inline fun fact(n: int) -> int {",
+                "    return 1 if n <= 1 else n * fact(n - 1)",
+                "}",
+                "int main() {",
+                "    return fact(5)",
+                "}"
+                ]
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
+            hasCallInstr :: [IRInstr] -> Bool
+            hasCallInstr = any isCallInstr
+                where
+                    isCallInstr instr = case instr of
+                        ICall {} -> True
+                        ICallStatic {} -> True
+                        _ -> False
+            hasBranchInstr :: [IRInstr] -> Bool
+            hasBranchInstr = any isBranchInstr
+                where
+                    isBranchInstr instr = case instr of
+                        Ifeq {} -> True
+                        Ifne {} -> True
+                        Iflt {} -> True
+                        Ifle {} -> True
+                        Ifgt {} -> True
+                        Ifge {} -> True
+                        _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) ->
+                case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
+                    Nothing -> assertFailure "missing function main"
+                    Just (IRFunction _ _ _ _ blocks _) -> do
+                        let instrs = collectInstrs blocks
+                        assertBool "recursive inline function should keep call in caller" (hasCallInstr instrs)
+                        assertBool "recursive inline function should not inline recursive body into caller" (not (hasBranchInstr instrs))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+
 ternaryControlFlowTests :: TestTree
 ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
     testCase "return-ternary dispatch stays in block join" $ do
@@ -140,7 +236,7 @@ ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
                 Ifeq {} -> True
                 _ -> False
             instrHasSetRet instr = case instr of
-                SetIRet {} -> True
+                SetRet {} -> True
                 _ -> False
 
         case codeToIRSingleWithRoot "." "Main.x" src of
@@ -153,9 +249,9 @@ ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
                     blockHasSetRet = any (any instrHasSetRet) blockBodies
 
                 assertBool "top-level Ifeq should not appear for ternary return" (not topHasIfeq)
-                assertBool "top-level SetIRet should not appear for ternary return" (not topHasSetRet)
+                assertBool "top-level SetRet should not appear for ternary return" (not topHasSetRet)
                 assertBool "a block should contain ternary branch Ifeq" blockHasIfeq
-                assertBool "a block should contain SetIRet after ternary join" blockHasSetRet
+                assertBool "a block should contain SetRet after ternary join" blockHasSetRet
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
 
@@ -439,7 +535,7 @@ shortCircuitAssignPlacementTests = testGroup "IR.Lowing.shortCircuitAssignPlacem
         isUnconditionalTerminator instr = case instr of
             Jump {} -> True
             Return -> True
-            IReturn -> True
+            VReturn -> True
             _ -> False
 
 
@@ -447,6 +543,7 @@ tests :: TestTree
 tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
     callArgCastTests,
+    inlineFunctionLoweringTests,
     ternaryControlFlowTests,
     stringLiteralLoweringTests,
     staticFieldReadLoweringTests,
