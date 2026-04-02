@@ -259,12 +259,12 @@ ifElifSyntaxTests = testGroup "if_elif_syntax"
 
 inlineFunctionSyntaxTests :: TestTree
 inlineFunctionSyntaxTests = testGroup "inline_function_syntax"
-    [ testCase "inline fun parses and keeps inline modifier token" $
+    [ testCase "0" $
         case replLexparseStmt "inline fun add(a: int, b: int) -> int = a + b;" of
             Right (Function (Int32T, retToks) (Variable "add" _) _ (Multiple [Command (Return (Just _)) _])) ->
                 assertBool "inline token should exist in return-token list" (hasInlineTok retToks)
             other -> assertFailure ("expected inline function statement, got: " ++ show other)
-    , testCase "inline var is rejected (inline is function-only)" $
+    , testCase "1" $
         case replLexparseStmt "inline var x: int = 1;" of
             Left _ -> pure ()
             Right stmt -> assertFailure ("expected parse failure for inline var, got: " ++ show stmt)
@@ -279,7 +279,7 @@ inlineFunctionSyntaxTests = testGroup "inline_function_syntax"
 
 mutParamSyntaxTests :: TestTree
 mutParamSyntaxTests = testGroup "mut_param_syntax"
-    [ testCase "fun param supports mut x: int" $
+    [ testCase "0" $
         case replLexparseStmt "fun even(mut x: int) -> bool = true;" of
             Right (Function (Bool, _) (Variable "even" _) [(Int32T, "x", paramToks)] (Multiple [Command (Return (Just _)) _])) ->
                 assertBool "param token list should contain mut" (any isMutTok paramToks)
@@ -293,7 +293,7 @@ mutParamSyntaxTests = testGroup "mut_param_syntax"
 
 templateFunctionSyntaxTests :: TestTree
 templateFunctionSyntaxTests = testGroup "template_function_syntax"
-    [ testCase "fun add<T>(...) parses without :: in declaration" $
+    [ testCase "0" $
         case replLexparseStmt "fun add<T>(a: T, b: T) -> T = a + b;" of
             Right (FunctionT (Class ["T"] _, _) (Variable "add" _) [tpl] params (Multiple [Command (Return (Just _)) _])) -> do
                 fst tpl @?= Class ["T"] []

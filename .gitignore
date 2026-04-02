@@ -10,3 +10,6 @@ build/
 **/.idea/tasks.xml
 **/.idea/shelf/
 **/*.iml
+
+# configure output
+config.mk

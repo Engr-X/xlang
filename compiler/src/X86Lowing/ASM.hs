@@ -90,6 +90,9 @@ prettyAtom (Imm val) = show val
 
 data Instruction =
     Mov TargetAtom Atom |
+    Movs TargetAtom Atom |
+    Movz TargetAtom Atom |
+
     Lea TargetAtom Atom |
     Push |
     Pop |
@@ -126,12 +129,22 @@ data Instruction =
     Jle String |
 
     Call String |
+    Leave |
     Ret
+    deriving (Show, Eq)
+
+
+newtype Segement = X86Label Int [Instruction]
+    deriving (Show, Eq)
+
+newtype Function = X86Func (String, [String]) [Instruction]
     deriving (Show, Eq)
 
 
 prettyInstruction :: Int -> Instruction -> String
 prettyInstruction tab (Mov target src) = concat [insertTab tab, "mov ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Movs target src) = concat [insertTab tab, "movs ", prettyTarget target, ", ", prettyAtom src]
+prettyInstruction tab (Movz target src) = concat [insertTab tab, "movz ", prettyTarget target, ", ", prettyAtom src]
 prettyInstruction tab (Lea target src) = concat [insertTab tab, "lea ", prettyTarget target, ", ", prettyAtom src]
 prettyInstruction tab Push = insertTab tab ++ "push"
 prettyInstruction tab Pop = insertTab tab ++ "pop"
@@ -162,6 +175,7 @@ prettyInstruction tab (Jge label) = concat [insertTab tab, "jge ", label]
 prettyInstruction tab (Jl label) = concat [insertTab tab, "jl ", label]
 prettyInstruction tab (Jle label) = concat [insertTab tab, "jle ", label]
 prettyInstruction tab (Call func) = concat [insertTab tab, "call ", func]
+prettyInstruction tab Leave = insertTab tab ++ "leave"
 prettyInstruction tab Ret = insertTab tab ++ "ret"
 
 

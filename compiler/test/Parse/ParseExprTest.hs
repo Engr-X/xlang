@@ -451,12 +451,12 @@ andOrParseTests = testGroup "Parse.ParseExpr.andOr" [
 
 genericCallSyntaxTests :: TestTree
 genericCallSyntaxTests = testGroup "Parse.ParseExpr.generic_call_syntax" [
-    testCase "template call supports concise add<int>(...)" $
+    testCase "0" $
         case replLexparseExpr "add<int>(m, 1)" of
             Right (CallT (Variable "add" _) [(Int32T, _)] [Variable "m" _, IntConst "1" _]) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
-    testCase "relational a < b still parses as less-than" $
+    testCase "1" $
         case replLexparseExpr "a < b" of
             Right (Binary LessThan (Variable "a" _) (Variable "b" _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
