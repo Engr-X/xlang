@@ -470,7 +470,23 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
           Package ["xlang", "math"] [
             mkId "xlang" 2 9 5,
             mkId "math" 2 15 4
-          ]], []))]
+          ]], [])),
+
+        ("15", unlines [
+            "import com.wangdi.*",
+            "import java.lang.*"],
+        ([Import ["com", "wangdi", "*"] [
+            mkId "com" 1 8 3,
+            mkId "wangdi" 1 12 6,
+            mkSym Lex.Dot 1 18 1,
+            mkSym Lex.Multiply 1 19 1
+            ],
+          Import ["java", "lang", "*"] [
+            mkId "java" 2 8 4,
+            mkId "lang" 2 13 4,
+            mkSym Lex.Dot 2 17 1,
+            mkSym Lex.Multiply 2 18 1
+            ]], []))]
         
 
 tests :: TestTree

@@ -532,12 +532,12 @@ exprLowing (AST.Binary op e1 e2 _) = do
         lJoin <- incBlockId
 
         let jumpInstr = case op of
-                AST.Equal -> TAC.Ifeq atom1' atom2' lTrue
-                AST.NotEqual -> TAC.Ifne atom1' atom2' lTrue
-                AST.LessThan -> TAC.Iflt atom1' atom2' lTrue
-                AST.LessEqual -> TAC.Ifle atom1' atom2' lTrue
-                AST.GreaterThan -> TAC.Ifgt atom1' atom2' lTrue
-                AST.GreaterEqual -> TAC.Ifge atom1' atom2' lTrue
+                AST.Equal -> TAC.Ifeq atom1' atom2' (lTrue, lFalse)
+                AST.NotEqual -> TAC.Ifne atom1' atom2' (lTrue, lFalse)
+                AST.LessThan -> TAC.Iflt atom1' atom2' (lTrue, lFalse)
+                AST.LessEqual -> TAC.Ifle atom1' atom2' (lTrue, lFalse)
+                AST.GreaterThan -> TAC.Ifgt atom1' atom2' (lTrue, lFalse)
+                AST.GreaterEqual -> TAC.Ifge atom1' atom2' (lTrue, lFalse)
                 _ -> error "not a compare op"
 
             trueBlock = IRBlockStmt (lTrue, [
@@ -552,7 +552,7 @@ exprLowing (AST.Binary op e1 e2 _) = do
             joinBlock = IRBlockStmt (lJoin, [phiInstr])
 
         let seqRev =
-                [joinBlock, falseBlock, trueBlock, IRInstr (TAC.Jump lFalse), IRInstr jumpInstr]
+                [joinBlock, falseBlock, trueBlock, IRInstr jumpInstr]
                 ++ cast2Instrs ++ instr2 ++ cast1Instrs ++ instr1
         return (seqRev, nAtom)
     else do
@@ -580,8 +580,7 @@ exprLowing (AST.Ternary cond (thenE, elseE) _) = do
     lJoin <- incBlockId
 
     let condStmts = appendAfterCond (reverse condInstrs) [
-            IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThen),
-            IRInstr (TAC.Jump lElse)]
+            IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (lThen, lElse))]
         thenBody = appendAfterCond (reverse thenInstrs) (
             thenCastInstrs ++ [
                 IRInstr (TAC.IAssign nAtom thenAtom),
@@ -657,8 +656,7 @@ shortCircuitLogical op e1 e2 = do
 
             let condStmts = appendAfterCond (reverse lhsInstrs) (
                     lhsCastInstrs ++ [
-                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
-                        IRInstr (TAC.Jump lFalse)])
+                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) (lRhs, lFalse))])
                 rhsBody = appendAfterCond (reverse rhsInstrs) (
                     rhsCastInstrs ++ [
                         IRInstr (TAC.IAssign nAtom rhsAtom),
@@ -682,8 +680,7 @@ shortCircuitLogical op e1 e2 = do
 
             let condStmts = appendAfterCond (reverse lhsInstrs) (
                     lhsCastInstrs ++ [
-                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
-                        IRInstr (TAC.Jump lTrue)])
+                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) (lRhs, lTrue))])
                 trueBody = [
                     IRInstr (TAC.IAssign nAtom (TAC.BoolC True)),
                     IRInstr (TAC.Jump lJoin)]
@@ -707,8 +704,7 @@ shortCircuitLogical op e1 e2 = do
 
             let condStmts = appendAfterCond (reverse lhsInstrs) (
                     lhsCastInstrs ++ [
-                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lTrue),
-                        IRInstr (TAC.Jump lRhs)])
+                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) (lTrue, lRhs))])
                 trueBody = [
                     IRInstr (TAC.IAssign nAtom (TAC.BoolC True)),
                     IRInstr (TAC.Jump lJoin)]
@@ -732,8 +728,7 @@ shortCircuitLogical op e1 e2 = do
 
             let condStmts = appendAfterCond (reverse lhsInstrs) (
                     lhsCastInstrs ++ [
-                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lFalse),
-                        IRInstr (TAC.Jump lRhs)])
+                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) (lFalse, lRhs))])
                 falseBody = [
                     IRInstr (TAC.IAssign nAtom (TAC.BoolC False)),
                     IRInstr (TAC.Jump lJoin)]
@@ -757,8 +752,7 @@ shortCircuitLogical op e1 e2 = do
 
             let condStmts = appendAfterCond (reverse lhsInstrs) (
                     lhsCastInstrs ++ [
-                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
-                        IRInstr (TAC.Jump lTrue)])
+                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) (lRhs, lTrue))])
                 rhsBody = appendAfterCond (reverse rhsInstrs) (
                     rhsCastInstrs ++ [
                         IRInstr (TAC.IAssign nAtom rhsAtom),
@@ -782,8 +776,7 @@ shortCircuitLogical op e1 e2 = do
 
             let condStmts = appendAfterCond (reverse lhsInstrs) (
                     lhsCastInstrs ++ [
-                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) lRhs),
-                        IRInstr (TAC.Jump lFalse)])
+                        IRInstr (TAC.Ifeq lhsAtom (TAC.Int32C 1) (lRhs, lFalse))])
                 rhsBody = appendAfterCond (reverse rhsInstrs) (
                     rhsCastInstrs ++ [
                         IRInstr (TAC.IUnary rhsNot AST.LogicalNot rhsAtom),
@@ -1090,6 +1083,7 @@ stmtsLowing ((AST.For (mInit, mCond, mStep) bodyB elseB (forTok, _)):stmts) = do
     l1ID <- incBlockId
     l2ID <- incBlockId
     lStepID <- incBlockId
+    lElseID <- incBlockId
     lAfterID <- incBlockId
 
     initStmts <- case mInit of
@@ -1126,9 +1120,7 @@ stmtsLowing ((AST.For (mInit, mCond, mStep) bodyB elseB (forTok, _)):stmts) = do
         return (bodyStmts', stepStmts', bodyStacks', elseStmts')
 
     let condStmts = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) l2ID)] ++
-            elseStmts ++
-            [IRInstr (TAC.Jump lAfterID)])
+            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l2ID, lElseID))])
 
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> IRInstr (TAC.IAssign dst preAtom)) phiInfos'
@@ -1141,11 +1133,12 @@ stmtsLowing ((AST.For (mInit, mCond, mStep) bodyB elseB (forTok, _)):stmts) = do
     let stepTail = backAssigns ++ [IRInstr (TAC.Jump l1ID)]
     let stepBlock = IRBlockStmt (lStepID, appendAfterCond stepStmts stepTail)
     let headerBlock = IRBlockStmt (l1ID, phiInstrs ++ condStmts)
+    let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump lAfterID)])
 
     afterStmts <- stmtsLowing stmts
     let afterBlock = IRBlockStmt (lAfterID, afterStmts)
 
-    return [preBlock, bodyBlock, stepBlock, headerBlock, afterBlock]
+    return [preBlock, bodyBlock, stepBlock, headerBlock, elseBlock, afterBlock]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
         mkPhi stacks key = do
@@ -1189,6 +1182,7 @@ stmtsLowing ((AST.Repeat countExpr bodyB elseB _):stmts) = do
     l1ID <- incBlockId
     l2ID <- incBlockId
     lStepID <- incBlockId
+    lElseID <- incBlockId
     lAfterID <- incBlockId
 
     preStacks <- getVarStacks
@@ -1226,9 +1220,10 @@ stmtsLowing ((AST.Repeat countExpr bodyB elseB _):stmts) = do
     let preBlock = IRBlockStmt (l0ID, preBlockBody)
 
     let condStmts = [
-            IRInstr (TAC.Iflt idxCurr countAtom l2ID)
-            ] ++ elseStmts ++ [IRInstr (TAC.Jump lAfterID)]
+            IRInstr (TAC.Iflt idxCurr countAtom (l2ID, lElseID))
+            ]
     let headerBlock = IRBlockStmt (l1ID, condStmts)
+    let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump lAfterID)])
 
     let bodyBlock = IRBlockStmt (l2ID, appendAfterCond bodyStmts [IRInstr (TAC.Jump lStepID)])
     let stepTail = [
@@ -1240,7 +1235,7 @@ stmtsLowing ((AST.Repeat countExpr bodyB elseB _):stmts) = do
     afterStmts <- stmtsLowing stmts
     let afterBlock = IRBlockStmt (lAfterID, afterStmts)
 
-    return [preBlock, bodyBlock, stepBlock, headerBlock, afterBlock]
+    return [preBlock, bodyBlock, stepBlock, headerBlock, elseBlock, afterBlock]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
         mkPhi stacks key = do
@@ -1339,8 +1334,7 @@ stmtsLowing ((AST.If e thenB elseB _):stmts) = do
 
     (condInstrs, condAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
     let condStmts = appendAfterCond (reverse condInstrs) [
-            IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) lThenID),
-            IRInstr (TAC.Jump lElseID)]
+            IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (lThenID, lElseID))]
     condStacks <- getVarStacks
 
     thenStmts <- blockLowing $ fromMaybe (AST.Multiple []) thenB
@@ -1413,6 +1407,7 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
     l0ID <- incBlockId
     l1ID <- incBlockId
     l2ID <- incBlockId
+    lElseID <- incBlockId
     l3ID <- incBlockId
 
     preStacks <- getVarStacks
@@ -1436,9 +1431,7 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
         return (bodyStmts', bodyStacks', elseStmts')
 
     let condStmts = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) l2ID)] ++
-            elseStmts ++
-            [IRInstr (TAC.Jump l3ID)])
+            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l2ID, lElseID))])
 
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> IRInstr (TAC.IAssign dst preAtom)) phiInfos'
@@ -1452,11 +1445,12 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
     let bodyTailBlock = IRBlockStmt (l2TailID, bodyTail)
     let bodyBlock = IRBlockStmt (l2ID, bodyStmts ++ [bodyTailBlock])
     let headerBlock = IRBlockStmt (l1ID, phiInstrs ++ condStmts)
+    let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump l3ID)])
 
     afterStmts <- stmtsLowing stmts
     let afterBlock = IRBlockStmt (l3ID, afterStmts)
 
-    return [preBlock, bodyBlock, headerBlock, afterBlock]
+    return [preBlock, bodyBlock, headerBlock, elseBlock, afterBlock]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
         mkPhi stacks key = do
@@ -1477,6 +1471,7 @@ stmtsLowing ((AST.Until e bodyB elseB _):stmts) = do
     l0ID <- incBlockId
     l1ID <- incBlockId
     l2ID <- incBlockId
+    lElseID <- incBlockId
     l3ID <- incBlockId
 
     preStacks <- getVarStacks
@@ -1500,9 +1495,7 @@ stmtsLowing ((AST.Until e bodyB elseB _):stmts) = do
         return (bodyStmts', bodyStacks', elseStmts')
 
     let condStmts = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) l2ID)] ++
-            elseStmts ++
-            [IRInstr (TAC.Jump l3ID)])
+            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) (l2ID, lElseID))])
 
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> IRInstr (TAC.IAssign dst preAtom)) phiInfos'
@@ -1516,11 +1509,12 @@ stmtsLowing ((AST.Until e bodyB elseB _):stmts) = do
     let bodyTailBlock = IRBlockStmt (l2TailID, bodyTail)
     let bodyBlock = IRBlockStmt (l2ID, bodyStmts ++ [bodyTailBlock])
     let headerBlock = IRBlockStmt (l1ID, phiInstrs ++ condStmts)
+    let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump l3ID)])
 
     afterStmts <- stmtsLowing stmts
     let afterBlock = IRBlockStmt (l3ID, afterStmts)
 
-    return [preBlock, bodyBlock, headerBlock, afterBlock]
+    return [preBlock, bodyBlock, headerBlock, elseBlock, afterBlock]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
         mkPhi stacks key = do
@@ -1542,6 +1536,7 @@ stmtsLowing ((AST.DoWhile bodyB e elseB _):stmts) = do
     l1ID <- incBlockId
     l2ID <- incBlockId
     l3ID <- incBlockId
+    lElseID <- incBlockId
     l4ID <- incBlockId
 
     preStacks <- getVarStacks
@@ -1571,15 +1566,14 @@ stmtsLowing ((AST.DoWhile bodyB e elseB _):stmts) = do
     let preBlock = IRBlockStmt (l0ID, preAssigns ++ [IRInstr (TAC.Jump l1ID)])
     let bodyBlock = IRBlockStmt (l1ID, phiInstrs ++ appendAfterCond bodyStmts [IRInstr (TAC.Jump l2ID)])
     let condTail = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) l3ID)] ++
-            elseStmts ++
-            [IRInstr (TAC.Jump l4ID)])
+            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l3ID, lElseID))])
     let condBlock = IRBlockStmt (l2ID, condTail)
     let backBlock = IRBlockStmt (l3ID, backAssigns ++ [IRInstr (TAC.Jump l1ID)])
+    let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump l4ID)])
 
     afterStmts <- stmtsLowing stmts
     let afterBlock = IRBlockStmt (l4ID, afterStmts)
-    return [preBlock, bodyBlock, condBlock, backBlock, afterBlock]
+    return [preBlock, bodyBlock, condBlock, backBlock, elseBlock, afterBlock]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
         mkPhi stacks key = do
@@ -1601,6 +1595,7 @@ stmtsLowing ((AST.DoUntil bodyB e elseB _):stmts) = do
     l1ID <- incBlockId
     l2ID <- incBlockId
     l3ID <- incBlockId
+    lElseID <- incBlockId
     l4ID <- incBlockId
 
     preStacks <- getVarStacks
@@ -1630,15 +1625,14 @@ stmtsLowing ((AST.DoUntil bodyB e elseB _):stmts) = do
     let preBlock = IRBlockStmt (l0ID, preAssigns ++ [IRInstr (TAC.Jump l1ID)])
     let bodyBlock = IRBlockStmt (l1ID, phiInstrs ++ appendAfterCond bodyStmts [IRInstr (TAC.Jump l2ID)])
     let condTail = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) l3ID)] ++
-            elseStmts ++
-            [IRInstr (TAC.Jump l4ID)])
+            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) (l3ID, lElseID))])
     let condBlock = IRBlockStmt (l2ID, condTail)
     let backBlock = IRBlockStmt (l3ID, backAssigns ++ [IRInstr (TAC.Jump l1ID)])
+    let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump l4ID)])
 
     afterStmts <- stmtsLowing stmts
     let afterBlock = IRBlockStmt (l4ID, afterStmts)
-    return [preBlock, bodyBlock, condBlock, backBlock, afterBlock]
+    return [preBlock, bodyBlock, condBlock, backBlock, elseBlock, afterBlock]
     where
         mkPhi :: Map VarKey [(Class, Int)] -> VarKey -> TACM (Maybe (VarKey, IRAtom, IRAtom))
         mkPhi stacks key = do

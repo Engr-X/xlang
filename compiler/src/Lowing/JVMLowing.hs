@@ -112,12 +112,12 @@ lowerBlock (IR.IRBlock (bid, instrs)) = do
 -- | Lower a single IR instruction into JVM ops (stack machine).
 lowerInstr :: IR.IRInstr -> State LowerState [JVM.JOP]
 lowerInstr (IR.Jump bid) = return  [JVM.Goto bid]
-lowerInstr (IR.Ifeq a b bid) = lowerCmp CmpEq a b bid
-lowerInstr (IR.Ifne a b bid) = lowerCmp CmpNe a b bid
-lowerInstr (IR.Iflt a b bid) = lowerCmp CmpLt a b bid
-lowerInstr (IR.Ifle a b bid) = lowerCmp CmpLe a b bid
-lowerInstr (IR.Ifgt a b bid) = lowerCmp CmpGt a b bid
-lowerInstr (IR.Ifge a b bid) = lowerCmp CmpGe a b bid
+lowerInstr (IR.Ifeq a b bids) = lowerCmp CmpEq a b bids
+lowerInstr (IR.Ifne a b bids) = lowerCmp CmpNe a b bids
+lowerInstr (IR.Iflt a b bids) = lowerCmp CmpLt a b bids
+lowerInstr (IR.Ifle a b bids) = lowerCmp CmpLe a b bids
+lowerInstr (IR.Ifgt a b bids) = lowerCmp CmpGt a b bids
+lowerInstr (IR.Ifge a b bids) = lowerCmp CmpGe a b bids
 lowerInstr (IR.SetRet atom) = do
     ops <- loadAtom atom
     st <- get
@@ -248,15 +248,15 @@ lowerInstr (IR.IPutField {}) =
 
 data CmpKind = CmpEq | CmpNe | CmpLt | CmpLe | CmpGt | CmpGe
 
-lowerCmp :: CmpKind -> IR.IRAtom -> IR.IRAtom -> Int -> State LowerState [JVM.JOP]
-lowerCmp kind a b bid = do
+lowerCmp :: CmpKind -> IR.IRAtom -> IR.IRAtom -> (Int, Int) -> State LowerState [JVM.JOP]
+lowerCmp kind a b (thenBid, elseBid) = do
     aOps <- loadAtom a
     bOps <- loadAtom b
     clsA <- atomClass a
     clsB <- atomClass b
     let cmpCls = pickCmpClass clsA clsB
-        op = cmpOp kind cmpCls bid
-    return (concat [aOps, bOps, [op]])
+        op = cmpOp kind cmpCls thenBid
+    return (concat [aOps, bOps, [op, JVM.Goto elseBid]])
 
 pickCmpClass :: Class -> Class -> Class
 pickCmpClass a b

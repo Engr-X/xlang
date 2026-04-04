@@ -272,6 +272,41 @@ shortCircuitLogicalTests = testGroup "IR.TACLowing.shortCircuitLogical" [
             TAC.IAssign _ (TAC.Phi _) -> True
             _ -> False
 
+ifBranchPairTests :: TestTree
+ifBranchPairTests = testGroup "IR.TACLowing.ifBranchPair" [
+    testCase "if without else should still emit paired branch targets" $ do
+        let stmt = AST.If
+                (AST.BoolConst True LT.dummyToken)
+                (Just (AST.Multiple []))
+                Nothing
+                (LT.dummyToken, Nothing)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
+        assertBool "if lowering should contain paired Ifeq targets" (any hasPairedIfeq instrs),
+
+    testCase "if with else should emit paired branch targets" $ do
+        let stmt = AST.If
+                (AST.BoolConst True LT.dummyToken)
+                (Just (AST.Multiple []))
+                (Just (AST.Multiple []))
+                (LT.dummyToken, Just LT.dummyToken)
+            instrs = collectInstrs (lowerStmtBlocks stmt)
+        assertBool "if-else lowering should contain paired Ifeq targets" (any hasPairedIfeq instrs)
+    ]
+    where
+        lowerStmtBlocks :: AST.Statement -> [TAC.IRBlock]
+        lowerStmtBlocks stmt =
+            let st0 = TAC.mkTACState Map.empty Map.empty
+                nodes = evalState (TAC.runTACM (stmtsLowing [stmt])) st0
+            in packIRBlocks nodes
+
+        collectInstrs :: [TAC.IRBlock] -> [TAC.IRInstr]
+        collectInstrs = concatMap (\(TAC.IRBlock (_, body)) -> body)
+
+        hasPairedIfeq :: TAC.IRInstr -> Bool
+        hasPairedIfeq instr = case instr of
+            TAC.Ifeq _ _ (t, f) -> t /= f
+            _ -> False
+
 untilLoweringTests :: TestTree
 untilLoweringTests = testGroup "IR.TACLowing.untilLowering" [
     testCase "until condition branches on false" $ do
@@ -392,6 +427,7 @@ tests = testGroup "IR.TACLowing" [
     detectMainKindTests,
     loopAssignKeyTests,
     shortCircuitLogicalTests,
+    ifBranchPairTests,
     untilLoweringTests,
     doLoopLoweringTests,
     repeatLoweringTests

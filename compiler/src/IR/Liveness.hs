@@ -3,8 +3,7 @@ module IR.Liveness where
 import Data.List (foldl')
 import Data.Map.Strict (Map)
 import Data.HashSet (HashSet)
-import Data.Maybe (mapMaybe)
-import IR.TAC (IRAtom(..), IRInstr(..), IRBlock, getInstrSucc, isConstAtom)
+import IR.TAC (IRAtom(..), IRInstr(..), IRBlock, getInstrSuccs, isConstAtom)
 
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
@@ -27,7 +26,7 @@ blockSucc blocks = Map.fromList (map blockEntry indexedBlocks)
 
         blockInnerSucc :: IRBlock -> HashSet Int
         blockInnerSucc (TAC.IRBlock (_, instrs)) =
-            HashSet.fromList (mapMaybe getInstrSucc instrs)
+            HashSet.fromList (concatMap getInstrSuccs instrs)
 
         fallthroughSucc :: Int -> [IRInstr] -> Maybe Int
         fallthroughSucc idx instrs
@@ -45,6 +44,12 @@ blockSucc blocks = Map.fromList (map blockEntry indexedBlocks)
 
         isTerminator :: IRInstr -> Bool
         isTerminator (Jump _) = True
+        isTerminator (Ifeq _ _ _) = True
+        isTerminator (Ifne _ _ _) = True
+        isTerminator (Iflt _ _ _) = True
+        isTerminator (Ifle _ _ _) = True
+        isTerminator (Ifgt _ _ _) = True
+        isTerminator (Ifge _ _ _) = True
         isTerminator Return = True
         isTerminator VReturn = True
         isTerminator _ = False

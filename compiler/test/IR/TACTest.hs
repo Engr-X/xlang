@@ -88,10 +88,63 @@ rmEBInFuncTests = testGroup "IR.TAC.rmEBInFunc" $ map (uncurry testCase) [
     ]
 
 
+getInstrSuccsTests :: TestTree
+getInstrSuccsTests = testGroup "IR.TAC.getInstrSuccs" $ map (uncurry testCase) [
+    ("0", getInstrSuccs (Jump 7) @?= [7]),
+    ("1", getInstrSuccs (Ifeq (Int32C 1) (Int32C 1) (3, 5)) @?= [3, 5]),
+    ("2", getInstrSuccs (Ifgt (Int32C 2) (Int32C 1) (9, 11)) @?= [9, 11]),
+    ("3", getInstrSuccs VReturn @?= [])
+    ]
+
+
+rmEBInBlocksCondRedirectTests :: TestTree
+rmEBInBlocksCondRedirectTests = testGroup "IR.TAC.rmEBInBlocksCondRedirect" $ map (uncurry testCase) [
+    ("0", do
+        let inp = [
+                blk 1 [Ifeq (Int32C 1) (Int32C 1) (2, 3)],
+                blk 2 [],
+                blk 3 [iRet]
+                ]
+            out = [
+                blk 1 [Ifeq (Int32C 1) (Int32C 1) (3, 3)],
+                blk 3 [iRet]
+                ]
+        rmEBInBlocks inp @?= out),
+    ("1", do
+        let inp = [
+                blk 1 [Ifne (Int32C 1) (Int32C 0) (4, 2)],
+                blk 2 [],
+                blk 4 [iIRet]
+                ]
+            out = [
+                blk 1 [Ifne (Int32C 1) (Int32C 0) (4, 4)],
+                blk 4 [iIRet]
+                ]
+        rmEBInBlocks inp @?= out),
+    ("2", do
+        let inp = [
+                blk 1 [Iflt (Int32C 1) (Int32C 2) (2, 4)],
+                blk 2 [],
+                blk 3 [],
+                blk 4 [iRet]
+                ]
+            out = [
+                blk 1 [Iflt (Int32C 1) (Int32C 2) (4, 4)],
+                blk 4 [iRet]
+                ]
+        rmEBInBlocks inp @?= out),
+    ("3", do
+        let inp = [blk 1 [Ifge (Int32C 2) (Int32C 1) (9, 8)]]
+        rmEBInBlocks inp @?= inp)
+    ]
+
+
 tests :: TestTree
 tests = testGroup "IR.TAC" [
     dropTrailingJumpTests,
     pruneBlocksTests,
     rmEBInBlocksTests,
-    rmEBInFuncTests
+    rmEBInFuncTests,
+    getInstrSuccsTests,
+    rmEBInBlocksCondRedirectTests
     ]

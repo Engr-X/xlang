@@ -577,12 +577,12 @@ getAtomType (Param index) = do
 
 data IRInstr
     = Jump Int                                      -- jump to intId
-    | Ifeq IRAtom IRAtom Int                        -- if a == b then jump
-    | Ifne IRAtom IRAtom Int                        -- if a != b then jump
-    | Iflt IRAtom IRAtom Int                        -- if a < b then jump
-    | Ifle IRAtom IRAtom Int                        -- if a <= b then jump
-    | Ifgt IRAtom IRAtom Int                        -- if a > b then jump
-    | Ifge IRAtom IRAtom Int                        -- if a >= b then jump
+    | Ifeq IRAtom IRAtom (Int, Int)                 -- if a == b then goto (thenLabel, elseLabel)
+    | Ifne IRAtom IRAtom (Int, Int)                 -- if a != b then goto (thenLabel, elseLabel)
+    | Iflt IRAtom IRAtom (Int, Int)                 -- if a < b then goto (thenLabel, elseLabel)
+    | Ifle IRAtom IRAtom (Int, Int)                 -- if a <= b then goto (thenLabel, elseLabel)
+    | Ifgt IRAtom IRAtom (Int, Int)                 -- if a > b then goto (thenLabel, elseLabel)
+    | Ifge IRAtom IRAtom (Int, Int)                 -- if a >= b then goto (thenLabel, elseLabel)
 
     | SetRet IRAtom                                 -- set return value
     | Return                                        -- return with RetVar
@@ -605,27 +605,27 @@ data IRInstr
     deriving (Eq, Show)
 
 
--- | Collect the successor block id from a control flow instruction, if any.
-getInstrSucc :: IRInstr -> Maybe Int
-getInstrSucc (Jump bid) = Just bid
-getInstrSucc (Ifeq _ _ bid) = Just bid
-getInstrSucc (Ifne _ _ bid) = Just bid
-getInstrSucc (Iflt _ _ bid) = Just bid
-getInstrSucc (Ifle _ _ bid) = Just bid
-getInstrSucc (Ifgt _ _ bid) = Just bid
-getInstrSucc (Ifge _ _ bid) = Just bid
-getInstrSucc _ = Nothing
+-- | Collect successor block ids from a control-flow instruction.
+getInstrSuccs :: IRInstr -> [Int]
+getInstrSuccs (Jump bid) = [bid]
+getInstrSuccs (Ifeq _ _ (tBid, fBid)) = [tBid, fBid]
+getInstrSuccs (Ifne _ _ (tBid, fBid)) = [tBid, fBid]
+getInstrSuccs (Iflt _ _ (tBid, fBid)) = [tBid, fBid]
+getInstrSuccs (Ifle _ _ (tBid, fBid)) = [tBid, fBid]
+getInstrSuccs (Ifgt _ _ (tBid, fBid)) = [tBid, fBid]
+getInstrSuccs (Ifge _ _ (tBid, fBid)) = [tBid, fBid]
+getInstrSuccs _ = []
 
 
 prettyIRInstr :: Int -> IRInstr -> String
 prettyIRInstr n instr = insertTab n ++ case instr of
     Jump bid -> "goto .L" ++ show bid
-    Ifeq a b t -> concat ["if ", prettyIRAtom a, " == ", prettyIRAtom b, " goto .L", show t]
-    Ifne a b t -> concat ["if ", prettyIRAtom a, " != ", prettyIRAtom b, " goto .L", show t]
-    Iflt a b t -> concat ["if ", prettyIRAtom a, " < ", prettyIRAtom b, " goto .L", show t]
-    Ifle a b t -> concat ["if ", prettyIRAtom a, " <= ", prettyIRAtom b, " goto .L", show t]
-    Ifgt a b t -> concat ["if ", prettyIRAtom a, " > ", prettyIRAtom b, " goto .L", show t]
-    Ifge a b t -> concat ["if ", prettyIRAtom a, " >= ", prettyIRAtom b, " goto .L", show t]
+    Ifeq a b (t, f) -> concat ["if ", prettyIRAtom a, " == ", prettyIRAtom b, " goto .L", show t, " else goto .L", show f]
+    Ifne a b (t, f) -> concat ["if ", prettyIRAtom a, " != ", prettyIRAtom b, " goto .L", show t, " else goto .L", show f]
+    Iflt a b (t, f) -> concat ["if ", prettyIRAtom a, " < ", prettyIRAtom b, " goto .L", show t, " else goto .L", show f]
+    Ifle a b (t, f) -> concat ["if ", prettyIRAtom a, " <= ", prettyIRAtom b, " goto .L", show t, " else goto .L", show f]
+    Ifgt a b (t, f) -> concat ["if ", prettyIRAtom a, " > ", prettyIRAtom b, " goto .L", show t, " else goto .L", show f]
+    Ifge a b (t, f) -> concat ["if ", prettyIRAtom a, " >= ", prettyIRAtom b, " goto .L", show t, " else goto .L", show f]
     SetRet atom -> "$ret = " ++ prettyIRAtom atom
     Return -> "ireturn"
     VReturn -> "return"
@@ -879,12 +879,12 @@ rmEBInBlocks = fixpoint
         rewriteInstr :: Map Int (Maybe Int) -> IRInstr -> IRInstr
         rewriteInstr redirectMap instr = case instr of
             Jump tgt -> Jump (redirect redirectMap tgt)
-            Ifeq a b tgt -> Ifeq a b (redirect redirectMap tgt)
-            Ifne a b tgt -> Ifne a b (redirect redirectMap tgt)
-            Iflt a b tgt -> Iflt a b (redirect redirectMap tgt)
-            Ifle a b tgt -> Ifle a b (redirect redirectMap tgt)
-            Ifgt a b tgt -> Ifgt a b (redirect redirectMap tgt)
-            Ifge a b tgt -> Ifge a b (redirect redirectMap tgt)
+            Ifeq a b (tgtT, tgtF) -> Ifeq a b (redirect redirectMap tgtT, redirect redirectMap tgtF)
+            Ifne a b (tgtT, tgtF) -> Ifne a b (redirect redirectMap tgtT, redirect redirectMap tgtF)
+            Iflt a b (tgtT, tgtF) -> Iflt a b (redirect redirectMap tgtT, redirect redirectMap tgtF)
+            Ifle a b (tgtT, tgtF) -> Ifle a b (redirect redirectMap tgtT, redirect redirectMap tgtF)
+            Ifgt a b (tgtT, tgtF) -> Ifgt a b (redirect redirectMap tgtT, redirect redirectMap tgtF)
+            Ifge a b (tgtT, tgtF) -> Ifge a b (redirect redirectMap tgtT, redirect redirectMap tgtF)
             _ -> instr
 
         redirect :: Map Int (Maybe Int) -> Int -> Int

@@ -73,7 +73,7 @@ banNext _ = False
 --------------------------------------------------------------------------------
 
 insertTokenPass  :: [Token] -> [Token]
-insertTokenPass  = dedupNL . go 0 Nothing
+insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
     where
         dedupNL :: [Token] -> [Token]
         dedupNL = subGo False
@@ -83,9 +83,9 @@ insertTokenPass  = dedupNL . go 0 Nothing
                     | isNL t = if seenNL then subGo True ts else t : subGo True ts
                     | otherwise = t : subGo False ts
 
-        go :: Int -> Maybe Token -> [Token] -> [Token]
+        go :: Int -> (Maybe Token, Maybe Token, Maybe Token) -> [Token] -> [Token]
         go _ _ [] = []
-        go parenDepth prev (cursor:rest)
+        go parenDepth ctx@(_, prev, _) (cursor:rest)
             | isEOF cursor = case prev of
                 Just prevTok
                     | isSep prevTok -> [cursor]
@@ -101,14 +101,16 @@ insertTokenPass  = dedupNL . go 0 Nothing
                     -- Prefer an NL right after '}' unless the next token is already NL or ';'.
                     after   = ensureSepAfter rbrace rest'
 
-                    out = concat [maybeInsertNL parenDepth prev cursor,
+                    out = concat [maybeInsertNL parenDepth ctx cursor,
                             [cursor], inner'', [rbrace], after]
-                in out ++ go parenDepth (Just (lastAnchor rbrace after)) rest'
+                    ctx' = advanceMany ctx out
+                in out ++ go parenDepth ctx' rest'
 
             | otherwise =
-                let out = maybeInsertNL parenDepth prev cursor ++ [cursor]
+                let out = maybeInsertNL parenDepth ctx cursor ++ [cursor]
                     parenDepth' = updateParenDepth parenDepth cursor
-                in out ++ go parenDepth' (Just cursor) rest
+                    ctx' = advanceMany ctx out
+                in out ++ go parenDepth' ctx' rest
 
             where
                 isEOF :: Token -> Bool
@@ -116,16 +118,44 @@ insertTokenPass  = dedupNL . go 0 Nothing
                 isEOF _       = False
 
        
-        maybeInsertNL :: Int -> Maybe Token -> Token -> [Token]
-        maybeInsertNL _ Nothing _ = []
-        maybeInsertNL parenDepth (Just prevTok) cursor =
+        maybeInsertNL :: Int -> (Maybe Token, Maybe Token, Maybe Token) -> Token -> [Token]
+        maybeInsertNL _ (_, Nothing, _) _ = []
+        maybeInsertNL parenDepth (prevPrev, Just prevTok, lineHead) cursor =
             let lp      = line (tokenPos prevTok)
                 lc      = line (tokenPos cursor)
                 okLine  = lc > lp
                 okDepth = parenDepth == 0
-                okPrev  = not (banPrev prevTok)
+                okPrev  = not (banPrev prevTok) || isImportWildcardLineTail prevPrev prevTok lineHead
                 okNext  = not (banNext cursor)
             in [mkNL cursor | okLine && okDepth && okPrev && okNext]
+
+        isImportWildcardLineTail :: Maybe Token -> Token -> Maybe Token -> Bool
+        isImportWildcardLineTail prevPrev prevTok lineHead =
+            isMultiply prevTok
+                && maybe False isDot prevPrev
+                && maybe False isImportKw lineHead
+                && maybe False (\h -> line (tokenPos h) == line (tokenPos prevTok)) lineHead
+
+        isMultiply :: Token -> Bool
+        isMultiply (Symbol Lex.Multiply _) = True
+        isMultiply _ = False
+
+        isDot :: Token -> Bool
+        isDot (Symbol Lex.Dot _) = True
+        isDot _ = False
+
+        isImportKw :: Token -> Bool
+        isImportKw (Lex.Ident "import" _) = True
+        isImportKw _ = False
+
+        advanceMany :: (Maybe Token, Maybe Token, Maybe Token) -> [Token] -> (Maybe Token, Maybe Token, Maybe Token)
+        advanceMany = foldl advanceOne
+
+        advanceOne :: (Maybe Token, Maybe Token, Maybe Token) -> Token -> (Maybe Token, Maybe Token, Maybe Token)
+        advanceOne (_, Nothing, _) tok = (Nothing, Just tok, Just tok)
+        advanceOne (_, Just prevTok, lineHead') tok
+            | line (tokenPos prevTok) == line (tokenPos tok) = (Just prevTok, Just tok, lineHead')
+            | otherwise = (Just prevTok, Just tok, Just tok)
 
 
         mkNL :: Token -> Token
@@ -160,12 +190,6 @@ insertTokenPass  = dedupNL . go 0 Nothing
         ensureSepAfter anchor next = case next of
             (t:_) | isSep t -> []
             _  -> [mkNL anchor]
-
-
-        lastAnchor :: Token -> [Token] -> Token
-        lastAnchor rbrace after = case after of
-            (t:_) -> t
-            _  -> rbrace
 
 
         updateParenDepth :: Int -> Token -> Int

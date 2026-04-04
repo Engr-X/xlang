@@ -73,6 +73,7 @@ library
         Lowing.JVMLowing
 
         X86Lowing.ASM
+        X86Lowing.Lowing
     autogen-modules:
         Parse.ParseExpr
         Parse.ParseStmt
