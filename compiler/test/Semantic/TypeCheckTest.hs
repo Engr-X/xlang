@@ -416,7 +416,7 @@ inferLiteralTests = testGroup "Semantic.TypeCheck.inferLiteral" $ map (uncurry t
         let expr = StringConst "100" (Lex.StrConst "100" pos1)
             ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
             (t, ctx1) = runState (inferLiteral "stdin" expr) ctx0
-        t @?= Class ["java", "lang", "String"] []
+        t @?= Class ["String"] []
         assertTcErrs Nothing ctx1)]
 
 

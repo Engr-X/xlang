@@ -1015,6 +1015,7 @@ defaultAtomForClass cls = case cls of
     Float128T -> Just (TAC.Float128C 0)
     Bool -> Just (TAC.BoolC False)
     Char -> Just (TAC.CharC '\0')
+    Class ["String"] [] -> Just (TAC.StringC "")
     Class ["java", "lang", "String"] [] -> Just (TAC.StringC "")
     _ -> Nothing
 
@@ -1694,7 +1695,7 @@ collectAtomTypes sig stmts = do
             TAC.Float32C _ -> Just Float32T
             TAC.Float64C _ -> Just Float64T
             TAC.Float128C _ -> Just Float128T
-            TAC.StringC _ -> Just (Class ["java", "lang", "String"] [])
+            TAC.StringC _ -> Just (Class ["String"] [])
             TAC.Var _ -> Map.lookup atom varTypeMap
             TAC.Param i -> Just (TEnv.funParams sig' !! i)
             TAC.Phi pairs -> case pairs of
@@ -1764,7 +1765,7 @@ collectAtomTypesStatic stmts = do
             TAC.Float32C _ -> Just Float32T
             TAC.Float64C _ -> Just Float64T
             TAC.Float128C _ -> Just Float128T
-            TAC.StringC _ -> Just (Class ["java", "lang", "String"] [])
+            TAC.StringC _ -> Just (Class ["String"] [])
             TAC.Var _ -> Map.lookup atom varTypeMap
             TAC.Param _ -> Nothing
             TAC.Phi pairs -> case pairs of

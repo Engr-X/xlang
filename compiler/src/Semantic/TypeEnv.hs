@@ -10,7 +10,7 @@ import qualified Data.Map.Strict as Map
 
 
 stringClass :: Class
-stringClass = Class ["java", "lang", "String"] []
+stringClass = Class ["String"] []
 
 
 -- | Built-in class aliases (unqualified names).

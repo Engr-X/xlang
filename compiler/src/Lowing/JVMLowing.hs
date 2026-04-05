@@ -31,6 +31,20 @@ float128JvmMsg = printf "float128 is native-only; JVM target does not support fl
 rejectFloat128 :: String -> a
 rejectFloat128 whereAt = errorWithoutStackTrace (float128JvmMsg whereAt)
 
+normalizeJvmClassAlias :: Class -> Class
+normalizeJvmClassAlias cls = case cls of
+    Array elemCls dims -> Array (normalizeJvmClassAlias elemCls) dims
+    Class ["String"] [] -> Class ["java", "lang", "String"] []
+    Class qn args -> Class qn (map normalizeJvmClassAlias args)
+    other -> other
+
+normalizeJvmSig :: TEnv.FunSig -> TEnv.FunSig
+normalizeJvmSig sig =
+    TEnv.FunSig {
+        TEnv.funParams = map normalizeJvmClassAlias (TEnv.funParams sig),
+        TEnv.funReturn = normalizeJvmClassAlias (TEnv.funReturn sig)
+    }
+
 ensureAll :: [a] -> (a -> ()) -> ()
 ensureAll xs check = go xs
   where
@@ -381,14 +395,14 @@ callSig :: IR.IRAtom -> [IR.IRAtom] -> State LowerState TEnv.FunSig
 callSig dst args = do
     retT <- atomClass dst
     argTs <- mapM atomClass args
-    return TEnv.FunSig { TEnv.funParams = argTs, TEnv.funReturn = retT }
+    return $ normalizeJvmSig (TEnv.FunSig { TEnv.funParams = argTs, TEnv.funReturn = retT })
 
 
 atomClass :: IR.IRAtom -> State LowerState Class
 atomClass atom = case atom of
     IR.BoolC _ -> return Bool
     IR.CharC _ -> return Char
-    IR.StringC _ -> return (Class ["java", "lang", "String"] [])
+    IR.StringC _ -> return (normalizeJvmClassAlias (Class ["String"] []))
     IR.Int8C _ -> return Int8T
     IR.Int16C _ -> return Int16T
     IR.Int32C _ -> return Int32T
@@ -399,7 +413,7 @@ atomClass atom = case atom of
     _ -> do
         st <- get
         case Map.lookup atom (atomTypes st) of
-            Just cls -> return cls
+            Just cls -> return (normalizeJvmClassAlias cls)
             Nothing -> error ("missing atom type for call: " ++ show atom)
 
 
@@ -491,7 +505,7 @@ jvmLowingFun (IR.IRFunction decl name sig atomT body ownerType) =
             retLocal = retLocalSlot
         }
         (cmds, _) = runState (jvmLowerBlocks body) initState
-    in JVM.JFunction decl name sig (ownerTypeToString ownerType) cmds
+    in JVM.JFunction decl name (normalizeJvmSig sig) (ownerTypeToString ownerType) cmds
 
 
 -- | Lower a static initializer into JVM <clinit> commands.
@@ -534,7 +548,7 @@ jvmClassLowing pkg irClass@(IR.IRClass decl name attrs sInit atomT funs mainKind
     let qname = if null pkg then [name] else pkg ++ [name]
         extendQ = []
         interfaces = []
-        fields = map (\(d, cls, fname, ownerType) -> JVM.JField d cls fname (ownerTypeToString ownerType)) attrs
+        fields = map (\(d, cls, fname, ownerType) -> JVM.JField d (normalizeJvmClassAlias cls) fname (ownerTypeToString ownerType)) attrs
         clinit = jvmClinitLowing sInit atomT
         inits = []
         methods = map jvmLowingFun funs

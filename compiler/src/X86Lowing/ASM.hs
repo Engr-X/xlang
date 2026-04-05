@@ -25,8 +25,8 @@ prettyRegister reg bits =
     where
         isXmm :: Register -> Bool
         isXmm r = r `elem`
-            [ Xmm0, Xmm1, Xmm2, Xmm3, Xmm4, Xmm5, Xmm6, Xmm7
-            , Xmm8, Xmm9, Xmm10, Xmm11, Xmm12, Xmm13, Xmm14, Xmm15 ]
+            [Xmm0, Xmm1, Xmm2, Xmm3, Xmm4, Xmm5, Xmm6, Xmm7,
+            Xmm8, Xmm9, Xmm10, Xmm11, Xmm12, Xmm13, Xmm14, Xmm15 ]
 
         prefix :: Bits -> String
         prefix NN = ""
@@ -149,6 +149,8 @@ data Instruction =
     Mov Atom Atom |
     Movs Atom Atom |
     Movz Atom Atom |
+    Movss Atom Atom |
+    Movsd Atom Atom |
 
     Lea Atom Atom |
     Push |
@@ -213,6 +215,7 @@ data Instruction =
     Jump String |
     Je String |
     Jne String |
+    Jp String |
     Jg String |
     Jge String |
     Jl String |
@@ -237,6 +240,8 @@ data X86Func = X86Func (String, [String]) [Instruction]
 
 prettyInstruction :: Int -> Instruction -> String
 prettyInstruction tab (Mov target src) = concat [insertTab tab, "mov ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Movss target src) = concat [insertTab tab, "movss ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Movsd target src) = concat [insertTab tab, "movsd ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Movs target src) = concat [insertTab tab, "movsx ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Movz target src) = concat [insertTab tab, "movzx ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Lea target src) = concat [insertTab tab, "lea ", prettyAtom target, ", ", prettyAtom src]
@@ -296,6 +301,7 @@ prettyInstruction tab (Cmovns target src) = concat [insertTab tab, "cmovns ", pr
 prettyInstruction tab (Jump label) = concat [insertTab tab, "jmp ", label]
 prettyInstruction tab (Je label) = concat [insertTab tab, "je ", label]
 prettyInstruction tab (Jne label) = concat [insertTab tab, "jne ", label]
+prettyInstruction tab (Jp label) = concat [insertTab tab, "jp ", label]
 prettyInstruction tab (Jg label) = concat [insertTab tab, "jg ", label]
 prettyInstruction tab (Jge label) = concat [insertTab tab, "jge ", label]
 prettyInstruction tab (Jl label) = concat [insertTab tab, "jl ", label]

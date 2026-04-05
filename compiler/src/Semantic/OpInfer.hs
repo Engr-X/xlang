@@ -54,7 +54,8 @@ numericRangeRank = Map.fromList [
 normalizeTypeAlias :: Class -> Class
 normalizeTypeAlias cls = case cls of
     Array elemT dims -> Array (normalizeTypeAlias elemT) dims
-    Class ["String"] [] -> Class ["java", "lang", "String"] []
+    Class ["String"] [] -> Class ["String"] []
+    Class ["java", "lang", "String"] [] -> Class ["String"] []
     Class qn args -> Class qn (map normalizeTypeAlias args)
     other -> other
 

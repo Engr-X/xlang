@@ -1438,7 +1438,7 @@ builtinClassMap = Map.fromList [
     ("double", Float64T), ("float64", Float64T), ("f64", Float64T),
     ("float128", Float128T),
     ("char", Char),
-    ("String", Class ["java", "lang", "String"] []),
+    ("String", Class ["String"] []),
     ("void", Void)]
 
 

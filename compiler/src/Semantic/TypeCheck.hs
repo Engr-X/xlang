@@ -105,7 +105,8 @@ defaultDecl = declFromFlags defaultDeclFlags
 normalizeTypeAlias :: Class -> Class
 normalizeTypeAlias cls = case cls of
     Array elemT dims -> Array (normalizeTypeAlias elemT) dims
-    Class ["String"] [] -> Class ["java", "lang", "String"] []
+    Class ["String"] [] -> Class ["String"] []
+    Class ["java", "lang", "String"] [] -> Class ["String"] []
     Class qn args -> Class qn (map normalizeTypeAlias args)
     other -> other
 
@@ -661,7 +662,7 @@ inferLiteral _ e = case e of
     LongDoubleConst _ _ -> pure Float128T
     CharConst _ _ -> pure Char
     BoolConst _ _ -> pure Bool
-    StringConst _ _ -> pure (Class ["java", "lang", "String"] [])
+    StringConst _ _ -> pure (Class ["String"] [])
     _ -> error "inferLiteral: non-literal expression"
 
 

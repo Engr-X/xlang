@@ -14,7 +14,7 @@ basicClassMapTests = testGroup "Semantic.TypeEnv.basicClassMap" $
         ("0", "bool", Just Bool),
         ("1", "int32", Just Int32T),
         ("2", "long", Just Int64T),
-        ("3", "String", Just (Class ["java", "lang", "String"] [])),
+        ("3", "String", Just (Class ["String"] [])),
         ("4", "string", Nothing),
         ("5", "unknown", Nothing)]
 

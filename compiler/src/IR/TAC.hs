@@ -549,7 +549,7 @@ getVarKey _ = error "getVarKey: not a Var atom"
 getAtomType :: IRAtom -> TACM Class
 getAtomType (BoolC _) = return AST.Bool
 getAtomType (CharC _) = return AST.Char
-getAtomType (StringC _) = return (AST.Class ["java", "lang", "String"] [])
+getAtomType (StringC _) = return (AST.Class ["String"] [])
 getAtomType (Int8C _) = return AST.Int8T
 getAtomType (Int16C _) = return AST.Int16T
 getAtomType (Int32C _) = return AST.Int32T

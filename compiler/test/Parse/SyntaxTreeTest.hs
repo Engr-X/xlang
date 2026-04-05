@@ -324,7 +324,7 @@ normalizeClassTests = testGroup "Parse.SyntaxTree.normalizeClass" $
         ("1", Array (Class ["int"] []) 2, Array Int32T 2),
         ("2", Class ["List"] [Class ["int"] []], Class ["List"] [Int32T]),
         ("3", Class ["int"] [Class ["int"] []], Class ["int"] [Int32T]),
-        ("4", Class ["String"] [], Class ["java", "lang", "String"] []),
+        ("4", Class ["String"] [], Class ["String"] []),
         ("5", Class ["string"] [], Class ["string"] [])]
 
 
