@@ -589,6 +589,24 @@ data IRInstr
     | VReturn                                       -- this is return void
 
     | IAssign IRAtom IRAtom                         -- dst = src (move/copy)
+    -- | Operator source: Parse.SyntaxTree.Operator.
+    --   Only a subset survives to IR here:
+    --   IUnary possible ops:
+    --     UnaryPlus, UnaryMinus, LogicalNot, BitInv
+    --   IBinary possible ops:
+    --     Add, Sub, Mul, Div, Mod, Pow,
+    --     BitLShift, BitRShift, BitURShift,
+    --     BitAnd, BitXor, BitOr
+    --
+    --   Not expected in IUnary/IBinary at this stage (already expanded/lowered):
+    --     SelfInc, SelfDec, IncSelf, DecSelf        -- lowered to IAssign/IBinary Add/Sub
+    --     Assign (+ augmented assign)               -- desugared to Assign, then lowered to IAssign
+    --     Equal, NotEqual, LessThan, LessEqual,
+    --     GreaterThan, GreaterEqual                 -- lowered to Ifeq/Ifne/Iflt/Ifle/Ifgt/Ifge
+    --     LogicalAnd, LogicalNand, LogicalOr,
+    --     LogicalNor, LogicalImply, LogicalNimply   -- lowered by short-circuit CFG blocks
+    --     BitNand, BitXnor, BitNor,
+    --     BitImply, BitNimply                       -- lowered into and/or/xor + bit-inv
     | IUnary IRAtom Operator IRAtom                 -- dst = op x
     | IBinary IRAtom Operator IRAtom IRAtom         -- dst = x op y
     --              class1, class2

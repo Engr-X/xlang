@@ -149,6 +149,12 @@ data Instruction =
     Mov Atom Atom |
     Movs Atom Atom |
     Movz Atom Atom |
+    Movd Atom Atom |
+    Movq Atom Atom |
+    Cvtsi2ss Atom Atom |
+    Cvtsi2sd Atom Atom |
+    Cvttss2si Atom Atom |
+    Cvttsd2si Atom Atom |
     Movss Atom Atom |
     Movsd Atom Atom |
 
@@ -211,6 +217,8 @@ data Instruction =
     Cmovle Atom Atom |
     Cmovs Atom Atom |
     Cmovns Atom Atom |
+    Setp Atom |
+    Setne Atom |
 
     Jump String |
     Je String |
@@ -240,6 +248,12 @@ data X86Func = X86Func (String, [String]) [Instruction]
 
 prettyInstruction :: Int -> Instruction -> String
 prettyInstruction tab (Mov target src) = concat [insertTab tab, "mov ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Movd target src) = concat [insertTab tab, "movd ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Movq target src) = concat [insertTab tab, "movq ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Cvtsi2ss target src) = concat [insertTab tab, "cvtsi2ss ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Cvtsi2sd target src) = concat [insertTab tab, "cvtsi2sd ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Cvttss2si target src) = concat [insertTab tab, "cvttss2si ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Cvttsd2si target src) = concat [insertTab tab, "cvttsd2si ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Movss target src) = concat [insertTab tab, "movss ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Movsd target src) = concat [insertTab tab, "movsd ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Movs target src) = concat [insertTab tab, "movsx ", prettyAtom target, ", ", prettyAtom src]
@@ -298,6 +312,8 @@ prettyInstruction tab (Cmovl target src) = concat [insertTab tab, "cmovl ", pret
 prettyInstruction tab (Cmovle target src) = concat [insertTab tab, "cmovle ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Cmovs target src) = concat [insertTab tab, "cmovs ", prettyAtom target, ", ", prettyAtom src]
 prettyInstruction tab (Cmovns target src) = concat [insertTab tab, "cmovns ", prettyAtom target, ", ", prettyAtom src]
+prettyInstruction tab (Setp target) = concat [insertTab tab, "setp ", prettyAtom target]
+prettyInstruction tab (Setne target) = concat [insertTab tab, "setne ", prettyAtom target]
 prettyInstruction tab (Jump label) = concat [insertTab tab, "jmp ", label]
 prettyInstruction tab (Je label) = concat [insertTab tab, "je ", label]
 prettyInstruction tab (Jne label) = concat [insertTab tab, "jne ", label]

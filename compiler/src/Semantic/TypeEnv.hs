@@ -12,6 +12,9 @@ import qualified Data.Map.Strict as Map
 stringClass :: Class
 stringClass = Class ["String"] []
 
+anyClass :: Class
+anyClass = Class ["Any"] []
+
 
 -- | Built-in class aliases (unqualified names).
 basicClassMap :: Map String Class
@@ -26,6 +29,7 @@ basicClassMap = Map.fromList [
     ("double", Float64T), ("float64", Float64T),
     ("float128", Float128T),
     ("String", stringClass),
+    ("Any", anyClass),
     ("void", Void)]
 
 

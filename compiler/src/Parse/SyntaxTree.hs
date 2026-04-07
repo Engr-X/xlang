@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -9,6 +10,7 @@ import Data.Maybe (listToMaybe, fromMaybe, isNothing, mapMaybe)
 import Data.Char (toLower)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable(..))
+import GHC.Generics (Generic)
 import Lex.Token (Token, tokenPos)
 import Util.Basic (insertTab, splitLast)
 
@@ -26,7 +28,9 @@ data Class =
     Array Class Int |
     Class [String] [Class] | -- name + general
     ErrorClass
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
+
+instance Hashable Class
 
 
 -- Better toString of class instance

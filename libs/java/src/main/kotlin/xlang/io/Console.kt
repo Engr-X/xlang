@@ -61,6 +61,11 @@ fun put(value: String) { kotlin.io.print(value) }
 
 @Metadata(TOP_LEVEL)
 @SuppressWarnings("unused")
+fun put(value: xlang.String) { kotlin.io.print(value.toString()) }
+
+
+@Metadata(TOP_LEVEL)
+@SuppressWarnings("unused")
 fun put(value: Any) { kotlin.io.print(value) }
 
 
@@ -107,6 +112,11 @@ fun putln(value: Double) { kotlin.io.println(value) }
 @Metadata(TOP_LEVEL)
 @SuppressWarnings("unused")
 fun putln(value: String) { println(value) }
+
+
+@Metadata(TOP_LEVEL)
+@SuppressWarnings("unused")
+fun putln(value: xlang.String) { println(value.toString()) }
 
 
 @Metadata(TOP_LEVEL)
@@ -284,7 +294,6 @@ private val STDIN_READER: BufferedReader = BufferedReader(InputStreamReader(Syst
 @SuppressWarnings("unused")
 fun input(prompt: String = "", file: BufferedReader = STDIN_READER): String
 {
-    var b = 10;
     if (prompt.isNotEmpty())
         kotlin.io.print(prompt)
 

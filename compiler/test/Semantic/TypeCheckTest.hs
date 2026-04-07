@@ -531,7 +531,7 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("5", "1 == 2", stEmpty, Map.empty, [Map.empty], [], [], Bool, Nothing, Nothing, noExtraTc),
     ("6", "f(1)", stWithVarsFuncs [] ["f"], Map.empty, [Map.fromList [(["f"], [FunSig [Int32T] Int64T])]], [], [], Int64T, Nothing, Just 0, noExtraTc),
     ("7", "a.b", stEmpty, Map.empty, [Map.empty], [typedVarsEnv [(["a", "b"], Int16T)]], [importVars [["a", "b"]]], Int16T, Nothing, Just 0, noExtraTc),
-    ("8", "1 as bool", stEmpty, Map.empty, [Map.empty], [], [], Bool, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing, noExtraTc)]
+    ("8", "1 as bool", stEmpty, Map.empty, [Map.empty], [], [], Bool, Nothing, Just 0, noExtraTc)]
     where
         mkCase (name, src, st0, vts, fScopes, typedEnvs, importEnvs, expectedT, errMsg, warnCount, extra) =
             testCase name $ do

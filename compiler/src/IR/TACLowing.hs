@@ -359,8 +359,8 @@ exprLowing :: Expression -> TACM ([IRNode], IRAtom)
 exprLowing (AST.Cast (toClass, _) inner _) = do
     (instrs, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
-    nAtom <- newSubCVar toClass
-    return (IRInstr (TAC.ICast nAtom (fromClass, toClass) oAtom) : instrs, nAtom)
+    (castInstrs, castAtom) <- castIfNeeded fromClass oAtom toClass
+    return (castInstrs ++ instrs, castAtom)
 
 -- ++a
 exprLowing (AST.Unary AST.IncSelf inner _) = do
@@ -556,8 +556,56 @@ exprLowing (AST.Binary op e1 e2 _) = do
                 ++ cast2Instrs ++ instr2 ++ cast1Instrs ++ instr1
         return (seqRev, nAtom)
     else do
-        nAtom <- newSubCVar resClass
-        return (IRInstr (TAC.IBinary nAtom op atom1' atom2') : concat [cast2Instrs, instr2, cast1Instrs, instr1], nAtom)
+        let tailRev = concat [cast2Instrs, instr2, cast1Instrs, instr1]
+        case op of
+            AST.BitNand -> do
+                andAtom <- newSubCVar resClass
+                nAtom <- newSubCVar resClass
+                return (
+                    [ IRInstr (TAC.IUnary nAtom AST.BitInv andAtom)
+                    , IRInstr (TAC.IBinary andAtom AST.BitAnd atom1' atom2')
+                    ] ++ tailRev,
+                    nAtom)
+
+            AST.BitXnor -> do
+                xorAtom <- newSubCVar resClass
+                nAtom <- newSubCVar resClass
+                return (
+                    [ IRInstr (TAC.IUnary nAtom AST.BitInv xorAtom)
+                    , IRInstr (TAC.IBinary xorAtom AST.BitXor atom1' atom2')
+                    ] ++ tailRev,
+                    nAtom)
+
+            AST.BitNor -> do
+                orAtom <- newSubCVar resClass
+                nAtom <- newSubCVar resClass
+                return (
+                    [ IRInstr (TAC.IUnary nAtom AST.BitInv orAtom)
+                    , IRInstr (TAC.IBinary orAtom AST.BitOr atom1' atom2')
+                    ] ++ tailRev,
+                    nAtom)
+
+            AST.BitImply -> do
+                notA <- newSubCVar resClass
+                nAtom <- newSubCVar resClass
+                return (
+                    [ IRInstr (TAC.IBinary nAtom AST.BitOr notA atom2')
+                    , IRInstr (TAC.IUnary notA AST.BitInv atom1')
+                    ] ++ tailRev,
+                    nAtom)
+
+            AST.BitNimply -> do
+                notB <- newSubCVar resClass
+                nAtom <- newSubCVar resClass
+                return (
+                    [ IRInstr (TAC.IBinary nAtom AST.BitAnd atom1' notB)
+                    , IRInstr (TAC.IUnary notB AST.BitInv atom2')
+                    ] ++ tailRev,
+                    nAtom)
+
+            _ -> do
+                nAtom <- newSubCVar resClass
+                return (IRInstr (TAC.IBinary nAtom op atom1' atom2') : tailRev, nAtom)
 
 exprLowing (AST.Ternary cond (thenE, elseE) _) = do
     (condInstrs, condAtom) <- if AST.isAtom cond then atomLowing cond else exprLowing cond
@@ -1017,6 +1065,7 @@ defaultAtomForClass cls = case cls of
     Char -> Just (TAC.CharC '\0')
     Class ["String"] [] -> Just (TAC.StringC "")
     Class ["java", "lang", "String"] [] -> Just (TAC.StringC "")
+    Class ["xlang", "String"] [] -> Just (TAC.StringC "")
     _ -> Nothing
 
 
@@ -1954,7 +2003,8 @@ detectMainKind classQName = foldl' pick TAC.NoMain . map classify
         isStringArray _ = False
 
         isStringClass :: Class -> Bool
-        isStringClass (Class qn []) = qn == ["String"] || qn == ["java", "lang", "String"]
+        isStringClass (Class qn []) =
+            qn == ["String"] || qn == ["java", "lang", "String"] || qn == ["xlang", "String"]
         isStringClass _ = False
 
 

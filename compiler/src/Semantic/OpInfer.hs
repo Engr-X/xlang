@@ -56,6 +56,10 @@ normalizeTypeAlias cls = case cls of
     Array elemT dims -> Array (normalizeTypeAlias elemT) dims
     Class ["String"] [] -> Class ["String"] []
     Class ["java", "lang", "String"] [] -> Class ["String"] []
+    Class ["xlang", "String"] [] -> Class ["String"] []
+    Class ["Any"] [] -> Class ["Any"] []
+    Class ["xlang", "Any"] [] -> Class ["Any"] []
+    Class ["java", "lang", "Object"] [] -> Class ["Any"] []
     Class qn args -> Class qn (map normalizeTypeAlias args)
     other -> other
 

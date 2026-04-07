@@ -34,7 +34,12 @@ rejectFloat128 whereAt = errorWithoutStackTrace (float128JvmMsg whereAt)
 normalizeJvmClassAlias :: Class -> Class
 normalizeJvmClassAlias cls = case cls of
     Array elemCls dims -> Array (normalizeJvmClassAlias elemCls) dims
+    Class ["Any"] [] -> Class ["java", "lang", "Object"] []
+    Class ["xlang", "Any"] [] -> Class ["java", "lang", "Object"] []
+    Class ["java", "lang", "Object"] [] -> Class ["java", "lang", "Object"] []
     Class ["String"] [] -> Class ["java", "lang", "String"] []
+    Class ["xlang", "String"] [] -> Class ["java", "lang", "String"] []
+    Class ["java", "lang", "String"] [] -> Class ["java", "lang", "String"] []
     Class qn args -> Class qn (map normalizeJvmClassAlias args)
     other -> other
 
@@ -44,6 +49,24 @@ normalizeJvmSig sig =
         TEnv.funParams = map normalizeJvmClassAlias (TEnv.funParams sig),
         TEnv.funReturn = normalizeJvmClassAlias (TEnv.funReturn sig)
     }
+
+isStringAliasClass :: Class -> Bool
+isStringAliasClass cls = case cls of
+    Class ["String"] [] -> True
+    Class ["xlang", "String"] [] -> True
+    Class ["java", "lang", "String"] [] -> True
+    _ -> False
+
+normalizeJvmMethodSig :: String -> TEnv.FunSig -> TEnv.FunSig
+normalizeJvmMethodSig methodName sig =
+    let sig0 = normalizeJvmSig sig
+        isToStringOverrideShape =
+            methodName == "toString" &&
+            null (TEnv.funParams sig) &&
+            isStringAliasClass (TEnv.funReturn sig)
+    in if isToStringOverrideShape
+        then sig0 { TEnv.funReturn = Class ["java", "lang", "String"] [] }
+        else sig0
 
 ensureAll :: [a] -> (a -> ()) -> ()
 ensureAll xs check = go xs
@@ -505,7 +528,7 @@ jvmLowingFun (IR.IRFunction decl name sig atomT body ownerType) =
             retLocal = retLocalSlot
         }
         (cmds, _) = runState (jvmLowerBlocks body) initState
-    in JVM.JFunction decl name (normalizeJvmSig sig) (ownerTypeToString ownerType) cmds
+    in JVM.JFunction decl name (normalizeJvmMethodSig name sig) (ownerTypeToString ownerType) cmds
 
 
 -- | Lower a static initializer into JVM <clinit> commands.
@@ -546,6 +569,8 @@ jvmClassLowing :: QName -> IR.IRClass -> JVM.JClass
 jvmClassLowing pkg irClass@(IR.IRClass decl name attrs sInit atomT funs mainKind) =
     ensureJvmIRClass irClass `seq`
     let qname = if null pkg then [name] else pkg ++ [name]
+        -- Keep source-level "no explicit parent" semantics.
+        -- Bytecode toolkit will default empty super_class to java/lang/Object.
         extendQ = []
         interfaces = []
         fields = map (\(d, cls, fname, ownerType) -> JVM.JField d (normalizeJvmClassAlias cls) fname (ownerTypeToString ownerType)) attrs

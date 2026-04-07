@@ -44,6 +44,15 @@ slotSizeTests = testGroup "Lowing.JVMLowing.slotSize" $ map (uncurry testCase) [
     ]
 
 
+normalizeJvmClassAliasTests :: TestTree
+normalizeJvmClassAliasTests = testGroup "Lowing.JVMLowing.normalizeJvmClassAlias" $ map (uncurry testCase) [
+    ("0", JL.normalizeJvmClassAlias (Class ["String"] []) @?= Class ["java", "lang", "String"] []),
+    ("1", JL.normalizeJvmClassAlias (Class ["xlang", "String"] []) @?= Class ["java", "lang", "String"] []),
+    ("2", JL.normalizeJvmClassAlias (Class ["Any"] []) @?= Class ["java", "lang", "Object"] []),
+    ("3", JL.normalizeJvmClassAlias (Class ["xlang", "Any"] []) @?= Class ["java", "lang", "Object"] [])
+    ]
+
+
 buildParamSlotsTests :: TestTree
 buildParamSlotsTests = testGroup "Lowing.JVMLowing.buildParamSlots" $ map (uncurry testCase) [
     ("0", do
@@ -268,6 +277,7 @@ jvmProgramLoweringTests = testGroup "Lowing.JVMLowing.jvmProgramLowering" $ map 
 tests :: TestTree
 tests = testGroup "Lowing.JVMLowing" [
     slotSizeTests,
+    normalizeJvmClassAliasTests,
     buildParamSlotsTests,
     isNoOpCastTests,
     atomToConstTests,
