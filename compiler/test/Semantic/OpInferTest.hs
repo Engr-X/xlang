@@ -15,7 +15,7 @@ isBasicTypeTests = testGroup "Semantic.OpInfer.isBasicType" $
     map (\(name, input, expected) -> testCase name $ isBasicType input @?= expected) [
         ("0", Bool, True),
         ("1", Int32T, True),
-        ("2", Array Int32T 3, False),
+        ("2", Class ["Vec"] [], False),
         ("3", Class ["Foo"] [], False)]
 
 

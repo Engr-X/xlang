@@ -118,7 +118,6 @@ basicQNameMap = Map.fromList [
 
 -- | Convert a language-level type to a QName used in JSON.
 typeToQName :: Class -> QName
-typeToQName (Array elemT dims) = typeToQName elemT ++ replicate dims "[]"
 typeToQName (Class qn []) = qn
 typeToQName cls@(Class _ _) = error ("typeToQName: generic class types not supported: " ++ show cls)
 typeToQName ErrorClass = error "typeToQName: error class"
@@ -178,7 +177,6 @@ opPrefix Float128T = "d"
 opPrefix Bool = "i"
 opPrefix Char = "i"
 opPrefix Void = "v"
-opPrefix (Array _ _) = "a"
 opPrefix (Class _ _) = "a"
 opPrefix ErrorClass = error "opPrefix: error class"
 

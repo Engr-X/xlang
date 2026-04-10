@@ -33,7 +33,6 @@ rejectFloat128 whereAt = errorWithoutStackTrace (float128JvmMsg whereAt)
 
 normalizeJvmClassAlias :: Class -> Class
 normalizeJvmClassAlias cls = case cls of
-    Array elemCls dims -> Array (normalizeJvmClassAlias elemCls) dims
     Class ["Any"] [] -> Class ["java", "lang", "Object"] []
     Class ["xlang", "Any"] [] -> Class ["java", "lang", "Object"] []
     Class ["java", "lang", "Object"] [] -> Class ["java", "lang", "Object"] []
@@ -77,7 +76,6 @@ ensureAll xs check = go xs
 ensureJvmClass :: String -> Class -> ()
 ensureJvmClass whereAt cls = case cls of
     Float128T -> rejectFloat128 whereAt
-    Array elemCls _ -> ensureJvmClass whereAt elemCls
     _ -> ()
 
 ensureJvmAtom :: IR.IRAtom -> ()
@@ -117,7 +115,7 @@ ensureJvmBlock :: IR.IRBlock -> ()
 ensureJvmBlock (IR.IRBlock (_, instrs)) = ensureAll instrs ensureJvmInstr
 
 ensureJvmFunction :: IR.IRFunction -> ()
-ensureJvmFunction (IR.IRFunction _ name sig atomT blocks _) =
+ensureJvmFunction (IR.IRFunction _ name sig atomT (blocks, _) _) =
     ensureJvmClass ("function " ++ name ++ " return type") (TEnv.funReturn sig)
         `seq` ensureAll (zip [0 :: Int ..] (TEnv.funParams sig))
             (\(idx, cls) -> ensureJvmClass ("function " ++ name ++ " param #" ++ show idx) cls)
@@ -126,7 +124,7 @@ ensureJvmFunction (IR.IRFunction _ name sig atomT blocks _) =
         `seq` ensureAll blocks ensureJvmBlock
 
 ensureJvmIRClass :: IR.IRClass -> ()
-ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit sBody) atomT funs _) =
+ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit (sBody, _)) atomT funs _) =
     ensureAll attrs
         (\(_, cls, fieldName, _) -> ensureJvmClass ("class " ++ name ++ " field " ++ fieldName) cls)
         `seq` ensureAll (Map.toList atomT)
@@ -337,7 +335,6 @@ isNoOpCast fromC toC = castGroup fromC == castGroup toC
         castGroup :: Class -> Maybe Char
         castGroup cls = case cls of
             Class _ _ -> Just 'a'
-            Array _ _ -> Just 'a'
             _ -> Map.lookup cls castGroupMap
 
 
@@ -475,7 +472,6 @@ defaultValue atom = do
     dstOps <- storeAtom atom
     case cls of
         Class _ _ -> return (JVM.PushNull : dstOps)
-        Array _ _ -> return (JVM.PushNull : dstOps)
         _ -> do
             c <- defaultConst atom
             return (JVM.CPush c : dstOps)
@@ -509,7 +505,7 @@ atomToConst _ = Nothing
 
 -- | Lower a single IR function into JVM commands with a fresh local mapping.
 jvmLowingFun :: IR.IRFunction -> JVM.JFunction
-jvmLowingFun (IR.IRFunction decl name sig atomT body ownerType) =
+jvmLowingFun (IR.IRFunction decl name sig atomT (body, _) ownerType) =
     let (paramSlotMap, nextAfterParams) = buildParamSlots (TEnv.funParams sig)
         retLocalSlot = case TEnv.funReturn sig of
             Void -> Nothing
@@ -533,7 +529,7 @@ jvmLowingFun (IR.IRFunction decl name sig atomT body ownerType) =
 
 -- | Lower a static initializer into JVM <clinit> commands.
 jvmClinitLowing :: IR.StaticInit -> Map IR.IRAtom Class -> JVM.JClinit
-jvmClinitLowing (IR.StaticInit body) atomT =
+jvmClinitLowing (IR.StaticInit (body, _)) atomT =
     let initState = LowerState {
             nextLocal = 0,
             locals = Map.empty,

@@ -705,12 +705,12 @@ data IRFunction
         FunSig         -- ^ function signature
         (Map IRAtom Class) -- ^ atom -> type map
 
-        [IRBlock]      -- ^ function body
+        ([IRBlock], Int)      -- ^ function body
         IRMemberType   -- ^ origin kind: class / class-wrapped
     deriving (Eq, Show)
 
 prettyIRFunction :: Int -> IRFunction -> String
-prettyIRFunction n (IRFunction decl name sig atomTypes body memberType) =
+prettyIRFunction n (IRFunction decl name sig atomTypes (body, _) memberType) =
     let indent = insertTab n
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
@@ -723,11 +723,11 @@ prettyIRFunction n (IRFunction decl name sig atomTypes body memberType) =
     in concat [header, bodyS, typesS]
 
 
--- | Static initializer body blocks.
-newtype StaticInit = StaticInit [IRBlock] deriving (Eq, Show)
+-- | Static initializer body blocks + unique return block id.
+newtype StaticInit = StaticInit ([IRBlock], Int) deriving (Eq, Show)
 
 prettyStaticInit :: Int -> StaticInit -> String
-prettyStaticInit n (StaticInit blocks) =
+prettyStaticInit n (StaticInit (blocks, _)) =
     let indent = insertTab n
         header = indent ++ "static {}:\n"
         body = concatMap (prettyIRBlock (n + 1)) blocks
@@ -813,12 +813,12 @@ flattenIRProgm :: IRProgm -> IRProgm
 flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
 
 flattenIRClass :: IRClass -> IRClass
-flattenIRClass (IRClass decl name fields (StaticInit blocks) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (flattenBlocks blocks)) atomTypes (map flattenIRFunction funs) mainKind
+flattenIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (flattenBlocks blocks, retBid)) atomTypes (map flattenIRFunction funs) mainKind
 
 flattenIRFunction :: IRFunction -> IRFunction
-flattenIRFunction (IRFunction acc name sig atomTypes blocks memberType) =
-    IRFunction acc name sig atomTypes (flattenBlocks blocks) memberType
+flattenIRFunction (IRFunction acc name sig atomTypes (blocks, retBid) memberType) =
+    IRFunction acc name sig atomTypes (flattenBlocks blocks, retBid) memberType
 
 flattenBlocks :: [IRBlock] -> [IRBlock]
 flattenBlocks = id
@@ -831,12 +831,12 @@ pruneIRProgm :: IRProgm -> IRProgm
 pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
 
 pruneIRClass :: IRClass -> IRClass
-pruneIRClass (IRClass decl name fields (StaticInit blocks) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (pruneBlocks blocks)) atomTypes (map pruneIRFunction funs) mainKind
+pruneIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (pruneBlocks blocks, retBid)) atomTypes (map pruneIRFunction funs) mainKind
 
 pruneIRFunction :: IRFunction -> IRFunction
-pruneIRFunction (IRFunction acc name sig atomTypes blocks memberType) =
-    IRFunction acc name sig atomTypes (pruneBlocks blocks) memberType
+pruneIRFunction (IRFunction acc name sig atomTypes (blocks, retBid) memberType) =
+    IRFunction acc name sig atomTypes (pruneBlocks blocks, retBid) memberType
 
 pruneBlocks :: [IRBlock] -> [IRBlock]
 pruneBlocks [] = []
@@ -856,12 +856,12 @@ rmEBInProg :: IRProgm -> IRProgm
 rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
 
 rmEBInClass :: IRClass -> IRClass
-rmEBInClass (IRClass decl name fields (StaticInit blocks) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (rmEBInBlocks blocks)) atomTypes (map rmEBInFunc funs) mainKind
+rmEBInClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs mainKind) =
+    IRClass decl name fields (StaticInit (rmEBInBlocks blocks, retBid)) atomTypes (map rmEBInFunc funs) mainKind
 
 rmEBInFunc :: IRFunction -> IRFunction
-rmEBInFunc (IRFunction acc name sig atomTypes blocks memberType) =
-    IRFunction acc name sig atomTypes (rmEBInBlocks blocks) memberType
+rmEBInFunc (IRFunction acc name sig atomTypes (blocks, retBid) memberType) =
+    IRFunction acc name sig atomTypes (rmEBInBlocks blocks, retBid) memberType
 
 rmEBInBlocks :: [IRBlock] -> [IRBlock]
 rmEBInBlocks = fixpoint

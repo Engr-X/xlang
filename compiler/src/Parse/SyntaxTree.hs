@@ -7,25 +7,35 @@ module Parse.SyntaxTree where
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (listToMaybe, fromMaybe, isNothing, mapMaybe)
-import Data.Char (toLower)
+import Data.Char (isDigit, toLower)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable(..))
 import GHC.Generics (Generic)
 import Lex.Token (Token, tokenPos)
-import Util.Basic (insertTab, splitLast)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.HashSet as HashSet
 import qualified Lex.Token as Lex
 
 
+insertTab :: Int -> String
+insertTab n = replicate (n * 4) ' '
+
+
+splitLast :: [a] -> ([a], a)
+splitLast [] = error "splitLast: empty list"
+splitLast (x : xs) = go [] x xs
+    where
+        go acc lastOne [] = (reverse acc, lastOne)
+        go acc lastOne (y : ys) = go (lastOne : acc) y ys
+
+
 -- | Language-level type representation.
---   Includes primitive types, arrays, and user-defined classes.
+--   Includes primitive and user-defined classes.
 data Class =
     Int8T | Int16T | Int32T | Int64T |
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
-    Array Class Int |
     Class [String] [Class] | -- name + general
     ErrorClass
     deriving (Eq, Ord, Show, Generic)
@@ -46,12 +56,131 @@ prettyClass Float128T = "float128"
 prettyClass Void = "void"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
-prettyClass (Array c _) = concat ["Array<", prettyClass c, ">"]
 prettyClass (Class ss args) =
-    let base = '_' : intercalate "." ss
+    let base = intercalate "." ss
     in case args of
         [] -> base
         _  -> concat [base, "<", intercalate ", " (map prettyClass args), ">"]
+
+
+classMangle :: Class -> String
+classMangle Int8T = "b"
+classMangle Int16T = "s"
+classMangle Int32T = "i"
+classMangle Int64T = "j"
+classMangle Float32T = "f"
+classMangle Float64T = "d"
+classMangle Float128T = "q"
+classMangle Bool = "z"
+classMangle Char = "c"
+classMangle Void = "v"
+classMangle (Class ss args) =
+    case ss of
+        [] -> error "classMangle: empty class qname"
+        [one] ->
+            let templ = templatePart args
+            in encodeIdent one ++ templ
+        _ ->
+            let templ = templatePart args
+            in concat ["N", concatMap encodeIdent ss, templ, "E"]
+    where
+        templatePart :: [Class] -> String
+        templatePart [] = ""
+        templatePart ts = concat ["I", concatMap classMangle ts, "E"]
+
+        encodeIdent :: String -> String
+        encodeIdent s = show (length s) ++ s
+
+classMangle ErrorClass = error "cannot mangle error class"
+
+
+classDemangleEither :: String -> Either String Class
+classDemangleEither raw = case parseMangledType raw of
+    Left msg -> Left msg
+    Right (cls, "") -> Right cls
+    Right (_, rest) -> Left ("trailing chars '" ++ rest ++ "'")
+    where
+        parseMangledType :: String -> Either String (Class, String)
+        parseMangledType [] = Left "empty input"
+        parseMangledType (c : cs) = case c of
+            'b' -> Right (Int8T, cs)
+            's' -> Right (Int16T, cs)
+            'i' -> Right (Int32T, cs)
+            'j' -> Right (Int64T, cs)
+            'f' -> Right (Float32T, cs)
+            'd' -> Right (Float64T, cs)
+            'q' -> Right (Float128T, cs)
+            'z' -> Right (Bool, cs)
+            'c' -> Right (Char, cs)
+            'v' -> Right (Void, cs)
+            'N' -> parseNestedType cs
+            _
+                | isDigit c -> parseSingleType (c : cs)
+                | otherwise -> Left ("unexpected tag '" ++ [c] ++ "'")
+
+        parseNestedType :: String -> Either String (Class, String)
+        parseNestedType s = do
+            (scopes, rest0) <- parseScopes [] s
+            if null scopes
+                then Left "empty nested scope"
+                else do
+                    (args, rest1) <- parseTemplateMaybe rest0
+                    case rest1 of
+                        ('E' : rest2) -> Right (Class scopes args, rest2)
+                        _ -> Left "missing closing 'E' for nested type"
+
+        parseSingleType :: String -> Either String (Class, String)
+        parseSingleType s = do
+            (name, rest0) <- parseIdent s
+            (args, rest1) <- parseTemplateMaybe rest0
+            Right (Class [name] args, rest1)
+
+        parseScopes :: [String] -> String -> Either String ([String], String)
+        parseScopes acc s = case s of
+            [] -> Left "unexpected eof while parsing nested scope"
+            ('I' : _) -> Right (reverse acc, s)
+            ('E' : _) -> Right (reverse acc, s)
+            _ -> do
+                (one, rest) <- parseIdent s
+                parseScopes (one : acc) rest
+
+        parseTemplateMaybe :: String -> Either String ([Class], String)
+        parseTemplateMaybe ('I' : rest) = parseTemplateArgs [] rest
+        parseTemplateMaybe s = Right ([], s)
+
+        parseTemplateArgs :: [Class] -> String -> Either String ([Class], String)
+        parseTemplateArgs acc s = case s of
+            [] -> Left "unexpected eof while parsing template args"
+            ('E' : rest) ->
+                if null acc
+                    then Left "empty template args"
+                    else Right (reverse acc, rest)
+            _ -> do
+                (arg, rest) <- parseMangledType s
+                parseTemplateArgs (arg : acc) rest
+
+        parseIdent :: String -> Either String (String, String)
+        parseIdent s = case span isDigit s of
+            ("", _) -> Left "missing identifier length"
+            (lenTxt, rest0) ->
+                let n = read lenTxt :: Int
+                in if n <= 0
+                    then Left ("invalid identifier length: " ++ lenTxt)
+                    else if length rest0 < n
+                        then Left "identifier shorter than encoded length"
+                        else
+                            let (name, rest1) = splitAt n rest0
+                            in Right (name, rest1)
+
+
+classDemangle :: String -> Class
+classDemangle raw = case classDemangleEither raw of
+    Right cls -> cls
+    Left msg -> error ("classDemangle: " ++ msg ++ ", input=" ++ raw)
+
+
+
+
 
 -- | Control-flow commands that can appear as expressions.
 --   Used for statements such as return, break, and continue.
@@ -1415,10 +1544,9 @@ flattenProgram (_, ss) = concatMap (flattenStatement . Just) ss
 
 -- | Normalize a parsed class into canonical forms.
 --   Converts built-in names (e.g. "int") into primitive Class constructors,
---   and recursively normalizes array/generic elements.
+--   and recursively normalizes generic elements.
 normalizeClass :: Class -> Class
 normalizeClass cls = case cls of
-    Array c n -> Array (normalizeClass c) n
     Class [name] args ->
         case (normalizeBuiltinClass name, args) of
             (Just prim, []) -> prim

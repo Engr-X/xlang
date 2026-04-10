@@ -2,7 +2,7 @@ module Semantic.ContextCheck where
 
 import Semantic.NameEnv
 import Control.Monad (when, unless)
-import Data.List (intercalate, find)
+import Data.List (intercalate, find, foldl')
 import Data.Char (toLower)
 import Data.Map.Strict (Map)
 import Data.Maybe (listToMaybe, fromMaybe, isNothing)
@@ -689,6 +689,82 @@ checkStmts path package envs' stmts = do
                 go :: Statement -> [Statement]
                 go (AST.StmtGroup ss) = flattenStmtGroups ss
                 go stmt0 = [stmt0]
+
+
+-- | Validate top-level name conflicts among:
+--   A = static vars (DefVar / DefConstVar)
+--   B = fields (DefField / DefConstField)
+--   C = function names
+-- Rule required:
+--   A ∩ B = ∅ and A ∩ C = ∅
+checkTopLevelMemberNameConflicts :: Path -> [Statement] -> [ErrorKind]
+checkTopLevelMemberNameConflicts path stmts =
+    let topStmts = flattenTopStmtGroups stmts
+        staticMap = collectStaticVars topStmts
+        fieldMap = collectFields topStmts
+        funMap = collectFunctions topStmts
+        conflictAB = concatMap (mkConflicts "static field" "attribute" staticMap fieldMap) (Map.keys staticMap)
+        conflictAC = concatMap (mkConflicts "static field" "function" staticMap funMap) (Map.keys staticMap)
+    in conflictAB ++ conflictAC
+    where
+        flattenTopStmtGroups :: [Statement] -> [Statement]
+        flattenTopStmtGroups = concatMap go
+            where
+                go :: Statement -> [Statement]
+                go (AST.StmtGroup ss) = flattenTopStmtGroups ss
+                go s = [s]
+
+        collectStaticVars :: [Statement] -> Map String [Position]
+        collectStaticVars = foldl' collect Map.empty
+            where
+                collect :: Map String [Position] -> Statement -> Map String [Position]
+                collect acc stmt = case stmt of
+                    AST.DefVar [name] _ _ toks -> insertIfPos acc name (namePos toks)
+                    AST.DefConstVar [name] _ _ toks -> insertIfPos acc name (namePos toks)
+                    _ -> acc
+
+        collectFields :: [Statement] -> Map String [Position]
+        collectFields = foldl' collect Map.empty
+            where
+                collect :: Map String [Position] -> Statement -> Map String [Position]
+                collect acc stmt = case stmt of
+                    AST.DefField [name] _ _ toks -> insertIfPos acc name (namePos toks)
+                    AST.DefConstField [name] _ _ toks -> insertIfPos acc name (namePos toks)
+                    _ -> acc
+
+        collectFunctions :: [Statement] -> Map String [Position]
+        collectFunctions = foldl' collect Map.empty
+            where
+                collect :: Map String [Position] -> Statement -> Map String [Position]
+                collect acc stmt = case stmt of
+                    AST.Function _ (AST.Variable name tok) _ _ ->
+                        Map.insertWith (++) name [tokenPos tok] acc
+                    AST.FunctionT _ (AST.Variable name tok) _ _ _ ->
+                        Map.insertWith (++) name [tokenPos tok] acc
+                    _ -> acc
+
+        insertIfPos :: Map String [Position] -> String -> Maybe Position -> Map String [Position]
+        insertIfPos acc _ Nothing = acc
+        insertIfPos acc name (Just pos) = Map.insertWith (++) name [pos] acc
+
+        namePos :: [Token] -> Maybe Position
+        namePos toks = case reverse toks of
+            (t:_) -> Just (tokenPos t)
+            [] -> Nothing
+
+        mkConflicts ::
+            String ->
+            String ->
+            Map String [Position] ->
+            Map String [Position] ->
+            String ->
+            [ErrorKind]
+        mkConflicts leftKind rightKind leftMap rightMap name = case Map.lookup name rightMap of
+            Nothing -> []
+            Just _ ->
+                let poss = fromMaybe [] (Map.lookup name leftMap)
+                    msg = "name conflict: " ++ leftKind ++ " '" ++ name ++ "' conflicts with " ++ rightKind ++ " '" ++ name ++ "'"
+                in map (\pos -> UE.Syntax $ UE.makeError path [pos] msg) poss
                             
                             
 -- | Run context checking for a whole program.
@@ -708,7 +784,7 @@ checkProgmWithUses p (decls, stmts) envs = case getPackageName p decls of
 
             initCtx = Ctx { st = initState, errs = [], varUses = Map.empty }
             (_, finalCtx) = runState (checkStmts p packageName envs stmts) initCtx
-            finalErrs = reverse (errs finalCtx)
+            finalErrs = checkTopLevelMemberNameConflicts p stmts ++ reverse (errs finalCtx)
         in if null finalErrs then Right (st finalCtx, varUses finalCtx) else Left finalErrs
 
 

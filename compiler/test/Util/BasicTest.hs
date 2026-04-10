@@ -1,5 +1,6 @@
 module Util.BasicTest where
 
+import Parse.SyntaxTree (Class(..))
 import Util.Basic
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -106,5 +107,70 @@ paringTests = testGroup "Util.Basic.paring" [
     testCase "3" $ paring (2, 3) @?= 18]
 
 
+toDataTests :: TestTree
+toDataTests = testGroup "Util.Basic.toData" [
+    testCase "0" $ toData 10.0 @?= "0x41200000",
+    testCase "1" $ toData64 10.0 @?= ("0x40240000", "0x00000000")]
+
+
+hostArchTests :: TestTree
+hostArchTests = testGroup "Util.Basic.parseHostArch" [
+    testCase "0" $ parseHostArch "x86_64" @?= ArchX64,
+    testCase "1" $ parseHostArch "amd64" @?= ArchX64,
+    testCase "2" $ parseHostArch "i386" @?= ArchX86,
+    testCase "3" $ parseHostArch "aarch64" @?= ArchArm64,
+    testCase "4" $ parseHostArch "riscv64" @?= ArchRiscV64,
+    testCase "5" $ parseHostArch "riscv32" @?= ArchRiscV32]
+
+
+hostPlatformTests :: TestTree
+hostPlatformTests = testGroup "Util.Basic.parseHostPlatform" [
+    testCase "0" $ parseHostPlatform "mingw32" @?= PlatformWindows,
+    testCase "1" $ parseHostPlatform "linux" @?= PlatformLinux,
+    testCase "2" $ parseHostPlatform "darwin" @?= PlatformMac,
+    testCase "3" $ parseHostPlatform "macOS" @?= PlatformMac]
+
+
+mangleNameTests :: TestTree
+mangleNameTests = testGroup "Util.Basic.mangleName" [
+    testCase "0" $
+        mangleName ["com", "wangdi"] ["Math"] [] True @?= "_XN3com6wangdi4MathEv",
+    testCase "1" $
+        mangleName ["com", "wangdi"] ["Math"] [] False @?= "_XN3com6wangdi4MathE",
+    testCase "2" $
+        mangleName [] ["main"] [] True @?= "_X4mainv",
+    testCase "3" $
+        mangleName ["com", "wangdi"] ["Math"] [Class ["com", "wangdi", "Pair"] []] True
+            @?= "_XN3com6wangdi4MathEN3com6wangdi4PairE"]
+
+
+demangleNameTests :: TestTree
+demangleNameTests = testGroup "Util.Basic.demangleName" [
+    testCase "demangle function with params+ret" $
+        demangleName "_XN5TestX3fibEii" @?=
+            Right (["TestX", "fib"], [Int32T, Int32T]),
+    testCase "demangle class modifiers symbol" $
+        demangleNameFromMetaSymbol "_X5TestX_modifiers" @?=
+            Right (["TestX"], []),
+    testCase "demangle field symbol with type" $
+        demangleName "_XN4demo4Math6secretEi" @?=
+            Right (["demo", "Math", "secret"], [Int32T])]
+
+
 tests :: TestTree
-tests = testGroup "Util.Basic" [fullTests, matchTests, isIntTests, isLongTests, isFloatTests, isDoubleTests, isLongDoubleTests, insertSpaceTests, insertTabTests, paringTests]
+tests = testGroup "Util.Basic" [
+    fullTests,
+    matchTests,
+    isIntTests,
+    isLongTests,
+    isFloatTests,
+    isDoubleTests,
+    isLongDoubleTests,
+    insertSpaceTests,
+    insertTabTests,
+    paringTests,
+    toDataTests,
+    hostArchTests,
+    hostPlatformTests,
+    mangleNameTests,
+    demangleNameTests]

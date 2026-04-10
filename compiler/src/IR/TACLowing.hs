@@ -5,6 +5,7 @@
 module IR.TACLowing where
 
 import Data.Bits ((.&.))
+import Control.Monad (unless)
 import Control.Monad.State.Strict (evalState)
 import Data.List (partition, foldl')
 import Data.Char (toUpper, toLower)
@@ -188,13 +189,13 @@ readIntegerLiteral raw =
 wrapInt :: (Integer, Integer) -> Integer -> Integer
 wrapInt (minI, maxI) n =
     let range = maxI - minI + 1
-        isPow2 x = x > 0 && (x .&. (x - 1)) == 0
-    in if isPow2 range && minI == negate (range `div` 2) && maxI == (range `div` 2) - 1
+        isPow2 x = x > 0 && x .&. (x - 1) == 0
+    in if isPow2 range && minI == negate (range `div` 2) && maxI == range `div` 2 - 1
         then
             let mask = range - 1
                 u = n .&. mask
             in if u > maxI then u - range else u
-        else ((n - minI) `mod` range) + minI
+        else (n - minI) `mod` range + minI
 
 
 -- | Safe read for integer literals with overflow warning and wrap-around.
@@ -270,7 +271,7 @@ atomLowing (AST.DoubleConst value tok) = do
 atomLowing (AST.LongDoubleConst value tok) = do
     v <- safeRational (tokenPos tok) float128Range value
     return ([], TAC.Float128C v)
-    
+
 atomLowing (AST.CharConst value _) = return ([], TAC.CharC value)
 atomLowing (AST.BoolConst value _) = return ([], TAC.BoolC value)
 atomLowing (AST.StringConst value _) = return ([], TAC.StringC value)
@@ -482,7 +483,7 @@ exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
                         else [assignTail]
                 seqForward = appendAfterCond rhsForward writeTail
             return (reverse seqForward, lhsAtom)
-             
+
         TEnv.VarImported _ _ _ fullQname -> do
             (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
             let rhsForward = reverse instrs
@@ -930,7 +931,7 @@ collectAssignKeysBlock (AST.Multiple ss) = do
                 ks1 <- collectAssignKeysExpr e
                 ks2 <- maybe (return []) collectAssignKeysBlock b1
                 ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat[ks1, ks2, ks3]
+                return $ concat [ks1, ks2, ks3]
             AST.Until e b1 b2 _ -> do
                 ks1 <- collectAssignKeysExpr e
                 ks2 <- maybe (return []) collectAssignKeysBlock b1
@@ -1107,7 +1108,7 @@ stmtsLowing ((AST.Expr e):stmts) = let
         return $ appendAfterCond current rest
 
 stmtsLowing ((AST.Exprs es):stmts) = do
-    current <- fmap concat $ mapM lowerExprInstr es
+    current <- concat <$> mapM lowerExprInstr es
     rest <- stmtsLowing stmts
     return $ appendAfterCond current rest
     where
@@ -1169,8 +1170,7 @@ stmtsLowing ((AST.For (mInit, mCond, mStep) bodyB elseB (forTok, _)):stmts) = do
         _ <- popLoopPhis
         return (bodyStmts', stepStmts', bodyStacks', elseStmts')
 
-    let condStmts = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l2ID, lElseID))])
+    let condStmts = appendAfterCond (reverse condInstrs) [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l2ID, lElseID))]
 
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> IRInstr (TAC.IAssign dst preAtom)) phiInfos'
@@ -1208,8 +1208,8 @@ stmtsLowing ((AST.For (mInit, mCond, mStep) bodyB elseB (forTok, _)):stmts) = do
         lowerForPartStmt :: Statement -> TACM [IRNode]
         lowerForPartStmt st = case st of
             AST.Expr e -> lowerForPartExpr e
-            AST.Exprs es -> fmap concat $ mapM lowerForPartExpr es
-            AST.StmtGroup ss -> fmap concat $ mapM lowerForPartStmt ss
+            AST.Exprs es -> concat <$> mapM lowerForPartExpr es
+            AST.StmtGroup ss -> concat <$> mapM lowerForPartStmt ss
             AST.BlockStmt b -> blockLowing b
             AST.DefField {} -> stmtsLowing [st]
             AST.DefConstField {} -> stmtsLowing [st]
@@ -1241,9 +1241,7 @@ stmtsLowing ((AST.Repeat countExpr bodyB elseB _):stmts) = do
 
     (countInstrs, countAtom) <- if AST.isAtom countExpr then atomLowing countExpr else exprLowing countExpr
     countClass <- getAtomType countAtom
-    if not (isRepeatCounterClass countClass)
-        then error "repeat counter type must be byte/short/int/long"
-        else pure ()
+    unless (isRepeatCounterClass countClass) $ error "repeat counter type must be byte/short/int/long"
 
     headerStacks <- getVarStacks
 
@@ -1480,8 +1478,7 @@ stmtsLowing ((AST.While e bodyB elseB _):stmts) = do
         _ <- popLoopPhis
         return (bodyStmts', bodyStacks', elseStmts')
 
-    let condStmts = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l2ID, lElseID))])
+    let condStmts = appendAfterCond (reverse condInstrs) [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l2ID, lElseID))]
 
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> IRInstr (TAC.IAssign dst preAtom)) phiInfos'
@@ -1544,8 +1541,7 @@ stmtsLowing ((AST.Until e bodyB elseB _):stmts) = do
         _ <- popLoopPhis
         return (bodyStmts', bodyStacks', elseStmts')
 
-    let condStmts = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) (l2ID, lElseID))])
+    let condStmts = appendAfterCond (reverse condInstrs) [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) (l2ID, lElseID))]
 
     phiInfos' <- mapM (attachBodyAtom bodyStacks) phiInfos
     let preAssigns = map (\(_, dst, preAtom, _) -> IRInstr (TAC.IAssign dst preAtom)) phiInfos'
@@ -1615,8 +1611,7 @@ stmtsLowing ((AST.DoWhile bodyB e elseB _):stmts) = do
 
     let preBlock = IRBlockStmt (l0ID, preAssigns ++ [IRInstr (TAC.Jump l1ID)])
     let bodyBlock = IRBlockStmt (l1ID, phiInstrs ++ appendAfterCond bodyStmts [IRInstr (TAC.Jump l2ID)])
-    let condTail = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l3ID, lElseID))])
+    let condTail = appendAfterCond (reverse condInstrs) [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (l3ID, lElseID))]
     let condBlock = IRBlockStmt (l2ID, condTail)
     let backBlock = IRBlockStmt (l3ID, backAssigns ++ [IRInstr (TAC.Jump l1ID)])
     let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump l4ID)])
@@ -1674,8 +1669,7 @@ stmtsLowing ((AST.DoUntil bodyB e elseB _):stmts) = do
 
     let preBlock = IRBlockStmt (l0ID, preAssigns ++ [IRInstr (TAC.Jump l1ID)])
     let bodyBlock = IRBlockStmt (l1ID, phiInstrs ++ appendAfterCond bodyStmts [IRInstr (TAC.Jump l2ID)])
-    let condTail = appendAfterCond (reverse condInstrs) (
-            [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) (l3ID, lElseID))])
+    let condTail = appendAfterCond (reverse condInstrs) [IRInstr (TAC.Ifeq condAtom (TAC.Int32C 0) (l3ID, lElseID))]
     let condBlock = IRBlockStmt (l2ID, condTail)
     let backBlock = IRBlockStmt (l3ID, backAssigns ++ [IRInstr (TAC.Jump l1ID)])
     let elseBlock = IRBlockStmt (lElseID, elseStmts ++ [IRInstr (TAC.Jump l4ID)])
@@ -1871,8 +1865,8 @@ functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args f
         access = if generated then PB.Private else access0
         flags = if generated then [PB.Static, PB.Final] else [PB.Static]
         decl = (access, flags)
-    return $ TAC.IRFunction decl funName funSig atomTypes bodyBlocks TAC.MemberClassWrapped
-        
+    return $ TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
+
     where
         loadArgs :: (Class, String, [Token]) -> TACM IRAtom
         loadArgs (argClazz, _, tokens) = do
@@ -1914,17 +1908,20 @@ classStmtsLowing pkgSegs name stmts = do
     staticKeys <- mapM resolveStaticKey (Map.toList staticKeyMap)
     addStaticVars staticKeys
 
+    retBId <- incBlockId
+    let staticRet = IRBlockStmt (retBId, [IRInstr TAC.VReturn])
     staticStmts0 <- stmtsLowing rest1
-    staticAtomTypes <- collectAtomTypesStatic staticStmts0
+    let staticStmts = staticStmts0 ++ [staticRet]
+    staticAtomTypes <- collectAtomTypesStatic staticStmts
     staticFields <- mapM (staticFieldFor constKeyMap) staticKeys
     funcs0 <- mapM functionLowering funcDef
     let classQName = pkgSegs ++ [name]
-        staticBlocks0 = packIRBlocks staticStmts0
+        staticBlocks0 = packIRBlocks staticStmts
         staticBlocks = qualifyBlocks classQName staticBlocks0
         funcs = map (qualifyFunction classQName) funcs0
         mainKind = detectMainKind classQName funcs
     let decl = (PB.Public, []) -- TODO: default class decl until parser carries modifiers.
-    return $ TAC.IRClass decl name staticFields (TAC.StaticInit staticBlocks) staticAtomTypes funcs mainKind
+    return $ TAC.IRClass decl name staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs mainKind
     where
         resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
         resolveStaticKey (_, poss) = do
@@ -1942,8 +1939,8 @@ classStmtsLowing pkgSegs name stmts = do
                 declStatic = (PB.Public, flags) -- TODO: use parsed modifiers
             return (declStatic, clazz, varName, TAC.MemberClassWrapped)
         qualifyFunction :: [String] -> TAC.IRFunction -> TAC.IRFunction
-        qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes body memberType) =
-            TAC.IRFunction decl fname sig atomTypes (qualifyBlocks cls body) memberType
+        qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes (body, retBid) memberType) =
+            TAC.IRFunction decl fname sig atomTypes (qualifyBlocks cls body, retBid) memberType
 
         qualifyBlocks :: [String] -> [TAC.IRBlock] -> [TAC.IRBlock]
         qualifyBlocks cls = map (qualifyBlock cls)
@@ -1990,22 +1987,11 @@ detectMainKind classQName = foldl' pick TAC.NoMain . map classify
             case (TEnv.funReturn sig, TEnv.funParams sig) of
                 (Int32T, []) -> TAC.MainInt mainQName
                 (Void, []) -> TAC.MainVoid mainQName
-                (Int32T, [param]) | isStringArray param -> TAC.MainIntArgs mainQName
-                (Void, [param]) | isStringArray param -> TAC.MainVoidArgs mainQName
                 _ -> TAC.NoMain
         classify _ = TAC.NoMain
 
         mainQName :: QName
         mainQName = classQName ++ ["main"]
-
-        isStringArray :: Class -> Bool
-        isStringArray (Array elemT 1) = isStringClass elemT
-        isStringArray _ = False
-
-        isStringClass :: Class -> Bool
-        isStringClass (Class qn []) =
-            qn == ["String"] || qn == ["java", "lang", "String"] || qn == ["xlang", "String"]
-        isStringClass _ = False
 
 
 -- | Lower a class statement into IR (not implemented yet).

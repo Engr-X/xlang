@@ -1,0 +1,3 @@
+val sf: float = 1.5f
+val sd: double = 2.25
+fun main() -> int = 0

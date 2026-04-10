@@ -41,7 +41,7 @@ import System.Directory (
     withCurrentDirectory
     )
 import System.Exit (ExitCode(..))
-import System.FilePath ((</>), isAbsolute, makeRelative, normalise, splitDirectories, takeDirectory, takeExtension, takeFileName)
+import System.FilePath ((</>), (<.>), isAbsolute, makeRelative, normalise, splitDirectories, takeDirectory, takeExtension, takeFileName)
 import System.IO (hClose, openTempFile)
 import System.IO.Error (isDoesNotExistError)
 import System.IO.Error (catchIOError)
@@ -119,6 +119,32 @@ printStagePerFile label xs = do
         (\(StageTiming path elapsed) ->
             putStrLn ("[DEBUG]   " ++ path ++ ": " ++ formatDurationMs elapsed))
         xs
+
+
+writePerClassIRFiles :: FilePath -> [TAC.IRProgm] -> IO ()
+writePerClassIRFiles classesRoot irs = mapM_ writeOne (collectArtifacts irs)
+  where
+    collectArtifacts :: [TAC.IRProgm] -> [(FilePath, String)]
+    collectArtifacts = concatMap artifactsFromProgm
+
+    artifactsFromProgm :: TAC.IRProgm -> [(FilePath, String)]
+    artifactsFromProgm (TAC.IRProgm pkgSegs classes) =
+        map (artifactFromClass pkgSegs) classes
+
+    artifactFromClass :: [String] -> TAC.IRClass -> (FilePath, String)
+    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _) =
+        let pkgDir = foldl' (</>) classesRoot pkgSegs
+            irPath = pkgDir </> className <.> "ir"
+            pkgPrefix = case pkgSegs of
+                [] -> ""
+                _ -> "package " ++ intercalate "." pkgSegs ++ "\n\n"
+            irText = pkgPrefix ++ TAC.prettyIRClass 0 cls
+        in (irPath, irText)
+
+    writeOne :: (FilePath, String) -> IO ()
+    writeOne (path, text) = do
+        createDirectoryIfMissing True (takeDirectory path)
+        writeFile path text
 
 
 printCompileSummary :: CompileTimingSummary -> Word64 -> IO ()
@@ -593,13 +619,14 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
                                 jsonBytes = encode jsonVal
                                 jsonText = BL.unpack jsonBytes
                                 useTempJsonFile = shouldUseTempJsonFile jsonBytes
-                                debugDir = case srcPaths of
-                                    [one] -> takeDirectory one
-                                    _ -> rootPath
+                                debugDir = rootPath
+                                debugIrRoot = case mOutput of
+                                    Just outPath -> outPath
+                                    Nothing -> rootPath
                                 jobsArgs = ["--jobs", show jobs]
 
                             when debugOut $ BL.writeFile (debugDir </> "debug.json") (encodePretty jsonVal)
-                            when debugOut $ writeFile (debugDir </> "Ir.txt") (unlines (map TAC.prettyIRProgm irs))
+                            when debugOut $ writePerClassIRFiles debugIrRoot irs
 
                             (_, emitTimeNs) <- timedIO $
                                 if useTempJsonFile

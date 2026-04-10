@@ -53,7 +53,6 @@ numericRangeRank = Map.fromList [
 
 normalizeTypeAlias :: Class -> Class
 normalizeTypeAlias cls = case cls of
-    Array elemT dims -> Array (normalizeTypeAlias elemT) dims
     Class ["String"] [] -> Class ["String"] []
     Class ["java", "lang", "String"] [] -> Class ["String"] []
     Class ["xlang", "String"] [] -> Class ["String"] []
@@ -75,7 +74,6 @@ widenedClass Float32T = [Float32T, Float64T, Float128T]
 widenedClass Float64T = [Float64T, Float128T]
 widenedClass Float128T = [Float128T]
 widenedClass Void = [Void]
-widenedClass (Array c n) = [Array (normalizeTypeAlias c) n]
 widenedClass cls@(Class _ _) = [normalizeTypeAlias cls]
 widenedClass ErrorClass = error "ErrorClass cannot be widened"
 

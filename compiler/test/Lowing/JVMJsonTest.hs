@@ -35,7 +35,7 @@ containsInJson needle text =
 typeToQNameTests :: TestTree
 typeToQNameTests = testGroup "Lowing.JVMJson.typeToQName" $ map (uncurry testCase) [
     ("0", JJ.typeToQName Int32T @?= ["int32"]),
-    ("1", JJ.typeToQName (Array (Class ["java", "lang", "String"] []) 2) @?= ["java", "lang", "String", "[]", "[]"]),
+    ("1", JJ.typeToQName (Class ["java", "lang", "String"] []) @?= ["java", "lang", "String"]),
     ("2", assertThrowsContains "generic class types not supported" (JJ.typeToQName (Class ["A"] [Int32T]))),
     ("3", assertThrowsContains "error class" (JJ.typeToQName ErrorClass))
     ]
@@ -55,7 +55,7 @@ opPrefixTests = testGroup "Lowing.JVMJson.opPrefix" $ map (uncurry testCase) [
     ("0", JJ.opPrefix Int32T @?= "i"),
     ("1", JJ.opPrefix Float64T @?= "d"),
     ("2", JJ.opPrefix (Class ["A"] []) @?= "a"),
-    ("3", JJ.opPrefix (Array Int32T 1) @?= "a")
+    ("3", JJ.opPrefix Bool @?= "i")
     ]
 
 

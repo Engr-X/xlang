@@ -97,13 +97,13 @@ detectMainKindTests = testGroup "IR.TACLowing.detectMainKind" $ map (uncurry tes
         let out = detectMainKind ["pkg", "MainX"] [mkFun "main" [] Int32T, mkFun "main" [] Void]
         out @?= TAC.MainVoid ["pkg", "MainX", "main"]),
     ("3", do
-        let out = detectMainKind ["pkg", "MainX"] [mkFun "main" [Array (Class ["java", "lang", "String"] []) 1] Void]
-        out @?= TAC.MainVoidArgs ["pkg", "MainX", "main"])
+        let out = detectMainKind ["pkg", "MainX"] [mkFun "main" [Class ["java", "lang", "String"] []] Void]
+        out @?= TAC.NoMain)
     ]
     where
         mkFun :: String -> [Class] -> Class -> IRFunction
         mkFun name params ret =
-            IRFunction (Public, []) name (FunSig params ret) Map.empty [] MemberClass
+            IRFunction (Public, []) name (FunSig params ret) Map.empty ([], 0) MemberClass
 
 
 loopAssignKeyTests :: TestTree

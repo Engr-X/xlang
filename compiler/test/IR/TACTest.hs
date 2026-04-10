@@ -71,19 +71,19 @@ rmEBInBlocksTests = testGroup "IR.TAC.rmEBInBlocks" $ map (uncurry testCase) [
 rmEBInFuncTests :: TestTree
 rmEBInFuncTests = testGroup "IR.TAC.rmEBInFunc" $ map (uncurry testCase) [
     ("0", do
-        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 1 [iRet]] MemberClass
-            out = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 1 [iRet]] MemberClass
+        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 1 [iRet]], 1) MemberClass
+            out = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 1 [iRet]], 1) MemberClass
         rmEBInFunc f @?= out),
     ("1", do
-        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 1 [iRet, iIRet]] MemberClass
-            out = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 1 [iRet, iIRet]] MemberClass
+        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 1 [iRet, iIRet]], 1) MemberClass
+            out = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 1 [iRet, iIRet]], 1) MemberClass
         rmEBInFunc f @?= out),
     ("2", do
-        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 1 [], blk 2 [iRet]] MemberClass
-            out = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 2 [iRet]] MemberClass
+        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 1 [], blk 2 [iRet]], 2) MemberClass
+            out = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 2 [iRet]], 2) MemberClass
         rmEBInFunc f @?= out),
     ("3", do
-        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [blk 1 [iRet]] MemberClass
+        let f = IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([blk 1 [iRet]], 1) MemberClass
         rmEBInFunc f @?= f)
     ]
 

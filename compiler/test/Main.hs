@@ -27,6 +27,7 @@ import Semantic.TypeCheckTest
 import Semantic.TypeEnvTest
 import Semantic.ReturnCheckTest
 import Semantic.SemanticDebugTest
+import Semantic.NativeLibLoaderTest
 
 import Util.BasicTest
 import Util.CompileJavaPolicyTest
@@ -50,5 +51,5 @@ main = defaultMain $ testGroup "xlang test" [
     Semantic.NameEnvTest.tests, Semantic.ContextCheckTest.tests,
     Semantic.CheckProgramTest.tests,
     Semantic.OpInferTest.tests, Semantic.TypeEnvTest.tests, Semantic.TypeCheckTest.tests,
-    Semantic.ReturnCheckTest.tests, Semantic.SemanticDebugTest.tests
+    Semantic.ReturnCheckTest.tests, Semantic.SemanticDebugTest.tests, Semantic.NativeLibLoaderTest.tests
     ]

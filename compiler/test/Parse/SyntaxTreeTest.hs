@@ -321,11 +321,22 @@ normalizeClassTests :: TestTree
 normalizeClassTests = testGroup "Parse.SyntaxTree.normalizeClass" $
     map (\(name, input, expected) -> testCase name $ normalizeClass input @?= expected) [
         ("0", Class ["int"] [], Int32T),
-        ("1", Array (Class ["int"] []) 2, Array Int32T 2),
+        ("1", Class ["List"] [Class ["int"] []], Class ["List"] [Int32T]),
         ("2", Class ["List"] [Class ["int"] []], Class ["List"] [Int32T]),
         ("3", Class ["int"] [Class ["int"] []], Class ["int"] [Int32T]),
         ("4", Class ["String"] [], Class ["String"] []),
         ("5", Class ["string"] [], Class ["string"] [])]
+
+
+classMangleDemangleTests :: TestTree
+classMangleDemangleTests = testGroup "Parse.SyntaxTree.classMangleDemangle" $
+    map (\(name, cls) -> testCase name $ classDemangle (classMangle cls) @?= cls) [
+        ("0", Int32T),
+        ("1", Class ["Pair"] []),
+        ("2", Class ["List"] [Int32T]),
+        ("3", Class ["com", "wangdi", "Pair"] []),
+        ("4", Class ["com", "wangdi", "Map"] [Class ["String"] [], Class ["com", "wangdi", "Pair"] [Int64T]])
+    ]
 
 
 {-toClassTests :: TestTree
@@ -745,7 +756,7 @@ tests :: TestTree
 tests = testGroup "Parse.SyntaxTree" [
     flattenExprTests, flattenBlockTests, flattenCaseTests, flattenStatementTests, flattenProgramTests,
 
-    getErrorProgramTests, normalizeClassTests,
+    getErrorProgramTests, normalizeClassTests, classMangleDemangleTests,
     isVariableTests, isAtomTests, identTextTests, numTextTests, charValTests, strValTests, exprTokensTests, stmtTokensTests,
     
     prettyExprTests, prettyBlockTests, prettyStmtTests, prettyProgmTests, prettyDeclarationTests,

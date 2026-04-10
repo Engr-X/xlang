@@ -17,7 +17,7 @@ mkVoidFun name = IR.IRFunction
     name
     (FunSig [] Void)
     Map.empty
-    [IR.IRBlock (0, [IR.VReturn])]
+    ([IR.IRBlock (0, [IR.VReturn])], 0)
     IR.MemberClass
 
 
@@ -26,7 +26,7 @@ mkClass name funs = IR.IRClass
     (Public, [])
     name
     []
-    (IR.StaticInit [])
+    (IR.StaticInit ([], 0))
     Map.empty
     funs
     IR.NoMain
@@ -48,7 +48,7 @@ specialOptimizationTests = testGroup "Lowing.JVM.specialOptimization" $ map (unc
 
     ("3", do
         let attrs = [((Public, []), Int32T, "x", IR.MemberClass)]
-            cls = IR.IRClass (Public, []) "C" attrs (IR.StaticInit []) Map.empty [mkVoidFun "h"] IR.NoMain
+            cls = IR.IRClass (Public, []) "C" attrs (IR.StaticInit ([], 0)) Map.empty [mkVoidFun "h"] IR.NoMain
             ir = IR.IRProgm [] [cls]
         JVM.specialOptimization ir @?= ir)
     ]

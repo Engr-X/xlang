@@ -14,6 +14,7 @@ import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
 import System.Process (readProcessWithExitCode)
 
 import qualified CompileJava as CJ
+import qualified CompileX64 as CX64
 import qualified Data.Map.Strict as Map
 
 
@@ -24,14 +25,21 @@ bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeToolkit-alpha.jar
     slash c = c
 
 
+data CompileTarget
+    = TargetJvm Int
+    | TargetX64
+
+
 data Options = Options {
     optHelp :: Bool,
     optVersion :: Bool,
     optDownload :: Maybe Int,
     optMainEntry :: Maybe [String],
     optTargetJvm :: Maybe Int,
+    optTargetX64 :: Bool,
     optInputs :: [FilePath],
     optLibs :: [FilePath],
+    optX64Compiler :: Maybe CX64.X64CompilerChoice,
     optOutput :: Maybe FilePath,
     optIncludeRuntime :: Bool,
     optRoot :: FilePath,
@@ -48,8 +56,10 @@ defaultOptions = Options {
     optDownload = Nothing,
     optMainEntry = Nothing,
     optTargetJvm = Nothing,
+    optTargetX64 = False,
     optInputs = [],
     optLibs = [],
+    optX64Compiler = Nothing,
     optOutput = Nothing,
     optIncludeRuntime = False,
     optRoot = ".",
@@ -59,7 +69,7 @@ defaultOptions = Options {
 
 
 xlangVersion :: String
-xlangVersion = "alpha 0.0.0"
+xlangVersion = "alpha 1.1.0"
 
 
 jdkMetadataUrlMap :: Map Int String
@@ -103,6 +113,12 @@ validateSupportedJvmVersion :: Int -> Either String Int
 validateSupportedJvmVersion version
     | Map.member version jdkMetadataUrlMap = Right version
     | otherwise = Left ("unsupported --target-jvm version: " ++ show version ++ "; supported versions: " ++ supportedJdkMetadataVersionsText)
+
+
+resolveCompileTarget :: Options -> Maybe CompileTarget
+resolveCompileTarget opts
+    | optTargetX64 opts = Just TargetX64
+    | otherwise = TargetJvm <$> optTargetJvm opts
 
 
 downloadJdkMetadata :: FilePath -> Int -> IO ()
@@ -161,6 +177,39 @@ ensureTargetJdkMetadata exeDir version = do
             putStrLn ("[INFO] java-native metadata for jdk v" ++ show version ++ " not found; auto download")
             downloadJdkMetadata exeDir version
 
+
+findDefaultX64NativeLibs :: FilePath -> IO [FilePath]
+findDefaultX64NativeLibs exeDir = do
+    let nativeDir = exeDir </> "libs" </> "native"
+    exists <- doesDirectoryExist nativeDir
+    if not exists
+        then pure []
+        else sort <$> collect nativeDir
+  where
+    collect :: FilePath -> IO [FilePath]
+    collect dir = do
+        names <- listDirectory dir
+        concat <$> mapM
+            (\name -> do
+                let path = dir </> name
+                isDir <- doesDirectoryExist path
+                if isDir
+                    then collect path
+                    else
+                        let ext = map toLower (takeExtension path)
+                        in pure [path | ext `elem` [".dll", ".lib", ".a", ".so", ".dylib"]])
+            names
+
+
+isAllowedX64LibFile :: FilePath -> Bool
+isAllowedX64LibFile path =
+    let ext = map toLower (takeExtension path)
+    in ext == ".dll" || ext == ".lib" || ext == ".a" || ext == ".so" || ext == ".dylib"
+
+
+invalidX64LibFiles :: [FilePath] -> [FilePath]
+invalidX64LibFiles = filter (not . isAllowedX64LibFile)
+
 splitOnDot :: String -> [String]
 splitOnDot s =
     case break (== '.') s of
@@ -217,27 +266,29 @@ parseArgs = go defaultOptions
                 | otherwise ->
                     Left "invalid --target-jvm format; use --target-jvm25"
 
-        parseLegacyTargetValue :: String -> Either String Int
+        parseLegacyTargetValue :: String -> Either String CompileTarget
         parseLegacyTargetValue raw = case raw of
-            "jvm" -> Right defaultJvmTargetVersion
+            "jvm" -> Right (TargetJvm defaultJvmTargetVersion)
+            "x64" -> Right TargetX64
             _ ->
                 case stripPrefix "jvm" raw of
                     Just suffix | not (null suffix) && all isDigit suffix ->
                         case parsePositiveInt suffix of
-                            Just n -> validateSupportedJvmVersion n
+                            Just n -> TargetJvm <$> validateSupportedJvmVersion n
                             Nothing -> Left "invalid --target value; expected jvm<number>"
-                    _ -> Left "unsupported --target value; use --target-jvm<number>"
+                    _ -> Left "unsupported --target value; use --target-jvm<number> or --target=x64"
 
         parseTargetJvmValue :: String -> Options -> [String] -> Options
         parseTargetJvmValue raw opts xs =
             case parseTargetJvmArg raw of
-                Right n -> go opts {optTargetJvm = Just n} xs
+                Right n -> go opts {optTargetJvm = Just n, optTargetX64 = False} xs
                 Left msg -> opts {optHelp = True, optError = Just msg}
 
         parseLegacyTarget :: String -> Options -> [String] -> Options
         parseLegacyTarget raw opts xs =
             case parseLegacyTargetValue raw of
-                Right n -> go opts {optTargetJvm = Just n} xs
+                Right (TargetJvm n) -> go opts {optTargetJvm = Just n, optTargetX64 = False} xs
+                Right TargetX64 -> go opts {optTargetJvm = Nothing, optTargetX64 = True} xs
                 Left msg -> opts {optHelp = True, optError = Just msg}
 
         parseJobsValue :: String -> Options -> [String] -> Options
@@ -262,6 +313,14 @@ parseArgs = go defaultOptions
                 Left msg -> opts {optHelp = True, optError = Just msg}
                 Right qn -> go opts {optMainEntry = Just qn} xs
 
+        parseX64CompilerValue :: String -> Options -> [String] -> Options
+        parseX64CompilerValue raw opts xs = case map toLower (stripWrappingQuotes raw) of
+            "nasm" -> go opts {optX64Compiler = Just CX64.X64CompilerNasm} xs
+            "as" -> go opts {optX64Compiler = Just CX64.X64CompilerAs} xs
+            _ -> opts {
+                optHelp = True,
+                optError = Just "invalid value for --compiler; expected nasm or as"}
+
         go :: Options -> [String] -> Options
         go opts [] = opts
 
@@ -270,7 +329,7 @@ parseArgs = go defaultOptions
         go opts ("-v" : _) = opts {optVersion = True}
         go opts ("--version" : _) = opts {optVersion = True}
 
-        go opts ("--target=jvm" : xs) = go opts {optTargetJvm = Just defaultJvmTargetVersion} xs
+        go opts ("--target=jvm" : xs) = go opts {optTargetJvm = Just defaultJvmTargetVersion, optTargetX64 = False} xs
         go opts ("--target" : t : xs) = parseLegacyTarget t opts xs
         go opts ["--target"] = opts {optHelp = True, optError = Just "missing value for --target"}
 
@@ -315,6 +374,9 @@ parseArgs = go defaultOptions
         go opts ("--main" : v : xs) = parseMainValue v opts xs
         go opts ["--main"] = opts {optHelp = True, optError = Just "missing value for --main"}
 
+        go opts ("--compiler" : c : xs) = parseX64CompilerValue c opts xs
+        go opts ["--compiler"] = opts {optHelp = True, optError = Just "missing value for --compiler"}
+
         -- Compatibility: old style "-c file.x"
         go opts ("-c" : src : xs) = go (addInput opts src) xs
         go opts ["-c"] = opts {optHelp = True, optError = Just "missing value for -c"}
@@ -341,6 +403,9 @@ parseArgs = go defaultOptions
         go opts (arg : xs)
             | isLikelyPath arg = go (addInput opts arg) xs
 
+        go opts (arg : xs)
+            | Just c <- stripPrefix "--compiler=" arg = parseX64CompilerValue c opts xs
+
         go opts (arg : _) = opts {optHelp = True, optError = Just ("unknown arg: " ++ arg)}
 
 
@@ -350,6 +415,9 @@ printHelp = putStrLn $ unlines [
     "   xlang --target-jvm<n> <file.x|file.xl|file.xlang> [more files ...]",
     "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [-d <dir|jar>]",
     "         [--main=<qname.main>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
+    "   xlang --target=x64 <file.x|file.xl|file.xlang> [more files ...]",
+    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [--compiler=<nasm|as>] [-d <dir|file.o|file.exe|file.out|file.dll|file.so|file.dylib|file.a|file.lib>]",
+    "         [-j <n>|--jobs <n>] [--debug|-debug|-d]",
     "",
     "   xlang -v | --version",
     "   xlang -h | --help",
@@ -361,6 +429,13 @@ printHelp = putStrLn $ unlines [
     "   --target=jvm     compatibility alias for --target-jvm",
     "   --target=jvm<n>  compatibility alias for --target-jvm<n> (e.g. --target=jvm25)",
     "   --target jvm<n>  compatibility alias for --target-jvm<n>",
+    "   --target=x64     compile to x64 object output (and link when -d is exe/out/dll/so/dylib/a/lib)",
+    "                    each lowered unit emits .o (and .asm only in debug mode)",
+    "   --compiler=<nasm|as>",
+    "                    x64-only assembler choice (default: nasm)",
+    "   --compiler <nasm|as>",
+    "                    same as above",
+    "   --target x64     compatibility alias for x64 target",
     "   -download=<n>, --download=<n>",
     "                    download jdk metadata db to <xlang.exe dir>/libs/java-native/jdk-<target>",
     "                    supported versions: " ++ supportedJdkMetadataVersionsText,
@@ -375,19 +450,20 @@ printHelp = putStrLn $ unlines [
     "   -j<n>, -j <n>, --jobs <n>, --jobs=<n>",
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
-    "   -lib <files...>  external libs (.class/.jar/.json/.db/.jmod), e.g. -lib a.jar b.class c.json d.db e.jmod",
+    "   -lib <files...>  external libs: JVM(.class/.jar/.json/.db/.jmod), x64(.dll/.lib/.a/.so/.dylib)",
     "                    plus default: <xlang.exe dir>/libs/**/xlang-stdlib-alpha.jar",
     "                    java-native metadata under <xlang.exe dir>/libs/java-native/** is loaded only when source imports include java.*",
     "   --main=<qname.main>",
     "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
     "                    class-only is also accepted: --main=com.wangdi.MainKt",
+    "                    x64 exe/out: used as main selector hint (exact class first, then package scan)",
     "   -d <dir|jar>     output directory or jar path",
     "                    if .jar: classes are emitted to <root>/out, then packed",
     "                    manifest includes: build by xlang",
     "   --include-runtime",
     "   -include-runtime  merge all -lib files and default xlang stdlib jar into output jar",
     "                    requires: -d <something>.jar",
-    "   --debug|-debug   write debug.json and Ir.txt next to source(s)",
+    "   --debug|-debug   JVM: write debug.json + per-class .ir; x64: write per-class .ir (+ timing logs)",
     "   -d               debug shorthand when used without output path",
     "   -v, --version    print xlang version",
     "   -h, --help       show this help"]
@@ -422,36 +498,50 @@ main = do
                         srcPaths <- mapM canonicalizeIfExists srcPathsRaw
                         userLibPaths <- mapM canonicalizeIfExists userLibPathsRaw
 
-                        let mTargetJvm = optTargetJvm opts
+                        let mTarget = resolveCompileTarget opts
+                            mTargetJvm = case mTarget of
+                                Just (TargetJvm n) -> Just n
+                                _ -> Nothing
                             invalidInputs = CJ.invalidSourceFiles srcPaths
-                            invalidLibs = CJ.invalidLibFiles userLibPaths
+                            invalidLibs = case mTarget of
+                                Just TargetX64 -> invalidX64LibFiles userLibPaths
+                                _ -> CJ.invalidLibFiles userLibPaths
                             includeRuntime = optIncludeRuntime opts
                             jobs = optJobs opts
                             mMainClassOverride = optMainEntry opts
                             toolkitJar = bytecodegenFile exeDir
 
-                        needsJavaNative <- case mTargetJvm of
-                            Just _ | not (null srcPaths) && null invalidInputs ->
+                        needsJavaNative <- case mTarget of
+                            Just (TargetJvm _) | not (null srcPaths) && null invalidInputs ->
                                 CJ.sourceNeedsJavaMetadata srcPaths
                             _ -> pure False
 
                         for_ mTargetJvm $ \targetJvm ->
                             when needsJavaNative (ensureTargetJdkMetadata exeDir targetJvm)
 
-                        defaultLibJars <- CJ.findDefaultLibJars exeDir
-                        defaultRuntimeLibJars <- CJ.findDefaultRuntimeLibJars exeDir
+                        defaultLibJars <- case mTarget of
+                            Just (TargetJvm _) -> CJ.findDefaultLibJars exeDir
+                            _ -> pure []
+                        defaultRuntimeLibJars <- case mTarget of
+                            Just (TargetJvm _) -> CJ.findDefaultRuntimeLibJars exeDir
+                            _ -> pure []
                         defaultNativeJsons <-
                             case mTargetJvm of
                                 Just targetJvm | needsJavaNative ->
                                     CJ.findDefaultNativeJsons exeDir targetJvm
                                 _ -> pure []
+                        defaultX64NativeLibs <- case mTarget of
+                            Just TargetX64 -> findDefaultX64NativeLibs exeDir
+                            _ -> pure []
 
-                        let combinedLibPaths = userLibPaths ++ defaultLibJars ++ defaultNativeJsons
+                        let combinedLibPaths = case mTarget of
+                                Just TargetX64 -> userLibPaths ++ defaultX64NativeLibs
+                                _ -> userLibPaths ++ defaultLibJars ++ defaultNativeJsons
                             duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
                             libPaths = combinedLibPaths
                             runtimeLibPaths = userLibPaths ++ defaultRuntimeLibJars
 
-                        case (optTargetJvm opts, srcPaths, optOutput opts) of
+                        case (mTarget, srcPaths, optOutput opts) of
                             (Just _, [], _) -> do
                                 putStrLn "missing input xlang file"
                                 printHelp
@@ -464,12 +554,20 @@ main = do
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) duplicateLibs
                                 printHelp
                             (Just _, _, _) | not (null invalidLibs) -> do
-                                putStrLn "invalid -lib extension; only .class, .jar, .json, .db and .jmod are allowed"
+                                case mTarget of
+                                    Just TargetX64 ->
+                                        putStrLn "invalid -lib extension for x64; only .dll, .lib, .a, .so and .dylib are allowed"
+                                    _ ->
+                                        putStrLn "invalid -lib extension; only .class, .jar, .json, .db and .jmod are allowed"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
                                 printHelp
-                            (Just targetJvm, _, Just outPath0) -> do
+                            (Just (TargetJvm targetJvm), _, Just outPath0) -> do
                                 let outPath = CJ.resolveFromRoot rootAbs outPath0
-                                if includeRuntime && not (CJ.isJarOutput outPath)
+                                if isJust (optX64Compiler opts)
+                                    then do
+                                        putStrLn "--compiler is only valid with --target=x64"
+                                        printHelp
+                                    else if includeRuntime && not (CJ.isJarOutput outPath)
                                     then do
                                         putStrLn "cannot use -include-runtime with classes output type; expected a .jar"
                                         printHelp
@@ -480,8 +578,12 @@ main = do
                                         else if CJ.isJarOutput outPath
                                         then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths runtimeLibPaths outPath includeRuntime (optDebug opts) mMainClassOverride
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
-                            (Just targetJvm, _, Nothing) ->
-                                if includeRuntime
+                            (Just (TargetJvm targetJvm), _, Nothing) ->
+                                if isJust (optX64Compiler opts)
+                                    then do
+                                        putStrLn "--compiler is only valid with --target=x64"
+                                        printHelp
+                                    else if includeRuntime
                                     then do
                                         putStrLn "cannot use -include-runtime without -d <output>.jar"
                                         printHelp
@@ -490,6 +592,11 @@ main = do
                                             putStrLn "--main is only valid with -d <output>.jar"
                                             printHelp
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
+                            (Just TargetX64, _, _) | includeRuntime -> do
+                                putStrLn "cannot use -include-runtime with --target=x64"
+                                printHelp
+                            (Just TargetX64, _, mOut) ->
+                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOut mMainClassOverride (optX64Compiler opts) (optDebug opts))
                             _ -> do
-                                putStrLn "missing --target-jvm<number>"
+                                putStrLn "missing target; use --target-jvm<number> or --target=x64"
                                 printHelp

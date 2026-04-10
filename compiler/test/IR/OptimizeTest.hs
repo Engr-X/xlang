@@ -25,11 +25,11 @@ phiInstr = IAssign lhsAtom phiAtom
 
 mkFun :: [IRInstr] -> IRFunction
 mkFun instrs =
-    IRFunction (Public, []) "f" (FunSig [] Void) Map.empty [IRBlock (0, instrs)] MemberClass
+    IRFunction (Public, []) "f" (FunSig [] Void) Map.empty ([IRBlock (0, instrs)], 0) MemberClass
 
 mkClass :: [IRInstr] -> [IRFunction] -> IRClass
 mkClass staticInstrs funs =
-    IRClass (Public, []) "C" [] (StaticInit [IRBlock (0, staticInstrs)]) Map.empty funs NoMain
+    IRClass (Public, []) "C" [] (StaticInit ([IRBlock (0, staticInstrs)], 0)) Map.empty funs NoMain
 
 
 stripPhiStmtTests :: TestTree

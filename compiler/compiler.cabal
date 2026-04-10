@@ -36,6 +36,7 @@ library
     exposed-modules:
         Xlang
         CompileJava
+        CompileX64
         Util.Basic
         Util.Type
         Util.FileHelper
@@ -61,6 +62,8 @@ library
         Semantic.SemanticDebug
         Semantic.CheckProgram
         Semantic.LibLoader
+        Semantic.JavaLibLoader
+        Semantic.NativeLibLoader
 
         IR.TAC
         IR.TACLowing
@@ -72,8 +75,8 @@ library
         Lowing.JVMJson
         Lowing.JVMLowing
 
-        X86Lowing.ASM
-        X86Lowing.Lowing
+        X64Lowing.ASM
+        X64Lowing.Lowing
     autogen-modules:
         Parse.ParseExpr
         Parse.ParseStmt
@@ -181,6 +184,7 @@ test-suite compiler-test
         Semantic.TypeCheckTest
         Semantic.ReturnCheckTest
         Semantic.SemanticDebugTest
+        Semantic.NativeLibLoaderTest
 
         Util.BasicTest
         Util.CompileJavaPolicyTest
@@ -215,4 +219,5 @@ test-suite compiler-test
                             src/Parse/ParseBlock.y,
                             src/Parse/ParseProgm.y
     x-happy-output-dir:     src/Parse
+
 
