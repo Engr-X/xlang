@@ -30,6 +30,7 @@ import Semantic.SemanticDebugTest
 import Semantic.NativeLibLoaderTest
 
 import Util.BasicTest
+import Util.MangleTest
 import Util.CompileJavaPolicyTest
 import Util.ExceptionTest
 import Util.TypeTest
@@ -39,7 +40,7 @@ import Test.Tasty
 
 main :: IO ()
 main = defaultMain $ testGroup "xlang test" [
-    Util.BasicTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.CompileJavaPolicyTest.tests,
+    Util.BasicTest.tests, Util.MangleTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.CompileJavaPolicyTest.tests,
     Lex.TokenizerTest.tests, Lex.TokenPassTest.tests,
 
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,

@@ -9,7 +9,7 @@ module CompileX64 (
 import Control.Concurrent.Async (forConcurrently)
 import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
 import Control.Exception (bracket_, evaluate)
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.State.Strict (evalState)
 import Data.Char (toLower)
 import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, nub, sort, sortOn)
@@ -153,10 +153,9 @@ collectSourceImports sources =
     let programs = mapMaybeParse sources
         importsMap = AST.collectInputPrograms programs
     in sort . nub $
-        ["xlang.io.*"] ++
-        [toPattern pkg cls |
-            (pkg, classSet) <- Map.toList importsMap,
-            cls <- HashSet.toList classSet]
+        "xlang.io.*" : [toPattern pkg cls |
+                           (pkg, classSet) <- Map.toList importsMap,
+                           cls <- HashSet.toList classSet]
   where
     mapMaybeParse :: [(FilePath, String)] -> [AST.Program]
     mapMaybeParse = foldr step []
@@ -198,6 +197,41 @@ data X64CompilerChoice
     | X64CompilerAs
     deriving (Eq, Show)
 
+
+xlangBuildVersion :: String
+xlangBuildVersion = "alpha-1.1.0"
+
+
+x64AsmBackendTag :: X64.CallConv64 -> String
+x64AsmBackendTag cc = case X64.ccCompiler cc of
+    X64.NASM -> "nasm"
+    X64.GAS_INTEL -> "as-intel"
+    X64.GAS_ATT -> "as-att"
+
+
+x64IdentPayload :: X64.CallConv64 -> String
+x64IdentPayload cc =
+    concat [
+        "xlang (",
+        intercalate "/" ["x64", x64AsmBackendTag cc, os],
+        ") ",
+        xlangBuildVersion]
+
+
+x64IdentDirective :: X64.CallConv64 -> String
+x64IdentDirective cc = case X64.ccCompiler cc of
+    X64.NASM -> concat ["; .ident \"", x64IdentPayload cc, "\"\n"]
+    _ -> concat [".ident \"", x64IdentPayload cc, "\"\n"]
+
+
+withX64IdentFooter :: X64.CallConv64 -> String -> String
+withX64IdentFooter cc asmText =
+    let base =
+            if null asmText
+                then ""
+                else if last asmText == '\n' then asmText else asmText ++ "\n"
+    in base ++ "\n" ++ x64IdentDirective cc
+
 compileX64 ::
     Int ->
     FilePath ->
@@ -209,8 +243,7 @@ compileX64 ::
     Maybe X64CompilerChoice ->
     Bool ->
     IO (Maybe [TAC.IRProgm])
-compileX64 jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mCompilerChoice debugOut =
-    compileX64WithAssembler True jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mCompilerChoice debugOut
+compileX64 = compileX64WithAssembler True
 
 
 compileX64WithAssembler ::
@@ -342,11 +375,9 @@ classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs _) =
         clinitGlobal = X64.Global (ownerQName ++ [X64.staticInitName]) [AST.Void]
         classModifiersGlobal = X64.GlobalClassModifiers ownerQName
         classParentsGlobal = X64.GlobalClassParents ownerQName
-        pubFunSymbols =
-            [ (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig])
-            | TAC.IRFunction decl funName sig _ _ _ <- funs
-            , isPublicDecl64 decl
-            ]
+        pubFunSymbols = [
+            (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig])
+            | TAC.IRFunction decl funName sig _ _ _ <- funs, isPublicDecl64 decl]
         wrappedMainSymbols = classWrappedMainSymbols64 pkgSegs irCls
         funSymbols = nub (pubFunSymbols ++ wrappedMainSymbols)
         funGlobals = map (uncurry X64.Global) funSymbols
@@ -359,14 +390,13 @@ isPublicDecl64 (acc, _) = acc == PB.Public
 
 
 classWrappedMainSymbols64 :: [String] -> TAC.IRClass -> [([String], [AST.Class])]
-classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ funs _) =
-    [ (pkgSegs ++ [className, "main"], [retT])
-    | TAC.IRFunction _ "main" sig _ _ memberType <- funs
-    , memberType == TAC.MemberClassWrapped
-    , null (TEnv.funParams sig)
-    , let retT = TEnv.funReturn sig
-    , retT `elem` [AST.Int32T, AST.Void]
-    ]
+classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ funs _) = [
+    (pkgSegs ++ [className, "main"], [retT]) |
+    TAC.IRFunction _ "main" sig _ _ memberType <- funs,
+    memberType == TAC.MemberClassWrapped,
+    null (TEnv.funParams sig),
+    let retT = TEnv.funReturn sig,
+    retT `elem` [AST.Int32T, AST.Void]]
 
 
 addExeEntryUnit64 ::
@@ -392,8 +422,7 @@ mkExeEntryUnit64 cc mMainClassOverride irPairs = do
     Right ClassAsmUnit {
         unitSourcePath = "__xlang_exe_entry_stub__.x64",
         unitOwnerQName = ["__xlang", "exe", "entry"],
-        unitAsmText = asmText
-    }
+        unitAsmText = asmText}
 
 
 pickExeEntry64 :: Maybe [String] -> [(FilePath, TAC.IRProgm)] -> Either String ([String], [AST.Class])
@@ -543,17 +572,16 @@ emitOne :: Bool -> Bool -> OutputMode -> X64.CallConv64 -> ClassAsmUnit -> IO Fi
 emitOne runAssembler debugOut outMode cc unit = do
     let asmPath = unitAsmPath outMode unit
         objPath = unitObjPath outMode unit
+        asmText = withX64IdentFooter cc (unitAsmText unit)
     createDirectoryIfMissing True (takeDirectory objPath)
     if debugOut
         then do
             createDirectoryIfMissing True (takeDirectory asmPath)
-            writeFile asmPath (unitAsmText unit)
+            writeFile asmPath asmText
             when runAssembler (assembleOne cc asmPath objPath)
             pure objPath
         else do
-            if runAssembler
-                then withTempAsmFile (unitAsmText unit) (\tmpAsm -> assembleOne cc tmpAsm objPath)
-                else pure ()
+            when runAssembler $ withTempAsmFile asmText (\tmpAsm -> assembleOne cc tmpAsm objPath)
             pure objPath
 
 
@@ -623,7 +651,7 @@ linkIfNeeded debugOut outMode objPaths linkLibPaths = case outMode of
 
     cleanupLegacyOutIfNeeded :: Bool -> FilePath -> IO ()
     cleanupLegacyOutIfNeeded keepDebug linkedOut =
-        when (not keepDebug) $ do
+        unless keepDebug $ do
             let legacySameBase = replaceExtension linkedOut ".out"
             removeIfExists "a.out"
             removeIfExists legacySameBase

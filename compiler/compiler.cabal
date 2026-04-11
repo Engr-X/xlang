@@ -38,6 +38,7 @@ library
         CompileJava
         CompileX64
         Util.Basic
+        Util.Mangle
         Util.Type
         Util.FileHelper
         Util.Exception
@@ -148,6 +149,21 @@ executable xlang
     default-language: Haskell2010
     default-extensions: CPP
 
+executable xlang-tool
+    import:           warnings
+
+    main-is:          src/Tool.hs
+    ghc-options:      -main-is Tool.main
+
+    build-depends:
+        base >=4.17.2.1,
+        compiler,
+        containers
+
+    hs-source-dirs:   .
+    default-language: Haskell2010
+    default-extensions: CPP
+
 test-suite compiler-test
     import:           warnings
 
@@ -187,6 +203,7 @@ test-suite compiler-test
         Semantic.NativeLibLoaderTest
 
         Util.BasicTest
+        Util.MangleTest
         Util.CompileJavaPolicyTest
         Util.ExceptionTest
         Util.TypeTest

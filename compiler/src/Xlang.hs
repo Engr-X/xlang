@@ -69,7 +69,7 @@ defaultOptions = Options {
 
 
 xlangVersion :: String
-xlangVersion = "alpha 1.1.0"
+xlangVersion = "alpha-1.1.0"
 
 
 jdkMetadataUrlMap :: Map Int String
