@@ -195,6 +195,7 @@ data TACState = TACState {
     tacFunUses :: Map [Position] FullFunctionTable,
     tacWarnings :: [Warning],
     tacAtomTypes :: Map IRAtom Class,
+    tacInlineNativeTargets :: Map QName [String],
 
     tacCurrentVar :: Maybe VarKey,
     tacCurrentFun :: [(FunSig, Int, Map Int IRAtom)],
@@ -220,6 +221,7 @@ mkTACState vUses fUses = TACState {
     tacFunUses = fUses,
     tacWarnings = [],
     tacAtomTypes = Map.empty,
+    tacInlineNativeTargets = Map.empty,
     tacCurrentVar = Nothing,
     tacCurrentFun = [],
     tacCurrentLoop = [],
@@ -243,6 +245,15 @@ setCurrentVar mv = TACM $ modify $ \st -> st { tacCurrentVar = mv }
 -- | Get current variable context (if any).
 getCurrentVar :: TACM (Maybe VarKey)
 getCurrentVar = tacCurrentVar <$> get
+
+
+setInlineNativeTargets :: Map QName [String] -> TACM ()
+setInlineNativeTargets mp = TACM $ modify $ \st ->
+    st { tacInlineNativeTargets = Map.union mp (tacInlineNativeTargets st) }
+
+
+getInlineNativeTarget :: QName -> TACM (Maybe [String])
+getInlineNativeTarget qn = Map.lookup qn . tacInlineNativeTargets <$> get
 
 
 -- | Mark a variable key as static.
@@ -572,7 +583,12 @@ getAtomType (Phi _) = error "getAtomType: phi should be stripped before type que
 
 getAtomType (Param index) = do
     (funSig, _, _) <- getCurrentFun
-    return $ TEnv.funParams funSig !! index
+    let ps = TEnv.funParams funSig
+    if index >= 0 && index < length ps
+        then return (ps !! index)
+        else error $ concat [
+            "getAtomType(Param): index out of range: ",
+            show index, ", param count=", show (length ps)]
 
 
 data IRInstr
@@ -611,8 +627,12 @@ data IRInstr
     | IBinary IRAtom Operator IRAtom IRAtom         -- dst = x op y
     --              class1, class2
     | ICast IRAtom (Class, Class) IRAtom            -- dst = cast atom from class1 to class2
-    | ICall IRAtom String [IRAtom]                  -- dst = call f(args)
+
+    | ICallStaticDirect IRAtom [String] [IRAtom]    -- dst = direct-call target(args)
+
     | ICallStatic IRAtom [String] [IRAtom]          -- dst = call C.f(args)
+
+    | ICallVirtual IRAtom [String] [IRAtom]         -- dst = vcall C.f(args)
 
     -- for class
     | IGetField IRAtom IRAtom [String]              -- dst = obj.f
@@ -651,8 +671,14 @@ prettyIRInstr n instr = insertTab n ++ case instr of
     IUnary dst op x -> concat [prettyIRAtom dst, " = ", AST.prettyOp op, prettyIRAtom x]
     IBinary dst op x y -> concat [prettyIRAtom dst, " = ", prettyIRAtom x, " ", AST.prettyOp op, " ", prettyIRAtom y]
     ICast dst (fromC, toC) x -> concat [prettyIRAtom dst, " = cast(", AST.prettyClass fromC, "->", AST.prettyClass toC, ") ", prettyIRAtom x]
-    ICall dst name args -> concat [prettyIRAtom dst, " = call ", name, "(", intercalate ", " (map prettyIRAtom args), ")"]
+    ICallStaticDirect dst qname args ->
+        concat [
+            prettyIRAtom dst, " = call ",
+            intercalate "." qname, "(",
+            intercalate ", " (map prettyIRAtom args),
+            ")"]
     ICallStatic dst qname args -> concat [prettyIRAtom dst, " = call ", intercalate "." qname, "(", intercalate ", " (map prettyIRAtom args), ")"]
+    ICallVirtual dst qname args -> concat [prettyIRAtom dst, " = vcall ", intercalate "." qname, "(", intercalate ", " (map prettyIRAtom args), ")"]
     IGetField dst obj field -> concat [
         "getfield ", prettyIRAtom dst, " ", prettyIRAtom obj, " ", intercalate "." field]
     IPutField obj field v -> concat [
@@ -789,6 +815,21 @@ prettyTypeMap n atomTypes
                 (\(atom, cls) -> entryIndent ++ prettyIRAtom atom ++ ": " ++ AST.prettyClass cls ++ "\n")
                 (Map.toList atomTypes)
         in header ++ entries
+
+
+cfunLowing :: Statement -> CNativeFun
+cfunLowing (AST.NativeMethod (retT, _) (AST.Qualified name _) params targetName) =
+    CnativeFun [] (last name) (map (\(t, _, _) -> t) params, retT) targetName
+cfunLowing (AST.NativeMethod (retT, _) (AST.Variable name _) params targetName) =
+    CnativeFun [] name (map (\(t, _, _) -> t) params, retT) targetName
+cfunLowing _ =
+    error "cfunLowing: expected NativeMethod"
+
+
+data CNativeFun
+    = CnativeFun [Class] String ([Class], Class) String
+    deriving (Eq, Show)
+
 
 -- | Whole program in IR.
 data IRProgm

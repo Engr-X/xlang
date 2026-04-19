@@ -748,7 +748,7 @@ prettyDeclarationTests = testGroup "Parse.SyntaxTree.prettyDeclaration" $
         ("1", Package ["a"] [], "package a"),
         ("2", Import [] [], "Import "),
         ("3", Import ["a","b","c"] [], "Import a.b.c"),
-        ("4", JavaName "MyUtils" (mkIdD "MyUtils"), "javaname \"MyUtils\"")]
+        ("4", JavaName "MyUtils" (mkIdD "MyUtils"), "classname \"MyUtils\"")]
 
 
 

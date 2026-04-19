@@ -25,8 +25,10 @@ replacePos = go []
         setPos :: Token -> Position -> Token
         setPos (TokenPass  _) p = TokenPass  p
         setPos (Ident s _) p = Ident s p
+        setPos (Annotation name args _) p = Annotation name args p
         setPos (NumberConst n _) p = NumberConst n p
         setPos (StrConst s _) p = StrConst s p
+        setPos (NativeBody s _) p = NativeBody s p
         setPos (CharConst c _) p = CharConst c p
         setPos (Symbol sym _) p = Symbol sym p
         setPos (Error msg _) p = Error msg p

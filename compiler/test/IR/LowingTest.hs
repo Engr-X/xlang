@@ -130,7 +130,7 @@ callArgCastTests = testGroup "IR.Lowing.callArgCast" [
 
 inlineFunctionLoweringTests :: TestTree
 inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
-    testCase "inline function call should be expanded without ICall" $ do
+    testCase "inline function call should be expanded without call instr" $ do
         let src = unlines [
                 "inline fun add(a: int, b: int) -> int = a + b;",
                 "int main() {",
@@ -143,8 +143,8 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
             hasCallInstr = any isCallInstr
                 where
                     isCallInstr instr = case instr of
-                        ICall {} -> True
                         ICallStatic {} -> True
+                        ICallVirtual {} -> True
                         _ -> False
 
         case codeToIRSingleWithRoot "." "Main.x" src of
@@ -169,8 +169,8 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
             hasCallInstr = any isCallInstr
                 where
                     isCallInstr instr = case instr of
-                        ICall {} -> True
                         ICallStatic {} -> True
+                        ICallVirtual {} -> True
                         _ -> False
 
         case codeToIRSingleWithRoot "." "Main.x" src of
@@ -197,8 +197,8 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
             hasCallInstr = any isCallInstr
                 where
                     isCallInstr instr = case instr of
-                        ICall {} -> True
                         ICallStatic {} -> True
+                        ICallVirtual {} -> True
                         _ -> False
             hasBranchInstr :: [IRInstr] -> Bool
             hasBranchInstr = any isBranchInstr

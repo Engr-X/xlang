@@ -1,5 +1,12 @@
 # Revision history for xlang Java libraries
 
+## Alpha-1.1.0 -- 2026-04-19
+
+### Changed
+
+- Added `log(int, int)` to the xlang math standard API.
+- Math owner path changed from `xlang.math.Math` to `xlang.Math`.
+
 ## Alpha-1.0.0 -- 2026-03-14
 
 ### Added / Supported
@@ -24,4 +31,3 @@
 - Build integration:
     - Gradle task compiles `.x` sources under `src/main/xlang` using xlang compiler
     - runtime classpath jars are copied to `build/runtime-libs` for packaging
-

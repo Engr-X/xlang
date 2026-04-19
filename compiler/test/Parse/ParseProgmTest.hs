@@ -472,6 +472,15 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
             mkId "math" 2 15 4
           ]], [])),
 
+        ("14b", unlines [
+            "@class(\"Math\")",
+            "package xlang.math"],
+        ([JavaName "Math" (mkStr "Math" 1 8 6),
+          Package ["xlang", "math"] [
+            mkId "xlang" 2 9 5,
+            mkId "math" 2 15 4
+          ]], [])),
+
         ("15", unlines [
             "import com.wangdi.*",
             "import java.lang.*"],
@@ -486,7 +495,16 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
             mkId "lang" 2 13 4,
             mkSym Lex.Dot 2 17 1,
             mkSym Lex.Multiply 2 18 1
-            ]], []))]
+            ]], [])),
+
+        ("16", unlines [
+            "classname \"Math\"",
+            "package xlang.math"],
+        ([JavaName "Math" (mkStr "Math" 1 11 6),
+          Package ["xlang", "math"] [
+            mkId "xlang" 2 9 5,
+            mkId "math" 2 15 4
+          ]], []))]
         
 
 tests :: TestTree

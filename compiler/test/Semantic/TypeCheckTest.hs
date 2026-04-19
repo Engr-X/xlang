@@ -675,6 +675,19 @@ inferStmtLoopTests = testGroup "Semantic.TypeCheck.inferStmtLoop" [
     ]
 
 
+inferStmtNativeTests :: TestTree
+inferStmtNativeTests = testGroup "Semantic.TypeCheck.inferStmtNative" [
+    testCase "0 native function params are loaded into typing env" $ do
+        stmt <- parseStmtOrFail "@native(\"C\") fun add(int a, int b) -> int { return a + b; }"
+        let ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
+            (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
+            allTypes = map fst (Map.elems (tcVarTypes ctx1))
+            intCount = length (filter (== Int32T) allTypes)
+        assertTcErrs Nothing ctx1
+        intCount @?= 2
+    ]
+
+
 conditionBoolTests :: TestTree
 conditionBoolTests = testGroup "Semantic.TypeCheck.conditionBool" $ map (uncurry testCase) [
     ("0", do
@@ -785,7 +798,8 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
     ("0", [], Nothing),
     ("1", [stmtCallF0, stmtFunF0], Nothing),
     ("2", [stmtFunF0, stmtFunF0], Just (UE.duplicateMethodMsg "int f()")),
-    ("3", [stmtFunF1, stmtFunF2, stmtCallF1], Nothing)]
+    ("3", [stmtFunF1, stmtFunF2, stmtCallF1], Nothing),
+    ("4", [stmtCallF1, stmtNativeF1], Nothing)]
     where
         tokF = Lex.Ident "f" pos1
         tokX = Lex.Ident "x" pos1
@@ -796,6 +810,7 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
         stmtFunF0 = Function (Int32T, []) (Variable "f" tokF) [] (Multiple [])
         stmtFunF1 = Function (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] (Multiple [])
         stmtFunF2 = Function (Float32T, []) (Variable "f" tokF) [(Float32T, "x", [tokX])] (Multiple [])
+        stmtNativeF1 = NativeMethod (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] "return x;"
 
         mkCase (name, stmts, errMsg) = testCase name $ do
             let ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
@@ -991,7 +1006,7 @@ tests = testGroup "Semantic.TypeCheck" [
     inferThisTests, inferThisFieldTests, inferLiteralTests,
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
-    inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, conditionBoolTests,
+    inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, inferStmtNativeTests, conditionBoolTests,
     repeatCountTypeTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 

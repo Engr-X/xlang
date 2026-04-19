@@ -690,6 +690,7 @@ accessOfStmt (DefVar _ _ _ toks) = accessFromTokens toks
 accessOfStmt (DefConstVar _ _ _ toks) = accessFromTokens toks
 accessOfStmt (Function (_, retToks) _ _ _) = accessFromTokens retToks
 accessOfStmt (FunctionT (_, retToks) _ _ _ _) = accessFromTokens retToks
+accessOfStmt (NativeMethod (_, retToks) _ _ _) = accessFromTokens retToks
 accessOfStmt _ = Public
 
 
@@ -723,6 +724,22 @@ collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
                     in [ (key, names, sig, pos) ]
                 _ -> []
         one stmt@(FunctionT (retT, retToks) nameExpr _ params _) =
+            let sig = FunSig {
+                    funParams = map (normalizeClass . fst3) params,
+                    funReturn = normalizeClass retT
+                }
+                pos = choosePos nameExpr retToks
+                access = accessOfStmt stmt
+            in case nameExpr of
+                Variable name _ ->
+                    let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
+                        keys = map (applyVisibilityKey access) aliases
+                    in [ (key, fullQn, sig, pos) | key <- keys ]
+                Qualified names _ ->
+                    let key = applyVisibilityKey access names
+                    in [ (key, names, sig, pos) ]
+                _ -> []
+        one stmt@(NativeMethod (retT, retToks) nameExpr params _) =
             let sig = FunSig {
                     funParams = map (normalizeClass . fst3) params,
                     funReturn = normalizeClass retT

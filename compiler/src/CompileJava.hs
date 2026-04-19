@@ -8,6 +8,7 @@ module CompileJava (
     findDefaultRuntimeLibJars,
     findDefaultNativeJsons,
     isDefaultStdlibJar,
+    isDefaultStdlibMetadataDb,
     hasJavaImportPrefix,
     isJavaNativeMetadataPath,
     sourceNeedsJavaMetadata,
@@ -23,7 +24,7 @@ import Data.Aeson (encode)
 import Data.Aeson.Encode.Pretty (encodePretty)
 import Data.Char (isSpace, toLower)
 import Data.Int (Int64)
-import Data.List (dropWhileEnd, foldl', intercalate, sort, sortOn, nub, isPrefixOf)
+import Data.List (dropWhileEnd, foldl', intercalate, sort, sortOn, nub, isPrefixOf, isSuffixOf)
 import Data.Maybe (mapMaybe)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
@@ -306,13 +307,28 @@ selectJarMainClass irs = case sortOn candidateKey candidates of
 
 findDefaultLibJars :: FilePath -> IO [FilePath]
 findDefaultLibJars exeDir = do
-    let libsDir = exeDir </> "libs"
-    exists <- doesDirectoryExist libsDir
-    if not exists
-        then pure []
-        else do
-            jars <- collect libsDir
+    let libsJavaDir = exeDir </> "libs" </> "java"
+    libsJavaExists <- doesDirectoryExist libsJavaDir
+    if libsJavaExists
+        then do
+            jars <- collect libsJavaDir
             pure (sort (filter isDefaultStdlibJar jars))
+        else do
+            let stdJavaDir = exeDir </> "std" </> "java"
+            stdJavaExists <- doesDirectoryExist stdJavaDir
+            if stdJavaExists
+                then do
+                    jars <- collect stdJavaDir
+                    pure (sort (filter isDefaultStdlibJar jars))
+                else do
+                    -- legacy fallback
+                    let oldLibsDir = exeDir </> "libs"
+                    oldExists <- doesDirectoryExist oldLibsDir
+                    if not oldExists
+                        then pure []
+                        else do
+                            jars <- collect oldLibsDir
+                            pure (sort (filter isDefaultStdlibJar jars))
   where
     collect :: FilePath -> IO [FilePath]
     collect dir = do
@@ -329,11 +345,17 @@ findDefaultLibJars exeDir = do
 
 findDefaultRuntimeLibJars :: FilePath -> IO [FilePath]
 findDefaultRuntimeLibJars exeDir = do
-    let libsDir = exeDir </> "libs"
-    exists <- doesDirectoryExist libsDir
+    let runtimeDir = exeDir </> "runtime" </> "java"
+    exists <- doesDirectoryExist runtimeDir
     if not exists
-        then pure []
-        else sort <$> collect libsDir
+        then do
+            -- legacy fallback
+            let oldLibsDir = exeDir </> "libs"
+            oldExists <- doesDirectoryExist oldLibsDir
+            if not oldExists
+                then pure []
+                else sort <$> collect oldLibsDir
+        else sort <$> collect runtimeDir
   where
     collect :: FilePath -> IO [FilePath]
     collect dir = do
@@ -350,21 +372,45 @@ findDefaultRuntimeLibJars exeDir = do
 
 isDefaultStdlibJar :: FilePath -> Bool
 isDefaultStdlibJar path =
-    map toLower (takeFileName path) == "xlang-stdlib-alpha.jar"
+    map toLower (takeFileName path) == "xlang-stdlib.jar"
+
+
+isDefaultStdlibMetadataDb :: FilePath -> Bool
+isDefaultStdlibMetadataDb path =
+    let fileNameLower = map toLower (takeFileName path)
+    in ".db" `isSuffixOf` fileNameLower
+        && "jdk" `isPrefixOf` fileNameLower
+        && "-stdlib.db" `isSuffixOf` fileNameLower
 
 
 findDefaultNativeJsons :: FilePath -> Int -> IO [FilePath]
 findDefaultNativeJsons exeDir targetJvm = do
-    let nativeDir = exeDir </> "libs" </> "java-native"
-        versionDir = nativeDir </> ("jdk-" ++ show targetJvm)
-    versionedExists <- doesDirectoryExist versionDir
-    if versionedExists
-        then sort <$> collect versionDir
+    let stdDb = exeDir </> "libs" </> "java" </> ("jdk" ++ show targetJvm ++ "-stdlib.db")
+    stdDbExists <- doesFileExist stdDb
+    if stdDbExists
+        then pure [stdDb]
         else do
-            nativeExists <- doesDirectoryExist nativeDir
-            if not nativeExists
-                then pure []
-                else sort <$> collect nativeDir
+            let nativeDir = exeDir </> "native" </> "java"
+                versionDir = nativeDir </> ("jdk-" ++ show targetJvm)
+            versionedExists <- doesDirectoryExist versionDir
+            if versionedExists
+                then sort <$> collect versionDir
+                else do
+                    nativeExists <- doesDirectoryExist nativeDir
+                    if nativeExists
+                        then sort <$> collect nativeDir
+                        else do
+                            -- legacy fallback
+                            let oldNativeDir = exeDir </> "libs" </> "java-native"
+                                oldVersionDir = oldNativeDir </> ("jdk-" ++ show targetJvm)
+                            oldVersionedExists <- doesDirectoryExist oldVersionDir
+                            if oldVersionedExists
+                                then sort <$> collect oldVersionDir
+                                else do
+                                    oldNativeExists <- doesDirectoryExist oldNativeDir
+                                    if not oldNativeExists
+                                        then pure []
+                                        else sort <$> collect oldNativeDir
   where
     collect :: FilePath -> IO [FilePath]
     collect dir = do
@@ -555,9 +601,21 @@ withJsonInputFile jsonBytes action = do
 
 isJavaNativeMetadataPath :: FilePath -> Bool
 isJavaNativeMetadataPath path =
-    hasJavaNativeSegments (map (map toLower) (splitDirectories (normalise path)))
+    isStdJavaMetadata || hasJavaNativeSegments pathSegs
   where
+    pathSegs = map (map toLower) (splitDirectories (normalise path))
+    isStdJavaMetadata =
+        hasStdJavaSegments pathSegs &&
+        isDefaultStdlibMetadataDb path
+
+    hasStdJavaSegments :: [FilePath] -> Bool
+    hasStdJavaSegments ("libs":"java":_) = True
+    hasStdJavaSegments ("std":"java":_) = True
+    hasStdJavaSegments (_:rest) = hasStdJavaSegments rest
+    hasStdJavaSegments [] = False
+
     hasJavaNativeSegments :: [FilePath] -> Bool
+    hasJavaNativeSegments ("native":"java":_) = True
     hasJavaNativeSegments ("libs":"java-native":_) = True
     hasJavaNativeSegments (_:rest) = hasJavaNativeSegments rest
     hasJavaNativeSegments [] = False

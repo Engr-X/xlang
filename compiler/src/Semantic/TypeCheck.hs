@@ -788,6 +788,87 @@ inferDefineStmtFromDecl path packages envs stmt =
             error "inferDefineStmtFromDecl: expected var/val declaration"
 
 
+inferFunctionLikeStmt ::
+    Path ->
+    QName ->
+    [TypedImportEnv] ->
+    Class ->
+    [(Class, String, [Lex.Token])] ->
+    Maybe Block ->
+    TypeM ()
+inferFunctionLikeStmt path packages envs retT params mBody = do
+    c <- get
+    let cctx = tcCtx c
+        cState = CC.st cctx
+        depth0 = depth cState
+        ret0 = tcCurrentReturn c
+        (varCounter', paramVars, paramTypes, paramFlags) =
+            foldl addParam (varCounter cState, Map.empty, Map.empty, Map.empty) params
+
+        newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
+        cState' = cState {
+            depth = succ depth0,
+            varCounter = varCounter',
+            scopeCounter = succ $ scopeCounter cState,
+            ctrlStack = InFunction : ctrlStack cState,
+            scope = newScope : scope cState
+        }
+
+        -- Param bindings shadow outer bindings.
+        varTypes' = Map.union paramTypes (tcVarTypes c)
+        varFlags' = Map.union paramFlags (tcVarFlags c)
+        funScopes' = Map.empty : tcFunScopes c
+
+    put $ c {
+        tcCtx = cctx { CC.st = cState' },
+        tcVarTypes = varTypes',
+        tcVarFlags = varFlags',
+        tcFunScopes = funScopes',
+        tcCurrentReturn = Just retT
+    }
+
+    mapM_ (\(name, (vid, pos)) -> recordVarUseLocal pos name vid) (Map.toList paramVars)
+
+    case mBody of
+        Just body -> inferBlock path packages envs body
+        Nothing -> pure ()
+
+    c2 <- get
+    let cctx2 = tcCtx c2
+        cState2 = CC.st cctx2
+        scope' = tail $ scope cState2
+        ctrls' = tail $ ctrlStack cState2
+        funScopes2 = case tcFunScopes c2 of
+            [] -> []
+            (_:rest) -> rest
+    put $ c2 {
+        tcCtx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } },
+        tcFunScopes = funScopes2,
+        tcCurrentReturn = ret0
+    }
+    where
+        addParam ::
+            (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId DeclFlags) ->
+            (Class, String, [Lex.Token]) ->
+            (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId DeclFlags)
+        addParam (vc, m, vt, vf) (t, name, toks) = case toks of
+            [] -> (vc, m, vt, vf)
+            (tok:_) ->
+                let vid = vc
+                    pos = Lex.tokenPos tok
+                    isMutParam = any isMutToken toks
+                    flags = if isMutParam then [] else [Final]
+                    m'  = Map.insert name (vid, pos) m
+                    vt' = Map.insert vid (t, pos) vt
+                    vf' = Map.insert vid flags vf
+                in (succ vc, m', vt', vf')
+
+        isMutToken :: Lex.Token -> Bool
+        isMutToken tok = case tok of
+            Lex.Ident "mut" _ -> True
+            _ -> False
+
+
 -- | Infer types in a statement.
 inferStmt :: Path -> QName -> [TypedImportEnv] -> Statement -> TypeM ()
 inferStmt _ _ _ (Command Pass _) = pure ()
@@ -888,77 +969,15 @@ inferStmt path packages envs (Switch e scs _) = do
 
 
 inferStmt path packages envs (Function (retT, _) _ params body) = do
-    c <- get
-    let cctx = tcCtx c
-        cState = CC.st cctx
-        depth0 = depth cState
-        ret0 = tcCurrentReturn c
-        (varCounter', paramVars, paramTypes, paramFlags) = foldl addParam (varCounter cState, Map.empty, Map.empty, Map.empty) params
+    inferFunctionLikeStmt path packages envs retT params (Just body)
 
-        newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
-        cState' = cState {
-            depth = succ depth0,
-            varCounter = varCounter',
-            scopeCounter = succ $ scopeCounter cState,
-            ctrlStack = InFunction : ctrlStack cState,
-            scope = newScope : scope cState
-        }
 
-        -- Param bindings shadow outer bindings.
-        varTypes' = Map.union paramTypes (tcVarTypes c)
-        varFlags' = Map.union paramFlags (tcVarFlags c)
-        funScopes' = Map.empty : tcFunScopes c
-
-    put $ c {
-        tcCtx = cctx { CC.st = cState' },
-        tcVarTypes = varTypes',
-        tcVarFlags = varFlags',
-        tcFunScopes = funScopes',
-        tcCurrentReturn = Just retT
-    }
-
-    mapM_ (\(name, (vid, pos)) -> recordVarUseLocal pos name vid) (Map.toList paramVars)
-
-    inferBlock path packages envs body
-
-    c2 <- get
-    let cctx2 = tcCtx c2
-        cState2 = CC.st cctx2
-        scope' = tail $ scope cState2
-        ctrls' = tail $ ctrlStack cState2
-        funScopes2 = case tcFunScopes c2 of
-            [] -> []
-            (_:rest) -> rest
-    put $ c2 {
-        tcCtx = cctx2 { CC.st = cState2 { depth = depth0, scope = scope', ctrlStack = ctrls' } },
-        tcFunScopes = funScopes2,
-        tcCurrentReturn = ret0
-    }
-    where
-        addParam :: (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId DeclFlags) ->
-            (Class, String, [Lex.Token]) ->
-            (VarId, Map.Map String (VarId, Position), VarTable, Map.Map VarId DeclFlags)
-        addParam (vc, m, vt, vf) (t, name, toks) = case toks of
-            [] -> (vc, m, vt, vf)
-            (tok:_) ->
-                let vid = vc
-                    pos = Lex.tokenPos tok
-                    isMutParam = any isMutToken toks
-                    flags = if isMutParam then [] else [Final]
-                    m'  = Map.insert name (vid, pos) m
-                    vt' = Map.insert vid (t, pos) vt
-                    vf' = Map.insert vid flags vf
-                in (succ vc, m', vt', vf')
-
-        isMutToken :: Lex.Token -> Bool
-        isMutToken tok = case tok of
-            Lex.Ident "mut" _ -> True
-            _ -> False
+inferStmt path packages envs (NativeMethod (retT, _) _ params _) = do
+    inferFunctionLikeStmt path packages envs retT params Nothing
 
 
 inferStmt _ _ _ (FunctionT {}) = do
     error "TODO for template"
-
 
 -- | Infer a variable declaration (`var` / `val`) and register type + flags.
 inferDefineStmt ::
@@ -1072,6 +1091,7 @@ inferStmts path package envs stmts = do
         functionSigParts stmt = case stmt of
             Function (retT, _) name params _ -> Just (name, params, retT, Nothing)
             FunctionT (retT, _) name tParams params _ -> Just (name, params, retT, Just tParams)
+            NativeMethod (retT, _) name params _ -> Just (name, params, retT, Nothing)
             _ -> Nothing
 
         isFunctionStmt :: Statement -> Bool

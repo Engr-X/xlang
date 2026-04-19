@@ -4,10 +4,10 @@
 
 module Parse.SyntaxTree where
 
-import Data.List (intercalate)
+import Data.List (intercalate, isPrefixOf, stripPrefix)
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe, fromMaybe, isNothing, mapMaybe)
-import Data.Char (isDigit, toLower)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing, isJust, mapMaybe)
+import Data.Char (isDigit, toLower, isSpace)
 import Data.HashSet (HashSet)
 import Data.Hashable (Hashable(..))
 import GHC.Generics (Generic)
@@ -530,18 +530,22 @@ data Statement =
     Switch Expression [SwitchCase] Token | -- (switch keyword)
 
     InstanceMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
+
     StaticMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
 
+    NativeMethod (Class, [Token]) Expression [(Class, String, [Token])] String |
 
     -- function: return_type + pos, name, params + position, body
     InstanceMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
-    StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
+
     -- template function: return_type + pos, name, template params + position, params + position, body
+    StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
+
     deriving (Eq, Show)
 
 {-# COMPLETE
     Command, DefField, DefConstField, DefVar, DefConstVar, Expr, Exprs, StmtGroup, BlockStmt,
-    If, For, Loop, Repeat, While, Until, DoWhile, DoUntil, Switch, Function, FunctionT #-}
+    If, For, Loop, Repeat, While, Until, DoWhile, DoUntil, Switch, Function, NativeMethod, FunctionT #-}
 
 -- beter toString for string instance
 prettyStmt :: Int -> Maybe Statement -> String
@@ -693,6 +697,21 @@ prettyStmt n (Just (FunctionT (retC, _) functionName genParams params b)) =
         concat [space, prettyClass retC, " ", prettyExpr 0 (Just functionName),
             prettyGen, "(", intercalate ", " (map prettyOneParam params),")"],
         prettyBlock n b]
+prettyStmt n (Just (NativeMethod (retC, _) functionName params code)) =
+    let
+        space = insertTab n
+        prettyOneParam :: (Class, String, [Token]) -> String
+        prettyOneParam (c, name, _) = concat [prettyClass c, " ", name]
+
+        prettyBody :: String -> String
+        prettyBody body = concatMap (\lineTxt -> insertTab (n + 1) ++ lineTxt ++ "\n") (lines body)
+    in concat [
+        space, prettyClass retC, " ",
+        prettyExpr 0 (Just functionName),
+        "(",
+        intercalate ", " (map prettyOneParam params),
+        ")\n", space, "{\n",
+        prettyBody code, space, "}\n"]
 
 -- | pretty statement in IO version
 prettyStmtIO :: Maybe Statement -> IO String
@@ -750,6 +769,8 @@ stmtTokens (Function (_, retToks) name params b) = concat [
 stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
     retToks, exprTokens name, concatMap snd genParams,
     concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
+stmtTokens (NativeMethod (_, retToks) name params _) = concat [
+    retToks, exprTokens name, concatMap (\(_, _, toks) -> toks) params]
 
 
 -- | Flatten all expressions contained in a statement.
@@ -792,6 +813,14 @@ flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flatte
                 one :: (Class, String, [Token]) -> [Expression]
                 one (_, _, [])  = []
                 one (_, name, t:_)  = [Variable name t]
+flattenStatement (Just (NativeMethod _ _ params _)) = paramExprs params
+    where
+        paramExprs :: [(Class, String, [Token])] -> [Expression]
+        paramExprs = concatMap one
+            where
+                one :: (Class, String, [Token]) -> [Expression]
+                one (_, _, [])  = []
+                one (_, name, t:_)  = [Variable name t]
 
 
 -- | The declaration of a program, especially import and module
@@ -806,7 +835,7 @@ data Declaration =
 prettyDeclaration :: Declaration -> String
 prettyDeclaration (Package ss _) = "package " ++ intercalate "." ss
 prettyDeclaration (Import ss _) = "Import " ++ intercalate "." ss
-prettyDeclaration (JavaName s _) = "javaname " ++ show s
+prettyDeclaration (JavaName s _) = "classname " ++ show s
 
 
 -- | Check whether a statement is a class declaration.
@@ -819,7 +848,14 @@ isClassDeclar _ = False
 -- | Check whether a statement is a function declaration.
 isFunction :: Statement -> Bool
 isFunction (Function {}) = True
+isFunction (NativeMethod {}) = True
 isFunction _ = False
+
+
+-- | 
+isCFunction :: Statement -> Bool
+isCFunction (NativeMethod {}) = True
+isCFunction _ = False
 
 
 -- | Check whether a statement is a template function declaration.
@@ -909,7 +945,7 @@ isImportDecl (Import _ _) = True
 isImportDecl _ = False
 
 
--- | Check whether a declaration is a javaname declaration.
+-- | Check whether a declaration is a classname declaration.
 isJavaNameDecl :: Declaration -> Bool
 isJavaNameDecl (JavaName _ _) = True
 isJavaNameDecl _ = False
@@ -918,6 +954,10 @@ isJavaNameDecl _ = False
 -- | Program representation.
 --   Consists of imported modules and a list of top-level statements.
 type Program = ([Declaration], [Statement])
+
+
+getCFun :: Program -> [Statement]
+getCFun = filter isCFunction . snd
 
 
 type ParamDecl = (Class, String, [Token])
@@ -994,7 +1034,7 @@ inlineProgramFunctions (decls, stmts) =
             let inlineNames = HashSet.fromList (Map.keys specs)
                 callGraph =
                     Map.map
-                        (\spec -> HashSet.filter (`HashSet.member` inlineNames) (exprCallees (inlineBodyExpr spec)))
+                        (HashSet.filter (`HashSet.member` inlineNames) . exprCallees . inlineBodyExpr)
                         specs
                 isRecursiveFrom :: String -> Bool
                 isRecursiveFrom start = dfsFrom start HashSet.empty start
@@ -1007,12 +1047,7 @@ inlineProgramFunctions (decls, stmts) =
                                     HashSet.foldr
                                         (\n acc ->
                                             acc ||
-                                            if n == root
-                                                then True
-                                                else
-                                                    if HashSet.member n visited
-                                                        then False
-                                                        else dfsFrom root (HashSet.insert n visited) n
+                                            ((n == root) || (not (HashSet.member n visited) && dfsFrom root (HashSet.insert n visited) n))
                                         )
                                         False
                                         nexts
@@ -1324,7 +1359,7 @@ hoistStmtInFunction path outerParams callMap stmt = case stmt of
 hoistSwitchCases :: [String] -> [ParamDecl] -> Map String HoistCallSpec -> [SwitchCase] -> ([SwitchCase], [Statement])
 hoistSwitchCases path outerParams callMap scs =
     let (scsRev, hsRev) = foldl step ([], []) scs
-    in (reverse scsRev, reverse hsRev >>= id)
+    in (reverse scsRev, concat (reverse hsRev))
     where
         step :: ([SwitchCase], [[Statement]]) -> SwitchCase -> ([SwitchCase], [[Statement]])
         step (accScs, accHs) sc = case sc of
@@ -1393,13 +1428,14 @@ rewriteExprCalls callMap expr = case expr of
 
 
 isHoistableFunctionDef :: Statement -> Bool
-isHoistableFunctionDef = maybe False (const True) . functionNameVar
+isHoistableFunctionDef = isJust . functionNameVar
 
 
 functionNameVar :: Statement -> Maybe (String, Token)
 functionNameVar stmt = case stmt of
     InstanceMethod _ (Variable name tok) _ _ -> Just (name, tok)
     StaticMethod _ (Variable name tok) _ _ -> Just (name, tok)
+    NativeMethod _ (Variable name tok) _ _ -> Just (name, tok)
     InstanceMethodT _ (Variable name tok) _ _ _ -> Just (name, tok)
     StaticMethodT _ (Variable name tok) _ _ _ -> Just (name, tok)
     _ -> Nothing
@@ -1409,6 +1445,7 @@ functionParams :: Statement -> Maybe [ParamDecl]
 functionParams stmt = case stmt of
     InstanceMethod _ _ params _ -> Just params
     StaticMethod _ _ params _ -> Just params
+    NativeMethod _ _ params _ -> Just params
     InstanceMethodT _ _ _ params _ -> Just params
     StaticMethodT _ _ _ params _ -> Just params
     _ -> Nothing
@@ -1513,7 +1550,7 @@ getPackage :: Program -> [String]
 getPackage (decls, _) = let package = filter isPackageDecl decls in maybe [] declPath (listToMaybe package)
 
 
--- | Get the optional declared javaname from a program header.
+-- | Get the optional declared classname from a program header.
 --   Returns the first declaration if multiple exist; duplicate checking
 --   belongs to semantic validation.
 getJavaName :: Program -> Maybe String
@@ -1643,4 +1680,321 @@ charVal _ = error "charVal: expected CharConst token"
 strVal :: Token -> String
 strVal (Lex.StrConst s _) = s
 strVal _ = error "strVal: expected StrConst token"
+
+
+nativeBodyVal :: Token -> String
+nativeBodyVal (Lex.NativeBody s _) = s
+nativeBodyVal _ = error "nativeBodyVal: expected NativeBody token"
+
+
+annotationName :: Token -> String
+annotationName (Lex.Annotation name _ _) = name
+annotationName _ = error "annotationName: expected Annotation token"
+
+
+annotationArgs :: Token -> [Token]
+annotationArgs (Lex.Annotation _ args _) = args
+annotationArgs _ = error "annotationArgs: expected Annotation token"
+
+
+nativeAnnotationTokens :: Token -> Maybe [Token]
+nativeAnnotationTokens tok = case tok of
+    Lex.Annotation name args _
+        | map toLower name /= "native" -> Nothing
+        | null args -> Just [tok]
+        | otherwise ->
+            case args of
+                [Lex.StrConst _ _] -> Just [tok]
+                _ -> Nothing
+    _ -> Nothing
+
+
+nativeAnnotationTarget :: Token -> Maybe ([Token], String)
+nativeAnnotationTarget tok = case tok of
+    Lex.Annotation name args _
+        | map toLower name /= "native" -> Nothing
+        | otherwise -> case args of
+            [Lex.StrConst s _] -> Just ([tok], s)
+            _ -> Nothing
+    _ -> Nothing
+
+
+data CNativeFun = CNativeFun {
+    cNativeFunName :: String,
+    cNativeFunParamTypes :: [Class],
+    cNativeFunCode :: String
+}
+    deriving (Eq, Show)
+
+
+cNativeFunFromStmt :: Statement -> Maybe CNativeFun
+cNativeFunFromStmt stmt = case stmt of
+    NativeMethod _ nameExpr params codeS ->
+        mkNative nameExpr params codeS
+    _ -> Nothing
+    where
+        mkNative :: Expression -> [(Class, String, [Token])] -> String -> Maybe CNativeFun
+        mkNative nameExpr params codeS = do
+            name <- nativeFunShortName nameExpr
+            pure $ CNativeFun name (map fst3 params) codeS
+
+        nativeFunShortName :: Expression -> Maybe String
+        nativeFunShortName expr = case expr of
+            Variable name _ -> Just name
+            Qualified qn _ -> case reverse qn of
+                (x:_) -> Just x
+                [] -> Nothing
+            _ -> Nothing
+
+        fst3 :: (a, b, c) -> a
+        fst3 (a, _, _) = a
+
+
+getReqire :: CNativeFun -> [String]
+getReqire fun =
+    let codeS = cNativeFunCode fun
+        fCalls = extractNativeCallStrings "@xfun(\"" codeS
+        sReads = extractNativeCallStrings "@xstatic(\"" codeS
+    in fCalls ++ sReads
+
+
+getRequire :: CNativeFun -> [String]
+getRequire = getReqire
+
+
+cNativeFunKey :: CNativeFun -> String
+cNativeFunKey fun =
+    cNativeKeyFromSig (cNativeFunName fun) (cNativeFunParamTypes fun)
+
+
+cNativeKeyFromSig :: String -> [Class] -> String
+cNativeKeyFromSig name params = name ++ "#" ++ concatMap classMangle params
+
+
+cNativeRequiredFunSigs :: CNativeFun -> [(String, [Class])]
+cNativeRequiredFunSigs fun =
+    mapMaybe parseXfunSig (extractNativeCallStrings "@xfun(\"" (cNativeFunCode fun))
+
+
+cNativeRequiredFunKeys :: CNativeFun -> [String]
+cNativeRequiredFunKeys fun =
+    map (uncurry cNativeKeyFromSig) (cNativeRequiredFunSigs fun)
+
+
+cNativeRequiredStatics :: CNativeFun -> [String]
+cNativeRequiredStatics fun =
+    mapMaybe parseXstaticRef (extractNativeCallStrings "@xstatic(\"" (cNativeFunCode fun))
+
+
+collectCNativeFuns :: [Statement] -> [CNativeFun]
+collectCNativeFuns = foldr go []
+    where
+        go :: Statement -> [CNativeFun] -> [CNativeFun]
+        go (StmtGroup ss) acc = collectCNativeFuns ss ++ acc
+        go st acc = case cNativeFunFromStmt st of
+            Just f -> f : acc
+            Nothing -> acc
+
+
+cNativeDepGraph :: [CNativeFun] -> Map String [String]
+cNativeDepGraph funs =
+    let keys = map cNativeFunKey funs
+        keySet = HashSet.fromList keys
+    in Map.fromList [
+        (k, filter (`HashSet.member` keySet) (dedup (cNativeRequiredFunKeys fun))) | fun <- funs,
+        let k = cNativeFunKey fun]
+    where
+        dedup :: [String] -> [String]
+        dedup = HashSet.toList . HashSet.fromList
+
+
+-- | Topological sort on native C function dependency graph.
+--   Right: ordered keys; Left: keys that belong to a cycle.
+cNativeTopoSort :: [CNativeFun] -> Either [String] [String]
+cNativeTopoSort funs =
+    let keysInOrder = map cNativeFunKey funs
+        depMap = cNativeDepGraph funs
+        indeg0 = Map.fromList [(k, 0 :: Int) | k <- keysInOrder]
+        indeg1 = foldl bump indeg0 (Map.toList depMap)
+        outgoing = foldl buildOutgoing Map.empty (Map.toList depMap)
+        queue0 = [k | k <- keysInOrder, Map.findWithDefault 0 k indeg1 == 0]
+        (orderedRev, indegFinal) = kahn queue0 indeg1 outgoing []
+        ordered = reverse orderedRev
+    in if length ordered == length keysInOrder
+        then Right ordered
+        else
+            let cyc = [k | k <- keysInOrder, Map.findWithDefault 0 k indegFinal > 0]
+            in Left cyc
+    where
+        bump :: Map String Int -> (String, [String]) -> Map String Int
+        bump indeg (k, deps) = Map.insert k (length deps) indeg
+
+        buildOutgoing :: Map String [String] -> (String, [String]) -> Map String [String]
+        buildOutgoing out (k, deps) = foldl (addOne k) out deps
+
+        addOne :: String -> Map String [String] -> String -> Map String [String]
+        addOne toKey out depKey = Map.insertWith (\new old -> old ++ new) depKey [toKey] out
+
+        kahn ::
+            [String] ->
+            Map String Int ->
+            Map String [String] ->
+            [String] ->
+            ([String], Map String Int)
+        kahn [] indeg _ acc = (acc, indeg)
+        kahn (k:ks) indeg out acc =
+            let nexts = Map.findWithDefault [] k out
+                (indeg', newZeros) = decMany indeg nexts []
+                queue' = ks ++ newZeros
+            in kahn queue' indeg' out (k : acc)
+
+        decMany :: Map String Int -> [String] -> [String] -> (Map String Int, [String])
+        decMany indeg [] zs = (indeg, zs)
+        decMany indeg (n:ns) zs =
+            let oldN = Map.findWithDefault 0 n indeg
+                newN = oldN - 1
+                indeg' = Map.insert n newN indeg
+                zs' = if newN == 0 then zs ++ [n] else zs
+            in decMany indeg' ns zs'
+
+
+extractNativeCallStrings :: String -> String -> [String]
+extractNativeCallStrings marker = go
+    where
+        go :: String -> [String]
+        go [] = []
+        go s = case stripPrefix marker s of
+            Just rest ->
+                let (payload, after) = takeQuoted rest
+                in payload : go after
+            Nothing -> case s of
+                (_:xs) -> go xs
+
+        takeQuoted :: String -> (String, String)
+        takeQuoted = loop []
+            where
+                loop acc [] = (reverse acc, [])
+                loop acc ('\\':c:xs) = loop (c:'\\':acc) xs
+                loop acc ('"':xs) = (reverse acc, xs)
+                loop acc (c:xs) = loop (c:acc) xs
+
+
+parseXfunSig :: String -> Maybe (String, [Class])
+parseXfunSig raw =
+    let s = trimNativeSpaces raw
+        (namePart0, rest0) = break (== '(') s
+        namePart = trimNativeSpaces namePart0
+    in case rest0 of
+        [] -> Nothing
+        (_:xs) ->
+            let (argsPart, _) = break (== ')') xs
+                argTypes = mapMaybe parseNativeTypeName (splitNativeArgs argsPart)
+                arityRaw = splitNativeArgs argsPart
+            in if length argTypes /= length arityRaw
+                then Nothing
+                else
+                    let shortName = nativeLastQNameSegment namePart
+                    in if null shortName then Nothing else Just (shortName, argTypes)
+
+
+parseXstaticRef :: String -> Maybe String
+parseXstaticRef raw =
+    let leftPart = case breakArrow raw of
+            (a, _) -> a
+        qn = trimNativeSpaces leftPart
+    in if null qn then Nothing else Just qn
+    where
+        breakArrow :: String -> (String, String)
+        breakArrow s = fromMaybe (s, "") (breakAt "->" s)
+
+
+splitNativeArgs :: String -> [String]
+splitNativeArgs s =
+    let parts = go 0 0 0 "" s
+        trimmed = map trimNativeSpaces parts
+    in filter (not . null) trimmed
+    where
+        go :: Int -> Int -> Int -> String -> String -> [String]
+        go _ _ _ cur [] = [reverse cur]
+        go dA dP dB cur (ch:rest) = case ch of
+            '<' -> go (dA + 1) dP dB (ch:cur) rest
+            '>' -> go (max 0 (dA - 1)) dP dB (ch:cur) rest
+            '(' -> go dA (dP + 1) dB (ch:cur) rest
+            ')' -> go dA (max 0 (dP - 1)) dB (ch:cur) rest
+            '[' -> go dA dP (dB + 1) (ch:cur) rest
+            ']' -> go dA dP (max 0 (dB - 1)) (ch:cur) rest
+            ',' | dA == 0 && dP == 0 && dB == 0 ->
+                reverse cur : go dA dP dB "" rest
+            _ -> go dA dP dB (ch:cur) rest
+
+
+parseNativeTypeName :: String -> Maybe Class
+parseNativeTypeName raw =
+    let t = map toLower (trimNativeSpaces raw)
+    in case t of
+        "bool" -> Just Bool
+        "char" -> Just Char
+        "byte" -> Just Int8T
+        "short" -> Just Int16T
+        "int" -> Just Int32T
+        "long" -> Just Int64T
+        "float" -> Just Float32T
+        "double" -> Just Float64T
+        "float128" -> Just Float128T
+        "void" -> Just Void
+        _ ->
+            let qn = splitNativeClassQName (trimNativeSpaces raw)
+            in if null qn then Nothing else Just (Class qn [])
+
+
+splitNativeClassQName :: String -> [String]
+splitNativeClassQName s =
+    let normalized = replaceScopeSep s
+        parts = splitDot normalized
+        cleaned = filter (not . null) (map trimNativeSpaces parts)
+    in cleaned
+    where
+        splitDot :: String -> [String]
+        splitDot txt = case break (== '.') txt of
+            (a, []) -> [a]
+            (a, _:rest) -> a : splitDot rest
+
+
+nativeLastQNameSegment :: String -> String
+nativeLastQNameSegment raw =
+    let qn = splitNativeClassQName raw
+    in case reverse qn of
+        (x:_) -> x
+        [] -> ""
+
+
+replaceScopeSep :: String -> String
+replaceScopeSep [] = []
+replaceScopeSep (':':':':xs) = '.':replaceScopeSep xs
+replaceScopeSep (x:xs) = x : replaceScopeSep xs
+
+
+trimNativeSpaces :: String -> String
+trimNativeSpaces = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
+
+breakAt :: String -> String -> Maybe (String, String)
+breakAt pat = go ""
+    where
+        go :: String -> String -> Maybe (String, String)
+        go acc rest =
+            if pat `isPrefixOf` rest
+                then Just (reverse acc, drop (length pat) rest)
+                else case rest of
+                    [] -> Nothing
+                    (c:cs) -> go (c:acc) cs
+
+
+jvmClassAnnotation :: Token -> Maybe (String, Token)
+jvmClassAnnotation tok = case tok of
+    Lex.Annotation name [strTok@(Lex.StrConst value _)] _
+        | let low = map toLower name
+        , low `elem` ["jvmclass", "class", "filename"] -> Just (value, strTok)
+        | otherwise -> Nothing
+    _ -> Nothing
 

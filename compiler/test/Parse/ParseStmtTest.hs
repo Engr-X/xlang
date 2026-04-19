@@ -4,6 +4,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Parse.SyntaxTree
 import Parse.ParseStmt
+import Parse.ParseProgm
 import Util.Type
 import Lex.Token (Token, Symbol)
 import Util.Exception
@@ -301,6 +302,33 @@ templateFunctionSyntaxTests = testGroup "template_function_syntax"
             other -> assertFailure ("expected template function declaration without ::, got: " ++ show other)
     ]
 
+nativeFunctionSyntaxTests :: TestTree
+nativeFunctionSyntaxTests = testGroup "native_function_syntax"
+    [ testCase "expr-body native function is lowered to return string" $
+        case replLexparseStmt "@native(\"C\") fun add(int a, int b) -> int = a + b;" of
+            Right (NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS) ->
+                bodyS @?= "return (a+b)"
+            other -> assertFailure ("expected NativeMethod with expression body string, got: " ++ show other)
+
+    , testCase "native block body keeps raw text without braces" $
+        case replLexparseProgm "@native(\"C\") fun add(int a, int b) -> int {return a & b;}" of
+            Right ([], [NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS]) ->
+                bodyS @?= "return a & b;"
+            other -> assertFailure ("expected NativeMethod with native raw body, got: " ++ show other)
+
+    , testCase "native modifier order: inline native" $
+        case replLexparseStmt "@native(\"putln_int\") inline native fun putln(a: int) -> void;" of
+            Right (NativeMethod (Void, _) (Variable "putln" _) [(Int32T, "a", _)] targetS) ->
+                targetS @?= "putln_int"
+            other -> assertFailure ("expected NativeMethod for inline native order, got: " ++ show other)
+
+    , testCase "native modifier order: native inline" $
+        case replLexparseStmt "@native(\"putln_int\") native inline fun putln(a: int) -> void;" of
+            Right (NativeMethod (Void, _) (Variable "putln" _) [(Int32T, "a", _)] targetS) ->
+                targetS @?= "putln_int"
+            other -> assertFailure ("expected NativeMethod for native inline order, got: " ++ show other)
+    ]
+
 tests :: TestTree
 tests = testGroup "Parse.ParseStmt" [
     normalTests,
@@ -310,5 +338,6 @@ tests = testGroup "Parse.ParseStmt" [
     ifElifSyntaxTests,
     inlineFunctionSyntaxTests,
     mutParamSyntaxTests,
-    templateFunctionSyntaxTests
+    templateFunctionSyntaxTests,
+    nativeFunctionSyntaxTests
     ]

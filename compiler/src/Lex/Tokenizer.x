@@ -125,6 +125,7 @@ tokens :-
 <0> "!&&"               { eatSymbol LogicalNand }
 <0> "!||"               { eatSymbol LogicalNor }
 <0> "!->"               { eatSymbol NotArrow }
+<0> "<->"               { eatSymbol IffArrow }
 
 
 -- symbol 2 (17)
@@ -460,11 +461,233 @@ alexScanTokens input = runAlex input collectTokens
 -- | Internal loop that repeatedly scans tokens.
 -- Stops when the EOF token is encountered.
 collectTokens :: Alex [Token]
-collectTokens = loop []
+collectTokens = loop [] NativeTrackNone
     where
-        loop acc = do
+        loop acc nativeTrack = do
             tok <- alexMonadScan
-            if isEOF tok then return (reverse (tok : acc)) else loop (tok : acc)
+            if isEOF tok
+                then return (reverse (tok : acc))
+                else case tok of
+                    Symbol LBrace _ | nativeTrack == NativeTrackReadyForBody -> do
+                        bodyToks <- eatNativeBody
+                        loop (reverse bodyToks ++ tok : acc) NativeTrackNone
+                    _ ->
+                        loop (tok : acc) (advanceNativeTrack nativeTrack tok)
+
+
+data NativeTrack
+    = NativeTrackNone
+    | NativeTrackSawAt
+    | NativeTrackSawName
+    | NativeTrackSawLParen
+    | NativeTrackSawString
+    | NativeTrackReadyForBody
+    deriving (Eq, Show)
+
+
+advanceNativeTrack :: NativeTrack -> Token -> NativeTrack
+advanceNativeTrack st tok = case st of
+    NativeTrackNone -> if isAtTok tok then NativeTrackSawAt else NativeTrackNone
+
+    NativeTrackSawAt
+        | isNativeIdent tok -> NativeTrackSawName
+        | isAtTok tok -> NativeTrackSawAt
+        | otherwise -> NativeTrackNone
+
+    NativeTrackSawName
+        | isLParenTok tok -> NativeTrackSawLParen
+        | isAtTok tok -> NativeTrackSawAt
+        | otherwise -> NativeTrackNone
+
+    NativeTrackSawLParen
+        | isStrTok tok -> NativeTrackSawString
+        | isAtTok tok -> NativeTrackSawAt
+        | otherwise -> NativeTrackNone
+
+    NativeTrackSawString
+        | isRParenTok tok -> NativeTrackReadyForBody
+        | isAtTok tok -> NativeTrackSawAt
+        | otherwise -> NativeTrackNone
+
+    NativeTrackReadyForBody
+        | isLBraceTok tok -> NativeTrackNone
+        | isSemiTok tok -> NativeTrackNone
+        | isPassTok tok -> NativeTrackReadyForBody
+        | isAtTok tok -> NativeTrackSawAt
+        | otherwise -> NativeTrackNone
+
+
+isAtTok :: Token -> Bool
+isAtTok (Symbol At _) = True
+isAtTok _ = False
+
+
+isPassTok :: Token -> Bool
+isPassTok (TokenPass _) = True
+isPassTok _ = False
+
+
+isNativeIdent :: Token -> Bool
+isNativeIdent (Ident "native" _) = True
+isNativeIdent _ = False
+
+
+isLParenTok :: Token -> Bool
+isLParenTok (Symbol LParen _) = True
+isLParenTok _ = False
+
+
+isRParenTok :: Token -> Bool
+isRParenTok (Symbol RParen _) = True
+isRParenTok _ = False
+
+
+isLBraceTok :: Token -> Bool
+isLBraceTok (Symbol LBrace _) = True
+isLBraceTok _ = False
+
+
+isSemiTok :: Token -> Bool
+isSemiTok (Symbol Semicolon _) = True
+isSemiTok _ = False
+
+
+isStrTok :: Token -> Bool
+isStrTok (StrConst _ _) = True
+isStrTok _ = False
+
+
+eatNativeBody :: Alex [Token]
+eatNativeBody = do
+    (p0, _, _, s0) <- alexGetInput
+    case scanNativeBodyRaw p0 s0 of
+        Right (body, rest, pAfter, rbracePos) -> do
+            alexSetInput (pAfter, '}', [], rest)
+            return [NativeBody body (makePos p0 0), Symbol RBrace rbracePos]
+        Left pEnd -> do
+            alexSetInput (pEnd, '\n', [], "")
+            return [Error "unclosed native body" (makePos pEnd 0)]
+
+
+data NativeScanMode
+    = NativeScanCode
+    | NativeScanString
+    | NativeScanChar
+    | NativeScanLineComment
+    | NativeScanBlockComment
+    deriving (Eq, Show)
+
+
+scanNativeBodyRaw ::
+    AlexPosn ->
+    String ->
+    Either AlexPosn (String, String, AlexPosn, Position)
+scanNativeBodyRaw p0 s0 = go NativeScanCode 1 p0 s0 []
+    where
+        go ::
+            NativeScanMode ->
+            Int ->
+            AlexPosn ->
+            String ->
+            String ->
+            Either AlexPosn (String, String, AlexPosn, Position)
+        go _ _ p [] _ = Left p
+
+        go mode depth p input acc = case mode of
+            NativeScanCode -> case input of
+                (ch : rest) -> case ch of
+                    '"' ->
+                        let p' = alexMove p ch
+                        in go NativeScanString depth p' rest (ch : acc)
+
+                    '\'' ->
+                        let p' = alexMove p ch
+                        in go NativeScanChar depth p' rest (ch : acc)
+
+                    '/' -> case rest of
+                        ('/' : rest2) ->
+                            let p1 = alexMove p ch
+                                p2 = alexMove p1 '/'
+                            in go NativeScanLineComment depth p2 rest2 ('/' : ch : acc)
+
+                        ('*' : rest2) ->
+                            let p1 = alexMove p ch
+                                p2 = alexMove p1 '*'
+                            in go NativeScanBlockComment depth p2 rest2 ('*' : ch : acc)
+
+                        _ ->
+                            let p' = alexMove p ch
+                            in go NativeScanCode depth p' rest (ch : acc)
+
+                    '{' ->
+                        let p' = alexMove p ch
+                        in go NativeScanCode (depth + 1) p' rest (ch : acc)
+
+                    '}' ->
+                        let p' = alexMove p ch
+                        in if depth == 1
+                            then Right (reverse acc, rest, p', makePos p 1)
+                            else go NativeScanCode (depth - 1) p' rest (ch : acc)
+
+                    _ ->
+                        let p' = alexMove p ch
+                        in go NativeScanCode depth p' rest (ch : acc)
+
+            NativeScanString -> case input of
+                (ch : rest) -> case ch of
+                    '\\' -> case rest of
+                        [] ->
+                            let p' = alexMove p ch
+                            in go NativeScanString depth p' [] (ch : acc)
+                        (ch2 : rest2) ->
+                            let p1 = alexMove p ch
+                                p2 = alexMove p1 ch2
+                            in go NativeScanString depth p2 rest2 (ch2 : ch : acc)
+
+                    '"' ->
+                        let p' = alexMove p ch
+                        in go NativeScanCode depth p' rest (ch : acc)
+
+                    _ ->
+                        let p' = alexMove p ch
+                        in go NativeScanString depth p' rest (ch : acc)
+
+            NativeScanChar -> case input of
+                (ch : rest) -> case ch of
+                    '\\' -> case rest of
+                        [] ->
+                            let p' = alexMove p ch
+                            in go NativeScanChar depth p' [] (ch : acc)
+                        (ch2 : rest2) ->
+                            let p1 = alexMove p ch
+                                p2 = alexMove p1 ch2
+                            in go NativeScanChar depth p2 rest2 (ch2 : ch : acc)
+
+                    '\'' ->
+                        let p' = alexMove p ch
+                        in go NativeScanCode depth p' rest (ch : acc)
+
+                    _ ->
+                        let p' = alexMove p ch
+                        in go NativeScanChar depth p' rest (ch : acc)
+
+            NativeScanLineComment -> case input of
+                (ch : rest) ->
+                    let p' = alexMove p ch
+                    in if ch == '\n'
+                        then go NativeScanCode depth p' rest (ch : acc)
+                        else go NativeScanLineComment depth p' rest (ch : acc)
+
+            NativeScanBlockComment -> case input of
+                (ch : rest) -> case (ch, rest) of
+                    ('*', '/' : rest2) ->
+                        let p1 = alexMove p ch
+                            p2 = alexMove p1 '/'
+                        in go NativeScanCode depth p2 rest2 ('/' : '*' : acc)
+
+                    _ ->
+                        let p' = alexMove p ch
+                        in go NativeScanBlockComment depth p' rest (ch : acc)
 
 
 -- | Convert an error token into a structured 'ErrorKind'.
@@ -481,7 +704,7 @@ tokenize p str =
     case alexScanTokens str of
         Left _ -> ([UE.Unkown p], [])
         Right tokens -> let (errs, correct) = partition isErrToken tokens
-            in (map (convertErrToken p) errs, splitShiftInGenerics (normalizeTemplateCallSyntax correct))
+            in (map (convertErrToken p) errs, splitShiftInGenerics (normalizeTemplateCallSyntax (foldAnnotations correct)))
 
 
 -- | tokenize and automatically add NL 
@@ -507,5 +730,33 @@ fileTokenize p = do
     case result of
         Left e -> return ([e], [])
         Right code -> return $ tokenizeWithNL p code
+
+
+foldAnnotations :: [Token] -> [Token]
+foldAnnotations toks = case toks of
+    (atTok@(Symbol At pAt) : nameTok@(Ident name _) : rest) ->
+        if map DC.toLower name == "native"
+            then atTok : nameTok : foldAnnotations rest
+            else case consumeAnnArgs rest of
+                Just (args, rest') -> Annotation name args pAt : foldAnnotations rest'
+                Nothing -> atTok : nameTok : foldAnnotations rest
+    (t : ts) -> t : foldAnnotations ts
+    [] -> []
+
+
+consumeAnnArgs :: [Token] -> Maybe ([Token], [Token])
+consumeAnnArgs toks = case toks of
+    (Symbol LParen _ : rest) -> consume 1 [] rest
+    _ -> Just ([], toks)
+    where
+        consume :: Int -> [Token] -> [Token] -> Maybe ([Token], [Token])
+        consume _ _ [] = Nothing
+        consume depth acc (t : ts) = case t of
+            Symbol LParen _ -> consume (depth + 1) (t : acc) ts
+            Symbol RParen _ ->
+                if depth == 1
+                    then Just (reverse acc, ts)
+                    else consume (depth - 1) (t : acc) ts
+            _ -> consume depth (t : acc) ts
 }
 

@@ -635,7 +635,7 @@ checkProgmTests = mkGroup "Semantic.CheckProgram.checkProgm" [
         let decls = [JavaName "A" (strTok "A" 1), JavaName "B" (strTok "B" 2)]
             files = [("a.x", (decls, []))]
         assertLeftWith (checkProgm "." files) $ \errs ->
-            assertBool "must report duplicate javaname"
+            assertBool "must report duplicate classname"
                 (any ((== UE.multipleJavaNameMsg) . errWhy) errs))
     ]
 

@@ -1,5 +1,34 @@
 # Revision history for xlang
 
+## Alpha-1.1.0 -- 2026-04-19
+
+### Standard Library
+
+- Added `log(int, int)` in standard math APIs.
+- Moved math owner path from `xlang.math.Math` to `xlang.Math`.
+- Added native std changelog under `libs/std/native/CHANGELOG.md`.
+
+### Build & Packaging
+
+- Root Makefile now supports a clearer end-to-end component pipeline:
+  - `compile` (xlang compiler)
+  - `tools` (BytecodeToolkit)
+  - `java_lib` (Java std/runtime artifacts)
+  - `native_lib` (native base/std libraries)
+- Added out-of-tree-friendly configure + make flow (build wrapper Makefile generation).
+- Native std/base artifacts are copied to build/runtime locations:
+  - `libs/native/`
+- Added Windows syslib staging from `--gcc-lib` into `build/native/`
+  (currently `libkernel32.a`, `libmsvcrt.a`).
+
+### Native / x64
+
+- Added/expanded x64 target build usage in project docs.
+- Native std build flow under `libs/std/native` now includes both:
+  - `libxlang-base`
+  - `libxlang-std`
+- Fixed native std Makefile path-resolution issue so `XLANG_EXE` resolves from repo root build output.
+
 ## Beta-1.0.0 -- 2026-03-20
 
 ### Release Description

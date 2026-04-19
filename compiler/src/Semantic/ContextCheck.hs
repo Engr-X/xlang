@@ -5,12 +5,12 @@ import Control.Monad (when, unless)
 import Data.List (intercalate, find, foldl')
 import Data.Char (toLower)
 import Data.Map.Strict (Map)
-import Data.Maybe (listToMaybe, fromMaybe, isNothing)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing, mapMaybe)
 import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (Token, tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg, nestedMainFunctionMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg, nestedMainFunctionMsg, nativeCFunctionScopeMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -106,10 +106,13 @@ putState s = modify $ \c -> c { st = s }
 
 
 -- | Extract common pieces from function-like statements.
-functionLikeParts :: Statement -> Maybe ([Token], [(AST.Class, String, [Token])], Block)
+--   Left block  = regular xlang body
+--   Right codeS = native raw code body
+functionLikeParts :: Statement -> Maybe ([Token], [(AST.Class, String, [Token])], Either Block String)
 functionLikeParts stmt = case stmt of
-    AST.Function (_, toks) _ params b -> Just (toks, params, b)
-    AST.FunctionT (_, toks) _ _ params b -> Just (toks, params, b)
+    AST.Function (_, toks) _ params b -> Just (toks, params, Left b)
+    AST.FunctionT (_, toks) _ _ params b -> Just (toks, params, Left b)
+    AST.NativeMethod (_, toks) _ params codeS -> Just (toks, params, Right codeS)
     _ -> Nothing
 
 -- | Predicate: is this statement a function definition?
@@ -546,14 +549,16 @@ checkStmt p package envs stmt@(AST.Switch e scs _) = do
 -- function
 checkStmt p package envs stmt = case functionLikeParts stmt of
     Nothing -> pure ()
-    Just (declToks, params, body) -> checkFunctionStmt declToks params body
+    Just (declToks, params, bodyLike) -> checkFunctionStmt declToks params bodyLike
     where
-        checkFunctionStmt :: [Token] -> [(AST.Class, String, [Token])] -> Block -> CheckM ()
-        checkFunctionStmt declToks params body = do
+        checkFunctionStmt :: [Token] -> [(AST.Class, String, [Token])] -> Either Block String -> CheckM ()
+        checkFunctionStmt declToks params bodyLike = do
             validateDeclAccess p declToks
             c <- get
             let cState = st c
             let parentCtrl = parentCtrlFor cState
+            when (isNativeCFunction stmt && not (isAllowedNativeCParent parentCtrl)) $
+                addErr $ UE.Syntax $ UE.makeError p (functionNamePos stmt declToks) nativeCFunctionScopeMsg
             when (parentCtrl == Just InFunction && hasFunctionModifier declToks) $
                 addErr $ UE.Syntax $ UE.makeError p (map tokenPos declToks) nestedFunctionModifierMsg
             when (parentCtrl == Just InFunction && isMainFunction stmt) $
@@ -583,7 +588,9 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
                 scope = newScope : scope cStateBase }
             put $ cBase { st = cState' }
 
-            checkBlock p package envs body
+            case bodyLike of
+                Left body -> checkBlock p package envs body
+                Right _ -> pure ()
 
             c2 <- get
             let cState2 = st c2
@@ -611,12 +618,23 @@ checkStmt p package envs stmt = case functionLikeParts stmt of
         functionName :: Statement -> Maybe String
         functionName (AST.Function _ (AST.Variable name _) _ _) = Just name
         functionName (AST.FunctionT _ (AST.Variable name _) _ _ _) = Just name
+        functionName (AST.NativeMethod _ (AST.Variable name _) _ _) = Just name
         functionName _ = Nothing
 
         functionNamePos :: Statement -> [Token] -> [Position]
         functionNamePos (AST.Function _ (AST.Variable _ tok) _ _) _ = [tokenPos tok]
         functionNamePos (AST.FunctionT _ (AST.Variable _ tok) _ _ _) _ = [tokenPos tok]
+        functionNamePos (AST.NativeMethod _ (AST.Variable _ tok) _ _) _ = [tokenPos tok]
         functionNamePos _ declToks = map tokenPos declToks
+
+        isNativeCFunction :: Statement -> Bool
+        isNativeCFunction (AST.NativeMethod {}) = True
+        isNativeCFunction _ = False
+
+        isAllowedNativeCParent :: Maybe CtrlState -> Bool
+        isAllowedNativeCParent Nothing = True
+        isAllowedNativeCParent (Just InClass) = True
+        isAllowedNativeCParent _ = False
 
 
 checkForInitStmt :: Path -> QName -> [ImportEnv] -> Statement -> CheckM ()
@@ -672,6 +690,8 @@ checkStmts :: Path -> QName -> [ImportEnv] -> [Statement] -> CheckM ()
 checkStmts path package envs' stmts = do
     let stmts' = flattenStmtGroups stmts
         funDefs = filter isFunction stmts'
+        nativeErrs = checkNativeDependencyShape path stmts'
+    mapM_ addErr nativeErrs
     mapM_ defineOne funDefs
     mapM_ (checkStmt path package envs') stmts'
     where
@@ -689,6 +709,29 @@ checkStmts path package envs' stmts = do
                 go :: Statement -> [Statement]
                 go (AST.StmtGroup ss) = flattenStmtGroups ss
                 go stmt0 = [stmt0]
+
+
+checkNativeDependencyShape :: Path -> [Statement] -> [ErrorKind]
+checkNativeDependencyShape path stmts =
+    let funs = AST.collectCNativeFuns stmts
+        keyPosMap = Map.fromList (mapMaybe nativeKeyPos stmts)
+    in case AST.cNativeTopoSort funs of
+        Right _ -> []
+        Left cycKeys ->
+            let pos = case cycKeys of
+                    (k:_) -> Map.findWithDefault [] k keyPosMap
+                    [] -> []
+                cycleTxt = case cycKeys of
+                    [] -> "<unknown>"
+                    ks@(x:_) -> intercalate " -> " (ks ++ [x])
+                msg = "native C dependency has a cycle: " ++ cycleTxt
+            in [UE.Syntax $ UE.makeError path pos msg]
+    where
+        nativeKeyPos :: Statement -> Maybe (String, [Position])
+        nativeKeyPos stmt0 = do
+            fun <- AST.cNativeFunFromStmt stmt0
+            (_, tok) <- AST.functionNameVar stmt0
+            pure (AST.cNativeFunKey fun, [tokenPos tok])
 
 
 -- | Validate top-level name conflicts among:
@@ -740,6 +783,8 @@ checkTopLevelMemberNameConflicts path stmts =
                     AST.Function _ (AST.Variable name tok) _ _ ->
                         Map.insertWith (++) name [tokenPos tok] acc
                     AST.FunctionT _ (AST.Variable name tok) _ _ _ ->
+                        Map.insertWith (++) name [tokenPos tok] acc
+                    AST.NativeMethod _ (AST.Variable name tok) _ _ ->
                         Map.insertWith (++) name [tokenPos tok] acc
                     _ -> acc
 

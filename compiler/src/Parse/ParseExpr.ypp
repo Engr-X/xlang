@@ -79,6 +79,7 @@ import qualified Util.Exception as UE
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
     '->'                { t@(Lex.Symbol Lex.Arrow _) }
     '!->'                { t@(Lex.Symbol Lex.NotArrow _) }
+    '<->'               { t@(Lex.Symbol Lex.IffArrow _) }
     '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
 
 -- Happy precedence declarations are from low to high.
@@ -89,7 +90,10 @@ import qualified Util.Exception as UE
 -- helper precedence for ternary "if ... else ..."
 %right KW_IF
 
--- 17: logical-implication
+-- 17: logical-iff (lower than implication)
+%right '<->'
+
+-- 18: logical-implication
 %right '->' '!->'
 
 -- 16: logical-or

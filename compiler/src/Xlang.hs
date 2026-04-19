@@ -10,7 +10,7 @@ import GHC.Conc (setNumCapabilities)
 import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory)
 import System.Environment (getArgs, getExecutablePath)
 import System.Exit (ExitCode(..))
-import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
+import System.FilePath ((</>), takeDirectory, takeExtension)
 import System.Process (readProcessWithExitCode)
 
 import qualified CompileJava as CJ
@@ -128,14 +128,13 @@ downloadJdkMetadata exeDir version =
             putStrLn ("unsupported java metadata version: " ++ show version)
             putStrLn ("supported versions: " ++ supportedJdkMetadataVersionsText)
         Just url -> do
-            let outDir = versionedMetadataDir exeDir version
-                outFile = outDir </> takeFileName url
+            let outFile = stdJavaMetadataFile exeDir version
                 downloadScript = concat [
                     "$ErrorActionPreference='Stop'; ",
                     "$ProgressPreference='SilentlyContinue'; ",
                     "Invoke-WebRequest -Uri \"", url, "\" -OutFile \"", outFile, "\""]
 
-            createDirectoryIfMissing True outDir
+            createDirectoryIfMissing True (takeDirectory outFile)
             putStrLn ("[DOWNLOAD] jdk metadata v" ++ show version)
             putStrLn ("           url : " ++ url)
             putStrLn ("           file: " ++ outFile)
@@ -157,35 +156,47 @@ hasAnyEntries dir = do
             pure (not (null entries))
 
 
-versionedMetadataDir :: FilePath -> Int -> FilePath
-versionedMetadataDir exeDir version = exeDir </> "libs" </> "java-native" </> ("jdk-" ++ show version)
+stdJavaMetadataFile :: FilePath -> Int -> FilePath
+stdJavaMetadataFile exeDir version =
+    exeDir </> "libs" </> "java" </> ("jdk" ++ show version ++ "-stdlib.db")
 
 
-hasVersionedMetadata :: FilePath -> Int -> IO Bool
-hasVersionedMetadata exeDir version = hasAnyEntries (versionedMetadataDir exeDir version)
+hasStdJavaMetadata :: FilePath -> Int -> IO Bool
+hasStdJavaMetadata exeDir version = doesFileExist (stdJavaMetadataFile exeDir version)
 
 
 ensureTargetJdkMetadata :: FilePath -> Int -> IO ()
 ensureTargetJdkMetadata exeDir version = do
-    versionedReady <- hasVersionedMetadata exeDir version
+    versionedReady <- hasStdJavaMetadata exeDir version
     legacyReady <- if version == defaultJvmTargetVersion
         then hasAnyEntries (exeDir </> "libs" </> "java-native")
         else pure False
     if versionedReady || legacyReady
         then pure ()
         else do
-            putStrLn ("[INFO] java-native metadata for jdk v" ++ show version ++ " not found; auto download")
+            putStrLn $ concat ["[INFO] java std metadata for jdk v", show version, " not found; auto download"]
             downloadJdkMetadata exeDir version
 
 
 findDefaultX64NativeLibs :: FilePath -> IO [FilePath]
 findDefaultX64NativeLibs exeDir = do
-    let nativeDir = exeDir </> "libs" </> "native"
-    exists <- doesDirectoryExist nativeDir
-    if not exists
-        then pure []
-        else sort <$> collect nativeDir
+    let candidates = [
+            exeDir </> "runtime" </> "native", -- current runtime native layout
+            exeDir </> "libs" </> "native",  -- current layout
+            exeDir </> "std" </> "native",   -- legacy layout
+            exeDir </> "native",             -- current syslib layout
+            exeDir </> "native-libs"         -- legacy syslib layout
+            ]
+    firstExisting candidates
   where
+    firstExisting :: [FilePath] -> IO [FilePath]
+    firstExisting [] = pure []
+    firstExisting (dir:rest) = do
+        exists <- doesDirectoryExist dir
+        if exists
+            then sort <$> collect dir
+            else firstExisting rest
+
     collect :: FilePath -> IO [FilePath]
     collect dir = do
         names <- listDirectory dir
@@ -437,7 +448,7 @@ printHelp = putStrLn $ unlines [
     "                    same as above",
     "   --target x64     compatibility alias for x64 target",
     "   -download=<n>, --download=<n>",
-    "                    download jdk metadata db to <xlang.exe dir>/libs/java-native/jdk-<target>",
+    "                    download jdk metadata db to <xlang.exe dir>/libs/java/jdk<target>-stdlib.db",
     "                    supported versions: " ++ supportedJdkMetadataVersionsText,
     "   <file.*>         source files to compile (extensions: .x/.xl/.xlang)",
     "   -c <file.*>      compatibility alias for one input file",
@@ -451,8 +462,10 @@ printHelp = putStrLn $ unlines [
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
     "   -lib <files...>  external libs: JVM(.class/.jar/.json/.db/.jmod), x64(.dll/.lib/.a/.so/.dylib)",
-    "                    plus default: <xlang.exe dir>/libs/**/xlang-stdlib-alpha.jar",
-    "                    java-native metadata under <xlang.exe dir>/libs/java-native/** is loaded only when source imports include java.*",
+    "                    plus default stdlib: <xlang.exe dir>/libs/java/xlang-stdlib.jar",
+    "                    plus default std metadata: <xlang.exe dir>/libs/java/jdk<target>-stdlib.db (on-demand)",
+    "                    plus default runtime jars: <xlang.exe dir>/runtime/java/*.jar",
+    "                    java metadata <xlang.exe dir>/libs/java/jdk<target>-stdlib.db is loaded only when source imports include java.*",
     "   --main=<qname.main>",
     "                    explicit entrypoint for jar manifest (e.g. --main=com.wangdi.MainKt.main)",
     "                    class-only is also accepted: --main=com.wangdi.MainKt",

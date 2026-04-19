@@ -74,6 +74,7 @@ data Symbol
     | DoubleColon      -- "::" 
     | Arrow            -- "->"
     | NotArrow         -- "!->"
+    | IffArrow         -- "<->"
     | FatArrow         -- "\=>"
     | QuestionArrow    -- "?->"
     | Dot              -- "."
@@ -92,11 +93,13 @@ data Token =
     | EOF Position
     | TokenPass  Position
     | Ident String Position
+    | Annotation String [Token] Position -- @name(...) / @name
     | Symbol Symbol Position
     | NumberConst String Position
 
     | CharConst Char Position -- contain ''
     | StrConst String Position -- contain ""
+    | NativeBody String Position -- raw body for @native(...)
     deriving (Eq, Show)
 
 
@@ -110,10 +113,14 @@ dummyToken = Ident "<dummy>" defaultPosition
 prettyToken :: Token -> String
 prettyToken (TokenPass  pos) = "nl@" ++ show pos
 prettyToken (Ident name pos) = concat ["Ident@", name, " ", show pos]
+prettyToken (Annotation name args pos) =
+    let argsS = if null args then "" else "(" ++ unwords (map prettyToken args) ++ ")"
+    in concat ["Annotation@", name, argsS, " ", show pos]
 prettyToken (Symbol sym pos) = concat ["Symbol@", show sym, " ", show pos]
 prettyToken (NumberConst s pos) = concat ["Number@", s, " ", show pos]
 prettyToken (CharConst c pos) = concat ["Char@'", [c], "' ", show pos]
 prettyToken (StrConst s pos) = concat ["String@\"", s, "\"  ", show pos]
+prettyToken (NativeBody s pos) = concat ["NativeBody@\"", s, "\"  ", show pos]
 prettyToken (Error e pos) = concat ["Error at: ", show pos, e]
 prettyToken (EOF pos) = "eof@" ++ show pos
 
@@ -152,7 +159,9 @@ tokenPos (EOF p) = p
 tokenPos (Error _ p) = p
 tokenPos (TokenPass  p) = p
 tokenPos (Ident _ p) = p
+tokenPos (Annotation _ _ p) = p
 tokenPos (Symbol _ p) = p
 tokenPos (NumberConst _ p) = p
 tokenPos (CharConst _ p) = p
 tokenPos (StrConst _ p) = p
+tokenPos (NativeBody _ p) = p

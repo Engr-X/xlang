@@ -8,9 +8,9 @@ import Data.Bits ((.&.))
 import Control.Monad (unless)
 import Control.Monad.State.Strict (evalState)
 import Data.List (partition, foldl')
-import Data.Char (toUpper, toLower)
+import Data.Char (toUpper, toLower, isSpace)
 import Text.Read (readMaybe)
-import Data.Maybe (listToMaybe, fromMaybe, catMaybes)
+import Data.Maybe (listToMaybe, fromMaybe, catMaybes, mapMaybe)
 import Data.Foldable (foldrM)
 import Data.Map.Strict (Map)
 import Numeric (readHex)
@@ -657,10 +657,12 @@ exprLowing (AST.Call funName params) = do
             let retT = TEnv.funReturn sig
             (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
             dst <- newSubCVar retT
-            let instr = case qname of
-                    [name] -> TAC.ICall dst name argAtoms
-                    _ -> TAC.ICallStatic dst qname argAtoms
-            return (IRInstr instr : argInstrs, dst)
+            mInlineNative <- TAC.getInlineNativeTarget qname
+            case mInlineNative of
+                Just targetQn ->
+                    return (IRInstr (TAC.ICallStaticDirect dst targetQn argAtoms) : argInstrs, dst)
+                _ ->
+                    return (IRInstr (TAC.ICallStatic dst qname argAtoms) : argInstrs, dst)
         TEnv.FunImported _ _ fullQname sig -> do
             let retT = TEnv.funReturn sig
             (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
@@ -889,77 +891,69 @@ collectAssignKeysBlock (AST.Multiple ss) = do
     return $ Map.keys (Map.fromList (map (, ()) keys))
     where
         collectAssignKeysStmt :: Statement -> TACM [VarKey]
-        collectAssignKeysStmt stmt = case stmt of
-            AST.DefField names _ mRhs toks -> case (names, mRhs, reverse toks) of
-                ([name], Just rhs, nameTok:_) ->
-                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
-                _ ->
-                    maybe (return []) collectAssignKeysExpr mRhs
-            AST.DefConstField names _ mRhs toks -> case (names, mRhs, reverse toks) of
-                ([name], Just rhs, nameTok:_) ->
-                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
-                _ ->
-                    maybe (return []) collectAssignKeysExpr mRhs
-            AST.DefVar names _ mRhs toks -> case (names, mRhs, reverse toks) of
-                ([name], Just rhs, nameTok:_) ->
-                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
-                _ ->
-                    maybe (return []) collectAssignKeysExpr mRhs
-            AST.DefConstVar names _ mRhs toks -> case (names, mRhs, reverse toks) of
-                ([name], Just rhs, nameTok:_) ->
-                    collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
-                _ ->
-                    maybe (return []) collectAssignKeysExpr mRhs
-            AST.Expr e -> collectAssignKeysExpr e
-            AST.Exprs es -> concat <$> mapM collectAssignKeysExpr es
-            AST.StmtGroup groupStmts -> concat <$> mapM collectAssignKeysStmt groupStmts
-            AST.Command (AST.Return (Just e)) _ -> collectAssignKeysExpr e
-            AST.BlockStmt b -> collectAssignKeysBlock b
-            AST.If e b1 b2 _ -> do
-                ks1 <- collectAssignKeysExpr e
-                ks2 <- maybe (return []) collectAssignKeysBlock b1
-                ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3]
-            AST.For (s1, e2, s3) b1 b2 _ -> do
-                ks1 <- maybe (return []) collectAssignKeysStmt s1
-                ks2 <- maybe (return []) collectAssignKeysExpr e2
-                ks3 <- maybe (return []) collectAssignKeysStmt s3
-                ks4 <- maybe (return []) collectAssignKeysBlock b1
-                ks5 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3, ks4, ks5]
-            AST.While e b1 b2 _ -> do
-                ks1 <- collectAssignKeysExpr e
-                ks2 <- maybe (return []) collectAssignKeysBlock b1
-                ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3]
-            AST.Until e b1 b2 _ -> do
-                ks1 <- collectAssignKeysExpr e
-                ks2 <- maybe (return []) collectAssignKeysBlock b1
-                ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3]
-            AST.Loop b _ -> maybe (return []) collectAssignKeysBlock b
-            AST.Repeat e b1 b2 _ -> do
-                ks1 <- collectAssignKeysExpr e
-                ks2 <- maybe (return []) collectAssignKeysBlock b1
-                ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3]
-            AST.DoWhile b1 e b2 _ -> do
-                ks1 <- maybe (return []) collectAssignKeysBlock b1
-                ks2 <- collectAssignKeysExpr e
-                ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3]
-            AST.DoUntil b1 e b2 _ -> do
-                ks1 <- maybe (return []) collectAssignKeysBlock b1
-                ks2 <- collectAssignKeysExpr e
-                ks3 <- maybe (return []) collectAssignKeysBlock b2
-                return $ concat [ks1, ks2, ks3]
-            AST.Switch e scs _ -> do
-                ks1 <- collectAssignKeysExpr e
-                ks2 <- concat <$> mapM collectAssignKeysCase scs
-                return (ks1 ++ ks2)
-            AST.Function {} -> return []
-            AST.FunctionT {} -> return []
-            AST.Command {} -> return []
+        collectAssignKeysStmt (AST.DefField names _ mRhs toks) = collectAssignKeysDef names mRhs toks
+        collectAssignKeysStmt (AST.DefConstField names _ mRhs toks) = collectAssignKeysDef names mRhs toks
+        collectAssignKeysStmt (AST.DefVar names _ mRhs toks) = collectAssignKeysDef names mRhs toks
+        collectAssignKeysStmt (AST.DefConstVar names _ mRhs toks) = collectAssignKeysDef names mRhs toks
+        collectAssignKeysStmt (AST.Expr e) = collectAssignKeysExpr e
+        collectAssignKeysStmt (AST.Exprs es) = concat <$> mapM collectAssignKeysExpr es
+        collectAssignKeysStmt (AST.StmtGroup groupStmts) = concat <$> mapM collectAssignKeysStmt groupStmts
+        collectAssignKeysStmt (AST.Command (AST.Return (Just e)) _) = collectAssignKeysExpr e
+        collectAssignKeysStmt (AST.BlockStmt b) = collectAssignKeysBlock b
+        collectAssignKeysStmt (AST.If e b1 b2 _) = do
+            ks1 <- collectAssignKeysExpr e
+            ks2 <- maybe (return []) collectAssignKeysBlock b1
+            ks3 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3]
+        collectAssignKeysStmt (AST.For (s1, e2, s3) b1 b2 _) = do
+            ks1 <- maybe (return []) collectAssignKeysStmt s1
+            ks2 <- maybe (return []) collectAssignKeysExpr e2
+            ks3 <- maybe (return []) collectAssignKeysStmt s3
+            ks4 <- maybe (return []) collectAssignKeysBlock b1
+            ks5 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3, ks4, ks5]
+        collectAssignKeysStmt (AST.While e b1 b2 _) = do
+            ks1 <- collectAssignKeysExpr e
+            ks2 <- maybe (return []) collectAssignKeysBlock b1
+            ks3 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3]
+        collectAssignKeysStmt (AST.Until e b1 b2 _) = do
+            ks1 <- collectAssignKeysExpr e
+            ks2 <- maybe (return []) collectAssignKeysBlock b1
+            ks3 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3]
+        collectAssignKeysStmt (AST.Loop b _) =
+            maybe (return []) collectAssignKeysBlock b
+        collectAssignKeysStmt (AST.Repeat e b1 b2 _) = do
+            ks1 <- collectAssignKeysExpr e
+            ks2 <- maybe (return []) collectAssignKeysBlock b1
+            ks3 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3]
+        collectAssignKeysStmt (AST.DoWhile b1 e b2 _) = do
+            ks1 <- maybe (return []) collectAssignKeysBlock b1
+            ks2 <- collectAssignKeysExpr e
+            ks3 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3]
+        collectAssignKeysStmt (AST.DoUntil b1 e b2 _) = do
+            ks1 <- maybe (return []) collectAssignKeysBlock b1
+            ks2 <- collectAssignKeysExpr e
+            ks3 <- maybe (return []) collectAssignKeysBlock b2
+            return $ concat [ks1, ks2, ks3]
+        collectAssignKeysStmt (AST.Switch e scs _) = do
+            ks1 <- collectAssignKeysExpr e
+            ks2 <- concat <$> mapM collectAssignKeysCase scs
+            return (ks1 ++ ks2)
+        collectAssignKeysStmt (AST.Function {}) = return []
+        collectAssignKeysStmt (AST.FunctionT {}) = return []
+        collectAssignKeysStmt (AST.NativeMethod {}) = return []
+        collectAssignKeysStmt (AST.Command {}) = return []
+
+        collectAssignKeysDef :: [String] -> Maybe Expression -> [Token] -> TACM [VarKey]
+        collectAssignKeysDef names mRhs toks = case (names, mRhs, reverse toks) of
+            ([name], Just rhs, nameTok : _) ->
+                collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+            _ ->
+                maybe (return []) collectAssignKeysExpr mRhs
 
         collectAssignKeysCase :: AST.SwitchCase -> TACM [VarKey]
         collectAssignKeysCase sc = case sc of
@@ -1740,33 +1734,40 @@ collectAtomTypes sig stmts = do
             TAC.Float128C _ -> Just Float128T
             TAC.StringC _ -> Just (Class ["String"] [])
             TAC.Var _ -> Map.lookup atom varTypeMap
-            TAC.Param i -> Just (TEnv.funParams sig' !! i)
+            TAC.Param i ->
+                let ps = TEnv.funParams sig'
+                in if i >= 0 && i < length ps
+                    then Just (ps !! i)
+                    else error $ concat [
+                        "collectAtomTypes: param index out of range: ",
+                        show i, ", param count=", show (length ps)]
             TAC.Phi pairs -> case pairs of
                 ((_, a) : _) -> inferAtomType sig' varTypeMap a
                 [] -> Nothing
 
-        atomsInInstr :: IRInstr -> [IRAtom]
-        atomsInInstr instr = case instr of
-            TAC.Jump _ -> []
-            TAC.Ifeq a b _ -> [a, b]
-            TAC.Ifne a b _ -> [a, b]
-            TAC.Iflt a b _ -> [a, b]
-            TAC.Ifle a b _ -> [a, b]
-            TAC.Ifgt a b _ -> [a, b]
-            TAC.Ifge a b _ -> [a, b]
-            TAC.SetRet atom -> [atom]
-            TAC.Return -> []
-            TAC.VReturn -> []
-            TAC.IAssign dst src -> [dst, src]
-            TAC.IUnary dst _ x -> [dst, x]
-            TAC.IBinary dst _ x y -> [dst, x, y]
-            TAC.ICast dst _ x -> [dst, x]
-            TAC.ICall dst _ args -> dst : args
-            TAC.ICallStatic dst _ args -> dst : args
-            TAC.IGetField dst obj _ -> [dst, obj]
-            TAC.IPutField obj _ v -> [obj, v]
-            TAC.IGetStatic dst _ -> [dst]
-            TAC.IPutStatic _ v -> [v]
+
+atomsInInstr :: IRInstr -> [IRAtom]
+atomsInInstr (TAC.Jump _) = []
+atomsInInstr (TAC.Ifeq a b _) = [a, b]
+atomsInInstr (TAC.Ifne a b _) = [a, b]
+atomsInInstr (TAC.Iflt a b _) = [a, b]
+atomsInInstr (TAC.Ifle a b _) = [a, b]
+atomsInInstr (TAC.Ifgt a b _) = [a, b]
+atomsInInstr (TAC.Ifge a b _) = [a, b]
+atomsInInstr (TAC.SetRet atom) = [atom]
+atomsInInstr TAC.Return = []
+atomsInInstr TAC.VReturn = []
+atomsInInstr (TAC.IAssign dst src) = [dst, src]
+atomsInInstr (TAC.IUnary dst _ x) = [dst, x]
+atomsInInstr (TAC.IBinary dst _ x y) = [dst, x, y]
+atomsInInstr (TAC.ICast dst _ x) = [dst, x]
+atomsInInstr (TAC.ICallStaticDirect dst _ args) = dst : args
+atomsInInstr (TAC.ICallStatic dst _ args) = dst : args
+atomsInInstr (TAC.ICallVirtual dst _ args) = dst : args
+atomsInInstr (TAC.IGetField dst obj _) = [dst, obj]
+atomsInInstr (TAC.IPutField obj _ v) = [obj, v]
+atomsInInstr (TAC.IGetStatic dst _) = [dst]
+atomsInInstr (TAC.IPutStatic _ v) = [v]
 
 
 collectAtomTypesStatic :: [IRNode] -> TACM (Map IRAtom Class)
@@ -1814,38 +1815,12 @@ collectAtomTypesStatic stmts = do
             TAC.Phi pairs -> case pairs of
                 ((_, a) : _) -> inferAtomType varTypeMap a
                 [] -> Nothing
-
-        atomsInInstr :: IRInstr -> [IRAtom]
-        atomsInInstr instr = case instr of
-            TAC.Jump _ -> []
-            TAC.Ifeq a b _ -> [a, b]
-            TAC.Ifne a b _ -> [a, b]
-            TAC.Iflt a b _ -> [a, b]
-            TAC.Ifle a b _ -> [a, b]
-            TAC.Ifgt a b _ -> [a, b]
-            TAC.Ifge a b _ -> [a, b]
-            TAC.SetRet atom -> [atom]
-            TAC.Return -> []
-            TAC.VReturn -> []
-            TAC.IAssign dst src -> [dst, src]
-            TAC.IUnary dst _ x -> [dst, x]
-            TAC.IBinary dst _ x y -> [dst, x, y]
-            TAC.ICast dst _ x -> [dst, x]
-            TAC.ICall dst _ args -> dst : args
-            TAC.ICallStatic dst _ args -> dst : args
-            TAC.IGetField dst obj _ -> [dst, obj]
-            TAC.IPutField obj _ v -> [obj, v]
-            TAC.IGetStatic dst _ -> [dst]
-            TAC.IPutStatic _ v -> [v]
-
+                
 
 functionLowering :: Statement -> TACM IRFunction
 functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args functB) = do
-    -- load all args
-    atoms <- mapM loadArgs args
-    let _argsMap = genArgMap atoms -- TODO: use this map to rewrite args into Param 0..n
-
-
+    atoms <- loadFunctionArgs args
+    let _argsMap = genArgMap atoms
     let funSig = TEnv.FunSig {
         TEnv.funParams = map (\(a, _, _) -> a) args,
         TEnv.funReturn = clazz
@@ -1867,22 +1842,101 @@ functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args f
         decl = (access, flags)
     return $ TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
 
-    where
-        loadArgs :: (Class, String, [Token]) -> TACM IRAtom
-        loadArgs (argClazz, _, tokens) = do
-            let pos = tokenPos $ head  tokens
+functionLowering (AST.NativeMethod (clazz, declToks) (AST.Variable funName _) args targetName) = do
+    let paramN = length args
+        _argsMap = Map.fromList [(i, TAC.Param i) | i <- [0 .. paramN - 1]]
+        targetQname = parseNativeTargetQName targetName
+        funSig = TEnv.FunSig {
+            TEnv.funParams = map (\(a, _, _) -> a) args,
+            TEnv.funReturn = clazz
+        }
 
-            -- the first one is type bro
+    retBId <- incBlockId
+    callDst <- newSubCVar clazz
+    let retInstr = if clazz == Void then TAC.VReturn else TAC.Return
+        retBlock = IRBlockStmt (retBId, [IRInstr retInstr])
+        setRetStmts = [IRInstr (TAC.SetRet callDst) | clazz /= Void]
+        nativeBody = [IRInstr (TAC.ICallStaticDirect callDst targetQname [TAC.Param i | i <- [0 .. paramN - 1]])] ++ setRetStmts ++ [IRInstr (TAC.Jump retBId)]
+        stmtsWithRet = nativeBody ++ [retBlock]
+
+    atomTypes <- collectAtomTypes funSig stmtsWithRet
+    let bodyBlocks = packIRBlocks stmtsWithRet
+
+    let access0 = accessFromDeclTokens declToks
+        generated = '$' `elem` funName
+        access = if generated then PB.Private else access0
+        inlineFlags = [PB.Inline | hasInlineDeclToken declToks]
+        flags = if generated
+            then PB.Final : (PB.Static : inlineFlags)
+            else PB.Static : inlineFlags
+        decl = (access, flags)
+    return $ TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
+
+functionLowering (AST.Function _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
+functionLowering (AST.NativeMethod _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
+functionLowering _ = error "this is not a function!!!"
+
+
+loadFunctionArgs :: [(Class, String, [Token])] -> TACM [IRAtom]
+loadFunctionArgs = mapM loadOne
+    where
+        loadOne :: (Class, String, [Token]) -> TACM IRAtom
+        loadOne (argClazz, _, tokens) = do
+            let pos = tokenPos $ head tokens
             vinfo <- getVar [pos]
             case vinfo of
                 TEnv.VarImported {} -> error "args cannot be imported"
                 TEnv.VarLocal _ str vid -> newSubVar argClazz (str, vid)
 
-        genArgMap :: [IRAtom] -> Map Int IRAtom
-        genArgMap atoms = Map.fromList $ zip [0..] atoms
 
-functionLowering (AST.Function _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
-functionLowering _ = error "this is not a function!!!"
+genArgMap :: [IRAtom] -> Map Int IRAtom
+genArgMap atoms = Map.fromList (zip [0..] atoms)
+
+
+hasInlineDeclToken :: [Token] -> Bool
+hasInlineDeclToken = any isInlineTok
+    where
+        isInlineTok :: Token -> Bool
+        isInlineTok tok = case tok of
+            Ident s _ -> map toLower s == "inline"
+            _ -> False
+
+
+parseNativeTargetQName :: String -> [String]
+parseNativeTargetQName raw0 =
+    let raw = trimSpaces raw0
+    in if null raw
+        then error "parseNativeTargetQName: empty native target name"
+        else splitTarget raw
+    where
+        splitTarget :: String -> [String]
+        splitTarget txt
+            | '.' `elem` txt =
+                let segs = filter (not . null) (go txt)
+                in if null segs
+                    then error $ "parseNativeTargetQName: invalid target: " ++ show raw0
+                    else segs
+            | otherwise = [txt]
+
+        go :: String -> [String]
+        go txt = case break (== '.') txt of
+            (a, []) -> [trimSpaces a]
+            (a, _ : rest) -> trimSpaces a : go rest
+
+        trimSpaces :: String -> String
+        trimSpaces = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
+
+inlineNativeFromStmt :: [String] -> Statement -> Maybe ([String], [String])
+inlineNativeFromStmt pkg stmt = case stmt of
+    AST.NativeMethod (_, declToks) nameExpr _ targetName
+        | hasInlineDeclToken declToks ->
+            let targetQn = parseNativeTargetQName targetName
+            in case nameExpr of
+                AST.Variable name _ -> Just (pkg ++ [name], targetQn)
+                AST.Qualified qn _ -> Just (qn, targetQn)
+                _ -> Nothing
+    _ -> Nothing
 
 accessFromDeclTokens :: [Token] -> PB.AccessModified
 accessFromDeclTokens toks = case toks of
@@ -1902,6 +1956,8 @@ classStmtsLowing :: [String] -> String -> [Statement] -> TACM IRClass
 classStmtsLowing pkgSegs name stmts = do
     let (funcDef, rest0) = partition AST.isFunction stmts
     let (_, rest1) = partition AST.isFunctionT rest0
+    let inlineNativeMap = Map.fromList (mapMaybe (inlineNativeFromStmt pkgSegs) funcDef)
+    TAC.setInlineNativeTargets inlineNativeMap
 
     let staticKeyMap = collectAssignKey rest1
         constKeyMap = collectConstKey rest1
@@ -1951,8 +2007,8 @@ classStmtsLowing pkgSegs name stmts = do
 
         qualifyInstr :: [String] -> IRInstr -> IRInstr
         qualifyInstr cls instr = case instr of
-            TAC.ICall dst name' args -> TAC.ICallStatic dst (cls ++ [name']) args
             TAC.ICallStatic dst qn args -> TAC.ICallStatic dst (qualifyQName cls qn) args
+            TAC.ICallVirtual dst qn args -> TAC.ICallVirtual dst (qualifyQName cls qn) args
             TAC.IGetStatic dst qn -> TAC.IGetStatic dst (qualifyQName cls qn)
             TAC.IPutStatic qn v -> TAC.IPutStatic (qualifyQName cls qn) v
             _ -> instr

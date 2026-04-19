@@ -15,7 +15,8 @@ import Data.Char (toLower)
 import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, nub, sort, sortOn)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
-import System.Directory (createDirectoryIfMissing, doesFileExist, getTemporaryDirectory, removeFile)
+import System.Environment (getExecutablePath)
+import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getTemporaryDirectory, listDirectory, removeFile)
 import System.FilePath ((</>), (<.>), takeBaseName, takeDirectory, takeExtension, replaceExtension)
 import System.IO (hClose, openTempFile)
 import System.IO.Error (catchIOError, isDoesNotExistError)
@@ -312,9 +313,9 @@ compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths 
                                             pure Nothing
                                         Right () -> do
                                             (objPaths, emitTimeNs) <- timedIO $
-                                                mapConcurrentlyLimit jobs (emitOne runAssembler debugOut outMode ccUsed) units
+                                                mapConcurrentlyLimit jobs (emitOne runAssembler debugOut outMode ccUsed rootPath) units
                                             linkTimeNs <- if runAssembler
-                                                then snd <$> timedIO (linkIfNeeded debugOut outMode objPaths libPaths)
+                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode objPaths libPaths)
                                                 else pure 0
                                             when debugOut $ do
                                                 writePerClassIRFiles (debugIrRootFromOutputMode rootPath outMode) irs
@@ -359,12 +360,13 @@ lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) = map (lowerOneClass 
     lowerOneClass :: FilePath -> [String] -> TAC.IRClass -> ClassAsmUnit
     lowerOneClass path pkg cls@(TAC.IRClass _ className _ _ _ _ _) =
         let st0 = X64L.initClassState64 ccUsed cls
-            (x64Class, _) = evalState (X64L.x64LowingClass pkg cls) st0
+            (x64Class, refs) = evalState (X64L.x64LowingClass pkg cls) st0
             (staticData, segs) = x64Class
-            decls = classGlobalDecls64 pkg cls
+            ownerQName = pkg ++ [className]
+            decls = classGlobalDecls64 pkg cls ++ classExternDecls64 ownerQName refs
         in ClassAsmUnit {
             unitSourcePath = path,
-            unitOwnerQName = pkg ++ [className],
+            unitOwnerQName = ownerQName,
             unitAsmText = X64.prettyX64ProgmIntel ccUsed (X64.X64Progm decls staticData segs)
         }
 
@@ -399,6 +401,11 @@ classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ funs _) = [
     retT `elem` [AST.Int32T, AST.Void]]
 
 
+classExternDecls64 :: [String] -> [X64L.ExternRef] -> [X64.X64Decl]
+classExternDecls64 ownerQName refs =
+    X64L.collectExternDeclsFromRefs64 [ownerQName] refs
+
+
 addExeEntryUnit64 ::
     X64.CallConv64 ->
     OutputMode ->
@@ -420,8 +427,8 @@ mkExeEntryUnit64 cc mMainClassOverride irPairs = do
     let targetSym = X64.mangleQNameWithSig True entryQn entrySig
         asmText = mkExeEntryAsm64 cc targetSym
     Right ClassAsmUnit {
-        unitSourcePath = "__xlang_exe_entry_stub__.x64",
-        unitOwnerQName = ["__xlang", "exe", "entry"],
+        unitSourcePath = "main.x64",
+        unitOwnerQName = ["main"],
         unitAsmText = asmText}
 
 
@@ -568,8 +575,8 @@ validateOutputMode (OutputSingleObject _) units
 validateOutputMode _ _ = Right ()
 
 
-emitOne :: Bool -> Bool -> OutputMode -> X64.CallConv64 -> ClassAsmUnit -> IO FilePath
-emitOne runAssembler debugOut outMode cc unit = do
+emitOne :: Bool -> Bool -> OutputMode -> X64.CallConv64 -> FilePath -> ClassAsmUnit -> IO FilePath
+emitOne runAssembler debugOut outMode cc rootPath unit = do
     let asmPath = unitAsmPath outMode unit
         objPath = unitObjPath outMode unit
         asmText = withX64IdentFooter cc (unitAsmText unit)
@@ -578,10 +585,10 @@ emitOne runAssembler debugOut outMode cc unit = do
         then do
             createDirectoryIfMissing True (takeDirectory asmPath)
             writeFile asmPath asmText
-            when runAssembler (assembleOne cc asmPath objPath)
+            when runAssembler (assembleOne rootPath cc asmPath objPath)
             pure objPath
         else do
-            when runAssembler $ withTempAsmFile asmText (\tmpAsm -> assembleOne cc tmpAsm objPath)
+            when runAssembler $ withTempAsmFile asmText (\tmpAsm -> assembleOne rootPath cc tmpAsm objPath)
             pure objPath
 
 
@@ -604,19 +611,24 @@ nasmObjectFormat = case os of
     _ -> "elf64"
 
 
-assembleOne :: X64.CallConv64 -> FilePath -> FilePath -> IO ()
-assembleOne cc asmPath objPath = case X64.ccCompiler cc of
-    X64.NASM -> callProcess "nasm" ["-f", nasmObjectFormat, asmPath, "-o", objPath]
-    _ -> callProcess "as" [asmPath, "-o", objPath]
+assembleOne :: FilePath -> X64.CallConv64 -> FilePath -> FilePath -> IO ()
+assembleOne rootPath cc asmPath objPath = case X64.ccCompiler cc of
+    X64.NASM -> do
+        nasmCmd <- resolveToolPath64 rootPath "nasm"
+        callProcess nasmCmd ["-f", nasmObjectFormat, asmPath, "-o", objPath]
+    _ -> do
+        asCmd <- resolveToolPath64 rootPath "as"
+        callProcess asCmd [asmPath, "-o", objPath]
 
 
-linkIfNeeded :: Bool -> OutputMode -> [FilePath] -> [FilePath] -> IO ()
-linkIfNeeded debugOut outMode objPaths linkLibPaths = case outMode of
+linkIfNeeded :: Bool -> FilePath -> OutputMode -> [FilePath] -> [FilePath] -> IO ()
+linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths = case outMode of
     OutputLinked outPath linkKind _ -> do
         createDirectoryIfMissing True (takeDirectory outPath)
         case linkKind of
-            LinkStatic ->
-                callProcess "ar" (["rcs", outPath] ++ objPaths)
+            LinkStatic -> do
+                arCmd <- resolveToolPath64 rootPath "ar"
+                callProcess arCmd (["rcs", outPath] ++ objPaths)
             LinkDyn ->
                 linkDynWithLd outPath objPaths linkLibPaths >> cleanupLegacyOutIfNeeded debugOut outPath
             LinkExe ->
@@ -624,30 +636,76 @@ linkIfNeeded debugOut outMode objPaths linkLibPaths = case outMode of
     _ -> pure ()
   where
     linkDynWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
-    linkDynWithLd target objs libs = case os of
-        "mingw32" ->
-            let implib = replaceExtension target ".dll.a"
-                args = ["--dll", "-o", target] ++ objs ++ libs ++ ["--out-implib", implib]
-            in callProcessCandidates [("x86_64-w64-mingw32-ld", args), ("ld", args)]
-        "darwin" ->
-            callProcessCandidates [("ld", ["-dylib", "-o", target] ++ objs ++ libs)]
-        _ ->
-            callProcessCandidates [("ld", ["-shared", "-o", target] ++ objs ++ libs)]
+    linkDynWithLd target objs libs = do
+        sysLibs <- collectNativeStaticLibs
+        case os of
+            "mingw32" -> do
+                let implib = replaceExtension target ".dll.a"
+                    args = ["--dll", "-o", target] ++ objs ++ libs ++ sysLibs ++ ["--out-implib", implib]
+                callProcessCandidates rootPath [("x86_64-w64-mingw32-ld", args), ("ld", args)]
+            "darwin" ->
+                callProcessCandidates rootPath [("ld", ["-dylib", "-o", target] ++ objs ++ libs ++ sysLibs)]
+            _ ->
+                callProcessCandidates rootPath [("ld", ["-shared", "-o", target] ++ objs ++ libs ++ sysLibs)]
 
     linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
-    linkExeWithLd target objs libs = case os of
-        "mingw32" ->
-            let args = ["-e", "main", "-o", target] ++ objs ++ libs
-            in callProcessCandidates [("x86_64-w64-mingw32-ld", args), ("ld", args)]
-        _ ->
-            callProcessCandidates [("ld", ["-e", "main", "-o", target] ++ objs ++ libs)]
+    linkExeWithLd target objs libs = do
+        sysLibs <- collectNativeStaticLibs
+        case os of
+            "mingw32" -> do
+                let args = ["-e", "main", "-o", target] ++ objs ++ libs
+                        ++ sysLibs
+                callProcessCandidates rootPath [("x86_64-w64-mingw32-ld", args), ("ld", args)]
+            _ ->
+                callProcessCandidates rootPath [("ld", ["-e", "main", "-o", target] ++ objs ++ libs ++ sysLibs)]
 
-    callProcessCandidates :: [(FilePath, [String])] -> IO ()
-    callProcessCandidates [] = ioError (userError "no usable GNU linker found (tried ld variants)")
-    callProcessCandidates ((cmd, args) : rest) =
+    collectNativeStaticLibs :: IO [FilePath]
+    collectNativeStaticLibs = do
+        cwd <- getCurrentDirectory
+        exeDir <- takeDirectory <$> getExecutablePath
+        let syslibDirs = nub [
+                exeDir </> "native",
+                rootPath </> "native",
+                cwd </> "native",
+                exeDir </> "native-libs",
+                rootPath </> "native-libs",
+                cwd </> "native-libs"
+                ]
+            stdNativeDirs = nub [
+                exeDir </> "libs" </> "native",
+                rootPath </> "libs" </> "native",
+                cwd </> "libs" </> "native",
+                exeDir </> "std" </> "native",
+                rootPath </> "std" </> "native",
+                cwd </> "std" </> "native"
+                ]
+        grouped <- mapM collectOne syslibDirs
+        stdLibs <- collectStdNativeLibs stdNativeDirs
+        pure (sort (nub (concat grouped ++ stdLibs)))
+      where
+        collectOne :: FilePath -> IO [FilePath]
+        collectOne dir = do
+            exists <- doesDirectoryExist dir
+            if not exists
+                then pure []
+                else do
+                    names <- listDirectory dir
+                    pure [dir </> n | n <- sort names, map toLower (takeExtension n) == ".a"]
+
+        collectStdNativeLibs :: [FilePath] -> IO [FilePath]
+        collectStdNativeLibs dirs = do
+            let names = ["libxlang-base.a", "libxlang-std.a"]
+                paths = [dir </> name | dir <- dirs, name <- names]
+            existing <- mapM doesFileExist paths
+            pure [p | (p, True) <- zip paths existing]
+
+    callProcessCandidates :: FilePath -> [(FilePath, [String])] -> IO ()
+    callProcessCandidates _ [] = ioError (userError "no usable GNU linker found (tried ld variants)")
+    callProcessCandidates root ((cmd, args) : rest) = do
+        resolvedCmd <- resolveToolPath64 root cmd
         catchIOError
-            (callProcess cmd args)
-            (\e -> if isDoesNotExistError e then callProcessCandidates rest else ioError e)
+            (callProcess resolvedCmd args)
+            (\e -> if isDoesNotExistError e then callProcessCandidates root rest else ioError e)
 
     cleanupLegacyOutIfNeeded :: Bool -> FilePath -> IO ()
     cleanupLegacyOutIfNeeded keepDebug linkedOut =
@@ -660,6 +718,38 @@ linkIfNeeded debugOut outMode objPaths linkLibPaths = case outMode of
     removeIfExists p = do
         ex <- doesFileExist p
         when ex (removeFile p)
+
+
+toolNameCandidates64 :: String -> [String]
+toolNameCandidates64 tool
+    | os == "mingw32" = [tool ++ ".exe", tool]
+    | otherwise = [tool]
+
+
+resolveToolPath64 :: FilePath -> String -> IO FilePath
+resolveToolPath64 rootPath tool = do
+    let localDir = rootPath </> "tools"
+        localCandidates = [localDir </> name | name <- toolNameCandidates64 tool]
+    mLocal <- firstExistingFile localCandidates
+    case mLocal of
+        Just localPath -> pure localPath
+        Nothing -> do
+            mGlobal <- firstExecutable (toolNameCandidates64 tool)
+            pure (maybe tool id mGlobal)
+  where
+    firstExistingFile :: [FilePath] -> IO (Maybe FilePath)
+    firstExistingFile [] = pure Nothing
+    firstExistingFile (p : rest) = do
+        exists <- doesFileExist p
+        if exists then pure (Just p) else firstExistingFile rest
+
+    firstExecutable :: [String] -> IO (Maybe FilePath)
+    firstExecutable [] = pure Nothing
+    firstExecutable (name : rest) = do
+        mPath <- findExecutable name
+        case mPath of
+            Just p -> pure (Just p)
+            Nothing -> firstExecutable rest
 
 
 unitAsmPath :: OutputMode -> ClassAsmUnit -> FilePath

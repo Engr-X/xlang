@@ -3,6 +3,7 @@
 module Semantic.ContextCheckTest where
 
 import Control.Monad.State.Strict (runState, execState)
+import Data.List (isInfixOf)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util.Type (Position, makePosition)
@@ -260,18 +261,20 @@ isFunctionTests = testGroup "Semantic.ContextCheck.isFunction" $ map (\(name, st
         ("0", stmtFun, True),
         ("1", stmtExpr, False),
         ("2", stmtCmd, False),
-        ("3", stmtBlock, False)]
+        ("3", stmtBlock, False),
+        ("4", stmtNative, True)]
     where
         tokF, tokNum, tokCmd :: Lex.Token
         tokF = Lex.Ident "f" pos1
         tokNum = Lex.NumberConst "1" pos2
         tokCmd = Lex.Ident "break" pos3
 
-        stmtFun, stmtExpr, stmtCmd, stmtBlock :: AST.Statement
+        stmtFun, stmtExpr, stmtCmd, stmtBlock, stmtNative :: AST.Statement
         stmtFun = AST.Function (AST.Int32T, []) (AST.Variable "f" tokF) [] (AST.Multiple [])
         stmtExpr = AST.Expr (AST.IntConst "1" tokNum)
         stmtCmd = AST.Command AST.Break tokCmd
         stmtBlock = AST.BlockStmt (AST.Multiple [])
+        stmtNative = AST.NativeMethod (AST.Int32T, []) (AST.Variable "f" tokF) [] "return 0;"
 
 
 withCtrlTests :: TestTree
@@ -887,7 +890,15 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
                 , "    int main() { return 0 }"
                 , "    return main()"
                 , "}" ]
-        assertCheckProgm (checkProgmFromSrc src) (Just UE.nestedMainFunctionMsg)
+        assertCheckProgm (checkProgmFromSrc src) (Just UE.nestedMainFunctionMsg),
+
+        testCase "23" $ do
+        let tokOuter = Lex.Ident "outer" pos1
+            tokInner = Lex.Ident "inner" pos2
+            nestedNative = AST.NativeMethod (AST.Int32T, []) (AST.Variable "inner" tokInner) [] "return 0;"
+            outerFun = AST.Function (AST.Int32T, []) (AST.Variable "outer" tokOuter) [] (AST.Multiple [nestedNative])
+            prog = ([], [outerFun])
+        assertCheckProgm (checkProgm "stdin" prog []) (Just UE.nativeCFunctionScopeMsg)
     ])
     where
         mkCase (name, src, expected) =
@@ -956,6 +967,63 @@ declKindLoweringTests = testGroup "Semantic.ContextCheck.defKind" [
             (_, ctx1) = runState (checkStmt "stdin" [] [] stmt) ctx0
         errs ctx1 @?= []
     ]
+
+
+nativeDependencyTests :: TestTree
+nativeDependencyTests = testGroup "Semantic.ContextCheck.nativeDependency" [
+    testCase "0 valid native dependency chain" $ do
+        let prog = ([], [
+                    mkNativeFun 1 "c" "return 0;",
+                    mkNativeFun 2 "b" "return @xfun(\"c() -> int\")();",
+                    mkNativeFun 3 "a" "return @xfun(\"b() -> int\")();"
+                ])
+        assertCheckProgm (checkProgm "stdin" prog []) Nothing,
+
+    testCase "1 cycle is rejected" $ do
+        let prog = ([], [
+                    mkNativeFun 1 "a" "return @xfun(\"b() -> int\")();",
+                    mkNativeFun 2 "b" "return @xfun(\"a() -> int\")();"
+                ])
+        assertErrContains "native C dependency has a cycle" (checkProgm "stdin" prog []),
+
+    testCase "2 non-tree dependency is allowed when acyclic" $ do
+        let prog = ([], [
+                    mkNativeFun 1 "c" "return 0;",
+                    mkNativeFun 2 "a" "return @xfun(\"c() -> int\")();",
+                    mkNativeFun 3 "b" "return @xfun(\"c() -> int\")();"
+                ])
+        assertCheckProgm (checkProgm "stdin" prog []) Nothing,
+
+    testCase "3 forward native dependency is allowed when acyclic" $ do
+        let prog = ([], [
+                    mkNativeFun 1 "a" "return @xfun(\"b() -> int\")();",
+                    mkNativeFun 2 "b" "return 0;"
+                ])
+        assertCheckProgm (checkProgm "stdin" prog []) Nothing
+    ]
+    where
+        mkNativeFun :: Int -> String -> String -> AST.Statement
+        mkNativeFun line name bodyS =
+            let p = makePosition line 1 1
+                nameTok = Lex.Ident name p
+            in AST.NativeMethod (AST.Int32T, []) (AST.Variable name nameTok) [] bodyS
+
+        assertErrContains :: String -> Either [UE.ErrorKind] CheckState -> Assertion
+        assertErrContains needle res = case res of
+            Right _ -> assertFailure ("expected error containing: " ++ needle)
+            Left es -> case firstWhy es of
+                Just whyMsg ->
+                    assertBool ("expected error containing '" ++ needle ++ "', got: " ++ whyMsg) (needle `isInfixOf` whyMsg)
+                Nothing ->
+                    assertFailure ("unexpected errors: " ++ show es)
+
+        firstWhy :: [UE.ErrorKind] -> Maybe String
+        firstWhy es = case es of
+            (UE.Syntax (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+            (UE.Parsing (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+            (UE.Lexer (UE.BasicError { UE.why = whyMsg }) : _) -> Just whyMsg
+            _ -> Nothing
+
 tests :: TestTree
 tests = testGroup "Semantic.ContextCheck" [
     hasAssignTests,
@@ -965,4 +1033,5 @@ tests = testGroup "Semantic.ContextCheck" [
     isContinueValidTests, isBreakValidTests, isReturnValidTests, checkPassStmtTests, topLevelCtrlCommandTests,
     
     checkExprTests, checkStmtTests, checkSwitchCaseTests, checkBlockTests, checkStmtsTests, checkProgmTests,
+    nativeDependencyTests,
     declKindLoweringTests, forScopeTests]

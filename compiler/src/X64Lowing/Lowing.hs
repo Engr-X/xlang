@@ -4,8 +4,9 @@ module X64Lowing.Lowing where
 import Control.Monad.State.Strict (State, evalState, get, gets, modify', put)
 import Data.Bits ((.|.), shiftL)
 import Data.List (foldl', intercalate)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Map.Strict (Map)
+import Numeric (showHex)
 import IR.TAC (IRAtom, IRFunction, IRInstr)
 import Parse.SyntaxTree (Class)
 import X64Lowing.ASM (
@@ -187,7 +188,7 @@ genFloatToIntCast64 dstAtom fromC toC srcAtom = do
                 return [X64.Cvttss2si dst32 srcAtom X64.B32, X64.Mov (asDwordDst64 dstAtom) dst32 X64.B32]
         (AST.Float64T, toInt)
             | isCastIntClass64 toInt ->
-                return [X64.Cvttsd2si dst32 srcAtom X64.B32, X64.Mov (asDwordDst64 dstAtom) dst32 X64.B32]
+                return [X64.Cvttsd2si dst32 srcAtom X64.B64, X64.Mov (asDwordDst64 dstAtom) dst32 X64.B32]
         _ ->
             error $ "genFloatToIntCast64: unsupported cast: " ++ show (fromC, toC)
 
@@ -255,6 +256,28 @@ mkStaticCallName64 qname argTs =
         else (qname, argTs)
 
 
+mkDirectCallName64 :: [String] -> [Class] -> ([String], [Class])
+mkDirectCallName64 qname sigTs = case qname of
+    [] -> error "mkDirectCallName64: empty qname"
+    [one]
+        | '.' `elem` one ->
+            let segs = splitByDot64 one
+            in if null segs
+                then error $ "mkDirectCallName64: invalid dotted call target: " ++ show qname
+                else (segs, sigTs)
+        | otherwise -> (X64.mkRawQName64 one, sigTs)
+    _ -> (qname, sigTs)
+
+
+splitByDot64 :: String -> [String]
+splitByDot64 s = filter (not . null) (go s)
+    where
+        go :: String -> [String]
+        go txt = case break (== '.') txt of
+            (a, []) -> [a]
+            (a, _ : rest) -> a : go rest
+
+
 staticOwnerQName64 :: [String] -> [String]
 staticOwnerQName64 qname =
     if length qname < 2
@@ -285,18 +308,101 @@ staticFieldAtom64 :: [String] -> Class -> X64LowerM X64.Atom
 staticFieldAtom64 qname cls = X64.Bss qname [cls] <$> getRipRegM64
 
 
-moveArgToReg64 :: Register -> X64.Atom -> Class -> X64LowerM [X64.Instruction]
-moveArgToReg64 reg atom cls = case cls of
-    AST.Float32T -> error "moveArgToReg64: float args are not supported in ICallStatic yet"
-    AST.Float64T -> error "moveArgToReg64: double args are not supported in ICallStatic yet"
-    _ -> case Map.lookup cls bitsByClass64 of
-        Just bits -> return [X64.Mov (X64.Reg reg bits) atom bits]
-        Nothing -> error $ "moveArgToReg64: unsupported arg class: " ++ show cls
+data ArgRegSel64
+    = ArgRegI Register
+    | ArgRegF Register
+    deriving (Eq, Show)
+
+
+isFloatArgClass64 :: Class -> Bool
+isFloatArgClass64 cls = cls == AST.Float32T || cls == AST.Float64T
+
+
+isWinArgLayout64 :: CallConv64 -> Bool
+isWinArgLayout64 cc = ccArgs cc == [X64.C, X64.D, X64.R8, X64.R9]
+
+
+floatArgRegs64 :: CallConv64 -> [Register]
+floatArgRegs64 cc
+    | isWinArgLayout64 cc = [X64.Xmm0, X64.Xmm1, X64.Xmm2, X64.Xmm3]
+    | otherwise = [X64.Xmm0, X64.Xmm1, X64.Xmm2, X64.Xmm3, X64.Xmm4, X64.Xmm5, X64.Xmm6, X64.Xmm7]
+
+
+assignArgRegs64 :: CallConv64 -> [Class] -> X64LowerM [ArgRegSel64]
+assignArgRegs64 cc argClasses
+    | isWinArgLayout64 cc =
+        if length argClasses > length iRegs
+            then error $ "assignArgRegs64: stack args are not supported yet, got " ++ show (length argClasses) ++ " args"
+            else return [
+                if isFloatArgClass64 cls
+                    then ArgRegF (fRegs !! idx)
+                    else ArgRegI (iRegs !! idx)
+                | (idx, cls) <- zip [0 ..] argClasses
+                ]
+    | otherwise = go 0 0 argClasses
+    where
+        iRegs = ccArgs cc
+        fRegs = floatArgRegs64 cc
+
+        go :: Int -> Int -> [Class] -> X64LowerM [ArgRegSel64]
+        go _ _ [] = return []
+        go iIdx fIdx (cls : rest)
+            | isFloatArgClass64 cls =
+                if fIdx >= length fRegs
+                    then error $ "assignArgRegs64: float stack args are not supported yet, got " ++ show (length argClasses) ++ " args"
+                    else do
+                        tailRegs <- go iIdx (fIdx + 1) rest
+                        return (ArgRegF (fRegs !! fIdx) : tailRegs)
+            | otherwise =
+                if iIdx >= length iRegs
+                    then error $ "assignArgRegs64: integer stack args are not supported yet, got " ++ show (length argClasses) ++ " args"
+                    else do
+                        tailRegs <- go (iIdx + 1) fIdx rest
+                        return (ArgRegI (iRegs !! iIdx) : tailRegs)
+
+
+moveArgToReg64 :: ArgRegSel64 -> X64.Atom -> Class -> X64LowerM [X64.Instruction]
+moveArgToReg64 regSel atom cls = case regSel of
+    ArgRegF freg -> case cls of
+        AST.Float32T -> return [X64.Movss (X64.Reg freg X64.NN) atom X64.B32]
+        AST.Float64T -> return [X64.Movsd (X64.Reg freg X64.NN) atom X64.B64]
+        _ -> error $ "moveArgToReg64: non-float class to float arg register: " ++ show cls
+
+    ArgRegI ireg -> case cls of
+        AST.Float32T -> error "moveArgToReg64: float32 cannot be moved to integer arg register"
+        AST.Float64T -> error "moveArgToReg64: float64 cannot be moved to integer arg register"
+        _ | isRefClass64 cls ->
+            return [X64.Mov (X64.Reg ireg X64.B64) atom X64.B64]
+        _ -> case Map.lookup cls bitsByClass64 of
+            Just bits -> return [X64.Mov (X64.Reg ireg bits) atom bits]
+            Nothing -> error $ "moveArgToReg64: unsupported arg class: " ++ show cls
+
+
+currentParamTypes64 :: X64LowerM [Class]
+currentParamTypes64 = do
+    mSig <- gets stCurFunSig64
+    case mSig of
+        Just sig -> return (TEnv.funParams sig)
+        Nothing -> return []
+
+
+prepareDirectCallParams64 :: X64LowerM [X64.Instruction]
+prepareDirectCallParams64 = do
+    cc <- getCCM64
+    paramTypes <- currentParamTypes64
+    regPlan <- assignArgRegs64 cc paramTypes
+    pairs <- mapM (\(idx, cls) -> do
+        (atom, _, _) <- tySizeM64 (IR.Param idx)
+        return (idx, atom, cls))
+        (zip [0 ..] paramTypes)
+    concat <$> mapM (\(regSel, (_, atom, cls)) -> moveArgToReg64 regSel atom cls)
+        (zip regPlan pairs)
 
 
 -- 64-bit target byte size for a type.
 classBytes64 :: Class -> Int
 classBytes64 (AST.Class {}) = 8
+classBytes64 AST.Void = 0
 classBytes64 cls = case Map.lookup cls sizeByClass64 of
     Just n -> n
     Nothing -> error $ "classBytes64: unknown class: " ++ show cls
@@ -381,9 +487,12 @@ data StackLayoutState = StackLayoutState {
     stOff64 :: Map IRAtom Int, -- atom -> positive stack offset
     stMaxOff64 :: Int,         -- max/final offset
     stCC64 :: CallConv64,      -- current calling convention
+    stFloatConstSeq64 :: Int,  -- next LC index for float/double immediate pool
+    stFloatConstLabelMap64 :: Map FloatImmKey64 String, -- float/double immediate -> const label
     stTypes64 :: Map IRAtom Class, -- atom -> type
     stOwnerQName64 :: [String], -- current class owner qname
     stCurFunName64 :: Maybe String, -- current lowering function name
+    stCurFunSig64 :: Maybe TEnv.FunSig, -- current lowering function signature
     stInClinit64 :: Bool,      -- currently lowering .clinit body
     stRetBid64 :: Maybe Int,   -- return block id (if available)
     stDivWantRem64 :: Bool      -- False: quotient(/), True: remainder(%)
@@ -397,16 +506,19 @@ atomTypes64 (IR.IRFunction _ _ funSig atomTypes _ _) =
 
 
 mkState64 :: IRFunction -> Int -> CallConv64 -> StackLayoutState
-mkState64 fun@(IR.IRFunction _ _ _ _ (_, retBid) _) baseOff cc =
+mkState64 fun@(IR.IRFunction _ _ funSig _ (_, retBid) _) baseOff cc =
     let (layout, endOff) = stackLayout64 fun baseOff
         tys = atomTypes64 fun
     in StackLayoutState {
         stOff64 = layout,
         stMaxOff64 = endOff,
         stCC64 = cc,
+        stFloatConstSeq64 = 0,
+        stFloatConstLabelMap64 = Map.empty,
         stTypes64 = tys,
         stOwnerQName64 = [],
         stCurFunName64 = Nothing,
+        stCurFunSig64 = Just funSig,
         stInClinit64 = False,
         stRetBid64 = Just retBid,
         stDivWantRem64 = False
@@ -439,9 +551,12 @@ mkClinitState64 (IR.StaticInit (_, retBid)) staticAtomTypes baseOff cc =
         stOff64 = layout,
         stMaxOff64 = endOff,
         stCC64 = cc,
+        stFloatConstSeq64 = 0,
+        stFloatConstLabelMap64 = Map.empty,
         stTypes64 = staticAtomTypes,
         stOwnerQName64 = [],
         stCurFunName64 = Just staticInitName,
+        stCurFunSig64 = Just (TEnv.FunSig [] AST.Void),
         stInClinit64 = True,
         stRetBid64 = Just retBid,
         stDivWantRem64 = False
@@ -533,6 +648,105 @@ blockName :: Int -> String
 blockName idx = ".L" ++ show idx
 
 
+data FloatImmKey64
+    = Float32ImmKey64 String
+    | Float64ImmKey64 String
+    deriving (Eq, Ord, Show)
+
+
+floatConstLabelPrefix64 :: X64.CallConv64 -> String
+floatConstLabelPrefix64 cc = case X64.ccCompiler cc of
+    X64.NASM -> "LC"
+    _ -> ".LC"
+
+
+floatConstLabel64 :: X64.CallConv64 -> Int -> String
+floatConstLabel64 cc idx = floatConstLabelPrefix64 cc ++ showHex idx ""
+
+
+floatImmKeyFromAtom64 :: IR.IRAtom -> Maybe FloatImmKey64
+floatImmKeyFromAtom64 atom = case atom of
+    IR.Float32C f -> Just (Float32ImmKey64 (floatHex32Const64 (realToFrac f :: Float)))
+    IR.Float64C d -> Just (Float64ImmKey64 (doubleHex64Const64 d))
+    _ -> Nothing
+
+
+atomsInInstr64 :: IR.IRInstr -> [IR.IRAtom]
+atomsInInstr64 instr = case instr of
+    IR.Jump _ -> []
+    IR.Ifeq a b _ -> [a, b]
+    IR.Ifne a b _ -> [a, b]
+    IR.Iflt a b _ -> [a, b]
+    IR.Ifle a b _ -> [a, b]
+    IR.Ifgt a b _ -> [a, b]
+    IR.Ifge a b _ -> [a, b]
+    IR.SetRet atom -> [atom]
+    IR.Return -> []
+    IR.VReturn -> []
+    IR.IAssign dst src -> [dst, src]
+    IR.IUnary dst _ x -> [dst, x]
+    IR.IBinary dst _ x y -> [dst, x, y]
+    IR.ICast dst _ x -> [dst, x]
+    IR.ICallStaticDirect dst _ args -> dst : args
+    IR.ICallStatic dst _ args -> dst : args
+    IR.ICallVirtual dst _ args -> dst : args
+    IR.IGetField dst obj _ -> [dst, obj]
+    IR.IPutField obj _ v -> [obj, v]
+    IR.IGetStatic dst _ -> [dst]
+    IR.IPutStatic _ v -> [v]
+
+
+floatImmKeysFromBlock64 :: IR.IRBlock -> [FloatImmKey64]
+floatImmKeysFromBlock64 (IR.IRBlock (_, instrs)) =
+    concatMap (mapMaybe floatImmKeyFromAtom64 . atomsInInstr64) instrs
+
+
+uniqueInOrder64 :: Ord a => [a] -> [a]
+uniqueInOrder64 xs = reverse rev
+    where
+        (rev, _) = foldl' step ([], Set.empty) xs
+        step :: Ord a => ([a], Set.Set a) -> a -> ([a], Set.Set a)
+        step (acc, seen) one
+            | one `Set.member` seen = (acc, seen)
+            | otherwise = (one : acc, Set.insert one seen)
+
+
+floatImmStaticData64 :: FloatImmKey64 -> String -> X64.StaticData
+floatImmStaticData64 key label = case key of
+    Float32ImmKey64 hex32 -> X64.StaticData label [X64.Long hex32]
+    Float64ImmKey64 hex64 -> X64.StaticData label [X64.Quad hex64]
+
+
+collectClassFloatConsts64 :: X64.CallConv64 -> Int -> IR.IRClass -> (Map FloatImmKey64 String, [X64.StaticData], Int)
+collectClassFloatConsts64 cc seqStart (IR.IRClass _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _) =
+    let staticKeys = concatMap floatImmKeysFromBlock64 sBlocks
+        funKeys = concatMap funFloatKeys funs
+        keys = uniqueInOrder64 (staticKeys ++ funKeys)
+        pairs = zip keys [seqStart ..]
+        keyToLabel = Map.fromList [(k, floatConstLabel64 cc idx) | (k, idx) <- pairs]
+        dataSegs = [floatImmStaticData64 k (floatConstLabel64 cc idx) | (k, idx) <- pairs]
+        seqNext = seqStart + length keys
+    in (keyToLabel, dataSegs, seqNext)
+    where
+        funFloatKeys :: IR.IRFunction -> [FloatImmKey64]
+        funFloatKeys (IR.IRFunction _ _ _ _ (blocks, _) _) = concatMap floatImmKeysFromBlock64 blocks
+
+
+lookupFloatConstLabel64 :: FloatImmKey64 -> X64LowerM String
+lookupFloatConstLabel64 key = do
+    mLbl <- gets (Map.lookup key . stFloatConstLabelMap64)
+    case mLbl of
+        Just lbl -> return lbl
+        Nothing -> error $ "lookupFloatConstLabel64: float immediate label not found for key: " ++ show key
+
+
+floatConstAtom64 :: Class -> FloatImmKey64 -> X64LowerM X64.Atom
+floatConstAtom64 cls key = do
+    lbl <- lookupFloatConstLabel64 key
+    rip <- getRipRegM64
+    return (X64.Bss (X64.mkRawQName64 lbl) [cls] rip)
+
+
 -- Type query in X64 lowering state.
 -- Constants return their fixed type directly.
 -- Vars/Params are resolved from stTypes64.
@@ -576,8 +790,8 @@ atomAddrM64 atom = case atom of
     IR.Int16C i -> return (X64.Imm (fromIntegral i))
     IR.Int32C i -> return (X64.Imm (fromIntegral i))
     IR.Int64C i -> return (X64.Imm (fromIntegral i))
-    IR.Float32C _ -> error "atomAddrM64: float32 immediate is not supported yet"
-    IR.Float64C _ -> error "atomAddrM64: float64 immediate is not supported yet"
+    IR.Float32C f -> floatConstAtom64 AST.Float32T (Float32ImmKey64 (floatHex32Const64 (realToFrac f :: Float)))
+    IR.Float64C d -> floatConstAtom64 AST.Float64T (Float64ImmKey64 (doubleHex64Const64 d))
     IR.Float128C _ -> error "atomAddrM64: float128 immediate is not supported yet"
     IR.StringC _ -> error "atomAddrM64: string immediate is not supported yet"
     IR.Phi _ -> error "atomAddrM64: phi should be stripped before x64 lowering"
@@ -1140,7 +1354,29 @@ x64StmtCode64 (IR.ICast dst (fromC, toC) src) = do
             _ ->
                 error $ "x64StmtLowing64(ICast): only int-like<->int-like, int-like->float/double, bool<->int, bool<->float/double, float<->double, and float/double->int casts are supported now, got: " ++ show (fromC, toC)
 
-x64StmtCode64 (IR.ICall {}) = error "TODO"
+x64StmtCode64 (IR.ICallStaticDirect dst qname args) = do
+    (dstAtom, dstCls, _) <- tySizeM64 dst
+    argTriples <- mapM tySizeM64 args
+    cc <- getCCM64
+    iRet <- getIRetRegM64
+    fRet <- getFRetRegM64
+    let argAtoms = map (\(a, _, _) -> a) argTriples
+        argClasses = map (\(_, c, _) -> c) argTriples
+        fullSig = argClasses ++ [dstCls]
+        (callName, callSig) = mkDirectCallName64 qname fullSig
+        retInstrs = case dstCls of
+            AST.Void -> []
+            AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
+            AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
+            cls | isRefClass64 cls -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
+            cls -> case Map.lookup cls bitsByClass64 of
+                Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
+                Nothing -> error $ "x64StmtLowing64(ICallStaticDirect): unsupported return class: " ++ show cls
+    regPlan <- assignArgRegs64 cc argClasses
+    argInstrs <- concat <$> mapM (\(regSel, (atom, cls)) -> moveArgToReg64 regSel atom cls)
+        (zip regPlan (zip argAtoms argClasses))
+    return (argInstrs ++ [X64.Call callName callSig] ++ retInstrs)
+x64StmtCode64 (IR.ICallVirtual {}) = error "TODO"
 x64StmtCode64 (IR.ICallStatic dst qname args) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
     argTriples <- mapM tySizeM64 args
@@ -1150,25 +1386,22 @@ x64StmtCode64 (IR.ICallStatic dst qname args) = do
 
     let argAtoms = map (\(a, _, _) -> a) argTriples
         argClasses = map (\(_, c, _) -> c) argTriples
-        argRegs = ccArgs cc
         (callName, callSig) = mkStaticCallName64 qname (argClasses ++ [dstCls])
 
-    if length argAtoms > length argRegs
-        then error $ "x64StmtLowing64(ICallStatic): stack args are not supported yet, got " ++ show (length argAtoms) ++ " args"
-        else do
-            argInstrs <- concat <$> mapM (\(reg, (atom, cls)) -> moveArgToReg64 reg atom cls)
-                    (zip argRegs (zip argAtoms argClasses))
+    regPlan <- assignArgRegs64 cc argClasses
+    argInstrs <- concat <$> mapM (\(regSel, (atom, cls)) -> moveArgToReg64 regSel atom cls)
+            (zip regPlan (zip argAtoms argClasses))
 
-            let retInstrs = case dstCls of
-                    AST.Void -> []
-                    AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
-                    AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
-                    cls | isRefClass64 cls -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
-                    cls -> case Map.lookup cls bitsByClass64 of
-                        Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
-                        Nothing -> error $ "x64StmtLowing64(ICallStatic): unsupported return class: " ++ show cls
+    let retInstrs = case dstCls of
+            AST.Void -> []
+            AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
+            AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
+            cls | isRefClass64 cls -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
+            cls -> case Map.lookup cls bitsByClass64 of
+                Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
+                Nothing -> error $ "x64StmtLowing64(ICallStatic): unsupported return class: " ++ show cls
 
-            return $ concat [argInstrs, [X64.Call callName callSig], retInstrs]
+    return $ concat [argInstrs, [X64.Call callName callSig], retInstrs]
 
 x64StmtCode64 (IR.IGetField {}) = error "TODO"
 x64StmtCode64 (IR.IPutField {}) = error "TODO"
@@ -1405,6 +1638,13 @@ alignUp16 n
     | otherwise = (n + 15) `div` 16 * 16
 
 
+-- Win64 caller must reserve 32-byte shadow space before each call.
+minCallFrame64 :: CallConv64 -> Int
+minCallFrame64 cc
+    | isWinArgLayout64 cc = 32
+    | otherwise = 0
+
+
 paramSpillBits64 :: Class -> Maybe X64.Bits
 paramSpillBits64 cls
     | cls == AST.Int64T = Just X64.B64
@@ -1422,27 +1662,33 @@ x64FuncEntry64 (IR.IRFunction _ _ funSig _ _ _) = do
     cc <- getCCM64
     bp <- getBpRegM64
     sp <- getSpRegM64
-    frameBytes <- alignUp16 <$> getMaxOffM64
-    let argRegs = ccArgs cc
-        paramTypes = TEnv.funParams funSig
-        regParams = zip3 [0 ..] argRegs (take (length argRegs) paramTypes)
+    frameBytes0 <- alignUp16 <$> getMaxOffM64
+    let frameBytes = max frameBytes0 (minCallFrame64 cc)
+    let paramTypes = TEnv.funParams funSig
         prologue = [X64.Push X64.B64, X64.Mov (X64.Reg bp X64.B64) (X64.Reg sp X64.B64) X64.B64]
         alloc = ([X64.Sub (X64.Reg sp X64.B64) (X64.Imm frameBytes) X64.B64 | frameBytes > 0])
 
+    regPlan <- assignArgRegs64 cc paramTypes
+    let regParams = zip3 [0 ..] regPlan paramTypes
     spills <- concat <$> mapM spillOne regParams
     return (prologue ++ alloc ++ spills)
     where
-        spillOne :: (Int, Register, Class) -> X64LowerM [X64.Instruction]
-        spillOne (paramIdx, argReg, cls) = do
+        spillOne :: (Int, ArgRegSel64, Class) -> X64LowerM [X64.Instruction]
+        spillOne (paramIdx, regSel, cls) = do
             off <- getAtomOffM64 (IR.Param paramIdx)
             bp <- getBpRegM64
-            case paramSpillBits64 cls of
-                Just bits ->
-                    let dst = X64.Mem (Just bp) Nothing (negate off)
-                        src = X64.Reg argReg bits
-                    in return [X64.Mov dst src bits]
-                Nothing ->
-                    error $ "x64FuncEntry64: unsupported param class for register spill: " ++ show cls
+            let dst = X64.Mem (Just bp) Nothing (negate off)
+            case regSel of
+                ArgRegF fReg -> case cls of
+                    AST.Float32T -> return [X64.Movss dst (X64.Reg fReg X64.NN) X64.B32]
+                    AST.Float64T -> return [X64.Movsd dst (X64.Reg fReg X64.NN) X64.B64]
+                    _ -> error $ "x64FuncEntry64: non-float class spilled from float register: " ++ show cls
+                ArgRegI iReg -> case paramSpillBits64 cls of
+                    Just bits ->
+                        let src = X64.Reg iReg bits
+                        in return [X64.Mov dst src bits]
+                    Nothing ->
+                        error $ "x64FuncEntry64: unsupported param class for register spill: " ++ show cls
 
 
 x64LowingBlocks64 :: [IR.IRBlock] -> X64LowerM ([X64.X64Segment], [ExternRef])
@@ -1559,9 +1805,11 @@ mkStaticInitFlagAtom64 ownerQName = do
 --   mov  DWORD PTR owner..isInit[rip], 1
 x64ClinitEntry64 :: [String] -> Int -> X64LowerM ([X64.Instruction], [ExternRef])
 x64ClinitEntry64 ownerQName retLabel = do
+    cc <- getCCM64
     bp <- getBpRegM64
     sp <- getSpRegM64
-    frameBytes <- alignUp16 <$> getMaxOffM64
+    frameBytes0 <- alignUp16 <$> getMaxOffM64
+    let frameBytes = max frameBytes0 (minCallFrame64 cc)
     flagAtom <- mkStaticInitFlagAtom64 ownerQName
     let prologue = [X64.Push X64.B64, X64.Mov (X64.Reg bp X64.B64) (X64.Reg sp X64.B64) X64.B64]
         alloc = [X64.Sub (X64.Reg sp X64.B64) (X64.Imm frameBytes) X64.B64 | frameBytes > 0]
@@ -1573,13 +1821,14 @@ x64ClinitEntry64 ownerQName retLabel = do
     return (instrs, instrExternRefs64 instrs)
 
 
-lowerFun :: [String] -> IR.IRFunction -> X64LowerM ([X64.X64Segment], [ExternRef])
-lowerFun ownerQName fun = do
+lowerFun :: [String] -> Map FloatImmKey64 String -> IR.IRFunction -> X64LowerM ([X64.X64Segment], [ExternRef])
+lowerFun ownerQName floatConstLblMap fun = do
     cc <- getCCM64
     let baseOff = 0
     let funName = case fun of
             IR.IRFunction _ name _ _ _ _ -> name
         stFun = (mkState64 fun baseOff cc) {
+            stFloatConstLabelMap64 = floatConstLblMap,
             stOwnerQName64 = ownerQName,
             stCurFunName64 = Just funName,
             stInClinit64 = False
@@ -1617,9 +1866,12 @@ x64LowingClinit ownerQName (IR.StaticInit (blocks, retBid)) = do
 x64LowingClass :: [String] -> IR.IRClass -> X64LowerM (X64.X64Class, [ExternRef])
 x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes funs mainKind) = do
     cc <- getCCM64
+    seqStart <- gets stFloatConstSeq64
     let baseOff = 0
         ownerQName = pkgSegs ++ [className]
+        (floatConstLblMap, floatConstData, seqNext) = collectClassFloatConsts64 cc seqStart (IR.IRClass decl className attrs sInit staticAtomTypes funs mainKind)
         stClinit = (mkClinitState64 sInit staticAtomTypes baseOff cc) {
+            stFloatConstLabelMap64 = floatConstLblMap,
             stOwnerQName64 = ownerQName,
             stCurFunName64 = Just staticInitName,
             stInClinit64 = True
@@ -1629,11 +1881,12 @@ x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes fu
         parentsText = classParentsCsv64 parentTypes
         parentsDataLabel = mangleQName64 False ownerQName ++ "_parrentsData"
         parentsData = X64.StaticData parentsDataLabel (stringBytesData64 cc parentsText)
-        staticData = parentsData : staticLowing64 ownerQName attrs
+        staticData = parentsData : (staticLowing64 ownerQName attrs ++ floatConstData)
         classModSeg = X64.X64ClassModifiers ownerQName (classMetaMask64 decl mainKind)
         classParentsSeg = X64.X64ClassParents ownerQName parentsDataLabel (length parentsText)
+    modify' (\s -> s { stFloatConstSeq64 = seqNext })
     (clinitSegs, clinitRefs) <- withLowerState64 stClinit (x64LowingClinit ownerQName sInit)
-    funOuts <- mapM (lowerFun ownerQName) funs
+    funOuts <- mapM (lowerFun ownerQName floatConstLblMap) funs
     let funSegs = concatMap fst funOuts
         funRefs = foldl' (\acc (_, rs) -> rs ++ acc) [] funOuts
     return ((staticData, classModSeg : classParentsSeg : clinitSegs ++ funSegs), funRefs ++ clinitRefs)

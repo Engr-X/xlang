@@ -360,6 +360,7 @@ tests = testGroup "Parse.ParseExpr" [
     ternaryParseTests,
     incDecParseTests,
     andOrParseTests,
+    iffParseTests,
     genericCallSyntaxTests
     ]
 
@@ -446,6 +447,34 @@ andOrParseTests = testGroup "Parse.ParseExpr.andOr" [
     testCase "left associativity for or" $
         case replLexparseExpr "a or b or c" of
             Right (Binary BitOr (Binary BitOr (Variable "a" _) (Variable "b" _) _) (Variable "c" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+
+
+iffParseTests :: TestTree
+iffParseTests = testGroup "Parse.ParseExpr.iff" [
+    testCase "<-> desugars to (a -> b) && (b -> a)" $
+        case replLexparseExpr "a <-> b" of
+            Right (Binary LogicalAnd
+                (Binary LogicalImply (Variable "a" _) (Variable "b" _) _)
+                (Binary LogicalImply (Variable "b" _) (Variable "a" _) _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "<-> is lower precedence than ->" $
+        case replLexparseExpr "a -> b <-> c" of
+            Right (Binary LogicalAnd
+                (Binary LogicalImply (Binary LogicalImply (Variable "a" _) (Variable "b" _) _) (Variable "c" _) _)
+                (Binary LogicalImply (Variable "c" _) (Binary LogicalImply (Variable "a" _) (Variable "b" _) _) _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "<-> is lower precedence than ||" $
+        case replLexparseExpr "a || b <-> c" of
+            Right (Binary LogicalAnd
+                (Binary LogicalImply (Binary LogicalOr (Variable "a" _) (Variable "b" _) _) (Variable "c" _) _)
+                (Binary LogicalImply (Variable "c" _) (Binary LogicalOr (Variable "a" _) (Variable "b" _) _) _)
+                _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 

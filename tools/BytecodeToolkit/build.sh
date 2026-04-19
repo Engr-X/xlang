@@ -18,8 +18,8 @@ EXE="xlang"
 BYTECODEGEN_DIR="$ROOT_DIR/tools/BytecodeGenerator"
 TOOLS_OUT_DIR="$BUILD_DIR_ABS/tools"
 
-JAVA_LIB_DIR="$ROOT_DIR/libs/java"
-JAVA_LIB_OUT_DIR="$BUILD_DIR_ABS/libs/java"
+JAVA_LIB_DIR="$ROOT_DIR/libs/std/java"
+JAVA_LIB_OUT_DIR="$BUILD_DIR_ABS/std/java"
 
 # keep Gradle caches local
 GRADLE_USER_HOME="$BUILD_DIR_ABS/.gradle-home"

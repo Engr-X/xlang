@@ -12,11 +12,12 @@ This repository has three main parts:
 
 - `compiler/`: Haskell compiler frontend + semantic checks + IR + JVM lowering + CLI (`xlang`)
 - `tools/BytecodeToolkit/`: Kotlin bytecode emitter/reader
-- `libs/java/`: xlang standard/runtime libraries
+- `libs/std/java/`: xlang standard/runtime libraries
 
 ### Current Status
 
 - JVM target supported
+- x64 target supported (native pipeline, NASM/LD toolchain flow is under active iteration)
 - Import system updated:
   - `import` must end with a class name, or `*`
   - `import java.lang.Math` is valid
@@ -31,8 +32,8 @@ This repository has three main parts:
 
 #### Windows
 
-```bat
-build.bat all -j8
+```bash
+make all -j8
 ```
 
 #### Linux/macOS
@@ -40,6 +41,49 @@ build.bat all -j8
 ```bash
 make all -j8
 ```
+
+### Configure + Out-of-Tree Build
+
+```bash
+mkdir -p build
+cd build
+../configure
+make -j24
+```
+
+Windows (optional syslib staging for native link):
+
+```bash
+mkdir -p build
+cd build
+../configure --gcc-lib=D:/path/to/mingw/x86_64-w64-mingw32/lib
+make -j24
+```
+
+### Build Outputs (Current Makefile)
+
+- `build/xlang`: compiler executable (`xlang` / `xlang.exe`)
+- `build/tools/*.jar`: BytecodeToolkit jars
+- `build/libs/java/*`: Java std artifacts (`xlang-stdlib.jar`, `jdk<version>-stdlib.db`)
+- `build/runtime/java/*`: Java runtime jars (`kotlin-stdlib-2.2.21.jar`, `annotations-13.0.jar`)
+- `build/libs/native/*`: native static libs (`libxlang-base.a`, `libxlang-std.a`)
+- `build/runtime/native/*`: native shared libs (`libxlang-base.*`, `libxlang-std.*`)
+- `build/native/*.a`: staged system libs (Windows when `--gcc-lib` is set)
+
+### Native Std (Standalone)
+
+Build directly in `libs/std/native`:
+
+```bash
+cd libs/std/native/build
+../configure
+make -j24
+```
+
+This builds both:
+
+- `libxlang-base` (C-side base library)
+- `libxlang-std` (xlang std native objects packed as libs)
 
 ### Quick Start
 
@@ -56,6 +100,12 @@ Compatibility target form also works:
 xlang --target=jvm25 examples/Example1.x -d examples/Example1.jar --include-runtime
 ```
 
+Native x64 example:
+
+```bash
+xlang --target=x64 examples/Example1.x -d examples/Example1.exe
+```
+
 ### CLI
 
 ```text
@@ -67,6 +117,7 @@ Common options:
 
 - `--target-jvm<n>`: target JVM version (`8`, `11`, `17`, `21`, `25`)
 - `--target=jvm<n>`: compatibility alias
+- `--target=x64`: native x64 backend
 - `-d <dir|jar>`: output directory or JAR path
 - `--include-runtime`: merge runtime jars into output JAR (requires `-d *.jar`)
 - `-lib <files...>`: extra `.jar`, `.class`, `.json`
@@ -101,9 +152,9 @@ Common options:
 .
 |- compiler/
 |- tools/BytecodeToolkit/
-|- libs/java/
+|- libs/std/java/
+|- libs/std/native/
 |- examples/
-|- build.bat
 |- Makefile
 ```
 
@@ -123,7 +174,7 @@ See [LICENSE](LICENSE).
 
 - `compiler/`：Haskell 编译器前端、语义检查、IR、JVM lowering、命令行工具 `xlang`
 - `tools/BytecodeToolkit/`：Kotlin 字节码生成/读取工具
-- `libs/java/`：xlang 标准库与运行时库
+- `libs/std/java/`：xlang 标准库与运行时库
 
 ### 当前状态
 
@@ -142,8 +193,8 @@ See [LICENSE](LICENSE).
 
 #### Windows
 
-```bat
-build.bat all -j8
+```bash
+make all -j8
 ```
 
 #### Linux/macOS
@@ -212,9 +263,8 @@ xlang --target-jvm<n> <files...> [-lib <libs...>] [--root <dir>] [-d <dir|jar>]
 .
 |- compiler/
 |- tools/BytecodeToolkit/
-|- libs/java/
+|- libs/std/java/
 |- examples/
-|- build.bat
 |- Makefile
 ```
 

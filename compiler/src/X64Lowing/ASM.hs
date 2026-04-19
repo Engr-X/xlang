@@ -1,7 +1,7 @@
 module X64Lowing.ASM where
 
 import Data.HashSet (HashSet)
-import Data.List (intercalate)
+import Data.List (intercalate, partition)
 import Parse.SyntaxTree (Class)
 import Util.Basic (insertTab, mangleName)
 
@@ -60,6 +60,25 @@ data CallConv64 = CallConv64 {
     ccDivQ :: Register,   -- quotient result register
     ccDivR :: Register    -- remainder result register
 } deriving (Eq, Show)
+
+
+rawQNameTag64 :: String
+rawQNameTag64 = "@raw"
+
+
+mkRawQName64 :: String -> [String]
+mkRawQName64 sym = [rawQNameTag64, sym]
+
+
+isRawQName64 :: [String] -> Bool
+isRawQName64 (tag : _) = tag == rawQNameTag64
+isRawQName64 _ = False
+
+
+rawQNameSymbol64 :: [String] -> String
+rawQNameSymbol64 qn = case qn of
+    (_ : sym : _) -> sym
+    _ -> error "rawQNameSymbol64: invalid raw qname encoding"
 
 
 mkCC64 :: Compiler -> Register -> Register -> [Register] -> CallConv64
@@ -599,12 +618,12 @@ prettyInstrIntel _cc tab (Mulpd target src bits) = concat [insertTab tab, "mulpd
 prettyInstrIntel _cc tab (IMul target src bits) = concat [insertTab tab, "imul ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
 prettyInstrIntel _cc tab Cdq = insertTab tab ++ "cdq"
 prettyInstrIntel _cc tab Cqo = insertTab tab ++ "cqo"
-prettyInstrIntel _cc tab (Div target src bits) = concat [insertTab tab, "div ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
+prettyInstrIntel _cc tab (Div _ divisor bits) = concat [insertTab tab, "div ", prettyAtomIntel _cc bits divisor]
 prettyInstrIntel _cc tab (Divss target src bits) = concat [insertTab tab, "divss ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
 prettyInstrIntel _cc tab (Divsd target src bits) = concat [insertTab tab, "divsd ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
 prettyInstrIntel _cc tab (Divps target src bits) = concat [insertTab tab, "divps ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
 prettyInstrIntel _cc tab (Divpd target src bits) = concat [insertTab tab, "divpd ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
-prettyInstrIntel _cc tab (IDiv target src bits) = concat [insertTab tab, "idiv ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
+prettyInstrIntel _cc tab (IDiv _ divisor bits) = concat [insertTab tab, "idiv ", prettyAtomIntel _cc bits divisor]
 prettyInstrIntel _cc tab (And target src bits) = concat [insertTab tab, "and ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
 prettyInstrIntel _cc tab (Or target src bits) = concat [insertTab tab, "or ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
 prettyInstrIntel _cc tab (Xorps target src bits) = concat [insertTab tab, "xorps ", prettyAtomIntel _cc bits target, ", ", prettyAtomIntel _cc bits src]
@@ -655,6 +674,7 @@ prettyJumpTarget _cc target = case target of
 
 
 mangleQNameWithSig :: Bool -> [String] -> [Class] -> String
+mangleQNameWithSig _ qn _ | isRawQName64 qn = rawQNameSymbol64 qn
 mangleQNameWithSig isFunction qn sigTs = case qn of
     [] -> error "mangleQName: empty qname"
     [name] -> mangleName [] [dropSig name] sigTs isFunction
@@ -813,7 +833,15 @@ prettyX64ProgmIntel cc (X64Progm decls staticData segs) = concat [
         declPart :: String
         declPart = case decls of
             [] -> ""
-            _ -> concatMap (prettyDeclIntel cc) decls ++ "\n\n"
+            _ ->
+                let (externDecls, otherDecls) = partition isExternDecl decls
+                    externPart = concatMap (prettyDeclIntel cc) externDecls
+                    otherPart = concatMap (prettyDeclIntel cc) otherDecls
+                in case (null externDecls, null otherDecls) of
+                    (False, False) -> externPart ++ "\n" ++ otherPart ++ "\n\n"
+                    (False, True) -> externPart ++ "\n\n"
+                    (True, False) -> otherPart ++ "\n\n"
+                    (True, True) -> ""
 
         prettyData :: [StaticData] -> String
         prettyData [] = ""
@@ -822,6 +850,11 @@ prettyX64ProgmIntel cc (X64Progm decls staticData segs) = concat [
         prettyText :: [X64Segment] -> String
         prettyText [] = ""
         prettyText ss = emitSection cc ".text" (prettySegmentsIntel cc ss)
+
+
+isExternDecl :: X64Decl -> Bool
+isExternDecl (Extern _ _) = True
+isExternDecl _ = False
 
 
 syntaxPreamble :: CallConv64 -> String

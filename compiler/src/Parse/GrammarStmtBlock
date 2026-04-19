@@ -211,6 +211,16 @@ FunctionBlock :: { Block }
     | '=' Expr Sep                  { Multiple [Command (Return (Just $2)) $1] }
     ;
 
+NativeSpecifier :: { ([Token], String) }
+    : '@' KW_NATIVE '(' string ')'  { ([$1, $2, $3, $4, $5], strVal $4) }
+    ;
+
+CFunctionBlock :: { String }
+    : '{' nativebody '}'            { nativeBodyVal $2 }
+    | '{' nativebody Sep '}'        { nativeBodyVal $2 }
+    | '=' Expr Sep                  { "return (" ++ prettyExpr 0 (Just $2) ++ ")" }
+    ;
+
 
 AccessOpt :: { [Token] }
     : KW_PRIVATE                    { [$1] }
@@ -238,6 +248,29 @@ FunModifierSeq :: { [Token] }
 FunModifierSeqOpt :: { [Token] }
     : {- empty -}                   { [] }
     | FunModifierSeq                { $1 }
+    ;
+
+NativeFunModifier :: { Token }
+    : KW_PRIVATE                    { $1 }
+    | KW_PROTECTED                  { $1 }
+    | KW_PUBLIC                     { $1 }
+    | KW_INLINE                     { $1 }
+    | KW_NATIVE                     { $1 }
+    ;
+
+NativeFunModifierSeq :: { [Token] }
+    : NativeFunModifier                     { [$1] }
+    | NativeFunModifierSeq NativeFunModifier { $1 ++ [$2] }
+    ;
+
+NativeFunModifierSeqOpt :: { [Token] }
+    : {- empty -}                   { [] }
+    | NativeFunModifierSeq          { $1 }
+    ;
+
+NativeSepOpt :: { () }
+    : {- empty -}                   { () }
+    | NativeSepOpt Sep              { () }
     ;
 
 VarKind :: { (Bool, Token) }
@@ -300,7 +333,13 @@ CDeclItems :: { [([String], Maybe Expression, [Token])] }
 
 
 FunctionStmt :: { Statement }
-    : FunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
+    : NativeSpecifier NativeSepOpt NativeFunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz Sep
+        { NativeMethod (fst $8, fst $1 ++ $3 ++ snd $8) (qnameToExpr $5) $6 (snd $1) }
+
+    | NativeSpecifier NativeSepOpt NativeFunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz CFunctionBlock
+        { NativeMethod (fst $8, fst $1 ++ $3 ++ snd $8) (qnameToExpr $5) $6 (snd $1) }
+
+    | FunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
         { InstanceMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 $7 }
 
     | FunModifierSeqOpt KW_FUNC QName DeclGenericParamList FunctionParams '->' Clazz FunctionBlock

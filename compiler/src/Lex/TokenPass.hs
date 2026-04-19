@@ -21,7 +21,7 @@ banPrevSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalAnd, Lex.LogicalNot, Lex.LogicalNand, Lex.LogicalNor, Lex.NotArrow, Lex.Arrow,
+    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalAnd, Lex.LogicalNot, Lex.LogicalNand, Lex.LogicalNor, Lex.NotArrow, Lex.Arrow, Lex.IffArrow,
 
     Lex.Plus, Lex.Minus, Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
@@ -29,7 +29,7 @@ banPrevSet = HashSet.fromList [
 
     Lex.LParen, Lex.LBracket, Lex.LBrace,
 
-    Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.FatArrow,
+    Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.IffArrow, Lex.FatArrow,
     Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot]
 
 
@@ -41,13 +41,13 @@ banNextSet = HashSet.fromList [
 
     Lex.Equal, Lex.NotEqual, Lex.GreaterThan, Lex.LessThan, Lex.GreaterEqual, Lex.LessEqual,
 
-    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalAnd, Lex.LogicalNand, Lex.LogicalNor, Lex.NotArrow, Lex.Arrow,
+    Lex.BitRShift, Lex.BitLShift, Lex.LogicalOr, Lex.LogicalAnd, Lex.LogicalNand, Lex.LogicalNor, Lex.NotArrow, Lex.Arrow, Lex.IffArrow,
 
     Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
     Lex.LParen, Lex.LBracket, Lex.RBrace,
 
-    Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.FatArrow,
+    Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.IffArrow, Lex.FatArrow,
     Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot]
 
 

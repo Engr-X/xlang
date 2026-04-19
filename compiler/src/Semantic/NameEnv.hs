@@ -179,6 +179,7 @@ defineFunc p stmt st = case functionNameExpr stmt of
 functionNameExpr :: Statement -> Maybe Expression
 functionNameExpr (AST.Function _ nameExpr _ _) = Just nameExpr
 functionNameExpr (AST.FunctionT _ nameExpr _ _ _) = Just nameExpr
+functionNameExpr (AST.NativeMethod _ nameExpr _ _) = Just nameExpr
 functionNameExpr _ = Nothing
 
 

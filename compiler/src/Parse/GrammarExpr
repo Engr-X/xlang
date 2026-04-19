@@ -181,6 +181,8 @@ Expr :: { Expression }
     | Expr '->' error                           { Error [$2] (expectedExpression 1 "->") }
     | Expr '!->' Expr                           { Binary LogicalNimply $1 $3 $2 }
     | Expr '!->' error                          { Error [$2] (expectedExpression 1 "!->") }
+    | Expr '<->' Expr                           { Binary LogicalAnd (Binary LogicalImply $1 $3 $2) (Binary LogicalImply $3 $1 $2) $2 }
+    | Expr '<->' error                          { Error [$2] (expectedExpression 1 "<->") }
 
     -- helper precedence for ternary "if ... else ..."
     | Expr KW_IF Expr KW_ELSE Expr %prec KW_IF  { Ternary $3 ($1, $5) [$2, $4] }

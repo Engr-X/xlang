@@ -85,6 +85,9 @@ makeTest i input expect = let name' = show i in testCase name' $ replTokenize in
 makeId :: String -> Int -> Int -> Int -> Token
 makeId s a b c = Ident s $ makePosition a b c
 
+makeAnnotation :: String -> [Token] -> Int -> Int -> Int -> Token
+makeAnnotation annName args a b c = Annotation annName args $ makePosition a b c
+
 makeSymbol :: Symbol -> Int -> Int -> Int -> Token
 makeSymbol s a b c = Symbol s $ makePosition a b c
 
@@ -96,6 +99,9 @@ makeChar c a b c' = CharConst c $ makePosition a b c'
 
 makeStr :: String -> Int -> Int -> Int -> Token
 makeStr str a b c = StrConst str $ makePosition a b c
+
+makeNative :: String -> Int -> Int -> Int -> Token
+makeNative body a b c = NativeBody body $ makePosition a b c
 
 makeLexErr :: String -> Int -> Int -> Int -> ErrorKind
 makeLexErr why a b c = UE.Lexer $ UE.makeError path [makePosition a b c] why
@@ -307,7 +313,22 @@ c = '\t
         [makeId "a" 1 1 1, makeSymbol Assign 1 3 1,
          makeId "b" 2 1 1, makeSymbol Assign 2 3 1, makeChar '\0' 2 5 4,
          makeId "c" 3 1 1, makeSymbol Assign 3 3 1,
-         makeEOF 5 1 0]))]
+         makeEOF 5 1 0])),
+
+
+{-
+@native("C") fun f(){return a & b;}
+-}
+    ("@native(\"C\") fun f(){return a & b;}", ([], [
+        makeAnnotation "native" [makeStr "C" 1 9 3] 1 1 1,
+        makeId "fun" 1 14 3,
+        makeId "f" 1 18 1,
+        makeSymbol LParen 1 19 1,
+        makeSymbol RParen 1 20 1,
+        makeSymbol LBrace 1 21 1,
+        makeNative "return a & b;" 1 22 0,
+        makeSymbol RBrace 1 35 1,
+        makeEOF 1 36 0]))]
 
 
 tokenizeTests :: TestTree

@@ -72,9 +72,9 @@ ambiguousCallMsg = "ambiguous call"
 multiplePackageMsg :: String
 multiplePackageMsg = "multiple package declarations" 
 
--- | Error message for multiple javaname declarations
+-- | Error message for multiple classname declarations
 multipleJavaNameMsg :: String
-multipleJavaNameMsg = "multiple javaname declarations"
+multipleJavaNameMsg = "multiple classname declarations"
 
 -- | Error message for invalid package declaration/path relation.
 invalidPackageNameMsg :: String -> String
@@ -223,6 +223,11 @@ nestedFunctionModifierMsg = "nested function cannot declare public/private/prote
 -- | Inner (nested) functions cannot be named `main`.
 nestedMainFunctionMsg :: String
 nestedMainFunctionMsg = "nested function cannot be named 'main'"
+
+-- | `native("C")` function must be top-level wrapped or class static member.
+nativeCFunctionScopeMsg :: String
+nativeCFunctionScopeMsg =
+    "native(\"C\") function can only be declared at top level (wrapped) or as a class static function"
 
 -- | Illegal statement means that this one cannot 
 illegalStatementMsg :: String -> String -> String

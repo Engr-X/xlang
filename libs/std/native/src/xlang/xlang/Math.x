@@ -1,8 +1,5 @@
-@JvmClass("Math")
-package xlang.math
-
-import java.lang.Math
-import java.lang.StrictMath
+@class("Math")
+package xlang
 
 
 /**
@@ -141,7 +138,7 @@ private val RADIANS_TO_DEGREES: double = 57.29577951308232
  * @return {@code x + 1} when no overflow occurs
  * @since beta-1.0.0
  */
-fun succ(x: int) -> int = Math.addExact(x, 1)
+// fun succ(x: int) -> int = Math.addExact(x, 1)
 
 
 /**
@@ -153,7 +150,7 @@ fun succ(x: int) -> int = Math.addExact(x, 1)
  * @return {@code x + 1} when no overflow occurs
  * @since beta-1.0.0
  */
-fun succ(x: long) -> long = Math.addExact(x, 1L)
+// fun succ(x: long) -> long = Math.addExact(x, 1L)
 
 
 /**
@@ -165,7 +162,7 @@ fun succ(x: long) -> long = Math.addExact(x, 1L)
  * @return {@code x - 1} when no overflow occurs
  * @since beta-1.0.0
  */
-fun pred(x: int) -> int = Math.subtractExact(x, 1)
+// fun pred(x: int) -> int = Math.subtractExact(x, 1)
 
 
 /**
@@ -177,7 +174,7 @@ fun pred(x: int) -> int = Math.subtractExact(x, 1)
  * @return {@code x - 1} when no overflow occurs
  * @since beta-1.0.0
  */
-fun pred(x: long) -> long = Math.subtractExact(x, 1L)
+// fun pred(x: long) -> long = Math.subtractExact(x, 1L)
 
 
 /**
@@ -199,7 +196,8 @@ fun pred(x: long) -> long = Math.subtractExact(x, 1L)
  * @return the sine of {@code x}
  * @since beta-1.0.0
  */
-fun sin(x: double) -> double = StrictMath.sin(x)
+@native("sin")
+native inline fun sin(x: double) -> double
 
 
 /**
@@ -221,7 +219,8 @@ fun sin(x: double) -> double = StrictMath.sin(x)
  * @return the cosine of {@code x}
  * @since beta-1.0.0
  */
-fun cos(x: double) -> double = StrictMath.cos(x)
+@native("cos")
+native inline fun cos(x: double) -> double
 
 
 /**
@@ -242,7 +241,8 @@ fun cos(x: double) -> double = StrictMath.cos(x)
  * @return the tangent of {@code x}
  * @since beta-1.0.0
  */
-fun tan(x: double) -> double = StrictMath.tan(x)
+@native("tan") 
+native inline fun tan(x: double) -> double
 
 
 /**
@@ -260,7 +260,7 @@ fun tan(x: double) -> double = StrictMath.tan(x)
  * @return the secant of {@code x}
  * @since beta-1.0.0
  */
-fun sec(x: double) -> double = 1.0 / StrictMath.cos(x)
+inline fun sec(x: double) -> double = 1.0 / cos(x)
 
 
 /**
@@ -278,7 +278,7 @@ fun sec(x: double) -> double = 1.0 / StrictMath.cos(x)
  * @return the cosecant of {@code x}
  * @since beta-1.0.0
  */
-fun csc(x: double) -> double = 1.0 / StrictMath.sin(x)
+inline fun csc(x: double) -> double = 1.0 / sin(x)
 
 
 /**
@@ -296,7 +296,7 @@ fun csc(x: double) -> double = 1.0 / StrictMath.sin(x)
  * @return the cotangent of {@code x}
  * @since beta-1.0.0
  */
-fun cot(x: double) -> double = 1.0 / StrictMath.tan(x)
+inline fun cot(x: double) -> double = 1.0 / tan(x)
 
 
 /**
@@ -317,7 +317,8 @@ fun cot(x: double) -> double = 1.0 / StrictMath.tan(x)
  * @return angle y such that {@code sin(y) = x}, within {@code [-PI/2, PI/2]}
  * @since beta-1.0.0
 */
-fun asin(x: double) -> double = StrictMath.asin(x)
+@native("asin")
+native inline fun asin(x: double) -> double = asin(x)
 
 
 /**
@@ -337,7 +338,8 @@ fun asin(x: double) -> double = StrictMath.asin(x)
  * @return angle y such that {@code cos(y) = x}, within {@code [0, PI]}
  * @since beta-1.0.0
  */
-fun acos(x: double) -> double = StrictMath.acos(x)
+@native("acos")
+native inline fun acos(x: double) -> double = acos(x)
 
 
 /**
@@ -358,7 +360,8 @@ fun acos(x: double) -> double = StrictMath.acos(x)
  * @return angle y such that {@code tan(y) = x}, within {@code [-PI/2, PI/2]}
  * @since beta-1.0.0
  */
-fun atan(x: double) -> double = StrictMath.atan(x)
+@native("atan")
+native inline fun atan(x: double) -> double
 
 
 /**
@@ -377,7 +380,7 @@ fun atan(x: double) -> double = StrictMath.atan(x)
  * @return arcsecant of {@code x}, computed as {@code acos(1 / x)}
  * @since beta-1.0.0
  */
-fun asec(x: double) -> double = StrictMath.acos(1.0 / x)
+inline fun asec(x: double) -> double = acos(1.0 / x)
 
 
 /**
@@ -396,7 +399,7 @@ fun asec(x: double) -> double = StrictMath.acos(1.0 / x)
  * @return arccosecant of {@code x}, computed as {@code asin(1 / x)}
  * @since beta-1.0.0
  */
-fun acsc(x: double) -> double = StrictMath.asin(1.0 / x)
+inline fun acsc(x: double) -> double = asin(1.0 / x)
 
 
 /**
@@ -416,7 +419,7 @@ fun acsc(x: double) -> double = StrictMath.asin(1.0 / x)
  * @return arccotangent of {@code x}, computed as {@code atan(1 / x)}
  * @since beta-1.0.0
  */
-fun acot(x: double) -> double = StrictMath.atan(1.0 / x)
+inline fun acot(x: double) -> double = atan(1.0 / x)
 
 
 /**
@@ -428,7 +431,7 @@ fun acot(x: double) -> double = StrictMath.atan(1.0 / x)
  * @return the equivalent angle in radians
  * @since beta-1.0.0
  */
-fun toRadians(angdeg: double) -> double = angdeg * DEGREES_TO_RADIANS;
+inline fun toRadians(angdeg: double) -> double = angdeg * DEGREES_TO_RADIANS;
 
 
 /**
@@ -440,7 +443,7 @@ fun toRadians(angdeg: double) -> double = angdeg * DEGREES_TO_RADIANS;
  * @return the equivalent angle in degrees
  * @since beta-1.0.0
  */
-fun toDegrees(angrad: double) -> double = angrad * RADIANS_TO_DEGREES;
+inline fun toDegrees(angrad: double) -> double = angrad * RADIANS_TO_DEGREES;
 
 
 /**
@@ -452,7 +455,8 @@ fun toDegrees(angrad: double) -> double = angrad * RADIANS_TO_DEGREES;
  * @return {@code e^x}
  * @since beta-1.0.0
  */
-fun exp(x: double) -> double = StrictMath.exp(x)
+@native("exp")
+native inline fun exp(x: double) -> double
 
 
 /**
@@ -464,7 +468,21 @@ fun exp(x: double) -> double = StrictMath.exp(x)
  * @return {@code ln(x)}
  * @since beta-1.0.0
  */
-fun ln(x: double) -> double = StrictMath.log(x)
+@native("log")
+native inline fun ln(x: double) -> double
+
+
+/**
+ * Returns the logarithm of a value in the specified base.
+ *
+ * <p>This is computed as {@code ln(x) / ln(base)} using natural logarithms.
+ *
+ * @param base the logarithmic base
+ * @param x input value
+ * @return {@code log_base(x)}
+ * @since beta-1.0.0
+ */
+inline fun log(base: double, x: double) -> double = ln(x) / ln(base)
 
 
 /**
@@ -476,7 +494,7 @@ fun ln(x: double) -> double = StrictMath.log(x)
  * @return {@code log2(x)}
  * @since beta-1.0.0
  */
-fun log2(x: double) -> double = StrictMath.log(x) / StrictMath.log(2.0);
+fun log2(x: double) -> double = ln(x) / LN2;
 
 
 /**
@@ -488,7 +506,8 @@ fun log2(x: double) -> double = StrictMath.log(x) / StrictMath.log(2.0);
  * @return {@code log10(x)}
  * @since beta-1.0.0
  */
-fun log10(x: double) -> double = StrictMath.log10(x)
+@native("log10")
+native inline fun log10(x: double) -> double
 
 
 /**
@@ -500,7 +519,8 @@ fun log10(x: double) -> double = StrictMath.log10(x)
  * @return {@code sqrt(x)}
  * @since beta-1.0.0
  */
-fun sqrt(x: double) -> double = StrictMath.sqrt(x)
+@native("sqrt")
+native inline fun sqrt(x: double) -> double
 
 
 /**
@@ -512,7 +532,8 @@ fun sqrt(x: double) -> double = StrictMath.sqrt(x)
  * @return {@code cbrt(x)}
  * @since beta-1.0.0
  */
-fun cbrt(x: double) -> double = StrictMath.cbrt(x)
+@native("cbrt")
+native inline fun cbrt(x: double) -> double
 
 
 /**
@@ -534,7 +555,7 @@ fun isPrime(x: int) -> bool
         return true
     else
     {
-        val half: int = StrictMath.sqrt(x as double) as int
+        val half: int = sqrt(x as double) as int
 
         for (var i: int = 2; i <= half; i++)
         {
@@ -566,7 +587,7 @@ fun isPrime(x: long) -> bool
         return true
     else
     {
-        val half: long = StrictMath.sqrt(x as double) as long
+        val half: long = sqrt(x as double) as long
 
         for (var i: long = 2L; i <= half; i++)
         {
@@ -588,7 +609,7 @@ fun isPrime(x: long) -> bool
  * @return true if x is even; otherwise false.
  * @since beta-1.0.0
  */
-fun isEven(x: int) -> bool = (x and 1) == 0
+inline fun isEven(x: int) -> bool = (x and 1) == 0
 
 
 /**
@@ -600,7 +621,7 @@ fun isEven(x: int) -> bool = (x and 1) == 0
  * @return true if x is even; otherwise false.
  * @since beta-1.0.0
  */
-fun isEven(x: long) -> bool = (x and 1L) == 0L
+inline fun isEven(x: long) -> bool = (x and 1L) == 0L
 
 
 /**
@@ -612,7 +633,7 @@ fun isEven(x: long) -> bool = (x and 1L) == 0L
  * @return true if x is odd; otherwise false.
  * @since beta-1.0.0
  */
-fun isOdd(x: int) -> bool = (x and 1) == 1
+inline fun isOdd(x: int) -> bool = (x and 1) == 1
 
 
 /**
@@ -624,4 +645,4 @@ fun isOdd(x: int) -> bool = (x and 1) == 1
  * @return true if x is odd; otherwise false.
  * @since beta-1.0.0
  */
-fun isOdd(x: long) -> bool = (x and 1L) == 1L
+inline fun isOdd(x: long) -> bool = (x and 1L) == 1L

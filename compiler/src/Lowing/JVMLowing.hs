@@ -85,31 +85,31 @@ ensureJvmAtom atom = case atom of
     _ -> ()
 
 ensureJvmInstr :: IR.IRInstr -> ()
-ensureJvmInstr instr = case instr of
-    IR.Jump _ -> ()
-    IR.Ifeq a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.Ifne a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.Iflt a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.Ifle a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.Ifgt a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.Ifge a b _ -> ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.SetRet atom -> ensureJvmAtom atom
-    IR.Return -> ()
-    IR.VReturn -> ()
-    IR.IAssign dst src -> ensureJvmAtom dst `seq` ensureJvmAtom src
-    IR.IUnary dst _ src -> ensureJvmAtom dst `seq` ensureJvmAtom src
-    IR.IBinary dst _ a b -> ensureJvmAtom dst `seq` ensureJvmAtom a `seq` ensureJvmAtom b
-    IR.ICast dst (fromC, toC) atom ->
-        ensureJvmAtom dst
-            `seq` ensureJvmClass "cast-from type" fromC
-            `seq` ensureJvmClass "cast-to type" toC
-            `seq` ensureJvmAtom atom
-    IR.ICall dst _ args -> ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
-    IR.ICallStatic dst _ args -> ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
-    IR.IGetField dst obj _ -> ensureJvmAtom dst `seq` ensureJvmAtom obj
-    IR.IPutField obj _ v -> ensureJvmAtom obj `seq` ensureJvmAtom v
-    IR.IGetStatic dst _ -> ensureJvmAtom dst
-    IR.IPutStatic _ v -> ensureJvmAtom v
+ensureJvmInstr (IR.Jump _) = ()
+ensureJvmInstr (IR.Ifeq a b _) = ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.Ifne a b _) = ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.Iflt a b _) = ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.Ifle a b _) = ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.Ifgt a b _) = ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.Ifge a b _) = ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.SetRet atom) = ensureJvmAtom atom
+ensureJvmInstr IR.Return = ()
+ensureJvmInstr IR.VReturn = ()
+ensureJvmInstr (IR.IAssign dst src) = ensureJvmAtom dst `seq` ensureJvmAtom src
+ensureJvmInstr (IR.IUnary dst _ src) = ensureJvmAtom dst `seq` ensureJvmAtom src
+ensureJvmInstr (IR.IBinary dst _ a b) = ensureJvmAtom dst `seq` ensureJvmAtom a `seq` ensureJvmAtom b
+ensureJvmInstr (IR.ICast dst (fromC, toC) atom) =
+    ensureJvmAtom dst
+        `seq` ensureJvmClass "cast-from type" fromC
+        `seq` ensureJvmClass "cast-to type" toC
+        `seq` ensureJvmAtom atom
+ensureJvmInstr (IR.ICallStaticDirect dst _ args) = ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
+ensureJvmInstr (IR.ICallStatic dst _ args) = ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
+ensureJvmInstr (IR.ICallVirtual dst _ args) = ensureJvmAtom dst `seq` ensureAll args ensureJvmAtom
+ensureJvmInstr (IR.IGetField dst obj _) = ensureJvmAtom dst `seq` ensureJvmAtom obj
+ensureJvmInstr (IR.IPutField obj _ v) = ensureJvmAtom obj `seq` ensureJvmAtom v
+ensureJvmInstr (IR.IGetStatic dst _) = ensureJvmAtom dst
+ensureJvmInstr (IR.IPutStatic _ v) = ensureJvmAtom v
 
 ensureJvmBlock :: IR.IRBlock -> ()
 ensureJvmBlock (IR.IRBlock (_, instrs)) = ensureAll instrs ensureJvmInstr
@@ -257,7 +257,8 @@ lowerInstr (IR.ICast dst (fromC, toC) atom) = do
     if isNoOpCast fromC toC
         then return (atomOps ++ dstOps)
         else return (atomOps ++ [JVM.Cast fromC toC] ++ dstOps)
-lowerInstr (IR.ICall {}) = error "ICall is not supported; use ICallStatic"
+lowerInstr (IR.ICallStaticDirect _ _ _) =
+    error "ICallStaticDirect is not supported in JVM lowering"
 lowerInstr (IR.ICallStatic dst qname args) = do
     argOps <- loadArgs args
     sig <- callSig dst args
@@ -267,6 +268,7 @@ lowerInstr (IR.ICallStatic dst qname args) = do
         _ -> do
             dstOps <- storeAtom dst
             return (argOps ++ [JVM.InvokeStatic qname sig] ++ dstOps)
+lowerInstr (IR.ICallVirtual {}) = error "ICallVirtual is not supported yet"
 lowerInstr (IR.IGetStatic dst qname) = do
     cls <- atomClass dst
     dstOps <- storeAtom dst
