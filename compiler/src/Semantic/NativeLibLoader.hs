@@ -6,13 +6,16 @@ module Semantic.NativeLibLoader (
     loadNativeBinaryOne
 ) where
 
+import Control.Monad (filterM)
 import Data.Aeson (FromJSON(..), Result(..), Value(..), eitherDecode, fromJSON, withObject, (.:), (.:?), (.!=))
 import Data.Aeson.Types (Parser)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Data.Char (isDigit, isSpace, toLower)
-import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, isSuffixOf, nub, stripPrefix)
+import Data.HashSet (HashSet)
+import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
+import Data.List (dropWhileEnd, foldl', intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, stripPrefix)
 import Data.Map.Strict (Map)
-import Data.Maybe (catMaybes, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, listToMaybe, mapMaybe)
 import Numeric (readHex)
 import Parse.SyntaxTree (Class(..), classDemangleEither, normalizeClass)
 import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
@@ -22,11 +25,14 @@ import Util.Basic (demangleNameFromMetaSymbol)
 import Util.Type (Path, Position)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
+import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Util.Exception as UE
+import System.Directory (findExecutable)
 import System.Exit (ExitCode(..))
-import System.FilePath (takeExtension)
+import System.FilePath (takeExtension, takeFileName)
 import System.IO.Error (catchIOError)
+import System.IO.Unsafe (unsafePerformIO)
 import System.Process (readProcessWithExitCode)
 
 
@@ -191,13 +197,38 @@ loadNativeBinaryOne imports libPath = do
     case symRes of
         Left e ->
             pure $ Left [mkSyntax libPath ("failed to read native symbols from binary: " ++ e)]
-        Right syms ->
-            let env = parseNativeSymbolsEnvelope syms
-            in pure $ Right (buildEnv libPath (filterEnvelopeByImports imports env))
+        Right syms -> do
+            mEmbeddedEnv <- if hasClassInfoSymbols syms
+                then readEmbeddedClassInfoEnvelope libPath
+                else pure Nothing
+            let symbolEnv = parseNativeSymbolsEnvelope syms
+                env = fromMaybe symbolEnv mEmbeddedEnv
+            pure $ Right (buildEnv libPath (filterEnvelopeByImports imports env))
+
+
+{-# NOINLINE symbolReaderAvailableCache #-}
+symbolReaderAvailableCache :: IORef (Map String Bool)
+symbolReaderAvailableCache = unsafePerformIO (newIORef Map.empty)
+
+
+isSymbolReaderAvailable :: String -> IO Bool
+isSymbolReaderAvailable cmd = do
+    cached <- readIORef symbolReaderAvailableCache
+    case Map.lookup cmd cached of
+        Just ok -> pure ok
+        Nothing -> do
+            ok <- maybe False (const True) <$> findExecutable cmd
+            atomicModifyIORef' symbolReaderAvailableCache $ \m ->
+                (Map.insert cmd ok m, ())
+            pure ok
 
 
 readNativeSymbols :: Path -> IO (Either String [String])
-readNativeSymbols libPath = runCandidates False [] (symbolReadersForPath libPath)
+readNativeSymbols libPath
+    | shouldSkipSystemLibSymbolScan libPath = pure (Right [])
+    | otherwise = do
+        readers <- filterM (isSymbolReaderAvailable . fst) (symbolReadersForPath libPath)
+        runCandidates False [] readers
   where
     runCandidates :: Bool -> [String] -> [(String, [String])] -> IO (Either String [String])
     runCandidates hadSuccess errs [] =
@@ -227,12 +258,123 @@ readNativeSymbols libPath = runCandidates False [] (symbolReadersForPath libPath
                 ".dll" -> [("dumpbin", ["/exports", path])]
                 ".lib" -> [("dumpbin", ["/linkermember:1", path]), ("dumpbin", ["/symbols", path])]
                 _ -> []
-        in nmReaders ++ dumpbinReaders
+        in case ext of
+            ".dll" -> dumpbinReaders ++ nmReaders
+            ".lib" -> dumpbinReaders ++ nmReaders
+            _ -> nmReaders ++ dumpbinReaders
+
+
+shouldSkipSystemLibSymbolScan :: Path -> Bool
+shouldSkipSystemLibSymbolScan libPath =
+    let stem = normalizedLibStem (map toLower (takeFileName libPath))
+        knownPrefixes = [
+            "libkernel32", "kernel32",
+            "libmsvcrt", "msvcrt",
+            "libmingw32", "mingw32",
+            "libmingwex", "mingwex",
+            "libgcc_eh", "libgcc",
+            "libstdc++", "libc", "libm",
+            "crt2", "crtbegin", "crtend"]
+    in any (`isPrefixOf` stem) knownPrefixes
+  where
+    normalizedLibStem :: String -> String
+    normalizedLibStem name
+        | ".dll.a" `isSuffixOf` name = take (length name - length (".dll.a" :: String)) name
+        | otherwise =
+            let ext = takeExtension name
+            in if null ext
+                then name
+                else take (length name - length ext) name
+
+
+hasClassInfoSymbols :: [String] -> Bool
+hasClassInfoSymbols = any isClassInfoSymbol
+  where
+    isClassInfoSymbol :: String -> Bool
+    isClassInfoSymbol s = "_info" `isSuffixOf` s || "_info_len" `isSuffixOf` s
+
+
+readEmbeddedClassInfoEnvelope :: Path -> IO (Maybe NativeEnvelope)
+readEmbeddedClassInfoEnvelope libPath = do
+    bytesRes <- (Right <$> BL.readFile libPath) `catchIOError` (\_ -> pure (Left ()))
+    case bytesRes of
+        Left _ -> pure Nothing
+        Right bytes -> do
+            let objects = extractJsonObjectsFromBinary (BL.unpack bytes)
+                classes = dedupClassesByQName (concatMap decodeOneJsonObject objects)
+            if null classes
+                then pure Nothing
+                else pure (Just (NativeEnvelope classes))
+  where
+    decodeOneJsonObject :: String -> [NativeClass]
+    decodeOneJsonObject rawJson =
+        case eitherDecode (BL.pack rawJson) :: Either String NativeClass of
+            Right cls -> [cls]
+            Left _ -> case eitherDecode (BL.pack rawJson) :: Either String NativeEnvelope of
+                Right (NativeEnvelope classes) -> classes
+                Left _ -> []
+
+    dedupClassesByQName :: [NativeClass] -> [NativeClass]
+    dedupClassesByQName classes =
+        Map.elems (Map.fromListWith keepFirst [(ncQName cls, cls) | cls <- classes])
+
+    keepFirst :: NativeClass -> NativeClass -> NativeClass
+    keepFirst old _ = old
+
+
+extractJsonObjectsFromBinary :: String -> [String]
+extractJsonObjectsFromBinary s = case s of
+    [] -> []
+    ('{':_) -> case parseOne s of
+        Just (obj, rest) ->
+            let xs = if isLikelyClassInfoJson obj then [obj] else []
+            in xs ++ extractJsonObjectsFromBinary rest
+        Nothing -> extractJsonObjectsFromBinary (tail s)
+    (_:rest) -> extractJsonObjectsFromBinary rest
+  where
+    maxLen = 1 * 1024 * 1024
+
+    parseOne :: String -> Maybe (String, String)
+    parseOne ('{':rest) = go 1 False False 1 ['{'] rest
+    parseOne _ = Nothing
+
+    go :: Int -> Bool -> Bool -> Int -> String -> String -> Maybe (String, String)
+    go _ _ _ _ _ [] = Nothing
+    go depth inString escaped count acc (c:rest)
+        | count > maxLen = Nothing
+        | inString =
+            if escaped
+                then go depth True False (count + 1) (c : acc) rest
+                else if c == '\\'
+                    then go depth True True (count + 1) (c : acc) rest
+                    else if c == '"'
+                        then go depth False False (count + 1) (c : acc) rest
+                        else go depth True False (count + 1) (c : acc) rest
+        | c == '"' = go depth True False (count + 1) (c : acc) rest
+        | c == '{' = go (depth + 1) False False (count + 1) (c : acc) rest
+        | c == '}' =
+            if depth == 1
+                then Just (reverse (c : acc), rest)
+                else go (depth - 1) False False (count + 1) (c : acc) rest
+        | otherwise = go depth False False (count + 1) (c : acc) rest
+
+    isLikelyClassInfoJson :: String -> Bool
+    isLikelyClassInfoJson txt =
+        "\"class\"" `isInfixOf` txt &&
+        ("\"attributes\"" `isInfixOf` txt || "\"methods\"" `isInfixOf` txt || "\"classes\"" `isInfixOf` txt)
 
 
 parseMangledSymbolsFromText :: String -> [String]
-parseMangledSymbolsFromText txt = nub (concatMap symbolsInLine (lines txt))
+parseMangledSymbolsFromText txt = stableDedup (concatMap symbolsInLine (lines txt))
   where
+    stableDedup :: [String] -> [String]
+    stableDedup xs = reverse (fst (foldl' go ([], HashSet.empty) xs))
+      where
+        go :: ([String], HashSet String) -> String -> ([String], HashSet String)
+        go (acc, seen) s
+            | HashSet.member s seen = (acc, seen)
+            | otherwise = (s : acc, HashSet.insert s seen)
+
     symbolsInLine :: String -> [String]
     symbolsInLine line = mapMaybe tokenToSymbol (words line)
 
@@ -253,18 +395,24 @@ parseMangledSymbolsFromText txt = nub (concatMap symbolsInLine (lines txt))
 parseNativeSymbolsEnvelope :: [String] -> NativeEnvelope
 parseNativeSymbolsEnvelope symbols =
     let parsed = mapMaybe parseOne symbols
+        hasClassInfo = any (\p -> symSuffix p == SymInfo) parsed
         funcModBases = [
             symBase p |
             p <- parsed,
             symSuffix p == SymModifiers,
             length (symQName p) >= 2,
             not (null (symSig p))]
-        isMethodBase base = base `elem` funcModBases
+        classInfoOwners = [
+            symQName p |
+            p <- parsed,
+            symSuffix p == SymInfo,
+            not (null (symQName p)),
+            null (symSig p)]
 
-        methods = mapMaybe (toMethod isMethodBase) parsed
-        fields = mapMaybe (toField isMethodBase) parsed
+        methods = mapMaybe (toMethod hasClassInfo funcModBases) parsed
+        fields = mapMaybe (toField hasClassInfo funcModBases) parsed
 
-        classOwners = nub (map fst classMods ++ map (init . nmQNameWithName) methods ++ map (init . nfQNameWithName) fields)
+        classOwners = nub (classInfoOwners ++ map fst classMods ++ map (init . nmQNameWithName) methods ++ map (init . nfQNameWithName) fields)
         classMods = [(symQName p, (0 :: Int)) | p <- parsed, symSuffix p == SymModifiers, not (null (symQName p)), null (symSig p)]
 
         methodsByOwner = foldl' (\mp m -> Map.insertWith (++) (init (nmQNameWithName m)) [m] mp) Map.empty methods
@@ -292,6 +440,8 @@ parseNativeSymbolsEnvelope symbols =
 
     classifySuffix :: String -> (String, SymSuffix)
     classifySuffix s
+        | "_info_len" `isSuffixOf` s = (dropSuffix "_info_len" s, SymInfoLen)
+        | "_info" `isSuffixOf` s = (dropSuffix "_info" s, SymInfo)
         | "_modifiers" `isSuffixOf` s = (dropSuffix "_modifiers" s, SymModifiers)
         | "_parrentsLen" `isSuffixOf` s = (dropSuffix "_parrentsLen" s, SymParrentsLen)
         | "_parrentsData" `isSuffixOf` s = (dropSuffix "_parrentsData" s, SymParrentsData)
@@ -301,12 +451,12 @@ parseNativeSymbolsEnvelope symbols =
     dropSuffix :: String -> String -> String
     dropSuffix suf s = take (length s - length suf) s
 
-    toMethod :: (String -> Bool) -> ParsedSym -> Maybe NativeMethodWithQName
-    toMethod isMethodBase p
+    toMethod :: Bool -> [String] -> ParsedSym -> Maybe NativeMethodWithQName
+    toMethod hasInfo methodBases p
         | symSuffix p /= SymPlain = Nothing
         | length (symQName p) < 2 = Nothing
         | null (symSig p) = Nothing
-        | not (isMethodLike isMethodBase p) = Nothing
+        | not (isMethodLike hasInfo methodBases p) = Nothing
         | last (symQName p) == "@clinit" = Nothing
         | otherwise =
             let fullSig = symSig p
@@ -323,15 +473,16 @@ parseNativeSymbolsEnvelope symbols =
                 }
             }
 
-    isMethodLike :: (String -> Bool) -> ParsedSym -> Bool
-    isMethodLike isMethodBase p =
-        isMethodBase (symBase p) || length (symSig p) > 1
+    isMethodLike :: Bool -> [String] -> ParsedSym -> Bool
+    isMethodLike hasInfo methodBases p =
+        symBase p `elem` methodBases || length (symSig p) > 1 || (hasInfo && not (null (symSig p)))
 
-    toField :: (String -> Bool) -> ParsedSym -> Maybe NativeFieldWithQName
-    toField isMethodBase p
+    toField :: Bool -> [String] -> ParsedSym -> Maybe NativeFieldWithQName
+    toField hasInfo methodBases p
         | symSuffix p /= SymPlain = Nothing
         | length (symQName p) < 2 = Nothing
-        | isMethodLike isMethodBase p = Nothing
+        | isMethodLike hasInfo methodBases p = Nothing
+        | hasInfo && not (null (symSig p)) = Nothing
         | otherwise = case symSig p of
             [fieldTy]
                 | let fieldName = last (symQName p)
@@ -355,6 +506,126 @@ parseNativeAsmEnvelope :: String -> Either String NativeEnvelope
 parseNativeAsmEnvelope txt =
     let blocks = collectLabelBlocks txt
         blockMap = Map.fromList blocks
+        infoClasses = mapMaybe (parseClassInfo blockMap) blocks
+    in if null infoClasses
+        then parseLegacyAsmEnvelope blocks
+        else Right (NativeEnvelope infoClasses)
+  where
+    parseClassInfo :: Map String [String] -> (String, [String]) -> Maybe NativeClass
+    parseClassInfo blockMap (label, body)
+        | not ("_info" `isSuffixOf` label) = Nothing
+        | "_info_len" `isSuffixOf` label = Nothing
+        | otherwise = case demangleNameFromMetaSymbol label of
+            Right (qn, sig)
+                | not (null qn) && null sig -> do
+                    dataLabel <- parseInfoDataLabel body
+                    dataBody <- Map.lookup dataLabel blockMap
+                    rawJson <- extractDataString dataBody
+                    let baseSym = trimMetaSuffixLabel label
+                        mLenBody = Map.lookup (baseSym ++ "_info_len") blockMap
+                        payload = case mLenBody >>= parseInfoLen of
+                            Just n | n > 0 -> take n rawJson
+                            _ -> rawJson
+                    decodeInfoClass payload
+            _ -> Nothing
+
+    parseInfoDataLabel :: [String] -> Maybe String
+    parseInfoDataLabel body =
+        listToMaybe (mapMaybe one body)
+      where
+        one :: String -> Maybe String
+        one rawLine =
+            let ws = words (map sanitize rawLine)
+                cands = filter ("_X" `isPrefixOf`) ws
+            in case reverse cands of
+                (x:_) -> Just x
+                _ -> Nothing
+
+    parseInfoLen :: [String] -> Maybe Int
+    parseInfoLen body = listToMaybe (mapMaybe parseMovMask body)
+
+    parseMovMask :: String -> Maybe Int
+    parseMovMask line =
+        let s = map toLower (trim line)
+            ws = words (map sanitize line)
+            isMov = case words s of
+                [] -> False
+                (op:_) -> op == "mov"
+        in if not isMov
+            then Nothing
+            else listToMaybeInt (mapMaybe parseIntToken (reverse ws))
+
+    parseIntToken :: String -> Maybe Int
+    parseIntToken rawTok =
+        let tok = stripPunc rawTok
+            lowerTok = map toLower tok
+        in case parseSignedHex lowerTok of
+            Just n -> Just n
+            Nothing -> case reads tok of
+                [(n, "")] -> Just n
+                _ -> Nothing
+
+    parseSignedHex :: String -> Maybe Int
+    parseSignedHex tok0 = do
+        let (sign, tok) = case tok0 of
+                ('+':xs) -> (1, xs)
+                ('-':xs) -> (-1, xs)
+                _ -> (1, tok0)
+        hexPart <- strip0x tok
+        case readHex hexPart of
+            [(n, "")] -> Just (sign * n)
+            _ -> Nothing
+
+    strip0x :: String -> Maybe String
+    strip0x ('0':'x':xs) = Just xs
+    strip0x _ = Nothing
+
+    trimMetaSuffixLabel :: String -> String
+    trimMetaSuffixLabel s =
+        foldl' (flip dropKnownSuffix) s ["_info_len", "_info", "_modifiers", "_parrentsLen", "_parrents", "_parrentsData"]
+
+    dropKnownSuffix :: String -> String -> String
+    dropKnownSuffix suf s
+        | suf `isSuffixOf` s = take (length s - length suf) s
+        | otherwise = s
+
+    sanitize :: Char -> Char
+    sanitize c
+        | isDigit c = c
+        | c `elem` ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_+-xX@$." :: String) = c
+        | otherwise = ' '
+
+    stripPunc :: String -> String
+    stripPunc = dropWhileEnd (`elem` [',', ';', ':']) . dropWhile (`elem` ['[', ']', '(', ')'])
+
+    extractDataString :: [String] -> Maybe String
+    extractDataString body = listToMaybe (mapMaybe extractOne body)
+      where
+        extractOne :: String -> Maybe String
+        extractOne rawLine =
+            let line = trim rawLine
+                quoted = dropWhile (/= '"') line
+            in if null quoted
+                then Nothing
+                else case reads quoted of
+                    [(s, _)] -> Just s
+                    _ -> Nothing
+
+    decodeInfoClass :: String -> Maybe NativeClass
+    decodeInfoClass rawJson =
+        case eitherDecode (BL.pack rawJson) :: Either String NativeClass of
+            Right cls -> Just cls
+            Left _ -> case eitherDecode (BL.pack rawJson) :: Either String NativeEnvelope of
+                Right (NativeEnvelope classes) -> listToMaybe classes
+                Left _ -> Nothing
+
+    listToMaybeInt :: [Int] -> Maybe Int
+    listToMaybeInt [] = Nothing
+    listToMaybeInt (x:_) = Just x
+
+parseLegacyAsmEnvelope :: [(String, [String])] -> Either String NativeEnvelope
+parseLegacyAsmEnvelope blocks =
+    let blockMap = Map.fromList blocks
         classMods = mapMaybe parseClassModifier blocks
         funMods = mapMaybe (parseMethodModifier blockMap) blocks
         attrs = mapMaybe parseFieldData blocks
@@ -454,10 +725,10 @@ parseNativeAsmEnvelope txt =
 
     isMetaSuffixLabel :: String -> Bool
     isMetaSuffixLabel s =
-        any (`isSuffixOf` s) ["_modifiers", "_parrents", "_parrentsLen", "_parrentsData"]
+        any (`isSuffixOf` s) ["_info", "_info_len", "_modifiers", "_parrents", "_parrentsLen", "_parrentsData"]
 
     trimMetaSuffixLabel :: String -> String
-    trimMetaSuffixLabel s = foldl' (flip dropKnownSuffix) s ["_modifiers", "_parrentsLen", "_parrents", "_parrentsData"]
+    trimMetaSuffixLabel s = foldl' (flip dropKnownSuffix) s ["_info_len", "_info", "_modifiers", "_parrentsLen", "_parrents", "_parrentsData"]
 
     dropKnownSuffix :: String -> String -> String
     dropKnownSuffix suf s
@@ -586,6 +857,8 @@ data NativeMethodWithQName = NativeMethodWithQName {
 
 data SymSuffix
     = SymPlain
+    | SymInfo
+    | SymInfoLen
     | SymModifiers
     | SymParrents
     | SymParrentsLen

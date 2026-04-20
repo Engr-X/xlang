@@ -692,9 +692,7 @@ data X64Segment
     | X64Label Int [Instruction]
     | X64Segement [String] [Instruction]
     | X64Func [String] (Class, [Class]) [Instruction]
-    | X64FuncModifiers [String] (Class, [Class]) Int
-    | X64ClassModifiers [String] Int
-    | X64ClassParents [String] String Int
+    | X64ClassInfo [String] String Int
     deriving (Show, Eq)
 
 
@@ -710,32 +708,17 @@ prettySegmentIntel cc (X64Func qn (retT, paramTs) instrs) =
     let fullSig = paramTs ++ [retT]
         sym = mangleQNameWithSig True qn fullSig
     in concat [sym, ":\n", prettyInstrsIntel cc instrs]
-prettySegmentIntel cc (X64FuncModifiers qn (retT, paramTs) accessMask) =
-    let fullSig = paramTs ++ [retT]
-        sym = mangleQNameWithSig True qn fullSig
-        metaInstrs = [
-            Mov (Reg A B32) (Imm accessMask) B32,
-            Ret
-            ]
-    in concat [sym, "_modifiers:\n", prettyInstrsIntel cc metaInstrs]
-prettySegmentIntel cc (X64ClassModifiers qn accessMask) =
-    let sym = mangleQName False qn
-        metaInstrs = [
-            Mov (Reg A B32) (Imm accessMask) B32,
-            Ret
-            ]
-    in concat [sym, "_modifiers:\n", prettyInstrsIntel cc metaInstrs]
-prettySegmentIntel cc (X64ClassParents qn dataSym parentsLen) =
+prettySegmentIntel cc (X64ClassInfo qn dataSym infoLen) =
     let sym = mangleQName False qn
         ptrInsn = case ccCompiler cc of
             NASM -> concat [insertTab 1, "lea rax, [rel ", dataSym, "]\n"]
             _ -> concat [insertTab 1, "lea rax, [rip + ", dataSym, "]\n"]
-        lenInsn = concat [insertTab 1, "mov eax, ", show parentsLen, "\n"]
+        lenInsn = concat [insertTab 1, "mov eax, ", show infoLen, "\n"]
         retInsn = insertTab 1 ++ "ret\n"
     in concat [
-        sym, "_parrents:\n",
+        sym, "_info:\n",
         ptrInsn, retInsn,
-        sym, "_parrentsLen:\n",
+        sym, "_info_len:\n",
         lenInsn, retInsn]
 
 
@@ -745,8 +728,6 @@ isLabelSeg _ = False
 
 
 shouldGlueSegs :: X64Segment -> X64Segment -> Bool
-shouldGlueSegs (X64FuncModifiers q1 _ _) (X64Func q2 _ _) = q1 == q2
-shouldGlueSegs (X64ClassModifiers q1 _) (X64ClassParents q2 _ _) = q1 == q2
 shouldGlueSegs _ (X64Label _ _) = True
 shouldGlueSegs _ _ = False
 
@@ -765,9 +746,7 @@ type X64Class = ([StaticData], [X64Segment])
 
 data X64Decl
     = Global [String] [Class]
-    | GlobalModifiers [String] [Class]
-    | GlobalClassModifiers [String]
-    | GlobalClassParents [String]
+    | GlobalClassInfo [String]
     | Extern [String] [Class]
     deriving (Show, Eq)
 
@@ -779,21 +758,9 @@ prettyDeclIntel cc (Global qn sigTs) = concat [declKw "global", " ", mangleQName
     declKw kw = case ccCompiler cc of
         NASM -> kw
         _ -> "." ++ kw
-prettyDeclIntel cc (GlobalModifiers qn sigTs) = concat [declKw "global", " ", mangleQNameWithSig True qn sigTs, "_modifiers\n"]
-  where
-    declKw :: String -> String
-    declKw kw = case ccCompiler cc of
-        NASM -> kw
-        _ -> "." ++ kw
-prettyDeclIntel cc (GlobalClassModifiers qn) = concat [declKw "global", " ", mangleQName False qn, "_modifiers\n"]
-  where
-    declKw :: String -> String
-    declKw kw = case ccCompiler cc of
-        NASM -> kw
-        _ -> "." ++ kw
-prettyDeclIntel cc (GlobalClassParents qn) =
+prettyDeclIntel cc (GlobalClassInfo qn) =
     let sym = mangleQName False qn
-    in concat [declKw "global", " ", sym, "_parrents\n", declKw "global", " ", sym, "_parrentsLen\n"]
+    in concat [declKw "global", " ", sym, "_info\n", declKw "global", " ", sym, "_info_len\n"]
   where
     declKw :: String -> String
     declKw kw = case ccCompiler cc of

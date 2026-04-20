@@ -6,7 +6,7 @@ module Semantic.TypeCheck where
 import Control.Monad (when, unless, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
-import Data.List (find, intercalate)
+import Data.List (find, foldl', intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
 import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr, promoteTopLevelFunctions, inlineProgramFunctions)
@@ -569,8 +569,9 @@ inferExpr path packages envs e@(Call callee args) = do
             [(Class, [Position])] ->
             TypeM Class
         resolveImportedCall usedName funName importEntries namePos callPos argInfos =
-            let importSigs = concatMap third importEntries
-                findImportNames sig = fmap (\(used, full, _) -> (used, full)) (find (elem sig . third) importEntries)
+            let importEntries' = dedupImportEntries importEntries
+                importSigs = concatMap third importEntries'
+                findImportNames sig = fmap (\(used, full, _) -> (used, full)) (find (elem sig . third) importEntries')
             in case importSigs of
                 [] -> errClass $ UE.Syntax $ UE.makeError path callPos (UE.undefinedIdentity funName)
                 _ -> do
@@ -594,8 +595,9 @@ inferExpr path packages envs e@(Call callee args) = do
         resolveScopedCall qname funName scopes importEntries namePos callPos argInfos =
             go scopes Nothing
           where
-            importSigs = concatMap third importEntries
-            findImportNames sig = fmap (\(used, full, _) -> (used, full)) (find (elem sig . third) importEntries)
+            importEntries' = dedupImportEntries importEntries
+            importSigs = concatMap third importEntries'
+            findImportNames sig = fmap (\(used, full, _) -> (used, full)) (find (elem sig . third) importEntries')
             go [] lastErr = case importSigs of
                 [] -> case lastErr of
                     Just err -> errClass err
@@ -646,6 +648,23 @@ inferExpr path packages envs e@(Call callee args) = do
 
         third :: (a, b, c) -> c
         third (_, _, c) = c
+
+        dedupImportEntries :: [(QName, QName, [FunSig])] -> [(QName, QName, [FunSig])]
+        dedupImportEntries entries =
+            let merged = foldl' step Map.empty entries
+            in map (\(full, (used, sigs)) -> (used, full, sigs)) (Map.toList merged)
+          where
+            step ::
+                Map.Map QName (QName, [FunSig]) ->
+                (QName, QName, [FunSig]) ->
+                Map.Map QName (QName, [FunSig])
+            step acc (used, full, sigs) =
+                Map.insertWith mergeOne full (used, sigs) acc
+
+            mergeOne :: (QName, [FunSig]) -> (QName, [FunSig]) -> (QName, [FunSig])
+            mergeOne (usedNew, sigsNew) (usedOld, sigsOld) =
+                let sigs = sigsOld ++ filter (`notElem` sigsOld) sigsNew
+                in (if null usedOld then usedNew else usedOld, sigs)
 
 inferExpr path _ _ e@(CallT {}) =
     errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens e)) UE.unsupportedErrorMsg

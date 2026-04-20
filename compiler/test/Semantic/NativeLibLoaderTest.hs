@@ -98,23 +98,23 @@ withTempJson content action = do
 
 nativeAsmDecodeTests :: TestTree
 nativeAsmDecodeTests = testCase "decode native asm metadata to import/type env" $ do
-    let asmText = unlines [
-            "global _XN4demo4MathE_modifiers",
-            "global _XN4demo4Math3addEiid",
-            "global _XN4demo4Math3addEiid_modifiers",
+    let metaJson :: String
+        metaJson = "{\"class\":[\"demo\",\"Math\"],\"attributes\":[{\"owner_type\":0,\"access\":9,\"attr_name\":\"secret\",\"attr_type\":\"i\"}],\"methods\":[{\"owner_type\":1,\"access\":9,\"name\":\"add\",\"param_types\":[\"i\",\"i\"],\"return\":\"d\"}]}"
+        metaLen = length metaJson
+        asmText = unlines [
+            "global _XN4demo4MathE_info",
+            "global _XN4demo4MathE_info_len",
             "",
             "section .data",
-            "_XN4demo4Math6secretEi:",
-            "    dd      0",
+            "_XN4demo4MathE_infoData:",
+            "    db " ++ show metaJson ++ ", 0",
             "",
             "section .text",
-            "_XN4demo4MathE_modifiers:",
-            "    mov eax, 256",
+            "_XN4demo4MathE_info:",
+            "    lea rax, [rel _XN4demo4MathE_infoData]",
             "    ret",
-            "_XN4demo4Math3addEiid_modifiers:",
-            "    mov eax, 4368",
-            "    ret",
-            "_XN4demo4Math3addEiid:",
+            "_XN4demo4MathE_info_len:",
+            "    mov eax, " ++ show metaLen,
             "    ret"
             ]
     withTempAsm asmText $ \asmPath -> do
@@ -136,7 +136,7 @@ nativeAsmDecodeTests = testCase "decode native asm metadata to import/type env" 
                                 funParams = [AST.Int32T, AST.Int32T],
                                 funReturn = AST.Float64T
                             }
-                        assertBool "signature should decode from mangled symbol suffix" (expected `elem` sigs)
+                        assertBool "signature should decode from embedded class-info json" (expected `elem` sigs)
 
 
 withTempAsm :: String -> (FilePath -> IO a) -> IO a

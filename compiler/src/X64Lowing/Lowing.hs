@@ -1,10 +1,12 @@
+{-# LANGUAGE OverloadedStrings #-}
 {- HLINT ignore "Replace case with maybe" -}
 module X64Lowing.Lowing where
 
 import Control.Monad.State.Strict (State, evalState, get, gets, modify', put)
 import Data.Bits ((.|.), shiftL)
+import Data.Aeson (Value, encode, object, (.=))
 import Data.List (foldl', intercalate)
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
 import Numeric (showHex)
 import IR.TAC (IRAtom, IRFunction, IRInstr)
@@ -26,6 +28,7 @@ import X64Lowing.ASM (
     staticInitFlagName,
     staticInitName)
 
+import qualified Data.ByteString.Lazy.Char8 as BL8
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -1699,60 +1702,94 @@ x64LowingBlocks64 blocks = do
     return (segs, refs)
 
 
-accessNibbleMap64 :: Map Parse.AccessModified Int
-accessNibbleMap64 = Map.fromList [
-    (Parse.Public, 1),
-    (Parse.Private, 2),
-    (Parse.Protected, 3)
+accessPublicBit64 :: Int
+accessPublicBit64 = 0
+
+
+accessPrivateBit64 :: Int
+accessPrivateBit64 = 1
+
+
+accessProtectedBit64 :: Int
+accessProtectedBit64 = 2
+
+
+accessStaticBit64 :: Int
+accessStaticBit64 = 3
+
+
+accessFinalBit64 :: Int
+accessFinalBit64 = 4
+
+
+accessInlineBit64 :: Int
+accessInlineBit64 = 5
+
+
+ownerTypeClassCode64 :: Int
+ownerTypeClassCode64 = 0
+
+
+ownerTypeTopLevelCode64 :: Int
+ownerTypeTopLevelCode64 = 1
+
+
+bitMask64 :: Int -> Int
+bitMask64 b = 1 `shiftL` b
+
+
+declAccessMask64 :: Parse.Decl -> Int
+declAccessMask64 (acc, flags) =
+    let visBit = case acc of
+            Parse.Public -> bitMask64 accessPublicBit64
+            Parse.Private -> bitMask64 accessPrivateBit64
+            Parse.Protected -> bitMask64 accessProtectedBit64
+        staticBit = if Parse.Static `elem` flags then bitMask64 accessStaticBit64 else 0
+        finalBit = if Parse.Final `elem` flags then bitMask64 accessFinalBit64 else 0
+        inlineBit = if Parse.Inline `elem` flags then bitMask64 accessInlineBit64 else 0
+    in visBit .|. staticBit .|. finalBit .|. inlineBit
+
+
+ownerTypeCode64 :: IR.IRMemberType -> Int
+ownerTypeCode64 memberTy = case memberTy of
+    IR.MemberClass -> ownerTypeClassCode64
+    IR.MemberClassWrapped -> ownerTypeTopLevelCode64
+
+
+classTypeToken64 :: Class -> String
+classTypeToken64 = AST.classMangle
+
+
+classInfoFieldJson64 :: IR.Attribute -> Value
+classInfoFieldJson64 (decl, cls, fieldName, memberTy) = object [
+    "owner_type" .= ownerTypeCode64 memberTy,
+    "access" .= declAccessMask64 decl,
+    "attr_name" .= fieldName,
+    "attr_type" .= classTypeToken64 cls
     ]
 
 
-flagNibbleMap64 :: Map Parse.DeclFlag Int
-flagNibbleMap64 = Map.fromList [
-    (Parse.Static, 1),
-    (Parse.Final, 1)
+classInfoMethodJson64 :: IR.IRFunction -> Value
+classInfoMethodJson64 (IR.IRFunction decl funName sig _ _ memberTy) = object [
+    "owner_type" .= ownerTypeCode64 memberTy,
+    "access" .= declAccessMask64 decl,
+    "name" .= funName,
+    "param_types" .= map classTypeToken64 (TEnv.funParams sig),
+    "return" .= classTypeToken64 (TEnv.funReturn sig)
     ]
 
 
-declMetaBaseMask64 :: Parse.Decl -> Int
-declMetaBaseMask64 (acc, flags) =
-    let vis = fromMaybe 0 (Map.lookup acc accessNibbleMap64)
-        st = if Parse.Static `elem` flags
-            then Map.findWithDefault 0 Parse.Static flagNibbleMap64
-            else 0
-        fin = if Parse.Final `elem` flags
-            then Map.findWithDefault 0 Parse.Final flagNibbleMap64
-            else 0
-    in (vis `shiftL` 8) .|. (st `shiftL` 4) .|. fin
+classInfoJsonValue64 :: [String] -> [IR.Attribute] -> [IR.IRFunction] -> Value
+classInfoJsonValue64 ownerQName attrs funs = object [
+    "class" .= ownerQName,
+    "attributes" .= map classInfoFieldJson64 attrs,
+    "methods" .= map classInfoMethodJson64 funs
+    ]
 
 
-wrappedNibble64 :: IR.IRMemberType -> Int
-wrappedNibble64 memberTy = case memberTy of
-    IR.MemberClass -> 0
-    IR.MemberClassWrapped -> 1
-
-
-mainTypeNibble64 :: IR.MainKind -> Int
-mainTypeNibble64 mainKind = case mainKind of
-    IR.NoMain -> 0
-    IR.MainVoid _ -> 1
-    IR.MainInt _ -> 2
-    IR.MainVoidArgs _ -> 3
-    IR.MainIntArgs _ -> 4
-
-
--- Function modifiers mask (16-bit layout):
--- [15..12]=wrapped?, [11..8]=access, [7..4]=static, [3..0]=final
-funcMetaMask64 :: Parse.Decl -> IR.IRMemberType -> Int
-funcMetaMask64 decl memberTy =
-    (wrappedNibble64 memberTy `shiftL` 12) .|. declMetaBaseMask64 decl
-
-
--- Class modifiers mask (16-bit layout):
--- [15..12]=main_type, [11..8]=access, [7..4]=static, [3..0]=final
-classMetaMask64 :: Parse.Decl -> IR.MainKind -> Int
-classMetaMask64 decl mainKind =
-    (mainTypeNibble64 mainKind `shiftL` 12) .|. declMetaBaseMask64 decl
+classInfoJsonText64 :: [String] -> [IR.Attribute] -> [IR.IRFunction] -> String
+classInfoJsonText64 ownerQName attrs funs =
+    BL8.unpack (encode (classInfoJsonValue64 ownerQName attrs funs))
 
 
 -- Lower one IR function into segmented output:
@@ -1762,24 +1799,20 @@ classMetaMask64 decl mainKind =
 --   ]
 -- First block is inlined into function body, remaining blocks are emitted as labels.
 x64LowingFunc :: [String] -> IR.IRFunction -> X64LowerM ([X64.X64Segment], [ExternRef])
-x64LowingFunc ownerQName fun@(IR.IRFunction decl funName funSig _ (first : blocks, _) memberTy) = do
+x64LowingFunc ownerQName fun@(IR.IRFunction _ funName funSig _ (first : blocks, _) _) = do
     entryInstrs <- x64FuncEntry64 fun
     (firstBlockInstrs, firstRefs) <- x64FirstBlock64 first
     (segments, blockRefs) <- x64LowingBlocks64 blocks
     let bodyInstrs = entryInstrs ++ firstBlockInstrs
         funQname = ownerQName ++ [funName]
         funSigPair = (TEnv.funReturn funSig, TEnv.funParams funSig)
-        accessMask = funcMetaMask64 decl memberTy
         funSeg = X64.X64Func funQname funSigPair bodyInstrs
-        funModSeg = X64.X64FuncModifiers funQname funSigPair accessMask
-    return (funModSeg : funSeg : segments, blockRefs ++ firstRefs)
-x64LowingFunc ownerQName (IR.IRFunction decl funName funSig _ ([], _) memberTy) =
+    return (funSeg : segments, blockRefs ++ firstRefs)
+x64LowingFunc ownerQName (IR.IRFunction _ funName funSig _ ([], _) _) =
     let funQname = ownerQName ++ [funName]
         funSigPair = (TEnv.funReturn funSig, TEnv.funParams funSig)
-        accessMask = funcMetaMask64 decl memberTy
         funSeg = X64.X64Func funQname funSigPair []
-        funModSeg = X64.X64FuncModifiers funQname funSigPair accessMask
-    in return ([funModSeg, funSeg], [])
+    in return ([funSeg], [])
 
 
 -- Lower the entry block directly into function body instructions.
@@ -1876,20 +1909,18 @@ x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes fu
             stCurFunName64 = Just staticInitName,
             stInClinit64 = True
             }
-        -- TODO: replace with real extends/implements source once class inheritance is modeled in IR.
-        parentTypes = [(["xlang"], ["Any"])]
-        parentsText = classParentsCsv64 parentTypes
-        parentsDataLabel = mangleQName64 False ownerQName ++ "_parrentsData"
-        parentsData = X64.StaticData parentsDataLabel (stringBytesData64 cc parentsText)
-        staticData = parentsData : (staticLowing64 ownerQName attrs ++ floatConstData)
-        classModSeg = X64.X64ClassModifiers ownerQName (classMetaMask64 decl mainKind)
-        classParentsSeg = X64.X64ClassParents ownerQName parentsDataLabel (length parentsText)
+        classInfoAttrs = filter isStaticAttr64 attrs
+        classInfoText = classInfoJsonText64 ownerQName classInfoAttrs funs
+        classInfoDataLabel = mangleQName64 False ownerQName ++ "_infoData"
+        classInfoData = X64.StaticData classInfoDataLabel (stringBytesData64 cc classInfoText)
+        staticData = classInfoData : (staticLowing64 ownerQName attrs ++ floatConstData)
+        classInfoSeg = X64.X64ClassInfo ownerQName classInfoDataLabel (length classInfoText)
     modify' (\s -> s { stFloatConstSeq64 = seqNext })
     (clinitSegs, clinitRefs) <- withLowerState64 stClinit (x64LowingClinit ownerQName sInit)
     funOuts <- mapM (lowerFun ownerQName floatConstLblMap) funs
     let funSegs = concatMap fst funOuts
         funRefs = foldl' (\acc (_, rs) -> rs ++ acc) [] funOuts
-    return ((staticData, classModSeg : classParentsSeg : clinitSegs ++ funSegs), funRefs ++ clinitRefs)
+    return ((staticData, classInfoSeg : clinitSegs ++ funSegs), funRefs ++ clinitRefs)
 
 
 classGlobalSymbols64 :: [String] -> IR.IRClass -> [ExternSym]
@@ -1904,8 +1935,8 @@ classGlobalSymbols64 pkgSegs (IR.IRClass _ className _ _ _ funs _) =
     in clinitSym : funSyms
 
 
-classModifiersSymbol64 :: [String] -> IR.IRClass -> [String]
-classModifiersSymbol64 pkgSegs (IR.IRClass _ className _ _ _ _ _) = pkgSegs ++ [className]
+classInfoSymbol64 :: [String] -> IR.IRClass -> [String]
+classInfoSymbol64 pkgSegs (IR.IRClass _ className _ _ _ _ _) = pkgSegs ++ [className]
 
 
 classMethodSymbols64 :: [String] -> IR.IRClass -> [ExternSym]
@@ -1948,13 +1979,10 @@ x64LowingProgm (IR.IRProgm pkgSegs classes) = do
     let classRefs = foldl' (\acc (_, rs) -> rs ++ acc) [] loweredClasses
     let classPrefixes = map (classPrefix64 pkgSegs) classes
     let globalSymbols = concatMap (classGlobalSymbols64 pkgSegs) classes
-    let methodSymbols = concatMap (classMethodSymbols64 pkgSegs) classes
-    let classSymbols = map (classModifiersSymbol64 pkgSegs) classes
+    let classSymbols = map (classInfoSymbol64 pkgSegs) classes
     let globals =
             map (uncurry X64.Global) globalSymbols ++
-            map (uncurry X64.GlobalModifiers) methodSymbols ++
-            map X64.GlobalClassModifiers classSymbols ++
-            map X64.GlobalClassParents classSymbols
+            map X64.GlobalClassInfo classSymbols
     let externs = collectExternDeclsFromRefs64 classPrefixes classRefs
     let decls = globals ++ externs
     let prog = X64.X64Progm decls staticData textSegs

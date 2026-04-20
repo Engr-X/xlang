@@ -4,10 +4,12 @@ set -eu
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 pwd_dir="$(pwd)"
 
-cc="gcc"
+cc="${CC:-gcc}"
+cc_explicit="0"
 ar="ar"
 ranlib="ranlib"
-cflags="-O2 -Wall -Wextra -std=c11"
+cflags="-O3 -DNDEBUG -ffunction-sections -fdata-sections -Wall -Wextra -std=c11"
+ldflags=""
 target="libxlang-base"
 prefix="/usr/local"
 libdir=""
@@ -22,7 +24,8 @@ Options:
   --cc=CMD                 C compiler (default: gcc)
   --ar=CMD                 archiver (default: ar)
   --ranlib=CMD             ranlib tool (default: ranlib)
-  --cflags=FLAGS           extra CFLAGS (default: -O2 -Wall -Wextra -std=c11)
+  --cflags=FLAGS           extra CFLAGS (default: -O3 -DNDEBUG -ffunction-sections -fdata-sections -Wall -Wextra -std=c11)
+  --ldflags=FLAGS          extra LDFLAGS (default: empty)
   --target=NAME            artifact basename (default: libxlang-base)
   --prefix=PATH            install prefix (default: /usr/local)
   --libdir=PATH            library install dir (default: PREFIX/lib)
@@ -39,15 +42,32 @@ need_value() {
     fi
 }
 
+tool_exists() {
+    t="$1"
+    [ -x "$t" ] || command -v "$t" >/dev/null 2>&1
+}
+
+pick_first_tool() {
+    for t in "$@"; do
+        if [ -n "$t" ] && tool_exists "$t"; then
+            echo "$t"
+            return 0
+        fi
+    done
+    return 1
+}
+
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --cc=*)
             cc="${1#*=}"
+            cc_explicit="1"
             shift
             ;;
         --cc)
             need_value "$@"
             cc="$2"
+            cc_explicit="1"
             shift 2
             ;;
         --ar=*)
@@ -80,6 +100,15 @@ while [ "$#" -gt 0 ]; do
         --target=*)
             target="${1#*=}"
             shift
+            ;;
+        --ldflags=*)
+            ldflags="${1#*=}"
+            shift
+            ;;
+        --ldflags)
+            need_value "$@"
+            ldflags="$2"
+            shift 2
             ;;
         --target)
             need_value "$@"
@@ -127,6 +156,21 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
+if ! tool_exists "$cc"; then
+    if [ "$cc_explicit" = "1" ]; then
+        echo "error: C compiler not found: $cc" >&2
+        exit 2
+    fi
+
+    auto_cc="$(pick_first_tool gcc x86_64-w64-mingw32-gcc clang cc || true)"
+    if [ -z "$auto_cc" ]; then
+        echo "error: no C compiler found in PATH (tried: gcc, x86_64-w64-mingw32-gcc, clang, cc)" >&2
+        echo "hint: pass --cc=<path-to-gcc>" >&2
+        exit 2
+    fi
+    cc="$auto_cc"
+fi
+
 if [ "$build_dir_set" = "0" ]; then
     if [ "$pwd_dir" = "$script_dir" ]; then
         build_dir="build"
@@ -153,6 +197,7 @@ CC := $cc
 AR := $ar
 RANLIB := $ranlib
 CFLAGS := $cflags
+LDFLAGS := $ldflags
 TARGET := $target
 PREFIX := $prefix
 LIBDIR := $libdir
@@ -166,6 +211,7 @@ Configuration written to $config_file
   AR        = $ar
   RANLIB    = $ranlib
   CFLAGS    = $cflags
+  LDFLAGS   = $ldflags
   TARGET    = $target
   PREFIX    = $prefix
   LIBDIR    = $libdir

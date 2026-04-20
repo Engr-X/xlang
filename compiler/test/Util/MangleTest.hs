@@ -24,8 +24,8 @@ demangleTests :: TestTree
 demangleTests = testGroup "Util.Mangle.demangle" [
     testCase "demangle from plain symbol" $
         demangleName "_XN5TestX3fibEii" @?= Right (["TestX", "fib"], [Int32T, Int32T]),
-    testCase "demangle after metadata suffix trim" $
-        demangleNameFromMetaSymbol "_XN4demo4Math6secretEi_modifiers"
+    testCase "demangle after class-info suffix trim" $
+        demangleNameFromMetaSymbol "_XN4demo4Math6secretEi_info"
             @?= Right (["demo", "Math", "secret"], [Int32T]),
     testCase "trimMetaSuffix keeps plain symbol unchanged" $
         trimMetaSuffix "_XN4demo4Math6secretEi" @?= "_XN4demo4Math6secretEi"

@@ -3,14 +3,15 @@ module Xlang where
 import Control.Monad (void, when)
 import Data.Char (isDigit, toLower)
 import Data.Foldable (for_)
-import Data.List (intercalate, sort, stripPrefix)
+import Data.List (intercalate, isSuffixOf, nub, sort, stripPrefix)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
 import GHC.Conc (setNumCapabilities)
-import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, listDirectory)
+import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory)
 import System.Environment (getArgs, getExecutablePath)
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>), takeDirectory, takeExtension)
+import System.Info (os)
 import System.Process (readProcessWithExitCode)
 
 import qualified CompileJava as CJ
@@ -178,38 +179,66 @@ ensureTargetJdkMetadata exeDir version = do
             downloadJdkMetadata exeDir version
 
 
-findDefaultX64NativeLibs :: FilePath -> IO [FilePath]
-findDefaultX64NativeLibs exeDir = do
-    let candidates = [
-            exeDir </> "runtime" </> "native", -- current runtime native layout
-            exeDir </> "libs" </> "native",  -- current layout
-            exeDir </> "std" </> "native",   -- legacy layout
-            exeDir </> "native",             -- current syslib layout
-            exeDir </> "native-libs"         -- legacy syslib layout
-            ]
-    firstExisting candidates
+findDefaultX64NativeLibs :: Bool -> [FilePath] -> IO [FilePath]
+findDefaultX64NativeLibs includeRuntime roots = do
+    let expandedRoots = nub (concatMap expandRoot roots)
+        candidates = nub (concatMap candidatesForRoot expandedRoots)
+        allowedExts =
+            if includeRuntime
+                then [".a"]
+                else [".dll", ".lib", ".a", ".so", ".dylib"]
+    libs <- concat <$> mapM (collectIfExists allowedExts) candidates
+    pure (sort (nub libs))
   where
-    firstExisting :: [FilePath] -> IO [FilePath]
-    firstExisting [] = pure []
-    firstExisting (dir:rest) = do
-        exists <- doesDirectoryExist dir
-        if exists
-            then sort <$> collect dir
-            else firstExisting rest
+    expandRoot :: FilePath -> [FilePath]
+    expandRoot root = [
+        root,
+        takeDirectory root </> "lib" </> "xlang"]
 
-    collect :: FilePath -> IO [FilePath]
-    collect dir = do
+    candidatesForRoot :: FilePath -> [FilePath]
+    candidatesForRoot base
+        | includeRuntime =
+            [ base </> "libs" </> "native"
+            , base </> "std" </> "native"
+            , base </> "native"
+            , base </> "native-libs"
+            ]
+        | otherwise =
+            [ base </> "runtime" </> "native"
+            , base </> "libs" </> "native"
+            , base </> "std" </> "native"
+            , base </> "native"
+            , base </> "native-libs"
+            ]
+
+    collectIfExists :: [String] -> FilePath -> IO [FilePath]
+    collectIfExists exts dir = do
+        exists <- doesDirectoryExist dir
+        if exists then collect exts dir else pure []
+
+    collect :: [String] -> FilePath -> IO [FilePath]
+    collect exts dir = do
         names <- listDirectory dir
         concat <$> mapM
             (\name -> do
                 let path = dir </> name
                 isDir <- doesDirectoryExist path
                 if isDir
-                    then collect path
+                    then collect exts path
                     else
                         let ext = map toLower (takeExtension path)
-                        in pure [path | ext `elem` [".dll", ".lib", ".a", ".so", ".dylib"]])
+                        in pure [path | ext `elem` exts])
             names
+
+
+preferStaticImportLibPath :: FilePath -> IO FilePath
+preferStaticImportLibPath path
+    | os /= "mingw32" = pure path
+    | ".dll.a" `isSuffixOf` map toLower path = do
+        let staticPath = take (length path - length ".dll.a") path ++ ".a"
+        staticExists <- doesFileExist staticPath
+        pure (if staticExists then staticPath else path)
+    | otherwise = pure path
 
 
 isAllowedX64LibFile :: FilePath -> Bool
@@ -474,8 +503,9 @@ printHelp = putStrLn $ unlines [
     "                    if .jar: classes are emitted to <root>/out, then packed",
     "                    manifest includes: build by xlang",
     "   --include-runtime",
-    "   -include-runtime  merge all -lib files and default xlang stdlib jar into output jar",
-    "                    requires: -d <something>.jar",
+    "   -include-runtime  JVM: merge all -lib files and default xlang stdlib jar into output jar",
+    "                    JVM requires: -d <something>.jar",
+    "                    x64: prefer static runtime libs (.a); dynamic libs are ignored for linking",
     "   --debug|-debug   JVM: write debug.json + per-class .ir; x64: write per-class .ir (+ timing logs)",
     "   -d               debug shorthand when used without output path",
     "   -v, --version    print xlang version",
@@ -502,6 +532,7 @@ main = do
                 case optDownload opts of
                     Just ver -> downloadJdkMetadata exeDir ver
                     Nothing -> do
+                        cwd <- getCurrentDirectory
                         rootAbs <- canonicalizePath (normalizeRootArg (optRoot opts))
 
                         setNumCapabilities (optJobs opts)
@@ -544,11 +575,15 @@ main = do
                                     CJ.findDefaultNativeJsons exeDir targetJvm
                                 _ -> pure []
                         defaultX64NativeLibs <- case mTarget of
-                            Just TargetX64 -> findDefaultX64NativeLibs exeDir
+                            Just TargetX64 -> findDefaultX64NativeLibs includeRuntime [exeDir, cwd, rootAbs]
                             _ -> pure []
+                        userX64LibPaths <- case mTarget of
+                            Just TargetX64 | includeRuntime && os == "mingw32" ->
+                                mapM preferStaticImportLibPath userLibPaths
+                            _ -> pure userLibPaths
 
                         let combinedLibPaths = case mTarget of
-                                Just TargetX64 -> userLibPaths ++ defaultX64NativeLibs
+                                Just TargetX64 -> userX64LibPaths ++ defaultX64NativeLibs
                                 _ -> userLibPaths ++ defaultLibJars ++ defaultNativeJsons
                             duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
                             libPaths = combinedLibPaths
@@ -605,11 +640,8 @@ main = do
                                             putStrLn "--main is only valid with -d <output>.jar"
                                             printHelp
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
-                            (Just TargetX64, _, _) | includeRuntime -> do
-                                putStrLn "cannot use -include-runtime with --target=x64"
-                                printHelp
                             (Just TargetX64, _, mOut) ->
-                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOut mMainClassOverride (optX64Compiler opts) (optDebug opts))
+                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOut mMainClassOverride (optX64Compiler opts) includeRuntime (optDebug opts))
                             _ -> do
                                 putStrLn "missing target; use --target-jvm<number> or --target=x64"
                                 printHelp

@@ -339,7 +339,7 @@ dropSuffix suf s
 
 trimMetaSuffix :: String -> String
 trimMetaSuffix raw =
-    foldl (flip dropSuffix) raw ["_modifiers", "_parrentsLen", "_parrents", "_parrentsData"]
+    foldl (flip dropSuffix) raw ["_info_len", "_info", "_modifiers", "_parrentsLen", "_parrents", "_parrentsData"]
 
 
 demangleNameFromMetaSymbol :: String -> Either String ([String], [Class])

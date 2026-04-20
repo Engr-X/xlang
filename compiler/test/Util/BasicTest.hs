@@ -149,8 +149,8 @@ demangleNameTests = testGroup "Util.Basic.demangleName" [
     testCase "demangle function with params+ret" $
         demangleName "_XN5TestX3fibEii" @?=
             Right (["TestX", "fib"], [Int32T, Int32T]),
-    testCase "demangle class modifiers symbol" $
-        demangleNameFromMetaSymbol "_X5TestX_modifiers" @?=
+    testCase "demangle class info symbol" $
+        demangleNameFromMetaSymbol "_X5TestX_info" @?=
             Right (["TestX"], []),
     testCase "demangle field symbol with type" $
         demangleName "_XN4demo4Math6secretEi" @?=

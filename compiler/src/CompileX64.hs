@@ -12,12 +12,12 @@ import Control.Exception (bracket_, evaluate)
 import Control.Monad (unless, when)
 import Control.Monad.State.Strict (evalState)
 import Data.Char (toLower)
-import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, nub, sort, sortOn)
+import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, isSuffixOf, nub, sort, sortOn)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Environment (getExecutablePath)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getTemporaryDirectory, listDirectory, removeFile)
-import System.FilePath ((</>), (<.>), takeBaseName, takeDirectory, takeExtension, replaceExtension)
+import System.FilePath ((</>), (<.>), normalise, takeBaseName, takeDirectory, takeExtension, replaceExtension, takeFileName)
 import System.IO (hClose, openTempFile)
 import System.IO.Error (catchIOError, isDoesNotExistError)
 import System.Info (os)
@@ -243,6 +243,7 @@ compileX64 ::
     Maybe [String] ->
     Maybe X64CompilerChoice ->
     Bool ->
+    Bool ->
     IO (Maybe [TAC.IRProgm])
 compileX64 = compileX64WithAssembler True
 
@@ -258,8 +259,9 @@ compileX64WithAssembler ::
     Maybe [String] ->
     Maybe X64CompilerChoice ->
     Bool ->
+    Bool ->
     IO (Maybe [TAC.IRProgm])
-compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mCompilerChoice debugOut = do
+compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mCompilerChoice includeRuntime debugOut = do
     sourceRes <- mapConcurrentlyLimit jobs
         (\path -> do
             fileRes <- FH.readFile path
@@ -315,7 +317,7 @@ compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths 
                                             (objPaths, emitTimeNs) <- timedIO $
                                                 mapConcurrentlyLimit jobs (emitOne runAssembler debugOut outMode ccUsed rootPath) units
                                             linkTimeNs <- if runAssembler
-                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode objPaths libPaths)
+                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode objPaths libPaths includeRuntime)
                                                 else pure 0
                                             when debugOut $ do
                                                 writePerClassIRFiles (debugIrRootFromOutputMode rootPath outMode) irs
@@ -375,16 +377,14 @@ classGlobalDecls64 :: [String] -> TAC.IRClass -> [X64.X64Decl]
 classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs _) =
     let ownerQName = pkgSegs ++ [className]
         clinitGlobal = X64.Global (ownerQName ++ [X64.staticInitName]) [AST.Void]
-        classModifiersGlobal = X64.GlobalClassModifiers ownerQName
-        classParentsGlobal = X64.GlobalClassParents ownerQName
+        classInfoGlobal = X64.GlobalClassInfo ownerQName
         pubFunSymbols = [
             (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig])
             | TAC.IRFunction decl funName sig _ _ _ <- funs, isPublicDecl64 decl]
         wrappedMainSymbols = classWrappedMainSymbols64 pkgSegs irCls
         funSymbols = nub (pubFunSymbols ++ wrappedMainSymbols)
         funGlobals = map (uncurry X64.Global) funSymbols
-        funModifierGlobals = map (uncurry X64.GlobalModifiers) funSymbols
-    in classModifiersGlobal : classParentsGlobal : clinitGlobal : (funGlobals ++ funModifierGlobals)
+    in classInfoGlobal : clinitGlobal : funGlobals
 
 
 isPublicDecl64 :: PB.Decl -> Bool
@@ -621,8 +621,8 @@ assembleOne rootPath cc asmPath objPath = case X64.ccCompiler cc of
         callProcess asCmd [asmPath, "-o", objPath]
 
 
-linkIfNeeded :: Bool -> FilePath -> OutputMode -> [FilePath] -> [FilePath] -> IO ()
-linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths = case outMode of
+linkIfNeeded :: Bool -> FilePath -> OutputMode -> [FilePath] -> [FilePath] -> Bool -> IO ()
+linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = case outMode of
     OutputLinked outPath linkKind _ -> do
         createDirectoryIfMissing True (takeDirectory outPath)
         case linkKind of
@@ -638,26 +638,44 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths = case outMode of
     linkDynWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
     linkDynWithLd target objs libs = do
         sysLibs <- collectNativeStaticLibs
+        let libsUsedRaw = if includeRuntime then filterOutDynamicLibRefs libs else libs
+            libsUsed =
+                if os == "mingw32" && not includeRuntime
+                    then preferWindowsImportLibs libsUsedRaw
+                    else libsUsedRaw
+            linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibs)
         case os of
             "mingw32" -> do
+                let undefArgs = if includeRuntime then [] else ["--undefined=_pei386_runtime_relocator"]
                 let implib = replaceExtension target ".dll.a"
-                    args = ["--dll", "-o", target] ++ objs ++ libs ++ sysLibs ++ ["--out-implib", implib]
+                    args = ["--dll"] ++ undefArgs ++ ["-o", target]
+                        ++ objs ++ linkLibs ++ ["--out-implib", implib]
                 callProcessCandidates rootPath [("x86_64-w64-mingw32-ld", args), ("ld", args)]
             "darwin" ->
-                callProcessCandidates rootPath [("ld", ["-dylib", "-o", target] ++ objs ++ libs ++ sysLibs)]
+                callProcessCandidates rootPath [("ld", ["-dylib", "-o", target] ++ objs ++ linkLibs)]
             _ ->
-                callProcessCandidates rootPath [("ld", ["-shared", "-o", target] ++ objs ++ libs ++ sysLibs)]
+                callProcessCandidates rootPath [("ld", ["-shared", "-o", target] ++ objs ++ linkLibs)]
 
     linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
     linkExeWithLd target objs libs = do
         sysLibs <- collectNativeStaticLibs
+        crtStartupObjs <- if os == "mingw32" && includeRuntime
+            then findWindowsCrtStartupObjs
+            else pure []
+        let libsUsedRaw = if includeRuntime then filterOutDynamicLibRefs libs else libs
+            libsUsed =
+                if os == "mingw32" && not includeRuntime
+                    then preferWindowsImportLibs libsUsedRaw
+                    else libsUsedRaw
+            linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibs)
         case os of
             "mingw32" -> do
-                let args = ["-e", "main", "-o", target] ++ objs ++ libs
-                        ++ sysLibs
+                let undefArgs = if includeRuntime then [] else ["--undefined=_pei386_runtime_relocator"]
+                let args = undefArgs ++ ["-e", "main", "-o", target]
+                        ++ crtStartupObjs ++ objs ++ linkLibs
                 callProcessCandidates rootPath [("x86_64-w64-mingw32-ld", args), ("ld", args)]
             _ ->
-                callProcessCandidates rootPath [("ld", ["-e", "main", "-o", target] ++ objs ++ libs ++ sysLibs)]
+                callProcessCandidates rootPath [("ld", ["-e", "main", "-o", target] ++ objs ++ linkLibs)]
 
     collectNativeStaticLibs :: IO [FilePath]
     collectNativeStaticLibs = do
@@ -681,7 +699,12 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths = case outMode of
                 ]
         grouped <- mapM collectOne syslibDirs
         stdLibs <- collectStdNativeLibs stdNativeDirs
-        pure (sort (nub (concat grouped ++ stdLibs)))
+        let found = sort (nub (concat grouped ++ stdLibs))
+        if os == "mingw32"
+            then do
+                extra <- windowsRuntimeFallbackArgs found
+                pure (found ++ extra)
+            else pure found
       where
         collectOne :: FilePath -> IO [FilePath]
         collectOne dir = do
@@ -694,10 +717,199 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths = case outMode of
 
         collectStdNativeLibs :: [FilePath] -> IO [FilePath]
         collectStdNativeLibs dirs = do
-            let names = ["libxlang-base.a", "libxlang-std.a"]
-                paths = [dir </> name | dir <- dirs, name <- names]
-            existing <- mapM doesFileExist paths
-            pure [p | (p, True) <- zip paths existing]
+            let preferredGroups
+                    | os == "mingw32" && includeRuntime =
+                        [ ["libxlang-std.a", "libxlang-std.dll.a"]
+                        , ["libxlang-base.a", "libxlang-base.dll.a"]]
+                    | os == "mingw32" =
+                        [ ["libxlang-base.dll.a", "libxlang-base.a"]
+                        , ["libxlang-std.dll.a", "libxlang-std.a"]]
+                    | otherwise =
+                        [ ["libxlang-base.a"]
+                        , ["libxlang-std.a"]]
+            picked <- mapM (pickFirstExisting dirs) preferredGroups
+            pure [p | Just p <- picked]
+
+        pickFirstExisting :: [FilePath] -> [FilePath] -> IO (Maybe FilePath)
+        pickFirstExisting dirs names = firstExisting [dir </> name | name <- names, dir <- dirs]
+
+        firstExisting :: [FilePath] -> IO (Maybe FilePath)
+        firstExisting [] = pure Nothing
+        firstExisting (p : rest) = do
+            exists <- doesFileExist p
+            if exists then pure (Just p) else firstExisting rest
+
+        windowsRuntimeFallbackArgs :: [FilePath] -> IO [FilePath]
+        windowsRuntimeFallbackArgs found = do
+            let lowerFound = map (map toLower . takeFileName) found
+                need n = not (n `elem` lowerFound)
+            libMingw32 <- choose "libmingw32.a" "-lmingw32" need
+            libMingwex <- choose "libmingwex.a" "-lmingwex" need
+            libGcc <- choose "libgcc.a" "-lgcc" need
+            libGccEh <- choose "libgcc_eh.a" "-lgcc_eh" need
+            libMsvcrt <- choose "libmsvcrt.a" "-lmsvcrt" need
+            libKernel32 <- choose "libkernel32.a" "-lkernel32" need
+            pure (libMingw32 ++ libMingwex ++ libGcc ++ libGccEh ++ libMsvcrt ++ libKernel32)
+          where
+            choose :: FilePath -> String -> (FilePath -> Bool) -> IO [FilePath]
+            choose file fallbackFlag needPred =
+                if not (needPred file)
+                    then pure []
+                    else do
+                        mPath <- findToolchainLib file
+                        pure [maybe fallbackFlag id mPath]
+
+            findToolchainLib :: FilePath -> IO (Maybe FilePath)
+            findToolchainLib libName = do
+                dirs <- mingwCandidateLibDirs
+                firstExisting [dir </> libName | dir <- dirs]
+
+            mingwCandidateLibDirs :: IO [FilePath]
+            mingwCandidateLibDirs = do
+                mLd <- firstExecutable ["x86_64-w64-mingw32-ld.exe", "x86_64-w64-mingw32-ld", "ld.exe", "ld"]
+                case mLd of
+                    Nothing -> pure []
+                    Just ldPath -> do
+                        let binDir = takeDirectory ldPath
+                            dTarget = normalise (binDir </> ".." </> "x86_64-w64-mingw32" </> "lib")
+                            gccRoot = normalise (binDir </> ".." </> "lib" </> "gcc" </> "x86_64-w64-mingw32")
+                        targetDirs <- existsOne dTarget
+                        gccDirs <- do
+                            ex <- doesDirectoryExist gccRoot
+                            if not ex
+                                then pure []
+                                else do
+                                    vers <- sort <$> listDirectory gccRoot
+                                    pure [gccRoot </> v | v <- reverse vers]
+                        pure (targetDirs ++ gccDirs)
+
+            existsOne :: FilePath -> IO [FilePath]
+            existsOne d = do
+                ex <- doesDirectoryExist d
+                pure [d | ex]
+
+            firstExisting :: [FilePath] -> IO (Maybe FilePath)
+            firstExisting [] = pure Nothing
+            firstExisting (p:ps) = do
+                ex <- doesFileExist p
+                if ex then pure (Just p) else firstExisting ps
+
+            firstExecutable :: [String] -> IO (Maybe FilePath)
+            firstExecutable [] = pure Nothing
+            firstExecutable (n:ns) = do
+                m <- findExecutable n
+                case m of
+                    Just p -> pure (Just p)
+                    Nothing -> firstExecutable ns
+
+    filterOutDynamicLibRefs :: [FilePath] -> [FilePath]
+    filterOutDynamicLibRefs =
+        filter (\p ->
+            let pL = map toLower p
+                ext = map toLower (takeExtension p)
+            in ext /= ".dll"
+                && ext /= ".so"
+                && ext /= ".dylib"
+                && not (".dll.a" `isSuffixOf` pL))
+
+    preferWindowsImportLibs :: [FilePath] -> [FilePath]
+    preferWindowsImportLibs libs =
+        let lowered = map mapLower libs
+            importStems = [dropSuffixCI ".dll.a" p | p <- lowered, ".dll.a" `isSuffixOf` p]
+            keep p =
+                let pL = mapLower p
+                    ext = map toLower (takeExtension pL)
+                in if ".dll.a" `isSuffixOf` pL
+                    then True
+                    else if ext == ".dll" || ext == ".so" || ext == ".dylib"
+                        then False
+                    else
+                        let isPlainA = ext == ".a"
+                            stemA = dropSuffixCI ".a" pL
+                        in not (isPlainA && stemA `elem` importStems)
+        in dedupPreserve (filter keep libs)
+      where
+        mapLower :: String -> String
+        mapLower = map toLower
+
+        dropSuffixCI :: String -> String -> String
+        dropSuffixCI suf s
+            | suf `isSuffixOf` s = take (length s - length suf) s
+            | otherwise = s
+
+        dedupPreserve :: [FilePath] -> [FilePath]
+        dedupPreserve = reverse . foldl' step []
+          where
+            step :: [FilePath] -> FilePath -> [FilePath]
+            step acc p =
+                if any (\x -> libKey x == libKey p) acc
+                    then acc
+                    else p : acc
+
+            libKey :: FilePath -> String
+            libKey p =
+                let file = mapLower (takeFileName p)
+                in if ".dll.a" `isSuffixOf` file
+                    then dropSuffixCI ".dll.a" file
+                    else if ".a" `isSuffixOf` file
+                        then dropSuffixCI ".a" file
+                        else file
+
+    mergeLinkLibs :: [FilePath] -> [FilePath] -> [FilePath]
+    mergeLinkLibs libs sysLibs
+        | os == "mingw32" && includeRuntime = dedupByStem (libs ++ sysLibs)
+        | os == "mingw32" && not includeRuntime = preferWindowsImportLibs (libs ++ sysLibs)
+        | otherwise = dedupCaseInsensitive (libs ++ sysLibs)
+      where
+        dedupCaseInsensitive :: [FilePath] -> [FilePath]
+        dedupCaseInsensitive = reverse . foldl' step []
+          where
+            step :: [FilePath] -> FilePath -> [FilePath]
+            step acc p =
+                if any (\x -> map toLower x == map toLower p) acc
+                    then acc
+                    else p : acc
+
+        dedupByStem :: [FilePath] -> [FilePath]
+        dedupByStem = reverse . foldl' stepStem []
+          where
+            stepStem :: [FilePath] -> FilePath -> [FilePath]
+            stepStem acc p =
+                if any (\x -> stemKey x == stemKey p) acc
+                    then acc
+                    else p : acc
+
+            stemKey :: FilePath -> String
+            stemKey p =
+                let f = map toLower (takeFileName p)
+                in if ".dll.a" `isSuffixOf` f
+                    then take (length f - length (".dll.a" :: String)) f
+                    else if ".a" `isSuffixOf` f
+                        then take (length f - length (".a" :: String)) f
+                        else f
+
+    wrapLibGroup :: [FilePath] -> [FilePath]
+    wrapLibGroup libs
+        | os == "mingw32" = ["--start-group"] ++ libs ++ ["--end-group"]
+        | otherwise = libs
+
+    findWindowsCrtStartupObjs :: IO [FilePath]
+    findWindowsCrtStartupObjs = do
+        mLd <- firstExecutable ["x86_64-w64-mingw32-ld.exe", "x86_64-w64-mingw32-ld", "ld.exe", "ld"]
+        case mLd of
+            Nothing -> pure []
+            Just ldPath -> do
+                let crt2 = normalise (takeDirectory ldPath </> ".." </> "x86_64-w64-mingw32" </> "lib" </> "crt2.o")
+                ex <- doesFileExist crt2
+                pure [crt2 | ex]
+      where
+        firstExecutable :: [String] -> IO (Maybe FilePath)
+        firstExecutable [] = pure Nothing
+        firstExecutable (name : rest) = do
+            mPath <- findExecutable name
+            case mPath of
+                Just p -> pure (Just p)
+                Nothing -> firstExecutable rest
 
     callProcessCandidates :: FilePath -> [(FilePath, [String])] -> IO ()
     callProcessCandidates _ [] = ioError (userError "no usable GNU linker found (tried ld variants)")

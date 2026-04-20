@@ -196,7 +196,7 @@ private val RADIANS_TO_DEGREES: double = 57.29577951308232
  * @return the sine of {@code x}
  * @since beta-1.0.0
  */
-@native("sin")
+@native("xlang_sin")
 native inline fun sin(x: double) -> double
 
 
@@ -219,7 +219,7 @@ native inline fun sin(x: double) -> double
  * @return the cosine of {@code x}
  * @since beta-1.0.0
  */
-@native("cos")
+@native("xlang_cos")
 native inline fun cos(x: double) -> double
 
 
@@ -241,7 +241,7 @@ native inline fun cos(x: double) -> double
  * @return the tangent of {@code x}
  * @since beta-1.0.0
  */
-@native("tan") 
+@native("xlang_tan") 
 native inline fun tan(x: double) -> double
 
 
@@ -317,7 +317,7 @@ inline fun cot(x: double) -> double = 1.0 / tan(x)
  * @return angle y such that {@code sin(y) = x}, within {@code [-PI/2, PI/2]}
  * @since beta-1.0.0
 */
-@native("asin")
+@native("xlang_asin")
 native inline fun asin(x: double) -> double = asin(x)
 
 
@@ -338,7 +338,7 @@ native inline fun asin(x: double) -> double = asin(x)
  * @return angle y such that {@code cos(y) = x}, within {@code [0, PI]}
  * @since beta-1.0.0
  */
-@native("acos")
+@native("xlang_acos")
 native inline fun acos(x: double) -> double = acos(x)
 
 
@@ -360,7 +360,7 @@ native inline fun acos(x: double) -> double = acos(x)
  * @return angle y such that {@code tan(y) = x}, within {@code [-PI/2, PI/2]}
  * @since beta-1.0.0
  */
-@native("atan")
+@native("xlang_atan")
 native inline fun atan(x: double) -> double
 
 
@@ -455,7 +455,7 @@ inline fun toDegrees(angrad: double) -> double = angrad * RADIANS_TO_DEGREES;
  * @return {@code e^x}
  * @since beta-1.0.0
  */
-@native("exp")
+@native("xlang_exp")
 native inline fun exp(x: double) -> double
 
 
@@ -468,7 +468,7 @@ native inline fun exp(x: double) -> double
  * @return {@code ln(x)}
  * @since beta-1.0.0
  */
-@native("log")
+@native("xlang_ln")
 native inline fun ln(x: double) -> double
 
 
@@ -506,7 +506,7 @@ fun log2(x: double) -> double = ln(x) / LN2;
  * @return {@code log10(x)}
  * @since beta-1.0.0
  */
-@native("log10")
+@native("xlang_log10")
 native inline fun log10(x: double) -> double
 
 
@@ -519,7 +519,7 @@ native inline fun log10(x: double) -> double
  * @return {@code sqrt(x)}
  * @since beta-1.0.0
  */
-@native("sqrt")
+@native("xlang_sqrt")
 native inline fun sqrt(x: double) -> double
 
 
@@ -532,7 +532,7 @@ native inline fun sqrt(x: double) -> double
  * @return {@code cbrt(x)}
  * @since beta-1.0.0
  */
-@native("cbrt")
+@native("xlang_cbrt")
 native inline fun cbrt(x: double) -> double
 
 
@@ -646,3 +646,8 @@ inline fun isOdd(x: int) -> bool = (x and 1) == 1
  * @since beta-1.0.0
  */
 inline fun isOdd(x: long) -> bool = (x and 1L) == 1L
+
+
+
+@native("xlang_IEEEremainder")
+native inline fun IEEEremainder(x: double, y: double) -> double

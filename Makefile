@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.DEFAULT_GOAL := all_components
+.DEFAULT_GOAL := all
 
 # Root directory (resolve from this Makefile path, supports out-of-tree wrapper include)
 MAKEFILE_PATH := $(lastword $(MAKEFILE_LIST))
@@ -50,6 +50,7 @@ else
 EXE_FILE := $(EXE)
 endif
 EXE_OUT := $(BUILD_DIR_ABS)/$(EXE_FILE)
+EXE_OUT_GRADLE := $(subst \,/,$(EXE_OUT))
 
 # Java tool (Gradle)
 BYTECODEGEN_DIR := $(ROOT_DIR)/tools/BytecodeToolkit
@@ -70,24 +71,48 @@ NATIVE_LIB_OUT_DIR := $(BUILD_DIR_ABS)/libs/native
 NATIVE_RUNTIME_OUT_DIR := $(BUILD_DIR_ABS)/runtime/native
 NATIVE_BASE_TARGET := libxlang-base
 NATIVE_STD_TARGET := libxlang-std
+NATIVE_BASE_STATIC_LIB := $(NATIVE_BASE_TARGET).a
+NATIVE_STD_STATIC_LIB := $(NATIVE_STD_TARGET).a
 NATIVE_SYSLIB_OUT_DIR := $(BUILD_DIR_ABS)/native
 NATIVE_SYSLIB_NAMES := libkernel32.a libmsvcrt.a
+UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
 ifeq ($(OS),Windows_NT)
 NATIVE_SHARED_EXT := dll
+NATIVE_BASE_LINK_LIB := $(NATIVE_BASE_TARGET).dll.a
+NATIVE_STD_LINK_LIB := $(NATIVE_STD_TARGET).dll.a
+else ifneq (,$(findstring MINGW,$(UNAME_S)))
+NATIVE_SHARED_EXT := dll
+NATIVE_BASE_LINK_LIB := $(NATIVE_BASE_TARGET).dll.a
+NATIVE_STD_LINK_LIB := $(NATIVE_STD_TARGET).dll.a
+else ifneq (,$(findstring MSYS,$(UNAME_S)))
+NATIVE_SHARED_EXT := dll
+NATIVE_BASE_LINK_LIB := $(NATIVE_BASE_TARGET).dll.a
+NATIVE_STD_LINK_LIB := $(NATIVE_STD_TARGET).dll.a
+else ifneq (,$(findstring CYGWIN,$(UNAME_S)))
+NATIVE_SHARED_EXT := dll
+NATIVE_BASE_LINK_LIB := $(NATIVE_BASE_TARGET).dll.a
+NATIVE_STD_LINK_LIB := $(NATIVE_STD_TARGET).dll.a
 else
-UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 NATIVE_SHARED_EXT := dylib
 else
 NATIVE_SHARED_EXT := so
 endif
+NATIVE_BASE_LINK_LIB := $(NATIVE_BASE_TARGET).a
+NATIVE_STD_LINK_LIB := $(NATIVE_STD_TARGET).a
 endif
 
 # Keep Gradle caches local to avoid global cache issues
 GRADLE_USER_HOME := $(BUILD_DIR_ABS)/.gradle-home
 GRADLE_ARGS := --console=plain --no-daemon
 
-.PHONY: help all build all_components full compile update maybe_update tools java_lib native_lib stage_syslibs \
+# On Unix-like systems, normalize gradlew line endings before execution
+# to avoid /bin/sh^M failures when scripts were checked out with CRLF.
+define PREPARE_GRADLEW_CMD
+	tmp=$$(mktemp); tr -d '\r' < ./gradlew > $$tmp; mv "$$tmp" ./gradlew
+endef
+
+.PHONY: help all build all_components full compiler move_native java_std native_std compile update maybe_update tools java_lib native_lib stage_syslibs \
 	install install_all install_bin install_tools install_java_lib install_native_lib uninstall \
 	clean clean_ide rebuild distclean
 
@@ -95,8 +120,12 @@ help:
 	@echo "Usage: ./configure [opts] && make -jN [target] && make install"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all/build       Build full components (default)"
-	@echo "  all_components  Build compiler + tools + java_lib + native_lib"
+	@echo "  all/build       Build default pipeline (compiler + move_native + java_std + native_std)"
+	@echo "  compiler        Build xlang compiler executable"
+	@echo "  move_native     Stage native syslibs into build/native (Windows; needs --gcc-lib)"
+	@echo "  java_std        Build libs/std/java artifacts and move to build output"
+	@echo "  native_std      Build libs/std/native artifacts and move to build output"
+	@echo "  all_components  Build full pipeline + tools (legacy compatible target)"
 	@echo "  full            Alias of all_components"
 	@echo "  compile         Build xlang executable"
 	@echo "  update      Run cabal update in compiler/"
@@ -117,15 +146,24 @@ help:
 	@echo "  make install"
 	@echo ""
 	@echo "Optional full build:"
+	@echo "  make -j24 all"
 	@echo "  make -j24 all_components"
 	@echo "  make install_all"
 
-all: all_components
+all: compiler move_native java_std native_std
 
 # Alias for people who prefer `make build`
 build: all
 
-all_components: compile tools stage_syslibs native_lib
+compiler: compile
+
+move_native: stage_syslibs
+
+java_std: java_lib
+
+native_std: native_lib
+
+all_components: all tools
 
 full: all_components
 
@@ -148,13 +186,19 @@ compile: maybe_update
 tools:
 	mkdir -p "$(TOOLS_OUT_DIR)"
 	cd "$(BYTECODEGEN_DIR)" && chmod +x ./gradlew
+	@if [ "$(OS)" != "Windows_NT" ]; then \
+		cd "$(BYTECODEGEN_DIR)" && $(PREPARE_GRADLEW_CMD); \
+	fi
 	cd "$(BYTECODEGEN_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
 	cp -f "$(BYTECODEGEN_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
 
 java_lib: compile
 	mkdir -p "$(JAVA_LIB_OUT_DIR)" "$(JAVA_RUNTIME_OUT_DIR)"
 	cd "$(JAVA_LIB_DIR)" && chmod +x ./gradlew
-	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) -PxlangExe="$(EXE_OUT)" $(GRADLE_ARGS)
+	@if [ "$(OS)" != "Windows_NT" ]; then \
+		cd "$(JAVA_LIB_DIR)" && $(PREPARE_GRADLEW_CMD); \
+	fi
+	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) -PxlangExe="$(EXE_OUT_GRADLE)" $(GRADLE_ARGS)
 	rm -f "$(JAVA_LIB_DIR)/build/libs/xlang-stdlib-alpha.jar" 2>/dev/null || true
 	rm -f "$(JAVA_LIB_OUT_DIR)/xlang-stdlib-alpha.jar" 2>/dev/null || true
 	cp -f "$(JAVA_LIB_DIR)"/build/libs/* "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
@@ -168,19 +212,31 @@ native_lib: java_lib
 	mkdir -p "$(NATIVE_LIB_BUILD_DIR)"
 	cd "$(NATIVE_LIB_BUILD_DIR)" && sh ../configure --build-dir=. --target="$(NATIVE_BASE_TARGET)"
 	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)" -j$(JOBS)
+	@if [ "$(NATIVE_SHARED_EXT)" = "dll" ]; then \
+		if [ ! -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" ]; then \
+			echo "[WARN] missing native import lib: $(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)"; \
+		fi; \
+		if [ ! -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" ]; then \
+			echo "[WARN] missing native import lib: $(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)"; \
+		fi; \
+	fi
 	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)" "$(NATIVE_ROOT_OUT_DIR)"
 	rm -f "$(NATIVE_LIB_OUT_DIR)"/*.lib "$(NATIVE_ROOT_OUT_DIR)"/*.lib 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).a" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).a" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).a" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).a" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_STATIC_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
 
 stage_syslibs:
-ifeq ($(OS),Windows_NT)
+ifeq ($(NATIVE_SHARED_EXT),dll)
 	@if [ -n "$(GCC_LIB)" ] && [ -d "$(GCC_LIB)" ]; then \
 		mkdir -p "$(NATIVE_SYSLIB_OUT_DIR)"; \
 		for n in $(NATIVE_SYSLIB_NAMES); do \

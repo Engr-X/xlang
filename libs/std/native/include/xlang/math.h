@@ -7,19 +7,21 @@
  * however, these functions are already implemented in the C standard library, 
 */
 
-// double sin(double x);
-// double cos(double x);
-// double tan(double x);
-// double asin(double x);
-// double acos(double x);
-// double atan(double x);
+double xlang_sin(double x);
+double xlang_cos(double x);
+double xlang_tan(double x);
+double xlang_asin(double x);
+double xlang_acos(double x);
+double xlang_atan(double x);
 
-// double exp(double x);
-// double log(double x);
-// double log10(double x);
+double xlang_exp(double x);
+double xlang_ln(double x);
+double xlang_log10(double x);
 
-// double sqrt(double x);
-// double cbrt(double x);
+double xlang_sqrt(double x);
+double xlang_cbrt(double x);
+
+double xlang_IEEEremainder(double x, double y);
 
 
 #endif
