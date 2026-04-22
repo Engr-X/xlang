@@ -1,9 +1,14 @@
+import org.gradle.api.JavaVersion
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.Sync
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.tasks.Jar
 import org.gradle.kotlin.dsl.the
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 import java.io.File
 
 plugins {
@@ -35,6 +40,16 @@ val xlangJobs = providers.gradleProperty("xlangJobs")
 
 val xlangNativeLib = providers.gradleProperty("xlangNativeLib")
     .orElse("")
+
+val requestedJvmToolchain = providers.gradleProperty("xlang.java.toolchain")
+    .orNull
+    ?.toIntOrNull()
+
+val detectedJvmToolchain = JavaVersion.current().majorVersion.toIntOrNull()
+
+val jvmToolchainVersion = (requestedJvmToolchain ?: detectedJvmToolchain ?: 8).coerceAtLeast(8)
+
+logger.lifecycle("[xlang-stdlib] Kotlin toolchain JDK=$jvmToolchainVersion (bytecode JVM 1.8)")
 
 val xlangFiles = fileTree(xlangSourceRoot) {
     include("**/*.x")
@@ -132,8 +147,23 @@ tasks.named("build") {
     dependsOn(copyRuntimeLibs)
 }
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(8)
+}
+
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(jvmToolchainVersion))
+    }
+}
+
+tasks.withType<KotlinJvmCompile>().configureEach {
+    compilerOptions.jvmTarget.set(JvmTarget.JVM_1_8)
 }
 
 tasks.test {

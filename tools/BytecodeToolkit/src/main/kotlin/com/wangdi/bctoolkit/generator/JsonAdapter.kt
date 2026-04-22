@@ -56,6 +56,16 @@ class JsonAdapter(private val json: JSONObject)
         private const val MAIN_TYPE = "main_type"
         private const val MAIN_QNAME = "main_qname"
 
+        private const val ACCESS_PUBLIC_BIT = 0
+        private const val ACCESS_PRIVATE_BIT = 1
+        private const val ACCESS_PROTECTED_BIT = 2
+        private const val ACCESS_STATIC_BIT = 3
+        private const val ACCESS_FINAL_BIT = 4
+        private const val ACCESS_INLINE_BIT = 5
+
+        private const val OWNER_TYPE_CLASS_CODE = 0
+        private const val OWNER_TYPE_TOP_LEVEL_CODE = 1
+
         /**
          * Auto-generated baseline docs for selectCtorAccess.
          * Describes the intent and behavior of this function.
@@ -131,6 +141,14 @@ class JsonAdapter(private val json: JSONObject)
             "super" to Access.Super
         )
 
+        private val ACCESS_BIT_TABLE: List<Pair<Int, Access>> = listOf(
+            ACCESS_PUBLIC_BIT to Access.Public,
+            ACCESS_PRIVATE_BIT to Access.Private,
+            ACCESS_PROTECTED_BIT to Access.Protected,
+            ACCESS_STATIC_BIT to Access.Static,
+            ACCESS_FINAL_BIT to Access.Final
+        )
+
         /**
          * Auto-generated baseline docs for parseAccess.
          * Describes the intent and behavior of this function.
@@ -141,6 +159,12 @@ class JsonAdapter(private val json: JSONObject)
         private fun parseAccess(value: String): Access =
             ACCESS_TABLE_MAP[value.trim().lowercase()] ?: throw IllegalArgumentException("Unknown access flag: $value")
 
+        private fun parseAccessMask(mask: Int): MutableList<Access> =
+            ACCESS_BIT_TABLE
+                .filter { (bit, _) -> ((1 shl bit) and mask) != 0 }
+                .map { (_, access) -> access }
+                .toMutableList()
+
         /**
          * Auto-generated baseline docs for parseAccessList.
          * Describes the intent and behavior of this function.
@@ -148,11 +172,30 @@ class JsonAdapter(private val json: JSONObject)
          * @param json parameter from function signature.
          * @return return value of this function.
          */
-        private fun parseAccessList(json: JSONObject): MutableList<Access> =
-            json.getOrDefault<JSONArray>(ACCESS_KEY, JSONArray())
-                .toList<String>()
-                .map { parseAccess(it) }
-                .toMutableList()
+        private fun parseAccessList(json: JSONObject): MutableList<Access>
+        {
+            val raw: Any = json[ACCESS_KEY] ?: return mutableListOf()
+            return when (raw)
+            {
+                is Number -> parseAccessMask(raw.toInt())
+                is JSONArray -> raw.toList<String>().map { parseAccess(it) }.toMutableList()
+                is String -> mutableListOf(parseAccess(raw))
+                else -> throw ClassCastException("access must be Int or JSONArray, but was ${raw::class.java.name}")
+            }
+        }
+
+        private fun parseOwnerType(raw: Any?): String = when (raw)
+        {
+            null -> OwnerTypeMetadata.CLASS
+            is Number -> when (raw.toInt())
+            {
+                OWNER_TYPE_CLASS_CODE -> OwnerTypeMetadata.CLASS
+                OWNER_TYPE_TOP_LEVEL_CODE -> OwnerTypeMetadata.TOP_LEVEL
+                else -> throw IllegalArgumentException("Unknown owner_type int: ${raw.toInt()}")
+            }
+            is String -> OwnerTypeMetadata.normalize(raw)
+            else -> throw ClassCastException("owner_type must be Int or String, but was ${raw::class.java.name}")
+        }
 
         private val JVM_TARGET_MAP = mapOf(
             8 to Opcodes.V1_8,
@@ -187,25 +230,36 @@ class JsonAdapter(private val json: JSONObject)
 
         private val PRIMITIVE_TYPE_MAP: MutableMap<String, Type> = mutableMapOf(
             "void" to Type.VOID,
+            "v" to Type.VOID,
             "boolean" to Type.BOOLEAN,
             "bool" to Type.BOOLEAN,
+            "z" to Type.BOOLEAN,
             "char" to Type.CHAR,
+            "c" to Type.CHAR,
             "byte" to Type.INT8,
+            "b" to Type.INT8,
             "i8" to Type.INT8,
             "int8" to Type.INT8,
             "short" to Type.INT16,
+            "s" to Type.INT16,
             "i16" to Type.INT16,
             "int16" to Type.INT16,
             "int" to Type.INT32,
+            "i" to Type.INT32,
             "i32" to Type.INT32,
             "int32" to Type.INT32,
             "long" to Type.INT64,
+            "j" to Type.INT64,
+            "l" to Type.INT64,
             "i64" to Type.INT64,
             "int64" to Type.INT64,
             "float" to Type.Float32,
+            "f" to Type.Float32,
             "f32" to Type.Float32,
             "float32" to Type.Float32,
             "double" to Type.Float64,
+            "d" to Type.Float64,
+            "q" to Type.Float64,
             "f64" to Type.Float64,
             "float64" to Type.Float64
         )
@@ -227,10 +281,18 @@ class JsonAdapter(private val json: JSONObject)
          * @param value parameter from function signature.
          * @return return value of this function.
          */
-        private fun parseType(value: JSONArray): Type
+        private fun parseType(value: Any?): Type
         {
-            val parts: MutableList<String> = value.toList<String>()
+            return when (value)
+            {
+                is JSONArray -> parseTypeParts(value.toList<String>())
+                is String -> parseTypeText(value)
+                else -> throw ClassCastException("type must be String or JSONArray, but was ${value?.javaClass?.name}")
+            }
+        }
 
+        private fun parseTypeParts(parts: MutableList<String>): Type
+        {
             if (parts.isEmpty())
                 throw IllegalArgumentException("Type parts must not be empty")
 
@@ -251,6 +313,43 @@ class JsonAdapter(private val json: JSONObject)
             return Type(TypeRef(*baseParts.toTypedArray()), arrayDim)
         }
 
+        private fun parseTypeText(raw: String): Type
+        {
+            var token = raw.trim()
+
+            if (token.isEmpty())
+                throw IllegalArgumentException("type text must not be empty")
+
+            var arrayDim = 0
+            while (token.endsWith("[]"))
+            {
+                arrayDim += 1
+                token = token.dropLast(2).trim()
+            }
+
+            if (token.isEmpty())
+                throw IllegalArgumentException("type base must not be empty")
+
+            if (arrayDim == 0)
+            {
+                val prim = primitiveTypeOf(token)
+                if (prim != null)
+                    return prim
+            }
+
+            val separator = if (token.contains('/')) '/' else '.'
+            val baseParts = token
+                .split(separator)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toMutableList()
+
+            if (baseParts.isEmpty())
+                throw IllegalArgumentException("type base must not be empty")
+
+            return Type(TypeRef(*baseParts.toTypedArray()), arrayDim)
+        }
+
         /**
          * Auto-generated baseline docs for parseInvokeSpec.
          * Describes the intent and behavior of this function.
@@ -263,14 +362,12 @@ class JsonAdapter(private val json: JSONObject)
             require(fullName.isNotEmpty()) { "full_name must not be empty" }
 
             val functionSig: JSONObject = json.getJSONObject(FUNC_SIG)
-            val returnType: Type = parseType(functionSig.getOrError(FUN_RETURN))
+            val returnRaw: Any = functionSig[FUN_RETURN]
+                ?: throw NoSuchElementException("Missing key: $FUN_RETURN")
+            val returnType: Type = parseType(returnRaw)
             val paramTypes: MutableList<Type> = functionSig
                 .getOrDefault<JSONArray>(FUN_PARMS, JSONArray())
-                .map { item ->
-                    val arr = item as? JSONArray
-                        ?: throw ClassCastException("func_parms item must be JSONArray, but was ${item::class.java.name}")
-                    parseType(arr)
-                }
+                .map { item -> parseType(item) }
                 .toMutableList()
 
             return fullName to (returnType to paramTypes)
@@ -288,7 +385,8 @@ class JsonAdapter(private val json: JSONObject)
             val fullName: MutableList<String> = json.getJSONArray(ATTRIBUTE_NAME).toList<String>()
             require(fullName.isNotEmpty()) { "attributeName must not be empty" }
 
-            val typeValue: JSONArray = json.getOrError(ATTRIBUTE_TYPE)
+            val typeValue: Any = json[ATTRIBUTE_TYPE]
+                ?: throw NoSuchElementException("Missing key: $ATTRIBUTE_TYPE")
             val type: Type = this.parseType(typeValue)
 
             return fullName to type
@@ -574,8 +672,10 @@ class JsonAdapter(private val json: JSONObject)
             val access: MutableList<Access> = parseAccessList(attrJson)
 
             val name: String = attrJson.getOrError(ATTRIBUTE_NAME)
-            val type: Type = parseType(attrJson.getOrError(ATTRIBUTE_TYPE))
-            val ownerType: String = OwnerTypeMetadata.normalize(attrJson.getString(OWNER_TYPE))
+            val typeRaw: Any = attrJson[ATTRIBUTE_TYPE]
+                ?: throw NoSuchElementException("Missing key: $ATTRIBUTE_TYPE")
+            val type: Type = parseType(typeRaw)
+            val ownerType: String = parseOwnerType(attrJson[OWNER_TYPE])
 
             val signatureRaw: String = attrJson.getString(SIGNATURE_KEY)
             val signature: String? = signatureRaw.takeIf { it.isNotBlank() }
@@ -604,16 +704,14 @@ class JsonAdapter(private val json: JSONObject)
                 ?: throw ClassCastException("methods item must be JSONObject, but was ${item::class.java.name}")
 
             val access: MutableList<Access> = parseAccessList(methodJson)
-            val ownerType: String = OwnerTypeMetadata.normalize(methodJson.getString(OWNER_TYPE))
+            val ownerType: String = parseOwnerType(methodJson[OWNER_TYPE])
             val name: String = methodJson.getString(METHOD_NAME)
-            val returnType: Type = parseType(methodJson.getOrError(METHOD_RETURN))
+            val returnRaw: Any = methodJson[METHOD_RETURN]
+                ?: throw NoSuchElementException("Missing key: $METHOD_RETURN")
+            val returnType: Type = parseType(returnRaw)
             val paramTypes: MutableList<Type> =
                 (methodJson.getJSONArray(METHOD_PARAM_TYPES) ?: JSONArray())
-                .map { item ->
-                    val arr = item as? JSONArray
-                        ?: throw ClassCastException("param_types item must be JSONArray, but was ${item::class.java.name}")
-                    parseType(arr)
-                }
+                .map { item -> parseType(item) }
                 .toMutableList()
 
             val method = ce.newMethod(access, name, returnType to paramTypes)
@@ -679,11 +777,7 @@ class JsonAdapter(private val json: JSONObject)
             val accessList: MutableList<Access> = parseAccessList(initJson)
 
             val paramTypes: MutableList<Type> = (initJson.getJSONArray(METHOD_PARAM_TYPES) ?: JSONArray())
-                .map { item ->
-                    val arr = item as? JSONArray
-                        ?: throw ClassCastException("param_types item must be JSONArray, but was ${item::class.java.name}")
-                    parseType(arr)
-                }
+                .map { item -> parseType(item) }
                 .toMutableList()
 
             val ops: JSONArray = initJson.getJSONArray(METHOD_OPS) ?: JSONArray()

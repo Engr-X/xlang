@@ -7,12 +7,14 @@ module Semantic.JavaLibLoader (
 
 import Control.Exception (IOException, try)
 import Control.Monad (filterM)
-import Data.Aeson (FromJSON(..), Value(Object), eitherDecode, withObject, (.:), (.:?), (.!=))
+import Data.Aeson (FromJSON(..), Result(..), Value(..), eitherDecode, fromJSON, withObject, (.:), (.:?), (.!=))
+import Data.Aeson.Types (Parser)
+import Data.Bits ((.&.), (.|.), shiftL)
 import Data.Char (isSpace, toLower)
 import Data.List (dropWhileEnd, foldl', intercalate, nub)
 import Data.Map.Strict (Map)
-import Data.Maybe (mapMaybe)
-import Parse.SyntaxTree (Class(..), normalizeClass)
+import Data.Maybe (catMaybes, mapMaybe)
+import Parse.SyntaxTree (Class(..), classDemangleEither, normalizeClass)
 import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
@@ -42,20 +44,60 @@ data LibClass = LibClass {
 
 
 data LibField = LibField {
-    lfAccess :: [String],
-    lfType :: [String],
+    lfAccessMask :: Int,
+    lfType :: Class,
     lfName :: String,
-    lfOwnerType :: String
+    lfOwnerType :: OwnerType
 }
 
 
 data LibMethod = LibMethod {
-    lmAccess :: [String],
-    lmReturnType :: [String],
+    lmAccessMask :: Int,
+    lmReturnType :: Class,
     lmName :: String,
-    lmParamTypes :: [[String]],
-    lmOwnerType :: String
+    lmParamTypes :: [Class],
+    lmOwnerType :: OwnerType
 }
+
+
+data OwnerType = OwnerClass | OwnerTopLevel
+    deriving (Eq, Show)
+
+
+accessPublicBit :: Int
+accessPublicBit = 0
+
+
+accessPrivateBit :: Int
+accessPrivateBit = 1
+
+
+accessProtectedBit :: Int
+accessProtectedBit = 2
+
+
+accessStaticBit :: Int
+accessStaticBit = 3
+
+
+accessFinalBit :: Int
+accessFinalBit = 4
+
+
+accessInlineBit :: Int
+accessInlineBit = 5
+
+
+ownerTypeClassCode :: Int
+ownerTypeClassCode = 0
+
+
+ownerTypeTopLevelCode :: Int
+ownerTypeTopLevelCode = 1
+
+
+bitMask :: Int -> Int
+bitMask b = 1 `shiftL` b
 
 
 instance FromJSON LibEnvelope where
@@ -69,31 +111,51 @@ instance FromJSON LibEnvelope where
 
 
 instance FromJSON LibClass where
-    parseJSON = withObject "LibClass" $ \o ->
+    parseJSON = withObject "LibClass" $ \o -> do
+        pkgRaw <- o .:? "package" .!= []
+        classVal <- o .: "class"
+        (pkg, clsName) <- parseClassName pkgRaw classVal
         LibClass
-            <$> o .:? "package" .!= []
-            <*> o .: "class"
+            <$> pure pkg
+            <*> pure clsName
             <*> o .:? "static_fields" .!= []
             <*> o .:? "static_methods" .!= []
 
 
 instance FromJSON LibField where
-    parseJSON = withObject "LibField" $ \o ->
+    parseJSON = withObject "LibField" $ \o -> do
+        accessVal <- o .:? "access" .!= Number 0
+        ownerVal <- o .:? "owner_type" .!= Number (fromIntegral ownerTypeClassCode)
+        tyVal <- o .: "type"
         LibField
-            <$> o .:? "access" .!= []
-            <*> o .: "type"
+            <$> parseAccessMask accessVal
+            <*> parseTypeValue tyVal
             <*> o .: "name"
-            <*> (normalizeOwnerType <$> o .:? "owner_type" .!= "class")
+            <*> parseOwnerType ownerVal
 
 
 instance FromJSON LibMethod where
-    parseJSON = withObject "LibMethod" $ \o ->
+    parseJSON = withObject "LibMethod" $ \o -> do
+        accessVal <- o .:? "access" .!= Number 0
+        ownerVal <- o .:? "owner_type" .!= Number (fromIntegral ownerTypeClassCode)
+        retVal <- (o .:? "return_type" >>= \m -> case m of
+            Just v -> pure (Just v)
+            Nothing -> o .:? "return")
+        paramsVal <- o .:? "param_types" .!= Array mempty
+        allParamTypes <- parseParamTypes paramsVal
+        (retTy, paramsOnly) <- case retVal of
+            Just rv -> do
+                r <- parseTypeValue rv
+                pure (r, allParamTypes)
+            Nothing -> case allParamTypes of
+                [] -> fail "param_types must include return type as last item when return/return_type is omitted"
+                _ -> pure (last allParamTypes, init allParamTypes)
         LibMethod
-            <$> o .:? "access" .!= []
-            <*> o .: "return_type"
+            <$> parseAccessMask accessVal
+            <*> pure retTy
             <*> o .: "name"
-            <*> o .:? "param_types" .!= []
-            <*> (normalizeOwnerType <$> o .:? "owner_type" .!= "class")
+            <*> pure paramsOnly
+            <*> parseOwnerType ownerVal
 
 
 loadJavaJsonOne :: [String] -> Path -> IO (Either [ErrorKind] (ImportEnv, TypedImportEnv))
@@ -125,12 +187,12 @@ loadJavaNonJsonBatch toolkitJar imports libPaths = do
                 Right env ->
                     pure $ Right (Just (buildEnv "<batched-libs>" env))
         ExitFailure code ->
-            let details = trim (if null errText then out else errText)
+            let details = trimMsg (if null errText then out else errText)
                 msg = "failed to read batched library metadata (exit " ++ show code ++ "): " ++ details
             in pure $ Left [mkSyntax "<batched-libs>" msg]
   where
-    trim :: String -> String
-    trim = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
+    trimMsg :: String -> String
+    trimMsg = reverse . dropWhile (`elem` ("\r\n\t " :: String)) . reverse . dropWhile (`elem` ("\r\n\t " :: String))
 
 
 resolveJavaCommands :: IO [FilePath]
@@ -297,8 +359,8 @@ collectFieldDecls cls = concatMap one (lcStaticFields cls)
     one f =
         let fullQn = lcPackage cls ++ [lcClassName cls, lfName f]
             aliases = aliasesFor (lcPackage cls) (lcClassName cls) (lfName f) (lfOwnerType f)
-            keys = map (applyVisibility (isPublicAccess (lfAccess f))) aliases
-            t = parseTypeParts (lfType f)
+            keys = map (applyVisibility (isPublicAccessMask (lfAccessMask f))) aliases
+            t = lfType f
         in [(k, fullQn, t, []) | k <- keys]
 
 
@@ -309,17 +371,17 @@ collectMethodDecls cls = concatMap one (lcStaticMethods cls)
     one m =
         let fullQn = lcPackage cls ++ [lcClassName cls, lmName m]
             aliases = aliasesFor (lcPackage cls) (lcClassName cls) (lmName m) (lmOwnerType m)
-            keys = map (applyVisibility (isPublicAccess (lmAccess m))) aliases
+            keys = map (applyVisibility (isPublicAccessMask (lmAccessMask m))) aliases
             sig = FunSig {
-                funParams = map parseTypeParts (lmParamTypes m),
-                funReturn = parseTypeParts (lmReturnType m)
+                funParams = lmParamTypes m,
+                funReturn = lmReturnType m
             }
         in [(k, fullQn, sig, []) | k <- keys]
 
 
-aliasesFor :: QName -> String -> String -> String -> [QName]
+aliasesFor :: QName -> String -> String -> OwnerType -> [QName]
 aliasesFor pkg clsName memberName ownerType
-    | ownerType == "xlang-top-level" =
+    | ownerType == OwnerTopLevel =
         nub [pkg ++ [clsName, memberName], pkg ++ [memberName]]
     | otherwise =
         [pkg ++ [clsName, memberName]]
@@ -330,20 +392,96 @@ applyVisibility True qn = qn
 applyVisibility False qn = toHiddenQName qn
 
 
-isPublicAccess :: [String] -> Bool
-isPublicAccess = any ((== "public") . map toLower)
+isPublicAccessMask :: Int -> Bool
+isPublicAccessMask mask = (mask .&. bitMask accessPublicBit) /= 0
 
 
-normalizeOwnerType :: String -> String
-normalizeOwnerType raw =
-    let s = map toLower raw
-    in case s of
-        "xlang-top-level" -> "xlang-top-level"
-        _ -> "xlang-class"
+parseClassName :: QName -> Value -> Parser (QName, String)
+parseClassName pkgRaw v = case (fromJSON v :: Result String) of
+    Success clsName ->
+        let parts = splitDots (trim clsName)
+        in case parts of
+            [] -> fail "class name must not be empty"
+            [one] -> pure (pkgRaw, one)
+            many -> pure (init many, last many)
+    Error _ -> case (fromJSON v :: Result [String]) of
+        Success parts -> case parts of
+            [] -> fail "class qname must not be empty"
+            [one] -> pure (pkgRaw, one)
+            many -> pure (init many, last many)
+        Error _ -> fail "class must be string or array of strings"
+  where
+    splitDots :: String -> [String]
+    splitDots s = case break (== '.') s of
+        (a, []) -> [a]
+        (a, _:rest) -> a : splitDots rest
 
 
-parseTypeParts :: [String] -> Class
-parseTypeParts parts =
+parseAccessMask :: Value -> Parser Int
+parseAccessMask v = case (fromJSON v :: Result Int) of
+    Success i -> pure i
+    Error _ -> case (fromJSON v :: Result [String]) of
+        Success tags -> pure (foldl' (.|.) 0 (catMaybes (map tagBit tags)))
+        Error _ -> fail "access must be int or list of strings"
+  where
+    tagBit :: String -> Maybe Int
+    tagBit s = case map toLower s of
+        "public" -> Just (bitMask accessPublicBit)
+        "private" -> Just (bitMask accessPrivateBit)
+        "protected" -> Just (bitMask accessProtectedBit)
+        "static" -> Just (bitMask accessStaticBit)
+        "final" -> Just (bitMask accessFinalBit)
+        "inline" -> Just (bitMask accessInlineBit)
+        _ -> Nothing
+
+
+parseOwnerType :: Value -> Parser OwnerType
+parseOwnerType v = case (fromJSON v :: Result Int) of
+    Success code
+        | code == ownerTypeTopLevelCode -> pure OwnerTopLevel
+        | code == ownerTypeClassCode -> pure OwnerClass
+        | otherwise -> fail "owner_type int must be 0(class) or 1(top-level)"
+    Error _ -> case (fromJSON v :: Result String) of
+        Success raw ->
+            let s = map toLower raw
+            in case s of
+                "xlang-top-level" -> pure OwnerTopLevel
+                "xlang-class" -> pure OwnerClass
+                _ -> pure OwnerClass
+        Error _ -> fail "owner_type must be int or string"
+
+
+parseTypeValue :: Value -> Parser Class
+parseTypeValue v = case (fromJSON v :: Result String) of
+    Success txt -> parseTypeToken txt
+    Error _ -> case (fromJSON v :: Result [String]) of
+        Success parts -> pure (parseLegacyParts parts)
+        Error _ -> fail "type value must be string or string-array"
+
+
+parseParamTypes :: Value -> Parser [Class]
+parseParamTypes v = case (fromJSON v :: Result [String]) of
+    Success tokens -> mapM parseTypeToken tokens
+    Error _ -> case (fromJSON v :: Result [[String]]) of
+        Success parts -> pure (map parseLegacyParts parts)
+        Error _ -> fail "param_types must be [String] or [[String]]"
+
+
+parseTypeToken :: String -> Parser Class
+parseTypeToken raw =
+    let token = trim raw
+    in case classDemangleEither token of
+        Right cls -> pure (normalizeClass cls)
+        Left _ -> pure (parseLegacyParts (splitDots token))
+  where
+    splitDots :: String -> [String]
+    splitDots s = case break (== '.') s of
+        (a, []) -> [a]
+        (a, _:rest) -> a : splitDots rest
+
+
+parseLegacyParts :: [String] -> Class
+parseLegacyParts parts =
     let base = case parts of
             [] -> []
             [one] -> [normalizePrimitive one]
@@ -369,6 +507,9 @@ primitiveTypeMap = Map.fromList [
     ("string", "String")]
 
 
+trim :: String -> String
+trim = dropWhileEnd isSpace . dropWhile isSpace
+
+
 mkSyntax :: Path -> String -> ErrorKind
 mkSyntax p msg = UE.Syntax (UE.makeError p [] msg)
-

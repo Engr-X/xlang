@@ -1,7 +1,10 @@
 module Lowing.JVMJson where
 
-import Data.Aeson (Value, object, (.=))
+import Data.Aeson (Value, object, toJSON, (.=))
 import Data.Aeson.Key (Key)
+import Data.Bits ((.|.), shiftL)
+import Data.Char (toLower)
+import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..))
@@ -10,9 +13,12 @@ import Semantic.NameEnv (QName)
 import Semantic.TypeEnv (FunSig(..))
 
 import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified IR.TAC as IR
 import qualified Lowing.JVM as JVM
+import qualified Parse.SyntaxTree as AST
 
 
 opNameKey :: Key
@@ -157,12 +163,75 @@ declToAccessList :: (AccessModified, [DeclFlag]) -> [String]
 declToAccessList (acc, flags) = accessToString acc : map flagToString flags
 
 
+accessPublicBit :: Int
+accessPublicBit = 0
+
+
+accessPrivateBit :: Int
+accessPrivateBit = 1
+
+
+accessProtectedBit :: Int
+accessProtectedBit = 2
+
+
+accessStaticBit :: Int
+accessStaticBit = 3
+
+
+accessFinalBit :: Int
+accessFinalBit = 4
+
+
+accessInlineBit :: Int
+accessInlineBit = 5
+
+
+bitMask :: Int -> Int
+bitMask b = 1 `shiftL` b
+
+
+declToAccessMask :: (AccessModified, [DeclFlag]) -> Int
+declToAccessMask (acc, flags) =
+    let vis = case acc of
+            Public -> bitMask accessPublicBit
+            Private -> bitMask accessPrivateBit
+            Protected -> bitMask accessProtectedBit
+        stBits = if Static `elem` flags then bitMask accessStaticBit else 0
+        finBits = if Final `elem` flags then bitMask accessFinalBit else 0
+        inlBits = if Inline `elem` flags then bitMask accessInlineBit else 0
+    in vis .|. stBits .|. finBits .|. inlBits
+
+
+ownerTypeClassCode :: Int
+ownerTypeClassCode = 0
+
+
+ownerTypeTopLevelCode :: Int
+ownerTypeTopLevelCode = 1
+
+
+ownerTypeToCode :: String -> Int
+ownerTypeToCode raw =
+    if map toLower raw == "xlang-top-level"
+        then ownerTypeTopLevelCode
+        else ownerTypeClassCode
+
+
+typeToCompactText :: Class -> String
+typeToCompactText cls = case cls of
+    ErrorClass -> "error"
+    Class qn [] -> intercalate "." qn
+    Class _ _ -> AST.classMangle cls
+    _ -> AST.classMangle cls
+
+
 -- | Encode function signature as JSON.
 funSigToJSON :: FunSig -> Value
 funSigToJSON sig =
     object [
-        funcReturnKey .= typeToQName (funReturn sig),
-        funcParamsKey .= map typeToQName (funParams sig)]
+        funcReturnKey .= typeToCompactText (funReturn sig),
+        funcParamsKey .= map typeToCompactText (funParams sig)]
 
 
 -- | Choose JVM op prefix for numeric types.
@@ -243,12 +312,12 @@ opToJSON JVM.Dup = op0 "dup"
 
 opToJSON (JVM.GetStatic t qn) = object [
     opNameKey .= ("getstatic" :: String),
-    attributeTypeKey .= typeToQName t,
+    attributeTypeKey .= typeToCompactText t,
     attributeNameKey .= qn]
 
 opToJSON (JVM.PutStatic t qn) = object [
     opNameKey .= ("putstatic" :: String),
-    attributeTypeKey .= typeToQName t,
+    attributeTypeKey .= typeToCompactText t,
     attributeNameKey .= qn]
 
 opToJSON (JVM.Neg t) = op0 (opPrefix t ++ "neg")
@@ -299,21 +368,21 @@ jCommandToJSON (JVM.Label (bid, cmds)) =
 -- | Encode a JVM function into JSON.
 jFunctionToJSON :: JVM.JFunction -> Value
 jFunctionToJSON (JVM.JFunction decl fname sig ownerType body) = object [
-    ownerTypeKey .= ownerType,
-    accessKey .= declToAccessList decl,
+    ownerTypeKey .= ownerTypeToCode ownerType,
+    accessKey .= declToAccessMask decl,
     nameKey .= fname,
-    returnKey .= typeToQName (funReturn sig),
-    paramTypesKey .= map typeToQName (funParams sig),
+    returnKey .= typeToCompactText (funReturn sig),
+    paramTypesKey .= map typeToCompactText (funParams sig),
     methodOpsKey .= map jCommandToJSON body]
 
 
 -- | Encode a JVM field into JSON.
 jFieldToJSON :: JVM.JField -> Value
 jFieldToJSON (JVM.JField decl cls name ownerType) = object [
-    ownerTypeKey .= ownerType,
-    accessKey .= declToAccessList decl,
+    ownerTypeKey .= ownerTypeToCode ownerType,
+    accessKey .= declToAccessMask decl,
     attributeNameKey .= name,
-    attributeTypeKey .= typeToQName cls,
+    attributeTypeKey .= typeToCompactText cls,
     signatureKey .= ("" :: String)]
 
 
@@ -326,8 +395,8 @@ jClinitToJSON (JVM.JClinit body) = object [
 -- | Encode a constructor into JSON.
 jInitToJSON :: JVM.JInit -> Value
 jInitToJSON (JVM.JInit decl sig body) = object [
-    accessKey .= declToAccessList decl,
-    paramTypesKey .= map typeToQName (funParams sig),
+    accessKey .= declToAccessMask decl,
+    paramTypesKey .= map typeToCompactText (funParams sig),
     methodOpsKey .= map jCommandToJSON body]
 
 
@@ -337,7 +406,7 @@ jClassToJSON jvmTarget (JVM.JClass decl qname extendQ interfaces fields clinit i
     object $ [
         jvmTargetKey .= jvmTarget,
         classKey .= qname,
-        accessKey .= declToAccessList decl,
+        accessKey .= declToAccessMask decl,
         signatureKey .= ([] :: [String]),
         superClassKey .= extendQ,
         interfacesKey .= interfaces,
@@ -352,6 +421,105 @@ jClassToJSON jvmTarget (JVM.JClass decl qname extendQ interfaces fields clinit i
         mainQNameField = case mainQName of
             Nothing -> []
             Just qn -> [mainQNameKey .= qn]
+
+
+ownerTypeFromIRMember :: IR.IRMemberType -> Int
+ownerTypeFromIRMember memberType = case memberType of
+    IR.MemberClass -> ownerTypeClassCode
+    IR.MemberClassWrapped -> ownerTypeTopLevelCode
+
+
+irFieldMetaToJSON :: IR.Attribute -> Value
+irFieldMetaToJSON (decl, cls, name, memberType) = object [
+    ownerTypeKey .= ownerTypeFromIRMember memberType,
+    accessKey .= declToAccessMask decl,
+    attributeNameKey .= name,
+    attributeTypeKey .= typeToCompactText cls,
+    signatureKey .= ("" :: String)]
+
+
+irMethodMetaToJSON :: IR.IRFunction -> Value
+irMethodMetaToJSON (IR.IRFunction decl fname sig _ _ memberType) = object [
+    ownerTypeKey .= ownerTypeFromIRMember memberType,
+    accessKey .= declToAccessMask decl,
+    nameKey .= fname,
+    returnKey .= typeToCompactText (funReturn sig),
+    paramTypesKey .= map typeToCompactText (funParams sig)]
+
+
+irClassMetaToJSON :: Int -> QName -> IR.IRClass -> Value
+irClassMetaToJSON jvmTarget pkgSegs (IR.IRClass decl className attrs _ _ funs mainKind) =
+    object $ [
+        jvmTargetKey .= jvmTarget,
+        classKey .= (pkgSegs ++ [className]),
+        accessKey .= declToAccessMask decl,
+        signatureKey .= ([] :: [String]),
+        superClassKey .= ([] :: [String]),
+        interfacesKey .= ([] :: [[String]]),
+        attributesKey .= map irFieldMetaToJSON attrs,
+        clinitKey .= object [methodOpsKey .= ([] :: [Value])],
+        initKey .= ([] :: [Value]),
+        methodsKey .= map irMethodMetaToJSON funs,
+        mainTypeKey .= mainType
+        ] ++ mainQNameField
+  where
+    (mainType, mainQName) = mainKindMeta mainKind
+    mainQNameField = case mainQName of
+        Nothing -> []
+        Just qn -> [mainQNameKey .= qn]
+
+
+patchObjectField :: Key -> Value -> Value -> Value
+patchObjectField key val (Aeson.Object obj) = Aeson.Object (KeyMap.insert key val obj)
+patchObjectField _ _ v = v
+
+
+patchMethodMetaWithOps :: Value -> JVM.JFunction -> Value
+patchMethodMetaWithOps metaVal (JVM.JFunction _ _ _ _ body) =
+    patchObjectField methodOpsKey (toJSON (map jCommandToJSON body)) metaVal
+
+
+patchClassMetaWithOps :: Int -> Value -> JVM.JClass -> Value
+patchClassMetaWithOps jvmTarget metaVal cls@(JVM.JClass _ _ _ _ _ clinit inits methods _) =
+    let metaMethods = case lookupObjectField methodsKey metaVal of
+            Just (Aeson.Array arr) -> foldr (:) [] arr
+            _ -> []
+        patchedMethods = zipWith patchMethodMetaWithOps metaMethods methods
+        extraMethods = drop (length metaMethods) (map jFunctionToJSON methods)
+        withClinit = patchObjectField clinitKey (jClinitToJSON clinit) metaVal
+        withInit = patchObjectField initKey (toJSON (map jInitToJSON inits)) withClinit
+        withMethods = patchObjectField methodsKey (toJSON (patchedMethods ++ extraMethods)) withInit
+    in case withMethods of
+        Aeson.Object _ -> withMethods
+        _ -> jClassToJSON jvmTarget cls
+
+
+lookupObjectField :: Key -> Value -> Maybe Value
+lookupObjectField key (Aeson.Object obj) = KeyMap.lookup key obj
+lookupObjectField _ _ = Nothing
+
+
+irClassMetasToJSON :: Int -> [IR.IRProgm] -> [Value]
+irClassMetasToJSON jvmTarget progms = concatMap oneProgm progms
+  where
+    oneProgm :: IR.IRProgm -> [Value]
+    oneProgm (IR.IRProgm pkgSegs classes) = map (irClassMetaToJSON jvmTarget pkgSegs) classes
+
+
+zipMetaAndClasses :: Int -> [Value] -> [JVM.JClass] -> [Value]
+zipMetaAndClasses jvmTarget metas classes = go metas classes
+  where
+    go :: [Value] -> [JVM.JClass] -> [Value]
+    go (m:ms) (c:cs) = patchClassMetaWithOps jvmTarget m c : go ms cs
+    go [] cs = map (jClassToJSON jvmTarget) cs
+    go ms [] = ms
+
+
+-- | Build JVM JSON from IR metadata skeleton, then patch method/clinit/init ops.
+jProgmToJSONFromIR :: Int -> [IR.IRProgm] -> [JVM.JClass] -> Value
+jProgmToJSONFromIR jvmTarget irProgms classes =
+    let metas = irClassMetasToJSON jvmTarget irProgms
+    in object [classesKey .= zipMetaAndClasses jvmTarget metas classes]
 
 
 mainKindMeta :: IR.MainKind -> (Int, Maybe QName)

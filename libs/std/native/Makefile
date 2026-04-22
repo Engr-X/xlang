@@ -97,6 +97,14 @@ else
 	PIC_FLAGS := -fPIC
 endif
 
+ifneq ($(PLATFORM),windows)
+	LDFLAGS += -lm
+endif
+
+ifeq ($(PLATFORM),linux)
+	CFLAGS += -U__USE_MINGW_ANSI_STDIO
+endif
+
 SHARED_LIB := $(LIB_DIR)/$(TARGET).$(SHARED_EXT)
 STATIC_LIB := $(LIB_DIR)/$(TARGET).a
 STD_SHARED_LIB := $(LIB_DIR)/$(STD_TARGET).$(SHARED_EXT)

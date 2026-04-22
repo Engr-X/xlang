@@ -3,8 +3,9 @@
 module X64Lowing.Lowing where
 
 import Control.Monad.State.Strict (State, evalState, get, gets, modify', put)
-import Data.Bits ((.|.), shiftL)
 import Data.Aeson (Value, encode, object, (.=))
+import Data.Bits ((.|.), shiftL)
+import Data.Char (ord)
 import Data.List (foldl', intercalate)
 import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
@@ -1563,7 +1564,9 @@ classParentsCsv64 xs = intercalate "," [classToString64 pkg cls | (pkg, cls) <- 
 
 
 stringBytesData64 :: X64.CallConv64 -> String -> [X64.InstrConst]
-stringBytesData64 cc s = [stringZConst64 cc s]
+stringBytesData64 cc s = case X64.ccCompiler cc of
+    X64.NASM -> map (X64.Byte . show . ord) s ++ [X64.Byte "0"]
+    _ -> [stringZConst64 cc s]
 
 
 stringZConst64 :: X64.CallConv64 -> String -> X64.InstrConst
@@ -1740,14 +1743,15 @@ bitMask64 b = 1 `shiftL` b
 
 declAccessMask64 :: Parse.Decl -> Int
 declAccessMask64 (acc, flags) =
-    let visBit = case acc of
+    let vis = case acc of
             Parse.Public -> bitMask64 accessPublicBit64
             Parse.Private -> bitMask64 accessPrivateBit64
             Parse.Protected -> bitMask64 accessProtectedBit64
-        staticBit = if Parse.Static `elem` flags then bitMask64 accessStaticBit64 else 0
-        finalBit = if Parse.Final `elem` flags then bitMask64 accessFinalBit64 else 0
-        inlineBit = if Parse.Inline `elem` flags then bitMask64 accessInlineBit64 else 0
-    in visBit .|. staticBit .|. finalBit .|. inlineBit
+        stBits = if Parse.Static `elem` flags then bitMask64 accessStaticBit64 else 0
+        finBits = if Parse.Final `elem` flags then bitMask64 accessFinalBit64 else 0
+        inlBits = if Parse.Inline `elem` flags then bitMask64 accessInlineBit64 else 0
+        extras = stBits .|. finBits .|. inlBits
+    in vis .|. extras
 
 
 ownerTypeCode64 :: IR.IRMemberType -> Int
@@ -1757,39 +1761,67 @@ ownerTypeCode64 memberTy = case memberTy of
 
 
 classTypeToken64 :: Class -> String
-classTypeToken64 = AST.classMangle
+classTypeToken64 cls = case cls of
+    AST.ErrorClass -> "error"
+    AST.Class names [] -> intercalate "." names
+    AST.Class _ _ -> AST.classMangle cls
+    _ -> AST.classMangle cls
+
+
+mainTypeCode64 :: IR.MainKind -> Int
+mainTypeCode64 mainKind = case mainKind of
+    IR.NoMain -> -1
+    IR.MainVoid _ -> 0
+    IR.MainInt _ -> 1
+    IR.MainVoidArgs _ -> 2
+    IR.MainIntArgs _ -> 3
+
+
+mainQName64 :: IR.MainKind -> [String]
+mainQName64 mainKind = case mainKind of
+    IR.NoMain -> []
+    IR.MainVoid qn -> qn
+    IR.MainInt qn -> qn
+    IR.MainVoidArgs qn -> qn
+    IR.MainIntArgs qn -> qn
 
 
 classInfoFieldJson64 :: IR.Attribute -> Value
 classInfoFieldJson64 (decl, cls, fieldName, memberTy) = object [
-    "owner_type" .= ownerTypeCode64 memberTy,
     "access" .= declAccessMask64 decl,
     "attr_name" .= fieldName,
-    "attr_type" .= classTypeToken64 cls
+    "attr_type" .= classTypeToken64 cls,
+    "owner_type" .= ownerTypeCode64 memberTy
     ]
 
 
 classInfoMethodJson64 :: IR.IRFunction -> Value
 classInfoMethodJson64 (IR.IRFunction decl funName sig _ _ memberTy) = object [
-    "owner_type" .= ownerTypeCode64 memberTy,
     "access" .= declAccessMask64 decl,
     "name" .= funName,
+    "owner_type" .= ownerTypeCode64 memberTy,
     "param_types" .= map classTypeToken64 (TEnv.funParams sig),
     "return" .= classTypeToken64 (TEnv.funReturn sig)
     ]
 
 
-classInfoJsonValue64 :: [String] -> [IR.Attribute] -> [IR.IRFunction] -> Value
-classInfoJsonValue64 ownerQName attrs funs = object [
-    "class" .= ownerQName,
+classInfoJsonValue64 :: Parse.Decl -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> Value
+classInfoJsonValue64 classDecl ownerQName mainKind attrs funs = object [
+    "access" .= declAccessMask64 classDecl,
     "attributes" .= map classInfoFieldJson64 attrs,
-    "methods" .= map classInfoMethodJson64 funs
+    "class" .= ownerQName,
+    "interfaces" .= ([] :: [[String]]),
+    "main_qname" .= mainQName64 mainKind,
+    "main_type" .= mainTypeCode64 mainKind,
+    "methods" .= map classInfoMethodJson64 funs,
+    "signature" .= ([] :: [[String]]),
+    "super_class" .= ([] :: [String])
     ]
 
 
-classInfoJsonText64 :: [String] -> [IR.Attribute] -> [IR.IRFunction] -> String
-classInfoJsonText64 ownerQName attrs funs =
-    BL8.unpack (encode (classInfoJsonValue64 ownerQName attrs funs))
+classInfoJsonText64 :: Parse.Decl -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> String
+classInfoJsonText64 classDecl ownerQName mainKind attrs funs =
+    BL8.unpack (encode (classInfoJsonValue64 classDecl ownerQName mainKind attrs funs))
 
 
 -- Lower one IR function into segmented output:
@@ -1910,7 +1942,7 @@ x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes fu
             stInClinit64 = True
             }
         classInfoAttrs = filter isStaticAttr64 attrs
-        classInfoText = classInfoJsonText64 ownerQName classInfoAttrs funs
+        classInfoText = classInfoJsonText64 decl ownerQName mainKind classInfoAttrs funs
         classInfoDataLabel = mangleQName64 False ownerQName ++ "_infoData"
         classInfoData = X64.StaticData classInfoDataLabel (stringBytesData64 cc classInfoText)
         staticData = classInfoData : (staticLowing64 ownerQName attrs ++ floatConstData)

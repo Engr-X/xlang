@@ -1,5 +1,5 @@
-#ifndef __XLANG_IO_CONSOLE_H__
-#define __XLANG_IO_CONSOLE_H__
+#ifndef _XLANG_IO_CONSOLE_H_
+#define _XLANG_IO_CONSOLE_H_
 
 #include <stdbool.h>
 #include <stdint.h>

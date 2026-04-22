@@ -425,7 +425,10 @@ mkExeEntryUnit64 :: X64.CallConv64 -> Maybe [String] -> [(FilePath, TAC.IRProgm)
 mkExeEntryUnit64 cc mMainClassOverride irPairs = do
     (entryQn, entrySig) <- pickExeEntry64 mMainClassOverride irPairs
     let targetSym = X64.mangleQNameWithSig True entryQn entrySig
-        asmText = mkExeEntryAsm64 cc targetSym
+        forceZeroExit = case reverse entrySig of
+            (retT : _) -> retT == AST.Void
+            [] -> False
+        asmText = mkExeEntryAsm64 cc targetSym forceZeroExit
     Right ClassAsmUnit {
         unitSourcePath = "main.x64",
         unitOwnerQName = ["main"],
@@ -507,33 +510,39 @@ pickExeEntry64 mMainClassOverride irPairs =
     gatherOne (_, TAC.IRProgm pkgSegs classes) = concatMap (classWrappedMainSymbols64 pkgSegs) classes
 
 
-mkExeEntryAsm64 :: X64.CallConv64 -> String -> String
-mkExeEntryAsm64 cc targetSym = case X64.ccCompiler cc of
-    X64.NASM -> unlines [
-        "global main",
-        "extern " ++ targetSym,
-        "section .text",
-        "main:",
-        "    call " ++ targetSym,
-        "    ret"]
-    X64.GAS_INTEL -> unlines [
-        ".intel_syntax noprefix",
-        "",
-        ".global main",
-        ".extern " ++ targetSym,
-        ".text",
-        "main:",
-        "    call " ++ targetSym,
-        "    ret"]
-    X64.GAS_ATT -> unlines [
-        ".att_syntax prefix",
-        "",
-        ".global main",
-        ".extern " ++ targetSym,
-        ".text",
-        "main:",
-        "    call " ++ targetSym,
-        "    ret"]
+mkExeEntryAsm64 :: X64.CallConv64 -> String -> Bool -> String
+mkExeEntryAsm64 cc targetSym forceZeroExit = case X64.ccCompiler cc of
+    X64.NASM -> unlines $
+        [ "global main"
+        , "extern " ++ targetSym
+        , "section .text"
+        , "main:"
+        , "    call " ++ targetSym
+        ]
+        ++ [ "    xor eax, eax" | forceZeroExit ]
+        ++ [ "    ret" ]
+    X64.GAS_INTEL -> unlines $
+        [ ".intel_syntax noprefix"
+        , ""
+        , ".global main"
+        , ".extern " ++ targetSym
+        , ".text"
+        , "main:"
+        , "    call " ++ targetSym
+        ]
+        ++ [ "    xor eax, eax" | forceZeroExit ]
+        ++ [ "    ret" ]
+    X64.GAS_ATT -> unlines $
+        [ ".att_syntax prefix"
+        , ""
+        , ".global main"
+        , ".extern " ++ targetSym
+        , ".text"
+        , "main:"
+        , "    call " ++ targetSym
+        ]
+        ++ [ "    xorl %eax, %eax" | forceZeroExit ]
+        ++ [ "    ret" ]
 
 
 selectCallConv64 :: Maybe X64CompilerChoice -> X64.CallConv64
@@ -659,7 +668,9 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
     linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
     linkExeWithLd target objs libs = do
         sysLibs <- collectNativeStaticLibs
-        crtStartupObjs <- if os == "mingw32" && includeRuntime
+        -- `ld` on MinGW still needs CRT startup objects even when runtime
+        -- libraries are linked dynamically (includeRuntime = False).
+        crtStartupObjs <- if os == "mingw32"
             then findWindowsCrtStartupObjs
             else pure []
         let libsUsedRaw = if includeRuntime then filterOutDynamicLibRefs libs else libs
@@ -815,18 +826,20 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
     preferWindowsImportLibs :: [FilePath] -> [FilePath]
     preferWindowsImportLibs libs =
         let lowered = map mapLower libs
-            importStems = [dropSuffixCI ".dll.a" p | p <- lowered, ".dll.a" `isSuffixOf` p]
+            staticStems = [
+                dropSuffixCI ".a" p |
+                p <- lowered,
+                ".a" `isSuffixOf` p,
+                not (".dll.a" `isSuffixOf` p)]
             keep p =
                 let pL = mapLower p
                     ext = map toLower (takeExtension pL)
+                    importStem = dropSuffixCI ".dll.a" pL
                 in if ".dll.a" `isSuffixOf` pL
-                    then True
+                    then not (importStem `elem` staticStems)
                     else if ext == ".dll" || ext == ".so" || ext == ".dylib"
                         then False
-                    else
-                        let isPlainA = ext == ".a"
-                            stemA = dropSuffixCI ".a" pL
-                        in not (isPlainA && stemA `elem` importStems)
+                        else True
         in dedupPreserve (filter keep libs)
       where
         mapLower :: String -> String

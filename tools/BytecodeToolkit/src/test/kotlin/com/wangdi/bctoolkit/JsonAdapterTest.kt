@@ -47,6 +47,44 @@ class JsonAdapterTest
 
     @Test
     /**
+     * Auto-generated baseline docs for parseCompactMaskJsonAndSave.
+     * Describes the intent and behavior of this function.
+     * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.
+     */
+    fun parseCompactMaskJsonAndSave()
+    {
+        val json: String = """
+            {
+                "class": ["TestCompact"],
+                "access": 1,
+                "methods": [
+                    {
+                        "access": 9,
+                        "owner_type": 1,
+                        "name": "add1",
+                        "return": "i",
+                        "param_types": ["i"],
+                        "ops": [
+                            { "op_name": "iload", "index": 0 },
+                            { "op_name": "ipush", "value": 1 },
+                            { "op_name": "iadd" },
+                            { "op_name": "ireturn" }
+                        ]
+                    }
+                ]
+            }
+        """.trimIndent()
+
+        val adapter = JsonAdapter(json)
+        val emitter: com.wangdi.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
+        val outDir: Path = Files.createTempDirectory("bcg-test-compact")
+        emitter.save(outDir)
+
+        assertTrue(Files.exists(outDir.resolve("TestCompact.class")))
+    }
+
+    @Test
+    /**
      * Auto-generated baseline docs for parseShortOpFormatAndArrayParams.
      * Describes the intent and behavior of this function.
      * @param Parameters are described by the function signature.`r`n * @return Return value follows the function signature.

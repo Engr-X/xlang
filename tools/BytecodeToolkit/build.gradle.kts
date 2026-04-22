@@ -1,3 +1,9 @@
+import org.gradle.api.JavaVersion
+import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+
 plugins {
     kotlin("jvm") version "2.2.21"
     kotlin("plugin.serialization") version "2.2.21"
@@ -19,8 +25,33 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+val requestedJvmToolchain = providers.gradleProperty("xlang.java.toolchain")
+    .orNull
+    ?.toIntOrNull()
+
+val detectedJvmToolchain = JavaVersion.current().majorVersion.toIntOrNull()
+
+val jvmToolchainVersion = (requestedJvmToolchain ?: detectedJvmToolchain ?: 8).coerceAtLeast(8)
+
+logger.lifecycle("[BytecodeToolkit] Kotlin toolchain JDK=$jvmToolchainVersion (bytecode JVM 1.8)")
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(8)
+}
+
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(jvmToolchainVersion))
+    }
+}
+
+tasks.withType<KotlinJvmCompile>().configureEach {
+    compilerOptions.jvmTarget.set(JvmTarget.JVM_1_8)
 }
 
 application {

@@ -109,7 +109,7 @@ GRADLE_ARGS := --console=plain --no-daemon
 # On Unix-like systems, normalize gradlew line endings before execution
 # to avoid /bin/sh^M failures when scripts were checked out with CRLF.
 define PREPARE_GRADLEW_CMD
-	tmp=$$(mktemp); tr -d '\r' < ./gradlew > $$tmp; mv "$$tmp" ./gradlew
+	tmp=$$(mktemp); tr -d '\r' < ./gradlew > $$tmp; mv "$$tmp" ./gradlew; chmod +x ./gradlew
 endef
 
 .PHONY: help all build all_components full compiler move_native java_std native_std compile update maybe_update tools java_lib native_lib stage_syslibs \
@@ -185,18 +185,20 @@ compile: maybe_update
 
 tools:
 	mkdir -p "$(TOOLS_OUT_DIR)"
-	cd "$(BYTECODEGEN_DIR)" && chmod +x ./gradlew
 	@if [ "$(OS)" != "Windows_NT" ]; then \
 		cd "$(BYTECODEGEN_DIR)" && $(PREPARE_GRADLEW_CMD); \
+	else \
+		cd "$(BYTECODEGEN_DIR)" && chmod +x ./gradlew; \
 	fi
 	cd "$(BYTECODEGEN_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
 	cp -f "$(BYTECODEGEN_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
 
 java_lib: compile
 	mkdir -p "$(JAVA_LIB_OUT_DIR)" "$(JAVA_RUNTIME_OUT_DIR)"
-	cd "$(JAVA_LIB_DIR)" && chmod +x ./gradlew
 	@if [ "$(OS)" != "Windows_NT" ]; then \
 		cd "$(JAVA_LIB_DIR)" && $(PREPARE_GRADLEW_CMD); \
+	else \
+		cd "$(JAVA_LIB_DIR)" && chmod +x ./gradlew; \
 	fi
 	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) -PxlangExe="$(EXE_OUT_GRADLE)" $(GRADLE_ARGS)
 	rm -f "$(JAVA_LIB_DIR)/build/libs/xlang-stdlib-alpha.jar" 2>/dev/null || true
@@ -211,7 +213,8 @@ java_lib: compile
 native_lib: java_lib
 	mkdir -p "$(NATIVE_LIB_BUILD_DIR)"
 	cd "$(NATIVE_LIB_BUILD_DIR)" && sh ../configure --build-dir=. --target="$(NATIVE_BASE_TARGET)"
-	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)" -j$(JOBS)
+	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)" clean
+	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)"
 	@if [ "$(NATIVE_SHARED_EXT)" = "dll" ]; then \
 		if [ ! -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" ]; then \
 			echo "[WARN] missing native import lib: $(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)"; \

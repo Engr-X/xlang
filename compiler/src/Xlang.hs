@@ -1,13 +1,13 @@
 module Xlang where
 
 import Control.Monad (void, when)
-import Data.Char (isDigit, toLower)
+import Data.Char (isDigit, isSpace, toLower)
 import Data.Foldable (for_)
 import Data.List (intercalate, isSuffixOf, nub, sort, stripPrefix)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
 import GHC.Conc (setNumCapabilities)
-import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory)
+import System.Directory (canonicalizePath, createDirectoryIfMissing, doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, listDirectory)
 import System.Environment (getArgs, getExecutablePath)
 import System.Exit (ExitCode(..))
 import System.FilePath ((</>), takeDirectory, takeExtension)
@@ -130,22 +130,79 @@ downloadJdkMetadata exeDir version =
             putStrLn ("supported versions: " ++ supportedJdkMetadataVersionsText)
         Just url -> do
             let outFile = stdJavaMetadataFile exeDir version
-                downloadScript = concat [
-                    "$ErrorActionPreference='Stop'; ",
-                    "$ProgressPreference='SilentlyContinue'; ",
-                    "Invoke-WebRequest -Uri \"", url, "\" -OutFile \"", outFile, "\""]
 
             createDirectoryIfMissing True (takeDirectory outFile)
             putStrLn ("[DOWNLOAD] jdk metadata v" ++ show version)
             putStrLn ("           url : " ++ url)
             putStrLn ("           file: " ++ outFile)
-            (downloadCode, _, downloadErr) <- readProcessWithExitCode "powershell" ["-NoProfile", "-Command", downloadScript] ""
-            case downloadCode of
-                ExitFailure _ -> do
+            downloadRes <- downloadFileWithFallback url outFile
+            case downloadRes of
+                Left err -> do
                     putStrLn "[ERROR] failed to download jdk metadata db"
-                    if null downloadErr then pure () else putStrLn downloadErr
-                ExitSuccess ->
-                    putStrLn ("[DONE] downloaded: " ++ outFile)
+                    putStrLn err
+                Right toolName ->
+                    putStrLn ("[DONE] downloaded via " ++ toolName ++ ": " ++ outFile)
+
+
+downloadFileWithFallback :: String -> FilePath -> IO (Either String String)
+downloadFileWithFallback url outFile = do
+    mCurl <- findExecutable "curl"
+    mWget <- findExecutable "wget"
+    mPwsh <- findExecutable "pwsh"
+    mPowershell <- findExecutable "powershell"
+
+    let psScript = concat [
+            "$ErrorActionPreference='Stop'; ",
+            "$ProgressPreference='SilentlyContinue'; ",
+            "Invoke-WebRequest -Uri \"", escapePowerShellString url, "\" -OutFile \"", escapePowerShellString outFile, "\""]
+        candidates =
+            concat [
+                mkCandidate "curl" mCurl ["-L", "--fail", "--silent", "--show-error", "-o", outFile, url],
+                mkCandidate "wget" mWget ["-O", outFile, url],
+                mkCandidate "pwsh" mPwsh ["-NoProfile", "-Command", psScript],
+                mkCandidate "powershell" mPowershell ["-NoProfile", "-Command", psScript]]
+
+    runCandidates outFile [] candidates
+  where
+    mkCandidate :: String -> Maybe FilePath -> [String] -> [(String, FilePath, [String])]
+    mkCandidate _ Nothing _ = []
+    mkCandidate name (Just cmd) args = [(name, cmd, args)]
+
+    runCandidates :: FilePath -> [String] -> [(String, FilePath, [String])] -> IO (Either String String)
+    runCandidates _ errs [] =
+        pure (Left (if null errs
+            then "no downloader found (tried: curl, wget, pwsh, powershell)"
+            else intercalate "\n" (reverse errs)))
+    runCandidates target errs ((name, cmd, args):rest) = do
+        (code, _, errTxt) <- readProcessWithExitCode cmd args ""
+        outExists <- doesFileExist target
+        case (code, outExists) of
+            (ExitSuccess, True) ->
+                pure (Right name)
+            _ ->
+                runCandidates target (formatDownloadError name code outExists errTxt : errs) rest
+
+    formatDownloadError :: String -> ExitCode -> Bool -> String -> String
+    formatDownloadError name code outExists errTxt =
+        let codeText = case code of
+                ExitSuccess -> "exit=0"
+                ExitFailure n -> "exit=" ++ show n
+            fileText = if outExists then "file=present" else "file=missing"
+            errBody = trimLine errTxt
+            errText = if null errBody then "<no stderr>" else errBody
+        in "[" ++ name ++ "] " ++ codeText ++ " " ++ fileText ++ " " ++ errText
+
+    trimLine :: String -> String
+    trimLine = dropWhileEndSpace . dropWhile isSpace
+      where
+        dropWhileEndSpace = reverse . dropWhile isSpace . reverse
+
+    escapePowerShellString :: String -> String
+    escapePowerShellString = concatMap esc
+      where
+        esc '`' = "``"
+        esc '"' = "`\""
+        esc c = [c]
 
 hasAnyEntries :: FilePath -> IO Bool
 hasAnyEntries dir = do

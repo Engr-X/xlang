@@ -673,7 +673,7 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
 
                             let irs = map snd irPairs
                                 classes = concat [jClasses | (_, jClasses, _) <- lowered]
-                                jsonVal = JVMJson.jProgmToJSON targetJvm classes
+                                jsonVal = JVMJson.jProgmToJSONFromIR targetJvm irs classes
                                 jsonBytes = encode jsonVal
                                 jsonText = BL.unpack jsonBytes
                                 useTempJsonFile = shouldUseTempJsonFile jsonBytes

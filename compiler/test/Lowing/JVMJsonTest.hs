@@ -164,7 +164,7 @@ jProgmToJSONTests = testGroup "Lowing.JVMJson.jProgmToJSON" $ map (uncurry testC
             txt = jsonText (encode (JJ.jProgmToJSON 8 [cls]))
         containsInJson "\"methods\"" txt
         containsInJson "\"name\":\"main\"" txt
-        containsInJson "\"return\":[\"int32\"]" txt)
+        containsInJson "\"return\":\"i\"" txt)
     ]
 
 
