@@ -457,7 +457,7 @@ parseNativeSymbolsEnvelope symbols =
         | length (symQName p) < 2 = Nothing
         | null (symSig p) = Nothing
         | not (isMethodLike hasInfo methodBases p) = Nothing
-        | last (symQName p) == "@clinit" = Nothing
+        | isInternalRuntimeName (last (symQName p)) = Nothing
         | otherwise =
             let fullSig = symSig p
                 retTy = last fullSig
@@ -499,7 +499,11 @@ parseNativeSymbolsEnvelope symbols =
             _ -> Nothing
 
     isInternalFieldName :: String -> Bool
-    isInternalFieldName name = name == "@isInit" || name == "@clinit"
+    isInternalFieldName = isInternalRuntimeName
+
+    isInternalRuntimeName :: String -> Bool
+    isInternalRuntimeName name =
+        name `elem` ["@isInit", "@clinit", "$isInit", "$clinit"]
 
 
 parseNativeAsmEnvelope :: String -> Either String NativeEnvelope
@@ -737,7 +741,7 @@ parseLegacyAsmEnvelope blocks =
 
     isInternalFieldName :: String -> Bool
     isInternalFieldName name =
-        name == "@isInit" || name == "@clinit"
+        name `elem` ["@isInit", "@clinit", "$isInit", "$clinit"]
 
     isLikelyDataBlock :: Maybe [String] -> Bool
     isLikelyDataBlock Nothing = False

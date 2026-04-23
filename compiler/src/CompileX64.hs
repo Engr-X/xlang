@@ -16,8 +16,8 @@ import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, isSuffixOf, nub
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Environment (getExecutablePath)
-import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getTemporaryDirectory, listDirectory, removeFile)
-import System.FilePath ((</>), (<.>), normalise, takeBaseName, takeDirectory, takeExtension, replaceExtension, takeFileName)
+import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getTemporaryDirectory, listDirectory, removeFile, removePathForcibly)
+import System.FilePath ((</>), (<.>), takeBaseName, takeDirectory, takeExtension, replaceExtension, takeFileName)
 import System.IO (hClose, openTempFile)
 import System.IO.Error (catchIOError, isDoesNotExistError)
 import System.Info (os)
@@ -511,38 +511,108 @@ pickExeEntry64 mMainClassOverride irPairs =
 
 
 mkExeEntryAsm64 :: X64.CallConv64 -> String -> Bool -> String
-mkExeEntryAsm64 cc targetSym forceZeroExit = case X64.ccCompiler cc of
-    X64.NASM -> unlines $
-        [ "global main"
-        , "extern " ++ targetSym
-        , "section .text"
-        , "main:"
-        , "    call " ++ targetSym
-        ]
-        ++ [ "    xor eax, eax" | forceZeroExit ]
-        ++ [ "    ret" ]
-    X64.GAS_INTEL -> unlines $
-        [ ".intel_syntax noprefix"
-        , ""
-        , ".global main"
-        , ".extern " ++ targetSym
-        , ".text"
-        , "main:"
-        , "    call " ++ targetSym
-        ]
-        ++ [ "    xor eax, eax" | forceZeroExit ]
-        ++ [ "    ret" ]
-    X64.GAS_ATT -> unlines $
-        [ ".att_syntax prefix"
-        , ""
-        , ".global main"
-        , ".extern " ++ targetSym
-        , ".text"
-        , "main:"
-        , "    call " ++ targetSym
-        ]
-        ++ [ "    xorl %eax, %eax" | forceZeroExit ]
-        ++ [ "    ret" ]
+mkExeEntryAsm64 cc targetSym forceZeroExit =
+    let needWinEntryAlign = os == "mingw32"
+        needPosixEntryExit = os == "linux" || os == "darwin"
+        posixExitNo = if os == "darwin" then "0x2000001" else "60"
+        winPrologueNasm =
+            [ "    push r12"
+            , "    mov r12, rsp"
+            , "    and rsp, -16"
+            , "    sub rsp, 32"
+            ]
+        winEpilogueNasm =
+            [ "    mov rsp, r12"
+            , "    pop r12"
+            ]
+        posixPrologueNasm =
+            [ "    and rsp, -16"
+            ]
+        posixExitNasm =
+            [ "    mov edi, eax"
+            , "    mov eax, " ++ posixExitNo
+            , "    syscall"
+            ]
+        winPrologueIntel =
+            [ "    push r12"
+            , "    mov r12, rsp"
+            , "    and rsp, -16"
+            , "    sub rsp, 32"
+            ]
+        winEpilogueIntel =
+            [ "    mov rsp, r12"
+            , "    pop r12"
+            ]
+        posixPrologueIntel =
+            [ "    and rsp, -16"
+            ]
+        posixExitIntel =
+            [ "    mov edi, eax"
+            , "    mov eax, " ++ posixExitNo
+            , "    syscall"
+            ]
+        winPrologueAtt =
+            [ "    pushq %r12"
+            , "    movq %rsp, %r12"
+            , "    andq $-16, %rsp"
+            , "    subq $32, %rsp"
+            ]
+        winEpilogueAtt =
+            [ "    movq %r12, %rsp"
+            , "    popq %r12"
+            ]
+        posixPrologueAtt =
+            [ "    andq $-16, %rsp"
+            ]
+        posixExitAtt =
+            [ "    movl %eax, %edi"
+            , "    movq $" ++ posixExitNo ++ ", %rax"
+            , "    syscall"
+            ]
+    in case X64.ccCompiler cc of
+        X64.NASM -> unlines $
+            [ "global main"
+            , "extern " ++ targetSym
+            , "section .text"
+            , "main:"
+            ]
+            ++ [ln | needWinEntryAlign, ln <- winPrologueNasm]
+            ++ [ln | needPosixEntryExit, ln <- posixPrologueNasm]
+            ++ [ "    call " ++ targetSym ]
+            ++ [ "    xor eax, eax" | forceZeroExit ]
+            ++ [ln | needWinEntryAlign, ln <- winEpilogueNasm]
+            ++ [ln | needPosixEntryExit, ln <- posixExitNasm]
+            ++ [ "    ret" | not needPosixEntryExit ]
+        X64.GAS_INTEL -> unlines $
+            [ ".intel_syntax noprefix"
+            , ""
+            , ".global main"
+            , ".extern " ++ targetSym
+            , ".text"
+            , "main:"
+            ]
+            ++ [ln | needWinEntryAlign, ln <- winPrologueIntel]
+            ++ [ln | needPosixEntryExit, ln <- posixPrologueIntel]
+            ++ [ "    call " ++ targetSym ]
+            ++ [ "    xor eax, eax" | forceZeroExit ]
+            ++ [ln | needWinEntryAlign, ln <- winEpilogueIntel]
+            ++ [ln | needPosixEntryExit, ln <- posixExitIntel]
+            ++ [ "    ret" | not needPosixEntryExit ]
+        X64.GAS_ATT -> unlines $
+            [ ".att_syntax prefix"
+            , ""
+            , ".global main"
+            , ".extern " ++ targetSym
+            , ".text"
+            , "main:"
+            ]
+            ++ [ln | needWinEntryAlign, ln <- winPrologueAtt]
+            ++ [ln | needPosixEntryExit, ln <- posixPrologueAtt]
+            ++ [ "    call " ++ targetSym ]
+            ++ [ "    xorl %eax, %eax" | forceZeroExit ]
+            ++ [ln | needWinEntryAlign, ln <- winEpilogueAtt]
+            ++ [ln | needPosixEntryExit, ln <- posixExitAtt]
+            ++ [ "    ret" | not needPosixEntryExit ]
 
 
 selectCallConv64 :: Maybe X64CompilerChoice -> X64.CallConv64
@@ -632,7 +702,7 @@ assembleOne rootPath cc asmPath objPath = case X64.ccCompiler cc of
 
 linkIfNeeded :: Bool -> FilePath -> OutputMode -> [FilePath] -> [FilePath] -> Bool -> IO ()
 linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = case outMode of
-    OutputLinked outPath linkKind _ -> do
+    OutputLinked outPath linkKind objRoot -> do
         createDirectoryIfMissing True (takeDirectory outPath)
         case linkKind of
             LinkStatic -> do
@@ -642,6 +712,7 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                 linkDynWithLd outPath objPaths linkLibPaths >> cleanupLegacyOutIfNeeded debugOut outPath
             LinkExe ->
                 linkExeWithLd outPath objPaths linkLibPaths
+        cleanupLinkedObjRootIfNeeded debugOut objRoot
     _ -> pure ()
   where
     linkDynWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
@@ -655,11 +726,13 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
             linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibs)
         case os of
             "mingw32" -> do
-                let undefArgs = if includeRuntime then [] else ["--undefined=_pei386_runtime_relocator"]
                 let implib = replaceExtension target ".dll.a"
-                    args = ["--dll"] ++ undefArgs ++ ["-o", target]
+                    ldArgs = ["--dll", "-o", target]
                         ++ objs ++ linkLibs ++ ["--out-implib", implib]
-                callProcessCandidates rootPath [("x86_64-w64-mingw32-ld", args), ("ld", args)]
+                callProcessCandidates rootPath
+                    [ ("x86_64-w64-mingw32-ld", ldArgs)
+                    , ("ld", ldArgs)
+                    ]
             "darwin" ->
                 callProcessCandidates rootPath [("ld", ["-dylib", "-o", target] ++ objs ++ linkLibs)]
             _ ->
@@ -667,12 +740,9 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
 
     linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
     linkExeWithLd target objs libs = do
-        sysLibs <- collectNativeStaticLibs
-        -- `ld` on MinGW still needs CRT startup objects even when runtime
-        -- libraries are linked dynamically (includeRuntime = False).
-        crtStartupObjs <- if os == "mingw32"
-            then findWindowsCrtStartupObjs
-            else pure []
+        sysLibs <- if os == "mingw32" && not includeRuntime
+            then pure []
+            else collectNativeStaticLibs
         let libsUsedRaw = if includeRuntime then filterOutDynamicLibRefs libs else libs
             libsUsed =
                 if os == "mingw32" && not includeRuntime
@@ -681,10 +751,12 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
             linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibs)
         case os of
             "mingw32" -> do
-                let undefArgs = if includeRuntime then [] else ["--undefined=_pei386_runtime_relocator"]
-                let args = undefArgs ++ ["-e", "main", "-o", target]
-                        ++ crtStartupObjs ++ objs ++ linkLibs
-                callProcessCandidates rootPath [("x86_64-w64-mingw32-ld", args), ("ld", args)]
+                let ldArgs = ["-e", "main", "-o", target]
+                        ++ objs ++ linkLibs
+                callProcessCandidates rootPath
+                    [ ("x86_64-w64-mingw32-ld", ldArgs)
+                    , ("ld", ldArgs)
+                    ]
             _ ->
                 callProcessCandidates rootPath [("ld", ["-e", "main", "-o", target] ++ objs ++ linkLibs)]
 
@@ -701,6 +773,9 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                 cwd </> "native-libs"
                 ]
             stdNativeDirs = nub [
+                exeDir </> "libs" </> "std" </> "native",
+                rootPath </> "libs" </> "std" </> "native",
+                cwd </> "libs" </> "std" </> "native",
                 exeDir </> "libs" </> "native",
                 rootPath </> "libs" </> "native",
                 cwd </> "libs" </> "native",
@@ -710,12 +785,7 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                 ]
         grouped <- mapM collectOne syslibDirs
         stdLibs <- collectStdNativeLibs stdNativeDirs
-        let found = sort (nub (concat grouped ++ stdLibs))
-        if os == "mingw32"
-            then do
-                extra <- windowsRuntimeFallbackArgs found
-                pure (found ++ extra)
-            else pure found
+        pure (sort (nub (concat grouped ++ stdLibs)))
       where
         collectOne :: FilePath -> IO [FilePath]
         collectOne dir = do
@@ -733,8 +803,8 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                         [ ["libxlang-std.a", "libxlang-std.dll.a"]
                         , ["libxlang-base.a", "libxlang-base.dll.a"]]
                     | os == "mingw32" =
-                        [ ["libxlang-base.dll.a", "libxlang-base.a"]
-                        , ["libxlang-std.dll.a", "libxlang-std.a"]]
+                        [ ["libxlang-base.dll.a"]
+                        , ["libxlang-std.dll.a"]]
                     | otherwise =
                         [ ["libxlang-base.a"]
                         , ["libxlang-std.a"]]
@@ -750,69 +820,6 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
             exists <- doesFileExist p
             if exists then pure (Just p) else firstExisting rest
 
-        windowsRuntimeFallbackArgs :: [FilePath] -> IO [FilePath]
-        windowsRuntimeFallbackArgs found = do
-            let lowerFound = map (map toLower . takeFileName) found
-                need n = not (n `elem` lowerFound)
-            libMingw32 <- choose "libmingw32.a" "-lmingw32" need
-            libMingwex <- choose "libmingwex.a" "-lmingwex" need
-            libGcc <- choose "libgcc.a" "-lgcc" need
-            libGccEh <- choose "libgcc_eh.a" "-lgcc_eh" need
-            libMsvcrt <- choose "libmsvcrt.a" "-lmsvcrt" need
-            libKernel32 <- choose "libkernel32.a" "-lkernel32" need
-            pure (libMingw32 ++ libMingwex ++ libGcc ++ libGccEh ++ libMsvcrt ++ libKernel32)
-          where
-            choose :: FilePath -> String -> (FilePath -> Bool) -> IO [FilePath]
-            choose file fallbackFlag needPred =
-                if not (needPred file)
-                    then pure []
-                    else do
-                        mPath <- findToolchainLib file
-                        pure [maybe fallbackFlag id mPath]
-
-            findToolchainLib :: FilePath -> IO (Maybe FilePath)
-            findToolchainLib libName = do
-                dirs <- mingwCandidateLibDirs
-                firstExisting [dir </> libName | dir <- dirs]
-
-            mingwCandidateLibDirs :: IO [FilePath]
-            mingwCandidateLibDirs = do
-                mLd <- firstExecutable ["x86_64-w64-mingw32-ld.exe", "x86_64-w64-mingw32-ld", "ld.exe", "ld"]
-                case mLd of
-                    Nothing -> pure []
-                    Just ldPath -> do
-                        let binDir = takeDirectory ldPath
-                            dTarget = normalise (binDir </> ".." </> "x86_64-w64-mingw32" </> "lib")
-                            gccRoot = normalise (binDir </> ".." </> "lib" </> "gcc" </> "x86_64-w64-mingw32")
-                        targetDirs <- existsOne dTarget
-                        gccDirs <- do
-                            ex <- doesDirectoryExist gccRoot
-                            if not ex
-                                then pure []
-                                else do
-                                    vers <- sort <$> listDirectory gccRoot
-                                    pure [gccRoot </> v | v <- reverse vers]
-                        pure (targetDirs ++ gccDirs)
-
-            existsOne :: FilePath -> IO [FilePath]
-            existsOne d = do
-                ex <- doesDirectoryExist d
-                pure [d | ex]
-
-            firstExisting :: [FilePath] -> IO (Maybe FilePath)
-            firstExisting [] = pure Nothing
-            firstExisting (p:ps) = do
-                ex <- doesFileExist p
-                if ex then pure (Just p) else firstExisting ps
-
-            firstExecutable :: [String] -> IO (Maybe FilePath)
-            firstExecutable [] = pure Nothing
-            firstExecutable (n:ns) = do
-                m <- findExecutable n
-                case m of
-                    Just p -> pure (Just p)
-                    Nothing -> firstExecutable ns
-
     filterOutDynamicLibRefs :: [FilePath] -> [FilePath]
     filterOutDynamicLibRefs =
         filter (\p ->
@@ -826,20 +833,21 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
     preferWindowsImportLibs :: [FilePath] -> [FilePath]
     preferWindowsImportLibs libs =
         let lowered = map mapLower libs
-            staticStems = [
-                dropSuffixCI ".a" p |
+            importStems = [
+                dropSuffixCI ".dll.a" p |
                 p <- lowered,
-                ".a" `isSuffixOf` p,
-                not (".dll.a" `isSuffixOf` p)]
+                ".dll.a" `isSuffixOf` p]
             keep p =
                 let pL = mapLower p
                     ext = map toLower (takeExtension pL)
-                    importStem = dropSuffixCI ".dll.a" pL
+                    staticStem = dropSuffixCI ".a" pL
                 in if ".dll.a" `isSuffixOf` pL
-                    then not (importStem `elem` staticStems)
+                    then True
+                    else if ext == ".a"
+                        then not (staticStem `elem` importStems)
                     else if ext == ".dll" || ext == ".so" || ext == ".dylib"
                         then False
-                        else True
+                    else True
         in dedupPreserve (filter keep libs)
       where
         mapLower :: String -> String
@@ -906,24 +914,6 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
         | os == "mingw32" = ["--start-group"] ++ libs ++ ["--end-group"]
         | otherwise = libs
 
-    findWindowsCrtStartupObjs :: IO [FilePath]
-    findWindowsCrtStartupObjs = do
-        mLd <- firstExecutable ["x86_64-w64-mingw32-ld.exe", "x86_64-w64-mingw32-ld", "ld.exe", "ld"]
-        case mLd of
-            Nothing -> pure []
-            Just ldPath -> do
-                let crt2 = normalise (takeDirectory ldPath </> ".." </> "x86_64-w64-mingw32" </> "lib" </> "crt2.o")
-                ex <- doesFileExist crt2
-                pure [crt2 | ex]
-      where
-        firstExecutable :: [String] -> IO (Maybe FilePath)
-        firstExecutable [] = pure Nothing
-        firstExecutable (name : rest) = do
-            mPath <- findExecutable name
-            case mPath of
-                Just p -> pure (Just p)
-                Nothing -> firstExecutable rest
-
     callProcessCandidates :: FilePath -> [(FilePath, [String])] -> IO ()
     callProcessCandidates _ [] = ioError (userError "no usable GNU linker found (tried ld variants)")
     callProcessCandidates root ((cmd, args) : rest) = do
@@ -938,6 +928,12 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
             let legacySameBase = replaceExtension linkedOut ".out"
             removeIfExists "a.out"
             removeIfExists legacySameBase
+
+    cleanupLinkedObjRootIfNeeded :: Bool -> FilePath -> IO ()
+    cleanupLinkedObjRootIfNeeded keepDebug objRoot =
+        unless keepDebug $ do
+            ex <- doesDirectoryExist objRoot
+            when ex (removePathForcibly objRoot `catchIOError` (\_ -> pure ()))
 
     removeIfExists :: FilePath -> IO ()
     removeIfExists p = do

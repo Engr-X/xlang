@@ -240,11 +240,7 @@ findDefaultX64NativeLibs :: Bool -> [FilePath] -> IO [FilePath]
 findDefaultX64NativeLibs includeRuntime roots = do
     let expandedRoots = nub (concatMap expandRoot roots)
         candidates = nub (concatMap candidatesForRoot expandedRoots)
-        allowedExts =
-            if includeRuntime
-                then [".a"]
-                else [".dll", ".lib", ".a", ".so", ".dylib"]
-    libs <- concat <$> mapM (collectIfExists allowedExts) candidates
+    libs <- concat <$> mapM collectIfExists candidates
     pure (sort (nub libs))
   where
     expandRoot :: FilePath -> [FilePath]
@@ -254,38 +250,49 @@ findDefaultX64NativeLibs includeRuntime roots = do
 
     candidatesForRoot :: FilePath -> [FilePath]
     candidatesForRoot base
-        | includeRuntime =
-            [ base </> "libs" </> "native"
-            , base </> "std" </> "native"
-            , base </> "native"
-            , base </> "native-libs"
-            ]
-        | otherwise =
-            [ base </> "runtime" </> "native"
-            , base </> "libs" </> "native"
-            , base </> "std" </> "native"
-            , base </> "native"
-            , base </> "native-libs"
-            ]
+        | includeRuntime = [
+            base </> "libs" </> "std" </> "native",
+            base </> "libs" </> "native", -- legacy
+            base </> "std" </> "native",
+            base </> "native",
+            base </> "native-libs"]
+        | otherwise = [
+            base </> "runtime" </> "native",
+            base </> "runtime", -- legacy
+            base </> "libs" </> "std" </> "native",
+            base </> "libs" </> "native", -- legacy
+            base </> "std" </> "native",
+            base </> "native",
+            base </> "native-libs"]
 
-    collectIfExists :: [String] -> FilePath -> IO [FilePath]
-    collectIfExists exts dir = do
+    collectIfExists :: FilePath -> IO [FilePath]
+    collectIfExists dir = do
         exists <- doesDirectoryExist dir
-        if exists then collect exts dir else pure []
+        if exists then collect dir else pure []
 
-    collect :: [String] -> FilePath -> IO [FilePath]
-    collect exts dir = do
+    collect :: FilePath -> IO [FilePath]
+    collect dir = do
         names <- listDirectory dir
         concat <$> mapM
             (\name -> do
                 let path = dir </> name
                 isDir <- doesDirectoryExist path
                 if isDir
-                    then collect exts path
-                    else
-                        let ext = map toLower (takeExtension path)
-                        in pure [path | ext `elem` exts])
+                    then collect path
+                    else pure [path | isAcceptedNativeLib path])
             names
+
+    isAcceptedNativeLib :: FilePath -> Bool
+    isAcceptedNativeLib path =
+        let lowerPath = map toLower path
+            ext = map toLower (takeExtension path)
+            isImportLib = ".dll.a" `isSuffixOf` lowerPath
+            isStaticLib = ext == ".a" && not isImportLib
+        in if includeRuntime
+            then isStaticLib
+            else if os == "mingw32"
+                then isImportLib || ext == ".lib"
+                else ext == ".dll" || ext == ".lib" || ext == ".so" || ext == ".dylib" || isImportLib
 
 
 preferStaticImportLibPath :: FilePath -> IO FilePath

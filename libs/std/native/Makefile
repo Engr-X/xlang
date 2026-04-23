@@ -2,6 +2,8 @@ CC ?= gcc
 AR ?= ar
 RANLIB ?= ranlib
 STRIP ?= strip
+DLLTOOL ?= dlltool
+OBJDUMP ?= objdump
 XLANG_JOBS ?= 1
 
 MAKEFILE_PATH := $(lastword $(MAKEFILE_LIST))
@@ -66,17 +68,22 @@ ifeq ($(PLATFORM),windows)
 	SHARED_EXT := dll
 	SHARED_FLAGS := -shared
 	SHARED_SIZE_FLAGS := -Wl,--gc-sections -Wl,-s
+	SHARED_VERSION_FLAGS :=
 	SHARED_EXPORT_FLAGS := -Wl,--export-all-symbols
 	BASE_IMPLIB := $(LIB_DIR)/$(TARGET).dll.a
 	BASE_IMPLIB_FLAGS := -Wl,--out-implib,$(BASE_IMPLIB)
+	BASE_DEF := $(LIB_DIR)/$(TARGET).def
 	STD_IMPLIB := $(LIB_DIR)/$(STD_TARGET).dll.a
 	STD_IMPLIB_FLAGS := -Wl,--out-implib,$(STD_IMPLIB)
+	STD_DEF := $(LIB_DIR)/$(STD_TARGET).def
 	STD_SHARED_BASE_FLAGS :=
 	PIC_FLAGS :=
+	CFLAGS += -D__USE_MINGW_ANSI_STDIO=0
 else ifeq ($(PLATFORM),macos)
 	SHARED_EXT := dylib
 	SHARED_FLAGS := -dynamiclib
 	SHARED_SIZE_FLAGS := -Wl,-dead_strip -Wl,-x
+	SHARED_VERSION_FLAGS :=
 	SHARED_EXPORT_FLAGS :=
 	BASE_IMPLIB :=
 	BASE_IMPLIB_FLAGS :=
@@ -88,6 +95,7 @@ else
 	SHARED_EXT := so
 	SHARED_FLAGS := -shared
 	SHARED_SIZE_FLAGS := -Wl,--gc-sections -Wl,-s
+	SHARED_VERSION_FLAGS := -Wl,--undefined-version
 	SHARED_EXPORT_FLAGS :=
 	BASE_IMPLIB :=
 	BASE_IMPLIB_FLAGS :=
@@ -114,9 +122,11 @@ XLANG_SRC_ROOT := $(SRC_ROOT)/src/xlang
 ifeq ($(PLATFORM),windows)
 XLANG_EXE ?= $(REPO_ROOT)/build/xlang.exe
 XLANG_EXE_FALLBACK ?= $(REPO_ROOT)/build/xlang
+XLANG_X64_COMPILER_FLAG :=
 else
 XLANG_EXE ?= $(REPO_ROOT)/build/xlang
 XLANG_EXE_FALLBACK ?= $(REPO_ROOT)/build/xlang.exe
+XLANG_X64_COMPILER_FLAG := --compiler=as
 endif
 
 .PHONY: all base std shared static std_shared std_static clean info install uninstall FORCE
@@ -168,7 +178,24 @@ $(OBJ_MATH): $(SRC_MATH)
 
 $(SHARED_LIB): $(OBJ)
 	@mkdir -p "$(LIB_DIR)"
-	$(CC) $(SHARED_FLAGS) $(SHARED_SIZE_FLAGS) $(SHARED_EXPORT_FLAGS) $(BASE_IMPLIB_FLAGS) $(LDFLAGS) $^ -o "$@"
+	$(CC) $(SHARED_FLAGS) $(SHARED_SIZE_FLAGS) $(SHARED_VERSION_FLAGS) $(SHARED_EXPORT_FLAGS) $(BASE_IMPLIB_FLAGS) $(LDFLAGS) $^ -o "$@"
+ifeq ($(PLATFORM),windows)
+	@if command -v "$(DLLTOOL)" >/dev/null 2>&1; then \
+		syms=$$( $(OBJDUMP) -p "$@" | grep 'base\[' | grep -v 'Export RVA' | awk '{print $$NF}' | sort -u ); \
+		if [ -n "$$syms" ]; then \
+			{ \
+				echo "LIBRARY $(notdir $(SHARED_LIB))"; \
+				echo "EXPORTS"; \
+				printf '%s\n' "$$syms"; \
+			} > "$(BASE_DEF)"; \
+			"$(DLLTOOL)" -d "$(BASE_DEF)" -D "$(notdir $(SHARED_LIB))" -l "$(BASE_IMPLIB)"; \
+		else \
+			echo "[WARN] no exports found in $(SHARED_LIB), keep linker-generated import lib: $(BASE_IMPLIB)"; \
+		fi; \
+	else \
+		echo "[WARN] dlltool not found, keep linker-generated import lib: $(BASE_IMPLIB)"; \
+	fi
+endif
 	@command -v "$(STRIP)" >/dev/null 2>&1 && ( "$(STRIP)" --strip-unneeded "$@" 2>/dev/null || "$(STRIP)" -s "$@" 2>/dev/null || true ) || true
 
 $(STATIC_LIB): $(OBJ)
@@ -200,7 +227,7 @@ $(STD_OBJ_STAMP): FORCE $(SHARED_LIB) $(STATIC_LIB)
 		echo "no xlang sources found under $(XLANG_SRC_ROOT)"; \
 		exit 1; \
 	fi; \
-	"$$xlang_exe" --target=x64 --root="$(XLANG_SRC_ROOT)" $$srcs -d "$(STD_OBJ_DIR_ABS)" -j$(XLANG_JOBS); \
+	"$$xlang_exe" --target=x64 $(XLANG_X64_COMPILER_FLAG) --root="$(XLANG_SRC_ROOT)" $$srcs -d "$(STD_OBJ_DIR_ABS)" -j$(XLANG_JOBS); \
 	objs="$$(find "$(STD_OBJ_DIR_ABS)" -type f -name '*.o' | sort)"; \
 	if [ -z "$$objs" ]; then \
 		echo "xlang compile finished but produced no .o files under $(STD_OBJ_DIR_ABS)"; \
@@ -230,7 +257,25 @@ $(STD_SHARED_LIB): $(STD_OBJ_STAMP) $(SHARED_LIB)
 	if [ -n "$(BASE_IMPLIB)" ] && [ -f "$(BASE_IMPLIB)" ]; then \
 		base_link="$(BASE_IMPLIB)"; \
 	fi; \
-	$(CC) $(SHARED_FLAGS) $(SHARED_SIZE_FLAGS) $(SHARED_EXPORT_FLAGS) $(STD_IMPLIB_FLAGS) $(LDFLAGS) $(STD_SHARED_BASE_FLAGS) $$objs "$$base_link" -o "$@"
+	$(CC) $(SHARED_FLAGS) $(SHARED_SIZE_FLAGS) $(SHARED_VERSION_FLAGS) $(SHARED_EXPORT_FLAGS) $(STD_IMPLIB_FLAGS) $(LDFLAGS) $(STD_SHARED_BASE_FLAGS) $$objs "$$base_link" -o "$@"
+ifeq ($(PLATFORM),windows)
+	@objs="$$(find "$(STD_OBJ_DIR_ABS)" -type f -name '*.o' | sort)"; \
+	if command -v "$(DLLTOOL)" >/dev/null 2>&1; then \
+		syms=$$( $(OBJDUMP) -p "$@" | grep 'base\[' | grep -v 'Export RVA' | awk '{print $$NF}' | sort -u ); \
+		if [ -n "$$syms" ]; then \
+			{ \
+				echo "LIBRARY $(notdir $(STD_SHARED_LIB))"; \
+				echo "EXPORTS"; \
+				printf '%s\n' "$$syms"; \
+			} > "$(STD_DEF)"; \
+			"$(DLLTOOL)" -d "$(STD_DEF)" -D "$(notdir $(STD_SHARED_LIB))" -l "$(STD_IMPLIB)"; \
+		else \
+			echo "[WARN] no exports found in $(STD_SHARED_LIB), keep linker-generated import lib: $(STD_IMPLIB)"; \
+		fi; \
+	else \
+		echo "[WARN] dlltool not found, keep linker-generated import lib: $(STD_IMPLIB)"; \
+	fi
+endif
 	@command -v "$(STRIP)" >/dev/null 2>&1 && ( "$(STRIP)" --strip-unneeded "$@" 2>/dev/null || "$(STRIP)" -s "$@" 2>/dev/null || true ) || true
 
 std_shared: $(STD_SHARED_LIB)

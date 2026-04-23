@@ -66,8 +66,7 @@ JAVA_STD_DB_FILE := $(JAVA_LIB_OUT_DIR)/jdk$(JAVA_STD_DB_VERSION)-stdlib.db
 # Native std/base project (Makefile)
 NATIVE_LIB_DIR := $(ROOT_DIR)/libs/std/native
 NATIVE_LIB_BUILD_DIR := $(NATIVE_LIB_DIR)/build
-NATIVE_ROOT_OUT_DIR := $(ROOT_DIR)/libs/native
-NATIVE_LIB_OUT_DIR := $(BUILD_DIR_ABS)/libs/native
+NATIVE_LIB_OUT_DIR := $(BUILD_DIR_ABS)/libs/std/native
 NATIVE_RUNTIME_OUT_DIR := $(BUILD_DIR_ABS)/runtime/native
 NATIVE_BASE_TARGET := libxlang-base
 NATIVE_STD_TARGET := libxlang-std
@@ -215,28 +214,13 @@ native_lib: java_lib
 	cd "$(NATIVE_LIB_BUILD_DIR)" && sh ../configure --build-dir=. --target="$(NATIVE_BASE_TARGET)"
 	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)" clean
 	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)"
-	@if [ "$(NATIVE_SHARED_EXT)" = "dll" ]; then \
-		if [ ! -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" ]; then \
-			echo "[WARN] missing native import lib: $(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)"; \
-		fi; \
-		if [ ! -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" ]; then \
-			echo "[WARN] missing native import lib: $(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)"; \
-		fi; \
-	fi
-	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)" "$(NATIVE_ROOT_OUT_DIR)"
-	rm -f "$(NATIVE_LIB_OUT_DIR)"/*.lib "$(NATIVE_ROOT_OUT_DIR)"/*.lib 2>/dev/null || true
+	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_STATIC_LIB)" "$(NATIVE_ROOT_OUT_DIR)/" 2>/dev/null || true
 
 stage_syslibs:
 ifeq ($(NATIVE_SHARED_EXT),dll)

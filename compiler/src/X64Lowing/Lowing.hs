@@ -5,7 +5,6 @@ module X64Lowing.Lowing where
 import Control.Monad.State.Strict (State, evalState, get, gets, modify', put)
 import Data.Aeson (Value, encode, object, (.=))
 import Data.Bits ((.|.), shiftL)
-import Data.Char (ord)
 import Data.List (foldl', intercalate)
 import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
@@ -1564,15 +1563,70 @@ classParentsCsv64 xs = intercalate "," [classToString64 pkg cls | (pkg, cls) <- 
 
 
 stringBytesData64 :: X64.CallConv64 -> String -> [X64.InstrConst]
-stringBytesData64 cc s = case X64.ccCompiler cc of
-    X64.NASM -> map (X64.Byte . show . ord) s ++ [X64.Byte "0"]
-    _ -> [stringZConst64 cc s]
+stringBytesData64 cc s = [stringZConst64 cc s]
 
 
 stringZConst64 :: X64.CallConv64 -> String -> X64.InstrConst
 stringZConst64 cc s = case X64.ccCompiler cc of
-    X64.NASM -> X64.RawString ("db\t\t" ++ show s ++ ", 0")
+    X64.NASM -> X64.RawString ("db\t\t" ++ nasmDbStringZ64 s)
     _ -> X64.RawString (".asciz\t\t" ++ show s)
+
+
+nasmDbStringZ64 :: String -> String
+nasmDbStringZ64 s =
+    let parts = splitOnChar64 '\'' s
+        toks = joinWithQuoteByte parts ++ ["0"]
+        lines' = packDbTokensLines64 100 toks
+    in intercalate "\n    db\t\t" lines'
+  where
+    quotedChunkMax64 :: Int
+    quotedChunkMax64 = 80
+
+    segTok :: String -> String
+    segTok seg = "'" ++ seg ++ "'"
+
+    chunkString64 :: Int -> String -> [String]
+    chunkString64 n txt
+        | n <= 0 = [txt]
+        | null txt = []
+        | otherwise =
+            let (h, t) = splitAt n txt
+            in h : chunkString64 n t
+
+    joinWithQuoteByte :: [String] -> [String]
+    joinWithQuoteByte [] = []
+    joinWithQuoteByte [seg] = map segTok (chunkString64 quotedChunkMax64 seg)
+    joinWithQuoteByte (seg : rest) =
+        map segTok (chunkString64 quotedChunkMax64 seg) ++ ["39"] ++ joinWithQuoteByte rest
+
+    packDbTokensLines64 :: Int -> [String] -> [String]
+    packDbTokensLines64 maxLen = reverse . finalize . foldl' step ([], [], 0)
+      where
+        sepLen :: Int
+        sepLen = 2 -- ", "
+
+        tokenLen :: String -> Int
+        tokenLen = length
+
+        step :: ([[String]], [String], Int) -> String -> ([[String]], [String], Int)
+        step (linesAcc, curRev, curLen) tok
+            | curLen == 0 = (linesAcc, [tok], tokenLen tok)
+            | curLen + sepLen + tokenLen tok <= maxLen = (linesAcc, tok : curRev, curLen + sepLen + tokenLen tok)
+            | otherwise = (reverse curRev : linesAcc, [tok], tokenLen tok)
+
+        finalize :: ([[String]], [String], Int) -> [String]
+        finalize (linesAcc, curRev, _)
+            | null curRev = map (intercalate ", ") linesAcc
+            | otherwise = map (intercalate ", ") (reverse curRev : linesAcc)
+
+    splitOnChar64 :: Char -> String -> [String]
+    splitOnChar64 ch = foldr step [""]
+      where
+        step :: Char -> [String] -> [String]
+        step c (x : xs)
+            | c == ch = "" : x : xs
+            | otherwise = (c : x) : xs
+        step _ [] = [""]
 
 
 -- Lower class static attributes to assembly static data labels.

@@ -23,10 +23,10 @@ data Register =
 -- Final label form: ownerQName ++ [staticInitFlagName]
 -- e.g. com.wangdi.Const..isInit
 staticInitFlagName :: String
-staticInitFlagName = "@isInit"
+staticInitFlagName = "$isInit"
 
 staticInitName :: String
-staticInitName = "@clinit"
+staticInitName = "$clinit"
 
 
 -- Sign-extend op used before signed division.
