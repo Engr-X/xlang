@@ -65,12 +65,9 @@ expandExpr (AST.Binary op a b tok) =
         (ss2, b') = expandExpr b
     in (ss1 ++ ss2, AST.Binary op a' b' tok)
 
--- Ternary
-expandExpr (AST.Ternary c (a, b) toks) =
-    let (ssC, c') = expandExpr c
-        (ss1, a') = expandExpr a
-        (ss2, b') = expandExpr b
-    in (ssC ++ ss1 ++ ss2, AST.Ternary c' (a', b') toks)
+expandExpr (AST.BlockExpr (AST.Multiple ss)) =
+    let ss' = concatMap expandStmt ss
+    in ([], AST.BlockExpr (AST.Multiple ss'))
 
 -- Calls
 expandExpr (AST.Call f args) =
@@ -640,6 +637,10 @@ data IRInstr
 
     | IGetStatic IRAtom [String]                    -- dst = C.f
     | IPutStatic [String] IRAtom                    -- C.f = v
+
+    -- fr reference
+    | Ref IRAtom IRAtom                             -- get reference for variable only !!! atom1 = &atom2
+    | Deref IRAtom IRAtom                           -- dereference for only pointers (atom2) atom1 = *atom2
     deriving (Eq, Show)
 
 
@@ -687,6 +688,8 @@ prettyIRInstr n instr = insertTab n ++ case instr of
         "getstatic ", prettyIRAtom dst, " ", intercalate "." qname]
     IPutStatic qname v -> concat [
         "putstatic ", intercalate "." qname, " ", prettyIRAtom v]
+    Ref atom1 atom2 -> concat [prettyIRAtom atom1, " = &", prettyIRAtom atom2]
+    Deref atom1 atom2 -> concat [prettyIRAtom atom1, " = *", prettyIRAtom atom2]
 
 
 -- | A basic block of IR instructions.

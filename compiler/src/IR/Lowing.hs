@@ -1,6 +1,8 @@
 module IR.Lowing (
     codeToIRWithRootAndDeps,
+    codeToIRWithRootAndDepsForTarget,
     codeToIRWithRootAndDepsTimed,
+    codeToIRWithRootAndDepsTimedForTarget,
     FrontendStageTiming(..),
     IrLoweringStageTiming(..),
     PipelineStageTiming(..),
@@ -24,7 +26,7 @@ import Lex.Tokenizer (tokenizeWithNL)
 import Parse.ParseProgm (parseProgm)
 import Parse.ParserBasic (toException)
 import Parse.SyntaxTree (Program, getErrorProgram)
-import Semantic.CheckProgram (checkProgmWithDeps)
+import Semantic.CheckProgram (SemanticTarget(..), checkProgmWithDepsForTarget)
 import Semantic.NameEnv (ImportEnv)
 import Semantic.TypeCheck (tcFullFunUses, tcFullVarUses, tcWarnings)
 import Semantic.TypeEnv (FullFunctionTable, FullVarTable, TypedImportEnv)
@@ -68,7 +70,7 @@ timedIO action = do
 
 -- | Parse, semantically check, and lower source files under an explicit source root.
 codeToIRWithRoot :: Path -> [(Path, String)] -> Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning])
-codeToIRWithRoot = codeToIRWithRootAndDeps [] []
+codeToIRWithRoot = codeToIRWithRootAndDepsForTarget SemanticTargetNative [] []
 
 
 -- | Parse, semantically check, and lower source files with extra imported envs.
@@ -79,12 +81,23 @@ codeToIRWithRootAndDeps ::
     [(Path, String)] ->
     Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning])
 codeToIRWithRootAndDeps depImportEnvs depTypedEnvs root files =
+    codeToIRWithRootAndDepsForTarget SemanticTargetNative depImportEnvs depTypedEnvs root files
+
+
+codeToIRWithRootAndDepsForTarget ::
+    SemanticTarget ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Path ->
+    [(Path, String)] ->
+    Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning])
+codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
     let parsed = map parseOne files
         parseErrs = concat (lefts parsed)
         progms = rights parsed
     in if not (null parseErrs)
         then Left parseErrs
-        else case checkProgmWithDeps root depImportEnvs depTypedEnvs progms of
+        else case checkProgmWithDepsForTarget target root depImportEnvs depTypedEnvs progms of
             Left errs -> Left errs
             Right ctxs ->
                 let ctxMap = Map.fromList ctxs
@@ -131,7 +144,18 @@ codeToIRWithRootAndDepsTimed ::
     Path ->
     [(Path, String)] ->
     IO (Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning], PipelineStageTiming))
-codeToIRWithRootAndDepsTimed depImportEnvs depTypedEnvs root files = do
+codeToIRWithRootAndDepsTimed depImportEnvs depTypedEnvs root files =
+    codeToIRWithRootAndDepsTimedForTarget SemanticTargetNative depImportEnvs depTypedEnvs root files
+
+
+codeToIRWithRootAndDepsTimedForTarget ::
+    SemanticTarget ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Path ->
+    [(Path, String)] ->
+    IO (Either [ErrorKind] ([(Path, TAC.IRProgm)], [Warning], PipelineStageTiming))
+codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root files = do
     parsedWithTime <- mapM parseOneTimed files
     let frontendTimings = map fst parsedWithTime
         parsed = map snd parsedWithTime
@@ -141,7 +165,7 @@ codeToIRWithRootAndDepsTimed depImportEnvs depTypedEnvs root files = do
         then pure (Left parseErrs)
         else do
             (semRes, semanticNs) <- timedIO $ do
-                let res = checkProgmWithDeps root depImportEnvs depTypedEnvs progms
+                let res = checkProgmWithDepsForTarget target root depImportEnvs depTypedEnvs progms
                 case res of
                     Left errs -> do
                         _ <- evaluate (length errs)

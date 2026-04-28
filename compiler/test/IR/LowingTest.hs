@@ -185,7 +185,8 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
     testCase "recursive inline function should not inline into caller" $ do
         let src = unlines [
                 "inline fun fact(n: int) -> int {",
-                "    return 1 if n <= 1 else n * fact(n - 1)",
+                "    if n <= 1: return 1;",
+                "    else: return n * fact(n - 1);",
                 "}",
                 "int main() {",
                 "    return fact(5)",
@@ -223,38 +224,6 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
                         assertBool "recursive inline function should not inline recursive body into caller" (not (hasBranchInstr instrs))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
-
-ternaryControlFlowTests :: TestTree
-ternaryControlFlowTests = testGroup "IR.Lowing.ternaryControlFlow" [
-    testCase "return-ternary dispatch stays in block join" $ do
-        let src = unlines [
-                "int f(int x) {",
-                "    return -1 if x < 0 else 0",
-                "}"
-                ]
-            instrHasIfeq instr = case instr of
-                Ifeq {} -> True
-                _ -> False
-            instrHasSetRet instr = case instr of
-                SetRet {} -> True
-                _ -> False
-
-        case codeToIRSingleWithRoot "." "Main.x" src of
-            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "f" _ _ blocks _] _], _) -> do
-                let blockBodies = [body | IRBlock (_, body) <- fst blocks]
-                    topHasIfeq = False
-                    topHasSetRet = False
-                    blockHasIfeq = any (any instrHasIfeq) blockBodies
-                    blockHasSetRet = any (any instrHasSetRet) blockBodies
-
-                assertBool "top-level Ifeq should not appear for ternary return" (not topHasIfeq)
-                assertBool "top-level SetRet should not appear for ternary return" (not topHasSetRet)
-                assertBool "a block should contain ternary branch Ifeq" blockHasIfeq
-                assertBool "a block should contain SetRet after ternary join" blockHasSetRet
-            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
-    ]
-
 
 stringLiteralLoweringTests :: TestTree
 stringLiteralLoweringTests = testGroup "IR.Lowing.stringLiteral" [
@@ -322,7 +291,8 @@ doubleCmpLoweringTests = testGroup "IR.Lowing.doubleCmp" [
         let src = unlines [
                 "int main() {",
                 "    val a = 10.0",
-                "    val absA = a if a > 0 else (-a)",
+                "    var absA = 0.0",
+                "    absA = if a > 0: a else: (-a)",
                 "    return 0",
                 "}"
                 ]
@@ -544,7 +514,6 @@ tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
     callArgCastTests,
     inlineFunctionLoweringTests,
-    ternaryControlFlowTests,
     stringLiteralLoweringTests,
     staticFieldReadLoweringTests,
     doubleCmpLoweringTests,

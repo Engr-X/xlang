@@ -1,13 +1,10 @@
 #ifndef _XLANG_MCHUNK_H_
 #define _XLANG_MCHUNK_H_
 
-#define CHUNK_INFO
-
-
 struct chunk_info
 {
-    short class_size;
-    short slot;
+    short class_size; // slot size
+    short slot; //  this is the number of slot
 };
 
 extern struct chunk_info ksize_classes[24] = {
@@ -50,5 +47,20 @@ struct chunk
 };
 
 
+struct chunk_list
+{
+    struct chunk* chunks;
+    int capacity;
+    int size;
+};
+
+
+struct chunk_list chunk_list_create();
+
+void chunk_list_push(struct chunk_list* list, const struct chunk chunk);
+
+struct chunk chunk_alloc(const struct chunk_info info, struct chunk_list* list);
+
+void delete_chunk(const struct chunk chunk);
 
 #endif

@@ -246,6 +246,7 @@ opPrefix Float128T = "d"
 opPrefix Bool = "i"
 opPrefix Char = "i"
 opPrefix Void = "v"
+opPrefix (Pointer _) = error "opPrefix: pointer type is native-only and not supported on JVM target"
 opPrefix (Class _ _) = "a"
 opPrefix ErrorClass = error "opPrefix: error class"
 

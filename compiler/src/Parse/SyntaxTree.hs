@@ -36,6 +36,7 @@ data Class =
     Int8T | Int16T | Int32T | Int64T |
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
+    Pointer Class |
     Class [String] [Class] | -- name + general
     ErrorClass
     deriving (Eq, Ord, Show, Generic)
@@ -56,6 +57,7 @@ prettyClass Float128T = "float128"
 prettyClass Void = "void"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
+prettyClass (Pointer c) = concat ["pointer<", prettyClass c, ">"]
 prettyClass (Class ss args) =
     let base = intercalate "." ss
     in case args of
@@ -74,6 +76,7 @@ classMangle Float128T = "q"
 classMangle Bool = "z"
 classMangle Char = "c"
 classMangle Void = "v"
+classMangle (Pointer c) = "P" ++ classMangle c
 classMangle (Class ss args) =
     case ss of
         [] -> error "classMangle: empty class qname"
@@ -113,6 +116,9 @@ classDemangleEither raw = case parseMangledType raw of
             'z' -> Right (Bool, cs)
             'c' -> Right (Char, cs)
             'v' -> Right (Void, cs)
+            'P' -> do
+                (inner, rest) <- parseMangledType cs
+                Right (Pointer inner, rest)
             'N' -> parseNestedType cs
             _
                 | isDigit c -> parseSingleType (c : cs)
@@ -292,7 +298,7 @@ operatorTextMap = Map.fromList [
     (Assign, "="), (PlusAssign, "+="), (MinusAssign, "-="), (MultiplyAssign, "*="), (DivideAssign, "/="),
     (ModuloAssign, "%="), (PowerAssign, "**="),
 
-    (BitImply, "imp"), (BitNimply, "nimp"),
+    (BitImply, "implies"), (BitNimply, "nimplies"),
     (Equal, "=="), (NotEqual, "!="),
 
     (GreaterThan, ">"), (LessThan, "<"), (GreaterEqual, ">="), (LessEqual, "<="),
@@ -340,7 +346,7 @@ data Expression =
     | Binary Operator Expression Expression Token
     | Call Expression [Expression]
     | CallT Expression [(Class, [Token])] [Expression]
-    | Ternary Expression (Expression, Expression) [Token]
+    | BlockExpr Block
     deriving (Eq, Show)
 
 
@@ -374,10 +380,8 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
                 typeArgsS = concat ["<", intercalate ", " (map (prettyClass . fst) ts), ">"]
                 argsS = intercalate ", " (map (prettyExpr' . Just) args)
             in concat [calleeS, typeArgsS, "(", argsS, ")"]
-        prettyExpr' (Just (Ternary cond (tExpr, fExpr) _)) =
-            concat [
-                prettyExpr' (Just tExpr), " if ", prettyExpr' (Just cond),
-                " else ", prettyExpr' (Just fExpr)]
+        prettyExpr' (Just (BlockExpr b)) =
+            prettyBlock 0 b
 
 
 -- | Choose an anchor token for diagnostics.
@@ -398,7 +402,7 @@ exprTokens (Unary _ e t) = t : exprTokens e
 exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
 exprTokens (Call e1 es) = concatMap exprTokens (e1 : es)
 exprTokens (CallT e1 cts es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
-exprTokens (Ternary c (e1, e2) ts) = ts ++ exprTokens c ++ exprTokens e1 ++ exprTokens e2
+exprTokens (BlockExpr b) = blockTokens (Just b)
 
 
 -- | Flatten all expressions contained in a expr.
@@ -412,8 +416,8 @@ flattenExpr (Just fatherE@(Call callee args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just fatherE@(CallT callee _ args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
-flattenExpr (Just fatherE@(Ternary c (e1, e2) _)) =
-    concat [[fatherE], flattenExpr (Just c), flattenExpr (Just e1), flattenExpr (Just e2)]
+flattenExpr (Just fatherE@(BlockExpr b)) =
+    fatherE : flattenBlock (Just b)
 flattenExpr (Just e) = [e]
 
 
@@ -1068,8 +1072,6 @@ inlineProgramFunctions (decls, stmts) =
             Cast _ e _ -> exprCallees e
             Unary _ e _ -> exprCallees e
             Binary _ e1 e2 _ -> HashSet.union (exprCallees e1) (exprCallees e2)
-            Ternary c (tExpr, fExpr) _ ->
-                HashSet.unions [exprCallees c, exprCallees tExpr, exprCallees fExpr]
             _ -> HashSet.empty
 
         rewriteStmtInline :: Map String InlineFunSpec -> [String] -> Statement -> Statement
@@ -1163,11 +1165,8 @@ inlineProgramFunctions (decls, stmts) =
             Cast ty e tok -> Cast ty (rewriteExprInline specs stack e) tok
             Unary op e tok -> Unary op (rewriteExprInline specs stack e) tok
             Binary op e1 e2 tok -> Binary op (rewriteExprInline specs stack e1) (rewriteExprInline specs stack e2) tok
-            Ternary c (tExpr, fExpr) toks ->
-                Ternary
-                    (rewriteExprInline specs stack c)
-                    (rewriteExprInline specs stack tExpr, rewriteExprInline specs stack fExpr)
-                    toks
+            BlockExpr b ->
+                BlockExpr (rewriteBlockInline specs stack b)
             Call callee args ->
                 inlineCall specs stack (Call callee args)
             CallT callee tys args ->
@@ -1219,10 +1218,45 @@ inlineProgramFunctions (decls, stmts) =
             Cast ty e tok -> Cast ty (substInlineExpr subst e) tok
             Unary op e tok -> Unary op (substInlineExpr subst e) tok
             Binary op e1 e2 tok -> Binary op (substInlineExpr subst e1) (substInlineExpr subst e2) tok
-            Ternary c (tExpr, fExpr) toks ->
-                Ternary (substInlineExpr subst c) (substInlineExpr subst tExpr, substInlineExpr subst fExpr) toks
+            BlockExpr b ->
+                BlockExpr (substInlineBlock subst b)
             Call callee args -> Call (substInlineExpr subst callee) (map (substInlineExpr subst) args)
             CallT callee tys args -> CallT (substInlineExpr subst callee) tys (map (substInlineExpr subst) args)
+
+        substInlineBlock :: Map String Expression -> Block -> Block
+        substInlineBlock subst (Multiple ss) = Multiple (map (substInlineStmt subst) ss)
+
+        substInlineStmt :: Map String Expression -> Statement -> Statement
+        substInlineStmt subst stmt = case stmt of
+            Command (Return mExpr) tok -> Command (Return (fmap (substInlineExpr subst) mExpr)) tok
+            Expr e -> Expr (substInlineExpr subst e)
+            Exprs es -> Exprs (map (substInlineExpr subst) es)
+            DefField names mTy mRhs toks -> DefField names mTy (fmap (substInlineExpr subst) mRhs) toks
+            DefConstField names mTy mRhs toks -> DefConstField names mTy (fmap (substInlineExpr subst) mRhs) toks
+            DefVar names mTy mRhs toks -> DefVar names mTy (fmap (substInlineExpr subst) mRhs) toks
+            DefConstVar names mTy mRhs toks -> DefConstVar names mTy (fmap (substInlineExpr subst) mRhs) toks
+            StmtGroup ss -> StmtGroup (map (substInlineStmt subst) ss)
+            BlockStmt b -> BlockStmt (substInlineBlock subst b)
+            If e b1 b2 toks -> If (substInlineExpr subst e) (fmap (substInlineBlock subst) b1) (fmap (substInlineBlock subst) b2) toks
+            For (s1, e2, s3) b1 b2 toks ->
+                For
+                    (fmap (substInlineStmt subst) s1, fmap (substInlineExpr subst) e2, fmap (substInlineStmt subst) s3)
+                    (fmap (substInlineBlock subst) b1)
+                    (fmap (substInlineBlock subst) b2)
+                    toks
+            Loop b tok -> Loop (fmap (substInlineBlock subst) b) tok
+            Repeat e b1 b2 toks -> Repeat (substInlineExpr subst e) (fmap (substInlineBlock subst) b1) (fmap (substInlineBlock subst) b2) toks
+            While e b1 b2 toks -> While (substInlineExpr subst e) (fmap (substInlineBlock subst) b1) (fmap (substInlineBlock subst) b2) toks
+            Until e b1 b2 toks -> Until (substInlineExpr subst e) (fmap (substInlineBlock subst) b1) (fmap (substInlineBlock subst) b2) toks
+            DoWhile b1 e b2 toks -> DoWhile (fmap (substInlineBlock subst) b1) (substInlineExpr subst e) (fmap (substInlineBlock subst) b2) toks
+            DoUntil b1 e b2 toks -> DoUntil (fmap (substInlineBlock subst) b1) (substInlineExpr subst e) (fmap (substInlineBlock subst) b2) toks
+            Switch e scs tok -> Switch (substInlineExpr subst e) (map (substInlineCase subst) scs) tok
+            _ -> stmt
+
+        substInlineCase :: Map String Expression -> SwitchCase -> SwitchCase
+        substInlineCase subst sc = case sc of
+            Case e mb tok -> Case (substInlineExpr subst e) (fmap (substInlineBlock subst) mb) tok
+            Default b tok -> Default (substInlineBlock subst b) tok
 
 
 -- | Promote top-level declarations into static form.
@@ -1401,8 +1435,8 @@ rewriteExprCalls callMap expr = case expr of
     Cast ty e tok -> Cast ty (rewriteExprCalls callMap e) tok
     Unary op e tok -> Unary op (rewriteExprCalls callMap e) tok
     Binary op e1 e2 tok -> Binary op (rewriteExprCalls callMap e1) (rewriteExprCalls callMap e2) tok
-    Ternary c (tExpr, fExpr) toks ->
-        Ternary (rewriteExprCalls callMap c) (rewriteExprCalls callMap tExpr, rewriteExprCalls callMap fExpr) toks
+    BlockExpr b ->
+        BlockExpr (rewriteBlockExprCalls callMap b)
     Call callee args ->
         let callee' = rewriteExprCalls callMap callee
             args' = map (rewriteExprCalls callMap) args
@@ -1425,6 +1459,75 @@ rewriteExprCalls callMap expr = case expr of
                     in CallT (Variable newName (renameIdentToken newName tok)) tys (args' ++ extra)
                 Nothing -> CallT callee' tys args'
             _ -> CallT callee' tys args'
+
+
+rewriteBlockExprCalls :: Map String HoistCallSpec -> Block -> Block
+rewriteBlockExprCalls callMap (Multiple ss) = Multiple (map (rewriteStmtExprCalls callMap) ss)
+
+
+rewriteStmtExprCalls :: Map String HoistCallSpec -> Statement -> Statement
+rewriteStmtExprCalls callMap stmt = case stmt of
+    Command (Return mExpr) tok -> Command (Return (fmap (rewriteExprCalls callMap) mExpr)) tok
+    Expr e -> Expr (rewriteExprCalls callMap e)
+    Exprs es -> Exprs (map (rewriteExprCalls callMap) es)
+    DefField names mTy mRhs toks -> DefField names mTy (fmap (rewriteExprCalls callMap) mRhs) toks
+    DefConstField names mTy mRhs toks -> DefConstField names mTy (fmap (rewriteExprCalls callMap) mRhs) toks
+    DefVar names mTy mRhs toks -> DefVar names mTy (fmap (rewriteExprCalls callMap) mRhs) toks
+    DefConstVar names mTy mRhs toks -> DefConstVar names mTy (fmap (rewriteExprCalls callMap) mRhs) toks
+    StmtGroup ss -> StmtGroup (map (rewriteStmtExprCalls callMap) ss)
+    BlockStmt b -> BlockStmt (rewriteBlockExprCalls callMap b)
+    If e b1 b2 toks ->
+        If
+            (rewriteExprCalls callMap e)
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    For (s1, e2, s3) b1 b2 toks ->
+        For
+            (fmap (rewriteStmtExprCalls callMap) s1, fmap (rewriteExprCalls callMap) e2, fmap (rewriteStmtExprCalls callMap) s3)
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    Loop b tok -> Loop (fmap (rewriteBlockExprCalls callMap) b) tok
+    Repeat e b1 b2 toks ->
+        Repeat
+            (rewriteExprCalls callMap e)
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    While e b1 b2 toks ->
+        While
+            (rewriteExprCalls callMap e)
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    Until e b1 b2 toks ->
+        Until
+            (rewriteExprCalls callMap e)
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    DoWhile b1 e b2 toks ->
+        DoWhile
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (rewriteExprCalls callMap e)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    DoUntil b1 e b2 toks ->
+        DoUntil
+            (fmap (rewriteBlockExprCalls callMap) b1)
+            (rewriteExprCalls callMap e)
+            (fmap (rewriteBlockExprCalls callMap) b2)
+            toks
+    Switch e scs tok ->
+        Switch (rewriteExprCalls callMap e) (map (rewriteSwitchExprCalls callMap) scs) tok
+    _ -> stmt
+
+
+rewriteSwitchExprCalls :: Map String HoistCallSpec -> SwitchCase -> SwitchCase
+rewriteSwitchExprCalls callMap sc = case sc of
+    Case e mb tok -> Case (rewriteExprCalls callMap e) (fmap (rewriteBlockExprCalls callMap) mb) tok
+    Default b tok -> Default (rewriteBlockExprCalls callMap b) tok
 
 
 isHoistableFunctionDef :: Statement -> Bool
@@ -1587,8 +1690,11 @@ normalizeClass cls = case cls of
     Class [name] args ->
         case (normalizeBuiltinClass name, args) of
             (Just prim, []) -> prim
+            (Nothing, [one]) | map toLower name == "pointer" ->
+                Pointer (normalizeClass one)
             _ -> Class [name] (map normalizeClass args)
     Class names args -> Class names (map normalizeClass args)
+    Pointer c -> Pointer (normalizeClass c)
     other -> other
 
 

@@ -162,6 +162,10 @@ Common options:
 
 See [LICENSE](LICENSE).
 
+The xlang name, logo, and related branding assets are trademarks or protected brand assets of the xlang project.
+They are not licensed under the MIT License. You may not use them to imply endorsement, official association, or redistribution of modified versions without permission.
+
+
 ---
 
 ## 中文
@@ -271,3 +275,6 @@ xlang --target-jvm<n> <files...> [-lib <libs...>] [--root <dir>] [-d <dir|jar>]
 ### 许可证
 
 见 [LICENSE](LICENSE)。
+
+xlang 的名称、标志及相关品牌资产是 xlang 项目的商标或受保护的品牌资产。它们不在 MIT 许可证下授权
+未经许可，您不得使用它们来暗示认可、官方关联或重新分发修改过的版本。

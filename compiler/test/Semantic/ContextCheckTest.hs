@@ -343,7 +343,11 @@ checkExprTests = testGroup "Semantic.ContextCheck.checkExpr" $ map (\(name, src,
         ("4", "x = x + 1", stWithVars ["x"], [], Nothing, assertVarDefined "x"),
         ("5", "a.b = x + 1", stWithVars ["x"], [], Just UE.assignErrorMsg, noExtra),
         ("6", "y = x + z * f(2)", stWithVarsFuncs ["x", "z"] ["f"], [], Nothing, assertVarDefined "y"),
-        ("7", "g(x + 1, 2 * 3)", stWithVars ["x"], [], Just (UE.undefinedIdentity "g"), noExtra)]
+        ("7", "g(x + 1, 2 * 3)", stWithVars ["x"], [], Just (UE.undefinedIdentity "g"), noExtra),
+        ("8", "a.ref", stWithVars ["a"], [], Nothing, noExtra),
+        ("9", "b.deref.dref", stWithVars ["b"], [], Nothing, noExtra),
+        ("10", "a.ref.ref", stWithVars ["a"], [], Just "ref can only be used as a terminal suffix on a variable", noExtra),
+        ("11", "a.ref = 1", stWithVars ["a"], [], Just (UE.cannotAssignMsg "a.ref"), noExtra)]
 
 
 isContinueValidTests :: TestTree

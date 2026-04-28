@@ -74,6 +74,7 @@ widenedClass Float32T = [Float32T, Float64T, Float128T]
 widenedClass Float64T = [Float64T, Float128T]
 widenedClass Float128T = [Float128T]
 widenedClass Void = [Void]
+widenedClass (Pointer inner) = [Pointer (normalizeTypeAlias inner)]
 widenedClass cls@(Class _ _) = [normalizeTypeAlias cls]
 widenedClass ErrorClass = error "ErrorClass cannot be widened"
 
@@ -130,6 +131,11 @@ basicTypeRankRev = Map.fromList $ map (\(k, v) -> (v, k)) (Map.toList basicTypeR
 --   Useful for guarding numeric-only rules.
 isBasicType :: Class -> Bool
 isBasicType c = Map.member c basicTypeRank
+
+
+isPointerType :: Class -> Bool
+isPointerType (Pointer _) = True
+isPointerType _ = False
 
 
 -- | Check whether a class is an integer-like type (excluding float).
@@ -300,9 +306,27 @@ binOpInfer = foldr Map.union Map.empty [loadCompare, loadShift, loadBitOp, loadL
 --   Throws an error if the operator/type combination is unsupported.
 inferBinaryOp :: Operator -> Class -> Class -> Class
 inferBinaryOp op t1 t2 =
-    case Map.lookup (op, t1, t2) binOpInfer of
+    case inferBinaryOpMaybe op t1 t2 of
         Just resT -> resT
         Nothing -> error $ "unsupported binary operator: " ++ show op ++ " on " ++ prettyClass t1 ++ ", " ++ prettyClass t2
+
+
+inferBinaryOpMaybe :: Operator -> Class -> Class -> Maybe Class
+inferBinaryOpMaybe op t1 t2 =
+    let n1 = pointerAsInt64 t1
+        n2 = pointerAsInt64 t2
+    in fmap (preferPointerResult op t1 t2) (Map.lookup (op, n1, n2) binOpInfer)
+  where
+    pointerAsInt64 :: Class -> Class
+    pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 cls = cls
+
+    preferPointerResult :: Operator -> Class -> Class -> Class -> Class
+    preferPointerResult bop lhs rhs res
+        | isCompareOp bop = res
+        | isPointerType lhs = lhs
+        | isPointerType rhs = rhs
+        | otherwise = res
 
 
 -- | Operand promotion type for a binary operator.
@@ -310,7 +334,26 @@ inferBinaryOp op t1 t2 =
 --   while the result remains Bool.
 binaryOpCastType :: Operator -> Class -> Class -> Class
 binaryOpCastType op t1 t2
-    | isCompareOp op = promoteBasicType t1 t2
-    | otherwise = inferBinaryOp op t1 t2
+    = case binaryOpCastTypeMaybe op t1 t2 of
+        Just castT -> castT
+        Nothing -> error $ "unsupported binary operator cast type: " ++ show op ++ " on " ++ prettyClass t1 ++ ", " ++ prettyClass t2
+
+
+binaryOpCastTypeMaybe :: Operator -> Class -> Class -> Maybe Class
+binaryOpCastTypeMaybe op t1 t2 = do
+    _ <- inferBinaryOpMaybe op t1 t2
+    let n1 = pointerAsInt64 t1
+        n2 = pointerAsInt64 t2
+    pure $
+        if isCompareOp op
+            then promoteBasicType n1 n2
+            else case (t1, t2) of
+                (Pointer _, _) -> Int64T
+                (_, Pointer _) -> Int64T
+                _ -> inferBinaryOp op n1 n2
+  where
+    pointerAsInt64 :: Class -> Class
+    pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 cls = cls
 
 

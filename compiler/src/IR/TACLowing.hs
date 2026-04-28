@@ -17,7 +17,7 @@ import Numeric (readHex)
 
 import Lex.Token (Token(..), tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
-import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isBasicType, isCompareOp, promoteBasicType)
+import Semantic.OpInfer (binaryOpCastType, inferUnaryOp, inferBinaryOp, isCompareOp)
 import IR.TAC (IRInstr, IRAtom, TACM, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
     resolveVarKey,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
@@ -47,6 +47,29 @@ data IRNode
 --   Body is already flat instructions, matching final TAC block shape.
 newtype IRBlock = IRBlock (Int, [IRInstr])
     deriving (Eq, Show)
+
+
+data PtrSuffixOp
+    = PtrRef
+    | PtrDeref
+    deriving (Eq, Show)
+
+
+parsePointerSuffixQualified :: [String] -> [Token] -> Maybe (String, Token, [PtrSuffixOp])
+parsePointerSuffixQualified names toks = case (names, toks) of
+    (base : suffixes, baseTok : _) -> do
+        ops <- traverse parseSuffix suffixes
+        if null ops
+            then Nothing
+            else Just (base, baseTok, ops)
+    _ -> Nothing
+  where
+    parseSuffix :: String -> Maybe PtrSuffixOp
+    parseSuffix s = case map toLower s of
+        "ref" -> Just PtrRef
+        "deref" -> Just PtrDeref
+        "dref" -> Just PtrDeref
+        _ -> Nothing
 
 
 -- | Lift nested block markers to the top level in depth-first order.
@@ -304,15 +327,47 @@ atomLowing (AST.Variable _ tok) = do
             nAtom <- newSubCVar clazz
             return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
 
-atomLowing (AST.Qualified _ tokens) = do
-    vinfo <- getVar (map tokenPos tokens)
-    case vinfo of
-        TEnv.VarImported _ clazz _ fullQname -> do
-            nAtom <- newSubCVar clazz
-            return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
-        _ -> error "qualified name is not an imported variable"
+atomLowing (AST.Qualified names tokens) =
+    case parsePointerSuffixQualified names tokens of
+        Just (baseName, baseTok, ops) -> do
+            (baseInstrs, baseAtom) <- atomLowing (AST.Variable baseName baseTok)
+            baseClass <- getAtomType baseAtom
+            lowerPointerSuffixes ops baseClass baseAtom baseInstrs
+        Nothing -> do
+            vinfo <- getVar (map tokenPos tokens)
+            case vinfo of
+                TEnv.VarImported _ clazz _ fullQname -> do
+                    nAtom <- newSubCVar clazz
+                    return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
+                _ -> error "qualified name is not an imported variable"
 
 atomLowing _ = error "other type is not allowed for IR atom"
+
+
+lowerPointerSuffixes :: [PtrSuffixOp] -> Class -> IRAtom -> [IRNode] -> TACM ([IRNode], IRAtom)
+lowerPointerSuffixes ops baseClass baseAtom baseInstrs = case ops of
+    [PtrRef] -> do
+        outAtom <- newSubCVar (Pointer baseClass)
+        let instr = IRInstr (TAC.Ref outAtom baseAtom)
+        return (instr : baseInstrs, outAtom)
+    _ | PtrRef `elem` ops ->
+        error "ref can only be used as terminal suffix on variables"
+    _ ->
+        lowerDerefChain ops baseClass baseAtom baseInstrs
+  where
+    lowerDerefChain :: [PtrSuffixOp] -> Class -> IRAtom -> [IRNode] -> TACM ([IRNode], IRAtom)
+    lowerDerefChain [] cls atom instrs = do
+        _ <- pure cls
+        return (instrs, atom)
+    lowerDerefChain (PtrDeref:rest) cls atom instrs = case cls of
+        Pointer inner -> do
+            outAtom <- newSubCVar inner
+            let instr = IRInstr (TAC.Deref outAtom atom)
+            lowerDerefChain rest inner outAtom (instr : instrs)
+        _ ->
+            error $ "deref expects pointer type, got " ++ show cls
+    lowerDerefChain (PtrRef:_) _ _ _ =
+        error "unexpected ref in deref chain"
 
 
 -- | Find parameter index for a given atom, if it is a function argument.
@@ -552,9 +607,8 @@ exprLowing (AST.Binary op e1 e2 _) = do
             phiInstr = IRInstr (TAC.IAssign nAtom (TAC.Phi [(lTrue, TAC.BoolC True), (lFalse, TAC.BoolC False)]))
             joinBlock = IRBlockStmt (lJoin, [phiInstr])
 
-        let seqRev =
-                [joinBlock, falseBlock, trueBlock, IRInstr jumpInstr]
-                ++ cast2Instrs ++ instr2 ++ cast1Instrs ++ instr1
+        let seqRev = concat [
+                [joinBlock, falseBlock, trueBlock, IRInstr jumpInstr], cast2Instrs, instr2, cast1Instrs, instr1]
         return (seqRev, nAtom)
     else do
         let tailRev = concat [cast2Instrs, instr2, cast1Instrs, instr1]
@@ -562,89 +616,84 @@ exprLowing (AST.Binary op e1 e2 _) = do
             AST.BitNand -> do
                 andAtom <- newSubCVar resClass
                 nAtom <- newSubCVar resClass
-                return (
-                    [ IRInstr (TAC.IUnary nAtom AST.BitInv andAtom)
-                    , IRInstr (TAC.IBinary andAtom AST.BitAnd atom1' atom2')
-                    ] ++ tailRev,
+                return ([
+                    IRInstr (TAC.IUnary nAtom AST.BitInv andAtom),
+                    IRInstr (TAC.IBinary andAtom AST.BitAnd atom1' atom2')] ++ tailRev,
                     nAtom)
 
             AST.BitXnor -> do
                 xorAtom <- newSubCVar resClass
                 nAtom <- newSubCVar resClass
-                return (
-                    [ IRInstr (TAC.IUnary nAtom AST.BitInv xorAtom)
-                    , IRInstr (TAC.IBinary xorAtom AST.BitXor atom1' atom2')
-                    ] ++ tailRev,
+                return ([
+                    IRInstr (TAC.IUnary nAtom AST.BitInv xorAtom),
+                    IRInstr (TAC.IBinary xorAtom AST.BitXor atom1' atom2')] ++ tailRev,
                     nAtom)
 
             AST.BitNor -> do
                 orAtom <- newSubCVar resClass
                 nAtom <- newSubCVar resClass
-                return (
-                    [ IRInstr (TAC.IUnary nAtom AST.BitInv orAtom)
-                    , IRInstr (TAC.IBinary orAtom AST.BitOr atom1' atom2')
-                    ] ++ tailRev,
+                return ([
+                    IRInstr (TAC.IUnary nAtom AST.BitInv orAtom),
+                    IRInstr (TAC.IBinary orAtom AST.BitOr atom1' atom2')] ++ tailRev,
                     nAtom)
 
             AST.BitImply -> do
                 notA <- newSubCVar resClass
                 nAtom <- newSubCVar resClass
-                return (
-                    [ IRInstr (TAC.IBinary nAtom AST.BitOr notA atom2')
-                    , IRInstr (TAC.IUnary notA AST.BitInv atom1')
-                    ] ++ tailRev,
+                return ([
+                    IRInstr (TAC.IBinary nAtom AST.BitOr notA atom2'),
+                    IRInstr (TAC.IUnary notA AST.BitInv atom1')] ++ tailRev,
                     nAtom)
 
             AST.BitNimply -> do
                 notB <- newSubCVar resClass
                 nAtom <- newSubCVar resClass
-                return (
-                    [ IRInstr (TAC.IBinary nAtom AST.BitAnd atom1' notB)
-                    , IRInstr (TAC.IUnary notB AST.BitInv atom2')
-                    ] ++ tailRev,
+                return ([
+                    IRInstr (TAC.IBinary nAtom AST.BitAnd atom1' notB),
+                    IRInstr (TAC.IUnary notB AST.BitInv atom2')] ++ tailRev,
                     nAtom)
 
             _ -> do
                 nAtom <- newSubCVar resClass
                 return (IRInstr (TAC.IBinary nAtom op atom1' atom2') : tailRev, nAtom)
 
-exprLowing (AST.Ternary cond (thenE, elseE) _) = do
-    (condInstrs, condAtom) <- if AST.isAtom cond then atomLowing cond else exprLowing cond
-    (thenInstrs, thenAtom0) <- if AST.isAtom thenE then atomLowing thenE else exprLowing thenE
-    (elseInstrs, elseAtom0) <- if AST.isAtom elseE then atomLowing elseE else exprLowing elseE
+exprLowing (AST.BlockExpr (AST.Multiple ss)) = do
+    (forwardInstrs, outAtom) <- lowerBlockExprForward ss
+    return (reverse forwardInstrs, outAtom)
+    where
+        lowerBlockExprForward :: [Statement] -> TACM ([IRNode], IRAtom)
+        lowerBlockExprForward [] = error "block expression cannot be empty"
+        lowerBlockExprForward [AST.Expr e] = lowerExprForward e
+        lowerBlockExprForward [AST.Exprs es] = lowerExprsForward es
+        lowerBlockExprForward [AST.StmtGroup groupStmts] = lowerBlockExprForward groupStmts
+        lowerBlockExprForward [_] = error "block expression must end with an expression"
+        lowerBlockExprForward (stmt:rest) = do
+            cur <- stmtsLowing [stmt]
+            (restInstrs, outAtom) <- lowerBlockExprForward rest
+            return (appendAfterCond cur restInstrs, outAtom)
 
-    thenClass <- getAtomType thenAtom0
-    elseClass <- getAtomType elseAtom0
-    let resClass
-            | thenClass == elseClass = thenClass
-            | isBasicType thenClass && isBasicType elseClass = promoteBasicType thenClass elseClass
-            | otherwise = error "ternary branches must be both basic or same type"
+        lowerExprForward :: Expression -> TACM ([IRNode], IRAtom)
+        lowerExprForward e = do
+            (instrsRev, outAtom) <- if AST.isAtom e then atomLowing e else exprLowing e
+            return (reverse instrsRev, outAtom)
 
-    (thenCastInstrs, thenAtom) <- castIfNeeded thenClass thenAtom0 resClass
-    (elseCastInstrs, elseAtom) <- castIfNeeded elseClass elseAtom0 resClass
+        lowerExprsForward :: [Expression] -> TACM ([IRNode], IRAtom)
+        lowerExprsForward [] = error "block expression cannot be empty"
+        lowerExprsForward es = do
+            let revEs = reverse es
+            case revEs of
+                (lastE:restRev) -> do
+                    let prefixEs = reverse restRev
+                    prefixInstrs <- mapM lowerExprStmtForward prefixEs
+                    (lastInstrs, outAtom) <- lowerExprForward lastE
+                    let prefix = foldl' appendAfterCond [] prefixInstrs
+                    return (appendAfterCond prefix lastInstrs, outAtom)
+                [] -> error "block expression cannot be empty"
 
-    nAtom <- newSubCVar resClass
-    lThen <- incBlockId
-    lElse <- incBlockId
-    lJoin <- incBlockId
-
-    let condStmts = appendAfterCond (reverse condInstrs) [
-            IRInstr (TAC.Ifeq condAtom (TAC.Int32C 1) (lThen, lElse))]
-        thenBody = appendAfterCond (reverse thenInstrs) (
-            thenCastInstrs ++ [
-                IRInstr (TAC.IAssign nAtom thenAtom),
-                IRInstr (TAC.Jump lJoin)])
-        elseBody = appendAfterCond (reverse elseInstrs) (
-            elseCastInstrs ++ [
-                IRInstr (TAC.IAssign nAtom elseAtom),
-                IRInstr (TAC.Jump lJoin)])
-        thenBlock = IRBlockStmt (lThen, thenBody)
-        elseBlock = IRBlockStmt (lElse, elseBody)
-        phiInstr = IRInstr (TAC.IAssign nAtom (TAC.Phi [(lThen, thenAtom), (lElse, elseAtom)]))
-        joinBlock = IRBlockStmt (lJoin, [phiInstr])
-        seqFwd = condStmts ++ [thenBlock, elseBlock, joinBlock]
-
-    return (reverse seqFwd, nAtom)
+        lowerExprStmtForward :: Expression -> TACM [IRNode]
+        lowerExprStmtForward e = do
+            (instrsRev, _) <- if AST.isAtom e then atomLowing e else exprLowing e
+            return (reverse instrsRev)
 
 exprLowing (AST.Call funName params) = do
     funInfo <- case funName of
@@ -981,6 +1030,7 @@ collectAssignKeysBlock (AST.Multiple ss) = do
             AST.Cast _ e _ -> collectAssignKeysExpr e
             AST.Call callee args -> concat <$> mapM collectAssignKeysExpr (callee : args)
             AST.CallT callee _ args -> concat <$> mapM collectAssignKeysExpr (callee : args)
+            AST.BlockExpr b -> collectAssignKeysBlock b
             _ -> return []
 
         isAssignLikeOp :: AST.Operator -> Bool

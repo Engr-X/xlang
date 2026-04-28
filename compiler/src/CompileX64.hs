@@ -33,6 +33,7 @@ import qualified Lex.Tokenizer as Tokenizer
 import qualified Parse.ParseProgm as Parse
 import qualified Parse.ParserBasic as PB
 import qualified Parse.SyntaxTree as AST
+import qualified Semantic.CheckProgram as SCP
 import qualified Semantic.LibLoader as LibLoader
 import qualified Semantic.TypeEnv as TEnv
 import qualified Util.Exception as UE
@@ -283,7 +284,7 @@ compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths 
                     mapM_ (putStrLn . UE.errorToString) errs
                     pure Nothing
                 Right (depImportEnvs, depTypedEnvs) -> do
-                    mIrRes <- IR.codeToIRWithRootAndDepsTimed depImportEnvs depTypedEnvs rootPath sources
+                    mIrRes <- IR.codeToIRWithRootAndDepsTimedForTarget SCP.SemanticTargetNative depImportEnvs depTypedEnvs rootPath sources
                     case mIrRes of
                         Left errs -> do
                             mapM_ (putStrLn . UE.errorToString) errs

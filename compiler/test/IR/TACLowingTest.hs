@@ -415,6 +415,60 @@ repeatLoweringTests = testGroup "IR.TACLowing.repeatLowering" [
             TAC.IAssign _ (TAC.Phi _) -> True
             _ -> False
 
+
+pointerSuffixLoweringTests :: TestTree
+pointerSuffixLoweringTests = testGroup "IR.TACLowing.pointerSuffix" [
+    testCase "a.ref lowers to TAC.Ref and pointer<int>" $ do
+        let posA = makePosition 1 1 1
+            tokA = LT.Ident "a" posA
+            tokRef = LT.Ident "ref" (makePosition 1 3 3)
+            expr = AST.Qualified ["a", "ref"] [tokA, tokRef]
+            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0)]
+            stacks = Map.fromList [(("a", 0), [(Int32T, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (instrs, outAtom, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (nodes, atom) <- atomLowing expr
+                ty <- TAC.getAtomType atom
+                pure (nodes, atom, ty)) st0
+        outTy @?= Pointer Int32T
+        assertBool "must emit TAC.Ref" (any isRefInstr instrs)
+        assertBool "result should be var atom" (isVarAtom outAtom),
+
+    testCase "b.deref.dref lowers to two TAC.Deref and int" $ do
+        let posB = makePosition 2 1 1
+            tokB = LT.Ident "b" posB
+            tokDeref = LT.Ident "deref" (makePosition 2 3 5)
+            tokDref = LT.Ident "dref" (makePosition 2 9 4)
+            expr = AST.Qualified ["b", "deref", "dref"] [tokB, tokDeref, tokDref]
+            bTy = Pointer (Pointer Int32T)
+            vUses = Map.fromList [([posB], TEnv.VarLocal (Public, []) "b" 0)]
+            stacks = Map.fromList [(("b", 0), [(bTy, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (instrs, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (nodes, atom) <- atomLowing expr
+                ty <- TAC.getAtomType atom
+                pure (nodes, ty)) st0
+        outTy @?= Int32T
+        length (filter isDerefInstr instrs) @?= 2
+    ]
+  where
+    isRefInstr :: IRNode -> Bool
+    isRefInstr node = case node of
+        IRInstr (TAC.Ref _ _) -> True
+        _ -> False
+
+    isDerefInstr :: IRNode -> Bool
+    isDerefInstr node = case node of
+        IRInstr (TAC.Deref _ _) -> True
+        _ -> False
+
+    isVarAtom :: IRAtom -> Bool
+    isVarAtom atom = case atom of
+        Var _ -> True
+        _ -> False
+
 tests :: TestTree
 tests = testGroup "IR.TACLowing" [
     stripIntSuffixTests,
@@ -430,7 +484,8 @@ tests = testGroup "IR.TACLowing" [
     ifBranchPairTests,
     untilLoweringTests,
     doLoopLoweringTests,
-    repeatLoweringTests
+    repeatLoweringTests,
+    pointerSuffixLoweringTests
     ]
 
 

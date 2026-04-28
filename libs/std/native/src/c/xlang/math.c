@@ -1,6 +1,7 @@
 #include <xlang/math.h>
 #include <math.h>
 
+
 double xlang_sin(double x)
 {
     return sin(x);

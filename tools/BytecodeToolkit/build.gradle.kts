@@ -10,8 +10,8 @@ plugins {
     application
 }
 
-group = "com.wangdi"
-version = "alpha"
+group = "com.diwang"
+version = "alpha-1.1.0"
 
 repositories {
     mavenCentral()
@@ -55,12 +55,13 @@ tasks.withType<KotlinJvmCompile>().configureEach {
 }
 
 application {
-    mainClass.set("com.wangdi.bctoolkit.MainKt")
+    mainClass.set("com.diwang.bctoolkit.MainKt")
 }
 
 tasks.jar {
+    archiveFileName.set("BytecodeToolkit.jar")
     manifest {
-        attributes["Main-Class"] = "com.wangdi.bctoolkit.MainKt"
+        attributes["Main-Class"] = "com.diwang.bctoolkit.MainKt"
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })

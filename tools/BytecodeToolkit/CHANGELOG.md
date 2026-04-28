@@ -24,6 +24,11 @@
 - Compiler integration path:
     - non-json library inputs can be batched into a single BytecodeToolkit invocation
     - reduced repeated JVM startup overhead during library load
+- Build/toolchain behavior:
+    - Gradle toolchain defaults to the local Java runtime version on the machine
+    - emitted bytecode target remains JVM 1.8 for compatibility
+- Packaging:
+    - jar artifact name is fixed to `BytecodeToolkit.jar` (version suffix removed)
 
 ## Alpha-1.0.0 -- 2026-03-14
 

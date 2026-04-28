@@ -5,7 +5,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import Data.List (intercalate)
 import Data.Maybe (fromMaybe)
 import Lex.Token (Token, tokenPos)
-import Lex.Tokenizer (tokenize)
+import Lex.Tokenizer (tokenizeWithNL)
 import Parse.ParserBasic
 import Parse.SyntaxTree
 import Parse.ParserBasic
@@ -22,12 +22,40 @@ import qualified Util.Exception as UE
 
 %token
     EOF                 { t@(Lex.EOF _) }
+    NL                  { t@(Lex.TokenPass  _) }
+
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
 
+    KW_VAR              { t@(Lex.Ident "var" _) }
+    KW_VAL              { t@(Lex.Ident "val" _) }
+    KW_CONST            { t@(Lex.Ident "const" _) }
+    KW_FINAL            { t@(Lex.Ident "final" _) }
+    KW_MUT              { t@(Lex.Ident "mut" _) }
+    KW_INLINE           { t@(Lex.Ident "inline" _) }
+    KW_NATIVE           { t@(Lex.Ident "native" _) }
+
+    KW_PUBLIC           { t@(Lex.Ident "public" _) }
+    KW_PROTECTED        { t@(Lex.Ident "protected" _) }
+    KW_PRIVATE          { t@(Lex.Ident "private" _) }
+
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
+    KW_ELIF             { t@(Lex.Ident "elif" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
+    KW_DO               { t@(Lex.Ident "do" _) }
+    KW_WHILE            { t@(Lex.Ident "while" _) }
+    KW_UNTIL            { t@(Lex.Ident "until" _) }
+    KW_LOOP             { t@(Lex.Ident "loop" _) }
+    KW_FOR              { t@(Lex.Ident "for" _) }
+    KW_REPEAT           { t@(Lex.Ident "repeat" _) }
+
+    KW_BREAK            { t@(Lex.Ident "break" _) }
+    KW_CONTINUE         { t@(Lex.Ident "continue" _) }
+    KW_RETURN           { t@(Lex.Ident "return" _) }
+    KW_PASS             { t@(Lex.Ident "pass" _) }
+
+    KW_FUNC             { t@(Lex.Ident "fun" _) }
 
     '++'                { t@(Lex.Symbol Lex.PlusPlus _) }
     '--'                { t@(Lex.Symbol Lex.MinusMinus _) }
@@ -54,8 +82,8 @@ import qualified Util.Exception as UE
     'xnor'              { t@(Lex.Ident "xnor" _) }
     'or'                { t@(Lex.Ident "or" _) }
     'nor'               { t@(Lex.Ident "nor" _) }
-    'imp'               { t@(Lex.Ident "imp" _) }
-    'nimp'              { t@(Lex.Ident "nimp" _) }
+    'implies'           { t@(Lex.Ident "implies" _) }
+    'nimplies'          { t@(Lex.Ident "nimplies" _) }
     '&&'                { t@(Lex.Symbol Lex.LogicalAnd _)}
     '!&&'                { t@(Lex.Symbol Lex.LogicalNand _)}
     '||'                { t@(Lex.Symbol Lex.LogicalOr _)}
@@ -69,14 +97,23 @@ import qualified Util.Exception as UE
     '**='               { t@(Lex.Symbol Lex.PowerAssign _) }
 
     identity            { t@(Lex.Ident _ _) }
+    annotation          { t@(Lex.Annotation _ _ _) }
     number              { t@(Lex.NumberConst _ _) }
     character           { t@(Lex.CharConst _ _) }
     string              { t@(Lex.StrConst _ _) }
+    nativebody          { t@(Lex.NativeBody _ _) }
 
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
+    '{'                 { t@(Lex.Symbol Lex.LBrace _) }
+    '}'                 { t@(Lex.Symbol Lex.RBrace _) }
+    '@'                 { t@(Lex.Symbol Lex.At _) }
+
+    ';'                 { t@(Lex.Symbol Lex.Semicolon _) }
     ','                 { t@(Lex.Symbol Lex.Comma _) }
+    ':'                 { t@(Lex.Symbol Lex.Colon _) }
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
+    '=>'                { t@(Lex.Symbol Lex.FatArrow _) }
     '->'                { t@(Lex.Symbol Lex.Arrow _) }
     '!->'                { t@(Lex.Symbol Lex.NotArrow _) }
     '<->'               { t@(Lex.Symbol Lex.IffArrow _) }
@@ -86,9 +123,6 @@ import qualified Util.Exception as UE
 
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
-
--- helper precedence for ternary "if ... else ..."
-%right KW_IF
 
 -- 17: logical-iff (lower than implication)
 %right '<->'
@@ -103,7 +137,7 @@ import qualified Util.Exception as UE
 %left '&&' '!&&'
 
 -- 14: bit-implication
-%right 'imp' 'nimp'
+%right 'implies' 'nimplies'
 
 -- 13: bit-or (reserved)
 %left 'or' 'nor'
@@ -144,12 +178,17 @@ import qualified Util.Exception as UE
 
 -- 0: atom/call/cast
 
+%nonassoc IFX
+%nonassoc KW_ELIF KW_ELSE
+
 %%
 
 Start
     : Expr EOF { $1 }
+    | Expr Sep EOF { $1 }
     ;
 
+#include "Parse/GrammarStmtBlock"
 #include "Parse/GrammarExpr"
 
 {
@@ -188,7 +227,7 @@ parseExprError toks = unsafeCoerce (mkHappyErrorExpr toks)
 --   * lexing errors (returned directly)
 --   * parsing errors (embedded in AST, then extracted)
 lexparseExpr :: Path -> String -> Either [ErrorKind] Expression
-lexparseExpr p str = let (errs, tokens) = tokenize p str in case errs of
+lexparseExpr p str = let (errs, tokens) = tokenizeWithNL p str in case errs of
     [] -> let expr = parseExpr tokens in case getErrorProgram ([], [Expr expr]) of
         [] -> Right expr
         errs -> Left $ map (toException p) errs

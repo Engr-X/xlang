@@ -1,26 +1,21 @@
 #include "xlang/memory/memory.h"
+#include "xlang/memory/mchunk.h"
 
 #include <stdlib.h>
 
 
-void* xlang_sys_alloc(const int64_t size) 
+
+struct memory_manager
 {
-    if (size <= 0)
-        return NULL;
-
-    return malloc(size);
-}
-
-void xlang_sys_free(const void* ptr) 
-{
-    free((void*)(ptr));
-}
+    struct chunk_list list;
+};
 
 
+extern struct memory_manager manager;
 
 void xlang_minit() 
 {
-    
+    manager.list = chunk_list_create();
 }
 
 
@@ -43,5 +38,8 @@ void xlang_mfree(const void* ptr)
 
 void xlang_mexit()
 {
-    
+    struct chunk* ptr = manager.list.chunks;
+
+    for (int i = 0; i < manager.list.size; i++)
+        
 }

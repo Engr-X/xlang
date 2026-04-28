@@ -20,7 +20,7 @@ import qualified Data.Map.Strict as Map
 
 
 bytecodegenFile :: FilePath -> FilePath
-bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeToolkit-alpha.jar"
+bytecodegenFile exePath = map slash exePath ++ "/tools/BytecodeToolkit.jar"
   where
     slash '\\' = '/'
     slash c = c

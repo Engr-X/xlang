@@ -257,8 +257,15 @@ lowerInstr (IR.ICast dst (fromC, toC) atom) = do
     if isNoOpCast fromC toC
         then return (atomOps ++ dstOps)
         else return (atomOps ++ [JVM.Cast fromC toC] ++ dstOps)
-lowerInstr (IR.ICallStaticDirect _ _ _) =
-    error "ICallStaticDirect is not supported in JVM lowering"
+lowerInstr (IR.ICallStaticDirect dst qname args) = do
+    argOps <- loadArgs args
+    sig <- callSig dst args
+    retCls <- atomClass dst
+    case retCls of
+        Void -> return (argOps ++ [JVM.InvokeStatic qname sig])
+        _ -> do
+            dstOps <- storeAtom dst
+            return (argOps ++ [JVM.InvokeStatic qname sig] ++ dstOps)
 lowerInstr (IR.ICallStatic dst qname args) = do
     argOps <- loadArgs args
     sig <- callSig dst args

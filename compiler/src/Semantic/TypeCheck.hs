@@ -6,14 +6,15 @@ module Semantic.TypeCheck where
 import Control.Monad (when, unless, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
+import Data.Char (toLower)
 import Data.List (find, foldl', intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, prettyClass, prettyExpr, promoteTopLevelFunctions, inlineProgramFunctions)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, stmtTokens, prettyClass, prettyExpr, prettyOp, promoteTopLevelFunctions, inlineProgramFunctions)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineDeclaredVar, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (augAssignOp, binaryOpCastType, iCast, inferBinaryOp, inferUnaryOp, isBasicType, promoteBasicType, widenedArgs)
+import Semantic.OpInfer (augAssignOp, binaryOpCastTypeMaybe, iCast, inferBinaryOpMaybe, inferUnaryOp, isBasicType, isPointerType, widenedArgs)
 import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable, defaultTypedImportEnv)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -114,6 +115,29 @@ normalizeTypeAlias cls = case cls of
     other -> other
 
 
+data PtrSuffixOp
+    = PtrRef
+    | PtrDeref
+    deriving (Eq, Show)
+
+
+parsePointerSuffixQualified :: [String] -> [Lex.Token] -> Maybe (String, Lex.Token, [PtrSuffixOp])
+parsePointerSuffixQualified names toks = case (names, toks) of
+    (base : suffixes, baseTok : _) -> do
+        ops <- traverse parseSuffix suffixes
+        if null ops
+            then Nothing
+            else Just (base, baseTok, ops)
+    _ -> Nothing
+  where
+    parseSuffix :: String -> Maybe PtrSuffixOp
+    parseSuffix s = case map toLower s of
+        "ref" -> Just PtrRef
+        "deref" -> Just PtrDeref
+        "dref" -> Just PtrDeref
+        _ -> Nothing
+
+
 -- | Compute flags for a newly defined variable at the current depth.
 newVarFlags :: CheckState -> DeclFlags
 newVarFlags _ =
@@ -155,16 +179,26 @@ checkTypeCompat :: Path -> [Position] -> Class -> Class -> TypeM ()
 checkTypeCompat path pos expected actual = do
     let expectedN = normalizeTypeAlias expected
         actualN = normalizeTypeAlias actual
+        expectedCast = pointerAsInt64 expectedN
+        actualCast = pointerAsInt64 actualN
     if actualN == ErrorClass || expectedN == ErrorClass || expectedN == actualN then
         pure ()
     else if expectedN == Bool || expectedN == Void || actualN == Void then
         addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
+    else if isPointerType expectedN || isPointerType actualN then
+        if isBasicType expectedCast && isBasicType actualCast
+            then mapM_ addWarn (iCast path pos actualCast expectedCast)
+            else addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
     else if isBasicType expectedN && isBasicType actualN then
         mapM_ addWarn (iCast path pos actualN expectedN)
     else if isBasicType expectedN /= isBasicType actualN then
         addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actualN) (prettyClass expectedN))
     else
         addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
+  where
+    pointerAsInt64 :: Class -> Class
+    pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 c0 = c0
 
 -- | Check condition expression type (must be bool).
 checkCondBool :: Path -> [Position] -> Class -> TypeM ()
@@ -251,25 +285,36 @@ inferExpr p _ _ e@(CharConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(BoolConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(StringConst _ _) = inferLiteral p e
 
-inferExpr path packages envs e@(Ternary cond (thenE, elseE) _) = do
-    tCond <- inferExpr path packages envs cond
-    checkCondBool path (map Lex.tokenPos (exprTokens cond)) tCond
+inferExpr path packages envs (BlockExpr (Multiple ss)) =
+    withScope (inferBlockExprItems ss)
+    where
+        inferBlockExprItems :: [Statement] -> TypeM Class
+        inferBlockExprItems [] =
+            errClass $ UE.Syntax $ UE.makeError path [] "block expression cannot be empty"
+        inferBlockExprItems [lastStmt] =
+            inferBlockExprTail lastStmt
+        inferBlockExprItems (s:ss') = do
+            inferStmt path packages envs s
+            inferBlockExprItems ss'
 
-    tThen <- inferExpr path packages envs thenE
-    tElse <- inferExpr path packages envs elseE
-    let pos = map Lex.tokenPos (exprTokens e)
-
-    if tThen == ErrorClass || tElse == ErrorClass then
-        pure ErrorClass
-    else if tThen == tElse then
-        pure tThen
-    else if isBasicType tThen && isBasicType tElse then do
-        let tRes = promoteBasicType tThen tElse
-        mapM_ addWarn (iCast path pos tThen tRes)
-        mapM_ addWarn (iCast path pos tElse tRes)
-        pure tRes
-    else
-        errClass $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass tThen) (prettyClass tElse))
+        inferBlockExprTail :: Statement -> TypeM Class
+        inferBlockExprTail stmt = case stmt of
+            Expr e -> inferExpr path packages envs e
+            Exprs es -> case reverse es of
+                (lastE:_) -> do
+                    mapM_ (void . inferExpr path packages envs) (reverse (drop 1 (reverse es)))
+                    inferExpr path packages envs lastE
+                [] ->
+                    errClass $ UE.Syntax $ UE.makeError path [] "block expression cannot be empty"
+            StmtGroup xs -> case reverse xs of
+                [] ->
+                    errClass $ UE.Syntax $ UE.makeError path [] "block expression cannot be empty"
+                _ ->
+                    inferBlockExprItems xs
+            _ -> do
+                inferStmt path packages envs stmt
+                errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (stmtTokens stmt))
+                    "block expression must end with an expression"
 
 inferExpr path packages envs (Variable str tok) = do
     c <- get
@@ -311,41 +356,67 @@ inferExpr path packages envs (Variable str tok) = do
                             Nothing ->
                                 errClass $ UE.Syntax $ UE.makeError path [pos] (UE.undefinedIdentity str)
 
-inferExpr path _ envs (Qualified names toks) = do
-    c <- get
-    let posAll = map Lex.tokenPos toks
-    let posHead = head posAll
-    let TypeCtx { tcVarTypes = vts } = c
-    case names of
-        -- ??? `this` -> ????????????????
-        ["this"] -> inferThis path posHead
+inferExpr path packages envs (Qualified names toks) = do
+    case parsePointerSuffixQualified names toks of
+        Just (baseName, baseTok, ops) -> do
+            baseTy <- inferExpr path packages envs (Variable baseName baseTok)
+            let posAll = map Lex.tokenPos toks
+            case ops of
+                [PtrRef] ->
+                    if baseTy == ErrorClass
+                        then pure ErrorClass
+                        else pure (Pointer baseTy)
+                _ | PtrRef `elem` ops -> do
+                    addErr $ UE.Syntax $ UE.makeError path posAll
+                        "ref can only be used as a terminal suffix on a variable"
+                    pure ErrorClass
+                _ -> inferDerefChain posAll baseTy ops
+        Nothing -> do
+            c <- get
+            let posAll = map Lex.tokenPos toks
+            let posHead = head posAll
+            let TypeCtx { tcVarTypes = vts } = c
+            case names of
+                -- ??? `this` -> ????????????????
+                ["this"] -> inferThis path posHead
 
-        -- `this.field`????????> ?????????????
-        -- TODO
-        ("this":field:_) -> inferThisField path posAll field
+                -- `this.field`????????> ?????????????
+                -- TODO
+                ("this":field:_) -> inferThisField path posAll field
 
-        -- 1) ??????/?????????????
-        _ -> case getImportedVarType names envs of
-            Just (t, full) -> do
-                recordVarUse posAll (VarImported defaultDeclFlags t names full)
-                pure t
+                -- 1) ??????/?????????????
+                _ -> case getImportedVarType names envs of
+                    Just (t, full) -> do
+                        recordVarUse posAll (VarImported defaultDeclFlags t names full)
+                        pure t
 
-            -- 2) ??????????????????????????
-            Nothing -> do
-                let headName = head names
-                case getVarId posHead (tcCtx c) of
-                    -- ???????????-> ???????
-                    Nothing -> errClass $ UE.Syntax $ UE.makeError path posAll (UE.undefinedIdentity headName)
+                    -- 2) ??????????????????????????
+                    Nothing -> do
+                        let headName = head names
+                        case getVarId posHead (tcCtx c) of
+                            -- ???????????-> ???????
+                            Nothing -> errClass $ UE.Syntax $ UE.makeError path posAll (UE.undefinedIdentity headName)
 
-                    Just vid -> do
-                        recordVarUseLocal posHead headName vid
-                        case Map.lookup vid vts of
-                            -- VarId ??????????????-> ????????
-                            Nothing -> error "this variable must is record in context check part"
+                            Just vid -> do
+                                recordVarUseLocal posHead headName vid
+                                case Map.lookup vid vts of
+                                    -- VarId ??????????????-> ????????
+                                    Nothing -> error "this variable must is record in context check part"
 
-                            -- TODO
-                            -- ???????????????????
-                            Just _ -> errClass $ UE.Syntax $ UE.makeError path posAll UE.unsupportedErrorMsg
+                                    -- TODO
+                                    -- ???????????????????
+                                    Just _ -> errClass $ UE.Syntax $ UE.makeError path posAll UE.unsupportedErrorMsg
+  where
+    inferDerefChain :: [Position] -> Class -> [PtrSuffixOp] -> TypeM Class
+    inferDerefChain _ baseTy [] = pure baseTy
+    inferDerefChain pos baseTy (_:rest) =
+        case baseTy of
+            ErrorClass -> pure ErrorClass
+            Pointer inner -> inferDerefChain pos inner rest
+            _ -> do
+                addErr $ UE.Syntax $ UE.makeError path pos $
+                    "deref expects pointer type, got " ++ prettyClass baseTy
+                pure ErrorClass
 
 
 inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
@@ -355,20 +426,28 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
     let toT = cls
         fromTN = normalizeTypeAlias fromT
         toTN = normalizeTypeAlias toT
+        fromCast = pointerAsInt64 fromTN
+        toCast = pointerAsInt64 toTN
         pos = map Lex.tokenPos (exprTokens e)
+        fromBasicLike = isBasicType fromCast
+        toBasicLike = isBasicType toCast
 
     -- one is basic, the other is not
-    if isBasicType fromTN /= isBasicType toTN then do
+    if fromBasicLike /= toBasicLike then do
         addErr $ UE.Syntax $ UE.makeError path pos $ staticCastError (prettyClass fromTN) (prettyClass toTN)
 
     -- both are non-basic (class / array / user type)
     else do
-        if isBasicType fromTN
+        if fromBasicLike
             then pure ()
             else error "TODO: class cast is not supported yet: "
 
     -- result type of cast is always target type
     pure toT
+  where
+    pointerAsInt64 :: Class -> Class
+    pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 c0 = c0
 
 inferExpr path packages envs e@(Unary op innerE _) = do
     if isIncDecOperator op then do
@@ -481,28 +560,37 @@ inferExpr path packages envs e@(Binary op lhs rhs _)
                     pos = map Lex.tokenPos (exprTokens e)
                 if tLhsN == ErrorClass || tRhsN == ErrorClass then
                     pure ErrorClass
-                else if isBasicType tLhsN && isBasicType tRhsN then
-                    let resT = inferBinaryOp baseOp tLhsN tRhsN
-                        castT = binaryOpCastType baseOp tLhsN tRhsN in do
-                        mapM_ addWarn (iCast path pos tLhsN castT)
-                        mapM_ addWarn (iCast path pos tRhsN castT)
-                        checkTypeCompat path pos tLhsN resT
-                        pure tLhsN
                 else
-                    error "TODO: binary on non-basic type"
+                    case (inferBinaryOpMaybe baseOp tLhsN tRhsN, binaryOpCastTypeMaybe baseOp tLhsN tRhsN) of
+                        (Just resT, Just castT) -> do
+                            mapM_ addWarn (iCast path pos tLhsN castT)
+                            mapM_ addWarn (iCast path pos tRhsN castT)
+                            checkTypeCompat path pos tLhsN resT
+                            pure tLhsN
+                        _ -> do
+                            addErr $ UE.Syntax $ UE.makeError path pos $
+                                "unsupported operand types for '" ++ prettyOp baseOp ++ "': "
+                                    ++ prettyClass tLhsN ++ ", " ++ prettyClass tRhsN
+                            pure ErrorClass
 
 
 inferExpr path packages envs e@(Binary op e1 e2 _) = do
     t1 <- inferExpr path packages envs e1
     t2 <- inferExpr path packages envs e2
     let pos = map Lex.tokenPos (exprTokens e)
-    if isBasicType t1 && isBasicType t2 then
-        let resT = inferBinaryOp op t1 t2
-            castT = binaryOpCastType op t1 t2 in do
-            mapM_ addWarn (iCast path pos t1 castT)
-            mapM_ addWarn (iCast path pos t2 castT)
-            pure resT
-    else error "TODO: binary on non-basic type"
+    if t1 == ErrorClass || t2 == ErrorClass then
+        pure ErrorClass
+    else
+        case (inferBinaryOpMaybe op t1 t2, binaryOpCastTypeMaybe op t1 t2) of
+            (Just resT, Just castT) -> do
+                mapM_ addWarn (iCast path pos t1 castT)
+                mapM_ addWarn (iCast path pos t2 castT)
+                pure resT
+            _ -> do
+                addErr $ UE.Syntax $ UE.makeError path pos $
+                    "unsupported operand types for '" ++ prettyOp op ++ "': "
+                        ++ prettyClass t1 ++ ", " ++ prettyClass t2
+                pure ErrorClass
 
 inferExpr path packages envs e@(Call callee args) = do
     c <- get
@@ -704,7 +792,10 @@ isIncDecOperator op = op `elem` [IncSelf, DecSelf, SelfInc, SelfDec]
 
 -- | Predicate: valid operand type for ++/--.
 isIncDecOperandType :: Class -> Bool
-isIncDecOperandType cls = isBasicType cls && cls /= Bool
+isIncDecOperandType cls =
+    case cls of
+        Pointer _ -> True
+        _ -> isBasicType cls && cls /= Bool
 
 
 -- | Validate ++/-- target mutability/lvalue constraints.

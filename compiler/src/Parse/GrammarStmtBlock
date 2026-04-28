@@ -424,4 +424,20 @@ Stmt :: { Statement }
 Block :: { Maybe Block }
     : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
     | '{' Sep '}'               { Nothing }
+    | '{' VarDeclHead VarDeclItem ',' Expr '}'
+        {
+            let
+                (isConst, headTokens) = $2;
+                (names, mDeclType, mExpr, itemTokens) = $3;
+                decl = (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens)
+            in Just $ Multiple [decl, Expr $5]
+        }
+    | '{' VarDeclHead VarDeclItem ',' Expr Sep '}'
+        {
+            let
+                (isConst, headTokens) = $2;
+                (names, mDeclType, mExpr, itemTokens) = $3;
+                decl = (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens)
+            in Just $ Multiple [decl, Expr $5]
+        }
     ;

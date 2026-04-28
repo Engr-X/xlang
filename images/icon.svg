@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Target icon">
+    <defs>
+        <linearGradient id="bgBase" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#202020" />
+            <stop offset="1" stop-color="#121212" />
+        </linearGradient>
+
+        <linearGradient id="bgTopLight" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.06" />
+            <stop offset="0.45" stop-color="#ffffff" stop-opacity="0" />
+            <stop offset="1" stop-color="#000000" stop-opacity="0.24" />
+        </linearGradient>
+
+        <filter id="innerGlow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+        <feFlood flood-color="#dbe8ff" flood-opacity="0.18" result="glowColor" />
+        <feComposite in="glowColor" in2="SourceAlpha" operator="in" result="glowAlpha" />
+        <feGaussianBlur in="glowAlpha" stdDeviation="1.6" result="glowBlur" />
+        <feComposite in="glowBlur" in2="SourceAlpha" operator="in" result="innerGlowOnly" />
+        <feMerge>
+            <feMergeNode in="SourceGraphic" />
+            <feMergeNode in="innerGlowOnly" />
+        </feMerge>
+        </filter>
+    </defs>
+
+    <rect x="0" y="0" width="256" height="256" rx="35" ry="35" fill="url(#bgBase)" />
+    <rect x="0" y="0" width="256" height="256" rx="35" ry="35" fill="url(#bgTopLight)" />
+
+    <!-- X icon offset: x<0 moves left, x>0 moves right; y<0 moves up, y>0 moves down. -->
+    <!-- Example: x="-8" y="0" -->
+    <image
+            href="./image.svg"
+            x="-15"
+            y="-8"
+            width="256"
+            height="256"
+            preserveAspectRatio="xMidYMid meet"
+            filter="url(#innerGlow)" />
+</svg>

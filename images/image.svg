@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 291 224" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Target icon">
+    <defs>
+        <linearGradient id="leftBlue" x1="83" y1="118" x2="173" y2="118" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#6cc8fe" />
+            <stop offset="1" stop-color="#5b93fd" />
+        </linearGradient>
+        <linearGradient id="rightBlue" x1="169" y1="55" x2="235" y2="182" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#639dfc" />
+            <stop offset="1" stop-color="#556afd" />
+        </linearGradient>
+    </defs>
+
+    <path
+        fill="url(#leftBlue)"
+        d="M 83 55
+        L 116 55
+        Q 120 55 123 58
+        L 173 113
+        Q 174 118 172 125
+        L 127 177
+        Q 123 182 119 182
+        L 83 182
+        L 132 124
+        L 136 118.5
+        L 132 113
+        L 83 55
+        Z" />
+
+    <path
+        fill="url(#rightBlue)"
+        d="M 206 55
+        L 235 55
+        L 195 101
+        L 188 109
+        L 169 87
+        L 191 58
+        Q 194 55 206 55
+        Z
+        M 188 128
+        L 233 178
+        Q 235 180 235 182
+        L 199 182
+        Q 194 182 192 178
+        L 169 150
+        L 172 145
+        Z" />
+</svg>

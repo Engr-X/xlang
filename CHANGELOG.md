@@ -1,5 +1,21 @@
 # Revision history for xlang
 
+## Alpha-1.1.1 -- 2026-04-28
+
+### Compiler & Language
+
+- Added block-expression return behavior: the last expression in a block can be used as the block result.
+- Removed ternary operator syntax and related parser sugar.
+- Added pointer type support in language design (`pointer<T>` direction).
+
+### Tooling & Design
+
+- Added icon design/tooling work for project executable/icon pipeline.
+
+### Runtime
+
+- GC work is in progress (`runtime/gc` is under active development).
+
 ## Alpha-1.1.0 -- 2026-04-19
 
 ### Standard Library
@@ -20,6 +36,9 @@
   - `libs/native/`
 - Added Windows syslib staging from `--gcc-lib` into `build/native/`
   (currently `libkernel32.a`, `libmsvcrt.a`).
+- BytecodeToolkit packaging/call path normalization:
+  - toolkit jar artifact is unified as `BytecodeToolkit.jar` (non-versioned name)
+  - compiler side now resolves `tools/BytecodeToolkit.jar`
 
 ### Native / x64
 

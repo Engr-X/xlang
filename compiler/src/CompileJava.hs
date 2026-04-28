@@ -61,6 +61,7 @@ import qualified Lowing.JVMLowing as JVML
 import qualified Lowing.JVMJson as JVMJson
 import qualified Parse.ParseProgm as Parse
 import qualified Parse.SyntaxTree as AST
+import qualified Semantic.CheckProgram as SCP
 import qualified Semantic.LibLoader as LibLoader
 import qualified Util.Exception as UE
 import qualified Util.FileHelper as FH
@@ -647,7 +648,7 @@ compileJVMCore jobs targetJvm toolkitJar rootPath srcPaths libPaths mOutput debu
                     mapM_ (putStrLn . UE.errorToString) errs
                     pure Nothing
                 Right (depImportEnvs, depTypedEnvs) -> do
-                    mIrRes <- IR.codeToIRWithRootAndDepsTimed depImportEnvs depTypedEnvs rootPath sources
+                    mIrRes <- IR.codeToIRWithRootAndDepsTimedForTarget SCP.SemanticTargetJvm depImportEnvs depTypedEnvs rootPath sources
                     case mIrRes of
                         Left errs -> do
                             mapM_ (putStrLn . UE.errorToString) errs

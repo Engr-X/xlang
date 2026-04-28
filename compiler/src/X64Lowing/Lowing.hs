@@ -1676,6 +1676,7 @@ staticBits64 cls = case cls of
     AST.Float32T -> X64.B32
     AST.Float64T -> X64.B64
     AST.Float128T -> X64.B64
+    AST.Pointer _ -> X64.B64
     AST.Class _ _ -> X64.B64
     AST.Void -> error "staticBits64: void cannot be a field storage type"
     AST.ErrorClass -> error "staticBits64: error class cannot be lowered"

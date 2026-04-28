@@ -48,6 +48,12 @@ data ModuleExport = ModuleExport {
     meTypedEnv :: TypedImportEnv
 }
 
+
+data SemanticTarget
+    = SemanticTargetNative
+    | SemanticTargetJvm
+    deriving (Eq, Show)
+
 splitPath :: Path -> [String]
 splitPath = filter validSeg . go . normalizeCase . map slash
     where
@@ -112,7 +118,7 @@ checkJavaNameDecl (fullPath, (decls, _)) =
 
 
 checkProgm :: Path -> [(Path, Program)] -> Either [ErrorKind] [(Path, TC.TypeCtx)]
-checkProgm root = checkProgmWithDeps root [] []
+checkProgm root = checkProgmWithDepsForTarget SemanticTargetNative root [] []
 
 
 checkProgmWithDeps ::
@@ -121,7 +127,18 @@ checkProgmWithDeps ::
     [TypedImportEnv] ->
     [(Path, Program)] ->
     Either [ErrorKind] [(Path, TC.TypeCtx)]
-checkProgmWithDeps root extImportEnvs extTypedEnvs files = do
+checkProgmWithDeps root extImportEnvs extTypedEnvs files =
+    checkProgmWithDepsForTarget SemanticTargetNative root extImportEnvs extTypedEnvs files
+
+
+checkProgmWithDepsForTarget ::
+    SemanticTarget ->
+    Path ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    [(Path, Program)] ->
+    Either [ErrorKind] [(Path, TC.TypeCtx)]
+checkProgmWithDepsForTarget target root extImportEnvs extTypedEnvs files = do
     mapM_ (checkPackageDecl root) files
     mapM_ checkJavaNameDecl files
     modules <- traverse toModuleInfo files
@@ -138,7 +155,7 @@ checkProgmWithDeps root extImportEnvs extTypedEnvs files = do
         then Left cycErrs
         else do
             order <- topoOrder depMap (Map.keys pkgMap)
-            checked <- foldM (checkPackageWithDeps pkgMap depMap extImportEnvs extTypedEnvs) Map.empty order
+            checked <- foldM (checkPackageWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs) Map.empty order
             traverse (toResult checked) files
     where
         toResult :: Map QName CheckedPackage -> (Path, Program) -> Either [ErrorKind] (Path, TC.TypeCtx)
@@ -302,7 +319,7 @@ checkPackage ::
     Map QName CheckedPackage ->
     QName ->
     Either [ErrorKind] (Map QName CheckedPackage)
-checkPackage pkgMap depMap = checkPackageWithDeps pkgMap depMap [] []
+checkPackage pkgMap depMap = checkPackageWithDepsForTarget SemanticTargetNative pkgMap depMap [] []
 
 
 checkPackageWithDeps ::
@@ -314,6 +331,19 @@ checkPackageWithDeps ::
     QName ->
     Either [ErrorKind] (Map QName CheckedPackage)
 checkPackageWithDeps pkgMap depMap extImportEnvs extTypedEnvs checked pkg =
+    checkPackageWithDepsForTarget SemanticTargetNative pkgMap depMap extImportEnvs extTypedEnvs checked pkg
+
+
+checkPackageWithDepsForTarget ::
+    SemanticTarget ->
+    Map QName [ModuleInfo] ->
+    Map QName [QName] ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Map QName CheckedPackage ->
+    QName ->
+    Either [ErrorKind] (Map QName CheckedPackage)
+checkPackageWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs checked pkg =
     case Map.lookup pkg pkgMap of
         Nothing -> Left [UE.Syntax (UE.makeError "<internal>" [] UE.internalErrorMsg)]
         Just mods0 -> do
@@ -326,7 +356,7 @@ checkPackageWithDeps pkgMap depMap extImportEnvs extTypedEnvs checked pkg =
                 seedTyped = emptyTypedImportEnv seedPath
 
             (pkgImport, pkgTyped, ctxMap) <-
-                checkPackageFixpoint depImportEnvs depTypedEnvs mods seedImport seedTyped Map.empty
+                checkPackageFixpoint target depImportEnvs depTypedEnvs mods seedImport seedTyped Map.empty
 
             let cp = CheckedPackage {
                     cpImportEnv = pkgImport,
@@ -337,6 +367,7 @@ checkPackageWithDeps pkgMap depMap extImportEnvs extTypedEnvs checked pkg =
 
 
 checkPackageFixpoint ::
+    SemanticTarget ->
     [ImportEnv] ->
     [TypedImportEnv] ->
     [ModuleInfo] ->
@@ -344,7 +375,7 @@ checkPackageFixpoint ::
     TypedImportEnv ->
     Map Path TC.TypeCtx ->
     Either [ErrorKind] (ImportEnv, TypedImportEnv, Map Path TC.TypeCtx)
-checkPackageFixpoint depImportEnvs depTypedEnvs mods0 importAcc0 typedAcc0 ctxAcc0 =
+checkPackageFixpoint target depImportEnvs depTypedEnvs mods0 importAcc0 typedAcc0 ctxAcc0 =
     go mods0 (importAcc0, typedAcc0, ctxAcc0)
     where
         go ::
@@ -369,7 +400,7 @@ checkPackageFixpoint depImportEnvs depTypedEnvs mods0 importAcc0 typedAcc0 ctxAc
         step (accImport, accTyped, accCtx, failed, progressed) mi =
             let importEnvs = depImportEnvs ++ [accImport]
                 typedEnvs = depTypedEnvs ++ [accTyped]
-            in case checkOneProgram (miPath mi) (miProg mi) importEnvs typedEnvs of
+            in case checkOneProgramForTarget target (miPath mi) (miProg mi) importEnvs typedEnvs of
                 Left errs -> (accImport, accTyped, accCtx, (mi, errs) : failed, progressed)
                 Right ctx ->
                     let me = buildExport mi ctx
@@ -607,26 +638,160 @@ typedToImportEnv env =
     }
 
 
+checkPointerRulesForTarget :: SemanticTarget -> Path -> Program -> Either [ErrorKind] ()
+checkPointerRulesForTarget SemanticTargetNative _ _ = Right ()
+checkPointerRulesForTarget SemanticTargetJvm path (_, stmts) =
+    let errs = concatMap stmtPointerErrors stmts
+    in if null errs then Right () else Left errs
+  where
+    stmtPointerErrors :: Statement -> [ErrorKind]
+    stmtPointerErrors stmt = case stmt of
+        DefField _ mTy mExpr toks ->
+            classErrs mTy toks ++ maybe [] exprPointerErrors mExpr
+        DefConstField _ mTy mExpr toks ->
+            classErrs mTy toks ++ maybe [] exprPointerErrors mExpr
+        DefVar _ mTy mExpr toks ->
+            classErrs mTy toks ++ maybe [] exprPointerErrors mExpr
+        DefConstVar _ mTy mExpr toks ->
+            classErrs mTy toks ++ maybe [] exprPointerErrors mExpr
+        Expr e -> exprPointerErrors e
+        Exprs es -> concatMap exprPointerErrors es
+        StmtGroup ss -> concatMap stmtPointerErrors ss
+        BlockStmt (AST.Multiple ss) -> concatMap stmtPointerErrors ss
+        If cond b1 b2 _ ->
+            exprPointerErrors cond ++ blockPointerErrors b1 ++ blockPointerErrors b2
+        For (mInit, mCond, mStep) b1 b2 _ ->
+            maybe [] stmtPointerErrors mInit
+                ++ maybe [] exprPointerErrors mCond
+                ++ maybe [] stmtPointerErrors mStep
+                ++ blockPointerErrors b1
+                ++ blockPointerErrors b2
+        Loop b _ ->
+            blockPointerErrors b
+        Repeat cnt b1 b2 _ ->
+            exprPointerErrors cnt ++ blockPointerErrors b1 ++ blockPointerErrors b2
+        While cond b1 b2 _ ->
+            exprPointerErrors cond ++ blockPointerErrors b1 ++ blockPointerErrors b2
+        Until cond b1 b2 _ ->
+            exprPointerErrors cond ++ blockPointerErrors b1 ++ blockPointerErrors b2
+        DoWhile b cond b2 _ ->
+            blockPointerErrors b ++ exprPointerErrors cond ++ blockPointerErrors b2
+        DoUntil b cond b2 _ ->
+            blockPointerErrors b ++ exprPointerErrors cond ++ blockPointerErrors b2
+        Switch cond scs _ ->
+            exprPointerErrors cond ++ concatMap switchCasePointerErrors scs
+        Function (retC, retToks) nameExpr params body ->
+            classErrs (Just retC) retToks
+                ++ exprPointerErrors nameExpr
+                ++ concatMap (\(pty, _, ptoks) -> classErrs (Just pty) ptoks) params
+                ++ blockPointerErrors (Just body)
+        FunctionT (retC, retToks) nameExpr gens params body ->
+            classErrs (Just retC) retToks
+                ++ exprPointerErrors nameExpr
+                ++ concatMap (\(gty, gtoks) -> classErrs (Just gty) gtoks) gens
+                ++ concatMap (\(pty, _, ptoks) -> classErrs (Just pty) ptoks) params
+                ++ blockPointerErrors (Just body)
+        NativeMethod (retC, retToks) nameExpr params _ ->
+            classErrs (Just retC) retToks
+                ++ exprPointerErrors nameExpr
+                ++ concatMap (\(pty, _, ptoks) -> classErrs (Just pty) ptoks) params
+        _ -> []
+
+    exprPointerErrors :: Expression -> [ErrorKind]
+    exprPointerErrors expr = case expr of
+        Qualified names toks ->
+            case parsePointerSuffixQualified names toks of
+                Just _ -> [mkErr toks "pointer operator is not supported on JVM target"]
+                Nothing -> []
+        Cast (cls, toks) inner _ ->
+            classErrs (Just cls) toks ++ exprPointerErrors inner
+        Unary op inner tok ->
+            opErrs op tok ++ exprPointerErrors inner
+        Binary _ lhs rhs _ ->
+            exprPointerErrors lhs ++ exprPointerErrors rhs
+        Call callee args ->
+            exprPointerErrors callee ++ concatMap exprPointerErrors args
+        CallT callee typeArgs args ->
+            exprPointerErrors callee
+                ++ concatMap (\(ty, toks) -> classErrs (Just ty) toks) typeArgs
+                ++ concatMap exprPointerErrors args
+        BlockExpr (AST.Multiple ss) ->
+            concatMap stmtPointerErrors ss
+        _ -> []
+
+    switchCasePointerErrors :: AST.SwitchCase -> [ErrorKind]
+    switchCasePointerErrors sc = case sc of
+        AST.Case e mb _ -> exprPointerErrors e ++ blockPointerErrors mb
+        AST.Default b _ -> blockPointerErrors (Just b)
+
+    blockPointerErrors :: Maybe AST.Block -> [ErrorKind]
+    blockPointerErrors Nothing = []
+    blockPointerErrors (Just (AST.Multiple ss)) = concatMap stmtPointerErrors ss
+
+    classErrs :: Maybe AST.Class -> [Lex.Token] -> [ErrorKind]
+    classErrs Nothing _ = []
+    classErrs (Just cls) toks
+        | containsPointerType cls = [mkErr toks "pointer type is not supported on JVM target"]
+        | otherwise = []
+
+    opErrs :: AST.Operator -> Lex.Token -> [ErrorKind]
+    opErrs op tok
+        | op == AST.AddrOf || op == AST.DeRef =
+            [mkErr [tok] "pointer operator is not supported on JVM target"]
+        | otherwise = []
+
+    containsPointerType :: AST.Class -> Bool
+    containsPointerType ty = case ty of
+        AST.Pointer _ -> True
+        AST.Class _ args -> any containsPointerType args
+        _ -> False
+
+    parsePointerSuffixQualified :: [String] -> [Lex.Token] -> Maybe ()
+    parsePointerSuffixQualified names toks = case (names, toks) of
+        (_base : suffixes, _ : _) ->
+            if null suffixes then Nothing
+            else if all isPointerSuffix suffixes then Just () else Nothing
+        _ -> Nothing
+      where
+        isPointerSuffix :: String -> Bool
+        isPointerSuffix s = case map toLower s of
+            "ref" -> True
+            "deref" -> True
+            "dref" -> True
+            _ -> False
+
+    mkErr :: [Lex.Token] -> String -> ErrorKind
+    mkErr toks why = UE.Syntax (UE.makeError path (map Lex.tokenPos toks) why)
+
+
 checkOneProgram :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
 checkOneProgram path prog0 importEnvs typedEnvs =
+    checkOneProgramForTarget SemanticTargetNative path prog0 importEnvs typedEnvs
+
+
+checkOneProgramForTarget :: SemanticTarget -> Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
+checkOneProgramForTarget target path prog0 importEnvs typedEnvs =
     let prog@(decls, stmts) = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions prog0)
     in
-    case RC.returnCheckProg path prog of
+    case checkPointerRulesForTarget target path prog of
         Left errs -> Left errs
-        Right () -> do
-            packageName <- getPackageName path decls
-            importedDeclSpecs <- validateImportDeclSpecs path typedEnvs (importDeclSpecs decls)
-            let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
-                typedEnvs0 =
-                    map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
-                importEnvs0 =
-                    if null typedEnvs
-                        then defaultImportEnv path : importEnvs
-                        else defaultImportEnv path : map typedToImportEnv typedEnvs0
-            case CC.checkProgmWithUses path prog importEnvs0 of
+        Right () ->
+            case RC.returnCheckProg path prog of
                 Left errs -> Left errs
-                Right (st, uses) ->
-                    TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
+                Right () -> do
+                    packageName <- getPackageName path decls
+                    importedDeclSpecs <- validateImportDeclSpecs path typedEnvs (importDeclSpecs decls)
+                    let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
+                        typedEnvs0 =
+                            map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
+                        importEnvs0 =
+                            if null typedEnvs
+                                then defaultImportEnv path : importEnvs
+                                else defaultImportEnv path : map typedToImportEnv typedEnvs0
+                    case CC.checkProgmWithUses path prog importEnvs0 of
+                        Left errs -> Left errs
+                        Right (st, uses) ->
+                            TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
     where
         defaultImportedSpecs :: [ImportSpec]
         defaultImportedSpecs = [ImportWildcard ["xlang", "io"]]

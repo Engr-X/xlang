@@ -603,6 +603,22 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
         case checkOneProgram "a.x" prog [ien] [ten] of
             Right _ -> pure ()
             Left e -> assertFailure ("expected Right, got Left: " ++ show e))
+    ,
+
+    ("10", do
+        let stmt = DefVar ["p"] (Just (Pointer Int32T)) Nothing [identTok "p" 1]
+            prog = mkProgram [] [] [stmt]
+        assertLeftWith (checkOneProgramForTarget SemanticTargetJvm "a.x" prog [] []) $ \errs ->
+            assertBool "jvm target must reject pointer types"
+                (any (isInfixOf "pointer type is not supported on JVM target" . errWhy) errs))
+    ,
+
+    ("11", do
+        let expr = Qualified ["a", "ref"] [identTok "a" 1, identTok "ref" 1]
+            prog = mkProgram [] [] [Expr expr]
+        assertLeftWith (checkOneProgramForTarget SemanticTargetJvm "a.x" prog [] []) $ \errs ->
+            assertBool "jvm target must reject pointer operators"
+                (any (isInfixOf "pointer operator is not supported on JVM target" . errWhy) errs))
     ]
 
 
@@ -645,7 +661,7 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
     ("0", do
         let i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint [] [] [] i0 t0 Map.empty) $ \(i, t, ctxs) -> do
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [] i0 t0 Map.empty) $ \(i, t, ctxs) -> do
             i @?= i0
             t @?= t0
             assertBool "expected empty ctx map" (Map.null ctxs)),
@@ -654,14 +670,14 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
         let mi = mkModuleInfo "m1.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint [] [] [mi] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [mi] i0 t0 Map.empty) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 1),
 
     ("2", do
         let miBad = mkModuleInfo "m1.x" ["p"] [] [mkFunNoReturn "f" 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertLeftWith (checkPackageFixpoint [] [] [miBad] i0 t0 Map.empty) $ \errs ->
+        assertLeftWith (checkPackageFixpoint SemanticTargetNative [] [] [miBad] i0 t0 Map.empty) $ \errs ->
             assertBool "must fail" (not (null errs))),
 
     ("3", do
@@ -669,7 +685,7 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
             miDef = mkModuleInfo "def.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 2)
     ,
 
@@ -678,7 +694,7 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
             miDef = mkModuleInfo "def2.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 2)
     ]
 

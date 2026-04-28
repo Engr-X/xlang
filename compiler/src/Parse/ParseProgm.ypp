@@ -91,8 +91,8 @@ import qualified Util.FileHelper as FileHelper
     'xnor'              { t@(Lex.Ident "xnor" _) }
     'or'                { t@(Lex.Ident "or" _) }
     'nor'               { t@(Lex.Ident "nor" _) }
-    'imp'               { t@(Lex.Ident "imp" _) }
-    'nimp'              { t@(Lex.Ident "nimp" _) }
+    'implies'           { t@(Lex.Ident "implies" _) }
+    'nimplies'          { t@(Lex.Ident "nimplies" _) }
     '&&'                { t@(Lex.Symbol Lex.LogicalAnd _)}
     '!&&'                { t@(Lex.Symbol Lex.LogicalNand _)}
     '||'                { t@(Lex.Symbol Lex.LogicalOr _)}
@@ -134,9 +134,6 @@ import qualified Util.FileHelper as FileHelper
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
 
--- helper precedence for ternary "if ... else ..."
-%right KW_IF
-
 -- 17: logical-iff (lower than implication)
 %right '<->'
 
@@ -150,7 +147,7 @@ import qualified Util.FileHelper as FileHelper
 %left '&&' '!&&'
 
 -- 14: bit-implication
-%right 'imp' 'nimp'
+%right 'implies' 'nimplies'
 
 -- 13: bit-or (reserved)
 %left 'or' 'nor'

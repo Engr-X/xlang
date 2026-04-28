@@ -139,7 +139,11 @@ stmtToExpr t _ = Error [t] (expectedExpression 1 $ show t)
 mkAssignExpr :: Expression -> Expression -> Token -> Expression
 mkAssignExpr lhs rhs tok =
     if isVariable lhs
-        then Binary Assign lhs rhs tok
+        then case rhs of
+            BlockExpr b ->
+                fromMaybe (Binary Assign lhs rhs tok) (rewriteAssignWithBlockExpr lhs tok b)
+            _ ->
+                Binary Assign lhs rhs tok
         else Error [tok] assignErrorMsg
 
 
@@ -147,3 +151,47 @@ mkAssignExpr lhs rhs tok =
 mkAugAssignExpr :: Operator -> Expression -> Expression -> Token -> Expression
 mkAugAssignExpr baseOp lhs rhs tok =
     mkAssignExpr lhs (Binary baseOp lhs rhs tok) tok
+
+
+mkAssignIfBranchBlock :: Expression -> Token -> Expression -> Block
+mkAssignIfBranchBlock lhs tok rhs =
+    Multiple [Expr (mkAssignExpr lhs rhs tok)]
+
+
+mkAssignIfSugarExpr :: Expression -> Token -> (Expression -> Token -> Statement) -> Expression
+mkAssignIfSugarExpr lhs tok buildIf =
+    if isVariable lhs
+        then
+            let ifStmt = buildIf lhs tok
+            in BlockExpr (Multiple [ifStmt, Expr lhs])
+        else Error [tok] assignErrorMsg
+
+
+-- Rewrite:
+--   a = { s1; ...; e; }
+-- into
+--   { s1; ...; a = e; }
+--
+-- This keeps block scope intact while making the block tail perform the assign.
+rewriteAssignWithBlockExpr :: Expression -> Token -> Block -> Maybe Expression
+rewriteAssignWithBlockExpr lhs tok (Multiple ss) =
+    BlockExpr . Multiple <$> rewriteTail ss
+    where
+        rewriteTail :: [Statement] -> Maybe [Statement]
+        rewriteTail [] = Nothing
+        rewriteTail [one] = (:[]) <$> rewriteLastStmt one
+        rewriteTail (x:xs) = do
+            xs' <- rewriteTail xs
+            pure (x : xs')
+
+        rewriteLastStmt :: Statement -> Maybe Statement
+        rewriteLastStmt (Expr e) =
+            Just (Expr (Binary Assign lhs e tok))
+        rewriteLastStmt (Exprs es) = case reverse es of
+            [] -> Nothing
+            (eLast:restRev) ->
+                let prefix = reverse restRev
+                in Just (Exprs (prefix ++ [Binary Assign lhs eLast tok]))
+        rewriteLastStmt (StmtGroup gs) =
+            StmtGroup <$> rewriteTail gs
+        rewriteLastStmt _ = Nothing

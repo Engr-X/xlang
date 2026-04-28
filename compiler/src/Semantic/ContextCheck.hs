@@ -29,6 +29,29 @@ isAssignOp op = op `elem` [
 isIncDecOp :: AST.Operator -> Bool
 isIncDecOp op = op `elem` [AST.IncSelf, AST.DecSelf, AST.SelfInc, AST.SelfDec]
 
+
+data PtrSuffixOp
+    = PtrRef
+    | PtrDeref
+    deriving (Eq, Show)
+
+
+parsePointerSuffixQualified :: [String] -> [Token] -> Maybe (String, Token, [PtrSuffixOp])
+parsePointerSuffixQualified names toks = case (names, toks) of
+    (base : suffixes, baseTok : _) -> do
+        ops <- traverse parseSuffix suffixes
+        if null ops
+            then Nothing
+            else Just (base, baseTok, ops)
+    _ -> Nothing
+  where
+    parseSuffix :: String -> Maybe PtrSuffixOp
+    parseSuffix s = case map toLower s of
+        "ref" -> Just PtrRef
+        "deref" -> Just PtrDeref
+        "dref" -> Just PtrDeref
+        _ -> Nothing
+
 -- | determine an expression have asssignment or not
 hasAssign :: Expression -> Bool
 hasAssign = go
@@ -39,7 +62,7 @@ hasAssign = go
     go (AST.Cast _ x _) = go x
     go (AST.Call f args) = go f || any go args
     go (AST.CallT f _ args) = go f || any go args
-    go (AST.Ternary c (tExpr, fExpr) _) = go c || go tExpr || go fExpr
+    go (AST.BlockExpr (AST.Multiple ss)) = any stmtHasAssign ss
     -- Leaves
     go (AST.Error _ _) = False
     go (AST.IntConst _ _) = False
@@ -52,6 +75,45 @@ hasAssign = go
     go (AST.BoolConst _ _) = False
     go (AST.Variable _ _) = False
     go (AST.Qualified _ _) = False
+
+    stmtHasAssign :: Statement -> Bool
+    stmtHasAssign stmt0 = case stmt0 of
+        AST.Expr e -> go e
+        AST.Exprs es -> any go es
+        AST.DefField _ _ me _ -> maybe False go me
+        AST.DefConstField _ _ me _ -> maybe False go me
+        AST.DefVar _ _ me _ -> maybe False go me
+        AST.DefConstVar _ _ me _ -> maybe False go me
+        AST.StmtGroup ss -> any stmtHasAssign ss
+        AST.BlockStmt (AST.Multiple ss) -> any stmtHasAssign ss
+        AST.Command (AST.Return (Just e)) _ -> go e
+        AST.If e b1 b2 _ -> go e || blockHasAssign b1 || blockHasAssign b2
+        AST.For (s1, e2, s3) b1 b2 _ ->
+            maybe False stmtHasAssign s1 ||
+            maybe False go e2 ||
+            maybe False stmtHasAssign s3 ||
+            blockHasAssign b1 ||
+            blockHasAssign b2
+        AST.Loop b _ -> blockHasAssign b
+        AST.Repeat e b1 b2 _ -> go e || blockHasAssign b1 || blockHasAssign b2
+        AST.While e b1 b2 _ -> go e || blockHasAssign b1 || blockHasAssign b2
+        AST.Until e b1 b2 _ -> go e || blockHasAssign b1 || blockHasAssign b2
+        AST.DoWhile b1 e b2 _ -> blockHasAssign b1 || go e || blockHasAssign b2
+        AST.DoUntil b1 e b2 _ -> blockHasAssign b1 || go e || blockHasAssign b2
+        AST.Switch e scs _ -> go e || any caseHasAssign scs
+        AST.Function {} -> False
+        AST.FunctionT {} -> False
+        AST.NativeMethod {} -> False
+        AST.Command {} -> False
+
+    blockHasAssign :: Maybe Block -> Bool
+    blockHasAssign Nothing = False
+    blockHasAssign (Just (AST.Multiple ss)) = any stmtHasAssign ss
+
+    caseHasAssign :: AST.SwitchCase -> Bool
+    caseHasAssign sc = case sc of
+        AST.Case e mb _ -> go e || blockHasAssign mb
+        AST.Default b _ -> blockHasAssign (Just b)
 
 -- | Predicate: expression is a valid statement-expression (Java-style).
 --   Only assignments, function calls, or ++/-- are allowed.
@@ -217,34 +279,41 @@ checkExpr p packages envs expr = case expr of
                         Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
                         Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
-    AST.Qualified names tokens -> do
-        c <- get
-        let cState = st c
+    AST.Qualified names tokens ->
+        case parsePointerSuffixQualified names tokens of
+            Just (baseName, baseTok, ops) -> do
+                checkExpr p packages envs (AST.Variable baseName baseTok)
+                case ops of
+                    [PtrRef] -> pure ()
+                    _ | PtrRef `elem` ops ->
+                        addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens)
+                            "ref can only be used as a terminal suffix on a variable"
+                    _ -> pure ()
+            Nothing -> do
+                c <- get
+                let cState = st c
 
-        case names of
-            -- this.a / this.a.b ... => check 'a' exists in nearest class scope only.
-            ("this":field:_) -> case classScope cState of
-                [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                case names of
+                    -- this.a / this.a.b ... => check 'a' exists in nearest class scope only.
+                    ("this":field:_) -> case classScope cState of
+                        [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                (clsTop:_) -> if Map.member field (sVars clsTop) then pure ()
-                    else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                        (clsTop:_) -> if Map.member field (sVars clsTop) then pure ()
+                            else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-            -- non-this qualified name is resolved only through imports.
-            _ -> if isVarImport names envs
-                    then pure ()
-                    else case lookupHiddenVarPos names envs of
-                        Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
-                        Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                    -- non-this qualified name is resolved only through imports.
+                    _ -> if isVarImport names envs
+                            then pure ()
+                            else case lookupHiddenVarPos names envs of
+                                Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+    AST.BlockExpr (AST.Multiple ss) ->
+        withScope $ checkBlockExprItems ss
                     
 
     -- recurse into children.
     AST.Cast _ e _ -> checkExpr p packages envs e
     AST.Unary _ e _ -> checkExpr p packages envs e
-    AST.Ternary c (tExpr, fExpr) _ -> do
-        checkExpr p packages envs c
-        checkExpr p packages envs tExpr
-        checkExpr p packages envs fExpr
-
     AST.Binary AST.Assign e1 e2 tok -> do
         checkExpr p packages envs e2
 
@@ -265,12 +334,17 @@ checkExpr p packages envs expr = case expr of
                                         put $ c { st = cState', varUses = uses' }
                                     Nothing -> put $ c { st = cState' }
 
-            AST.Qualified {} -> do
-                c <- get
-                let cState = st c
-                case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
-                    Left err -> addErr err
-                    Right cState' -> put $ c { st = cState' }
+            AST.Qualified names toks ->
+                case parsePointerSuffixQualified names toks of
+                    Just _ ->
+                        addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks)
+                            (cannotAssignMsg (AST.prettyExpr 0 (Just e1)))
+                    Nothing -> do
+                        c <- get
+                        let cState = st c
+                        case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
+                            Left err -> addErr err
+                            Right cState' -> put $ c { st = cState' }
 
             _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e1) (cannotAssignMsg (AST.prettyExpr 0 (Just e1)))
 
@@ -282,6 +356,38 @@ checkExpr p packages envs expr = case expr of
     AST.Call callee args -> checkCall callee args
     AST.CallT callee _ args -> checkCall callee args
     where
+        checkBlockExprItems :: [Statement] -> CheckM ()
+        checkBlockExprItems [] =
+            addErr $ UE.Syntax $ UE.makeError p [] "block expression cannot be empty"
+        checkBlockExprItems [lastStmt] =
+            checkBlockExprTail lastStmt
+        checkBlockExprItems (s:ss) = do
+            checkBlockExprStmt s
+            checkBlockExprItems ss
+
+        checkBlockExprStmt :: Statement -> CheckM ()
+        checkBlockExprStmt stmt = case stmt of
+            AST.Expr e -> checkExpr p packages envs e
+            AST.Exprs es -> mapM_ (checkExpr p packages envs) es
+            AST.StmtGroup ss -> mapM_ checkBlockExprStmt ss
+            _ | Just (isFieldDecl, isConstDecl, names, mDeclType, mRhs, toks) <- declLikeParts stmt ->
+                    checkDefDecl p packages envs isFieldDecl isConstDecl names mDeclType mRhs toks
+              | otherwise ->
+                    checkStmt p packages envs stmt
+
+        checkBlockExprTail :: Statement -> CheckM ()
+        checkBlockExprTail stmt = case stmt of
+            AST.Expr e -> checkExpr p packages envs e
+            AST.Exprs es -> case reverse es of
+                [] -> addErr $ UE.Syntax $ UE.makeError p [] "block expression cannot be empty"
+                _ -> mapM_ (checkExpr p packages envs) es
+            AST.StmtGroup ss -> case reverse ss of
+                [] -> addErr $ UE.Syntax $ UE.makeError p [] "block expression cannot be empty"
+                _ -> checkBlockExprItems ss
+            _ -> do
+                checkBlockExprStmt stmt
+                addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ stmtTokens stmt) "block expression must end with an expression"
+
         checkCall :: Expression -> [Expression] -> CheckM ()
         checkCall callee args = do
             case callee of

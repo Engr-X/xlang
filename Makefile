@@ -54,6 +54,7 @@ EXE_OUT_GRADLE := $(subst \,/,$(EXE_OUT))
 
 # Java tool (Gradle)
 BYTECODEGEN_DIR := $(ROOT_DIR)/tools/BytecodeToolkit
+ICONTOOLKIT_DIR := $(ROOT_DIR)/tools/IconToolkit
 TOOLS_OUT_DIR := $(BUILD_DIR_ABS)/tools
 
 # Java std library project (Gradle)
@@ -108,7 +109,7 @@ GRADLE_ARGS := --console=plain --no-daemon
 # On Unix-like systems, normalize gradlew line endings before execution
 # to avoid /bin/sh^M failures when scripts were checked out with CRLF.
 define PREPARE_GRADLEW_CMD
-	tmp=$$(mktemp); tr -d '\r' < ./gradlew > $$tmp; mv "$$tmp" ./gradlew; chmod +x ./gradlew
+	chmod +x ./gradlew; if command -v perl >/dev/null 2>&1; then perl -i -pe 's/\r\n/\n/g' ./gradlew; fi
 endef
 
 .PHONY: help all build all_components full compiler move_native java_std native_std compile update maybe_update tools java_lib native_lib stage_syslibs \
@@ -128,7 +129,7 @@ help:
 	@echo "  full            Alias of all_components"
 	@echo "  compile         Build xlang executable"
 	@echo "  update      Run cabal update in compiler/"
-	@echo "  tools       Build BytecodeToolkit jars"
+	@echo "  tools       Build BytecodeToolkit + IconToolkit jars"
 	@echo "  java_lib    Build libs/std/java artifacts"
 	@echo "  native_lib  Build libs/std/native (calls its Makefile after java_lib)"
 	@echo "  install         Install all components"
@@ -186,11 +187,15 @@ tools:
 	mkdir -p "$(TOOLS_OUT_DIR)"
 	@if [ "$(OS)" != "Windows_NT" ]; then \
 		cd "$(BYTECODEGEN_DIR)" && $(PREPARE_GRADLEW_CMD); \
+		cd "$(ICONTOOLKIT_DIR)" && $(PREPARE_GRADLEW_CMD); \
 	else \
 		cd "$(BYTECODEGEN_DIR)" && chmod +x ./gradlew; \
+		cd "$(ICONTOOLKIT_DIR)" && chmod +x ./gradlew; \
 	fi
 	cd "$(BYTECODEGEN_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
+	cd "$(ICONTOOLKIT_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
 	cp -f "$(BYTECODEGEN_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(ICONTOOLKIT_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
 
 java_lib: compile
 	mkdir -p "$(JAVA_LIB_OUT_DIR)" "$(JAVA_RUNTIME_OUT_DIR)"
@@ -290,10 +295,27 @@ uninstall:
 
 clean:
 	cd "$(COMPILER_DIR)" && $(CABAL) clean
+	rm -rf "$(COMPILER_DIR)/.vscode" 2>/dev/null || true
+	@if [ "$(OS)" != "Windows_NT" ]; then \
+		cd "$(BYTECODEGEN_DIR)" && $(PREPARE_GRADLEW_CMD); \
+		cd "$(ICONTOOLKIT_DIR)" && $(PREPARE_GRADLEW_CMD); \
+		cd "$(JAVA_LIB_DIR)" && $(PREPARE_GRADLEW_CMD); \
+	else \
+		cd "$(BYTECODEGEN_DIR)" && chmod +x ./gradlew; \
+		cd "$(ICONTOOLKIT_DIR)" && chmod +x ./gradlew; \
+		cd "$(JAVA_LIB_DIR)" && chmod +x ./gradlew; \
+	fi
 	cd "$(BYTECODEGEN_DIR)" && (GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew --stop $(GRADLE_ARGS) || true)
+	cd "$(ICONTOOLKIT_DIR)" && (GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew --stop $(GRADLE_ARGS) || true)
 	cd "$(JAVA_LIB_DIR)" && (GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew --stop $(GRADLE_ARGS) || true)
 	cd "$(BYTECODEGEN_DIR)" && (GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew clean $(GRADLE_ARGS) || true)
+	cd "$(ICONTOOLKIT_DIR)" && (GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew clean $(GRADLE_ARGS) || true)
 	cd "$(JAVA_LIB_DIR)" && (GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew clean $(GRADLE_ARGS) || true)
+	rm -rf "$(BYTECODEGEN_DIR)/.gradle" "$(BYTECODEGEN_DIR)/.idea" "$(BYTECODEGEN_DIR)/.kotlin" "$(BYTECODEGEN_DIR)/bin" "$(BYTECODEGEN_DIR)/build" 2>/dev/null || true
+	rm -rf "$(ICONTOOLKIT_DIR)/.gradle" "$(ICONTOOLKIT_DIR)/.idea" "$(ICONTOOLKIT_DIR)/.kotlin" "$(ICONTOOLKIT_DIR)/bin" "$(ICONTOOLKIT_DIR)/build" 2>/dev/null || true
+	rm -rf "$(JAVA_LIB_DIR)/.gradle" "$(JAVA_LIB_DIR)/.idea" "$(JAVA_LIB_DIR)/.kotlin" "$(JAVA_LIB_DIR)/bin" "$(JAVA_LIB_DIR)/build" 2>/dev/null || true
+	rm -rf "$(NATIVE_LIB_DIR)/.vscode" "$(NATIVE_LIB_BUILD_DIR)" 2>/dev/null || true
+	rm -rf "$(ROOT_DIR)/runtime/gc/build" "$(ROOT_DIR)/runtime/gc/.vscode" 2>/dev/null || true
 	rm -rf "$(GRADLE_USER_HOME)/caches" || true
 	rm -rf "$(BUILD_DIR_ABS)/tools" "$(BUILD_DIR_ABS)/libs" "$(BUILD_DIR_ABS)/runtime" "$(BUILD_DIR_ABS)/std" "$(BUILD_DIR_ABS)/native" "$(BUILD_DIR_ABS)/native-libs" "$(BUILD_DIR_ABS)/$(EXE_FILE)" "$(BUILD_DIR_ABS)/$(EXE)" "$(BUILD_DIR_ABS)"/*.exe 2>/dev/null || true
 	$(MAKE) clean_ide
@@ -302,6 +324,7 @@ clean_ide:
 	rm -rf "$(ROOT_DIR)/.vscode" "$(ROOT_DIR)/.idea" 2>/dev/null || true
 	rm -rf "$(COMPILER_DIR)/.vscode" "$(COMPILER_DIR)/.idea" 2>/dev/null || true
 	rm -rf "$(BYTECODEGEN_DIR)/.vscode" "$(BYTECODEGEN_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(ICONTOOLKIT_DIR)/.vscode" "$(ICONTOOLKIT_DIR)/.idea" 2>/dev/null || true
 	rm -rf "$(JAVA_LIB_DIR)/.vscode" "$(JAVA_LIB_DIR)/.idea" 2>/dev/null || true
 
 rebuild: clean all

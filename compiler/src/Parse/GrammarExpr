@@ -46,6 +46,7 @@ Atom :: { Expression }
 
     -- parenthesized expression
     | '(' Expr ')'              { $2 }
+    | Block                     { BlockExpr $ fromMaybe (Multiple []) $1 }
 
     -- identifiers
     | QName                     { qnameToExpr $1 }
@@ -86,6 +87,68 @@ Postfix :: { Expression }
 
     | Postfix KW_AS Clazz       { Cast $3 $1 $2 }
     | Postfix KW_AS error       { Error [$2] (expectedExpression 0 "as") }
+    ;
+
+IfAssignSepOpt :: { () }
+    : {- empty -}               { () }
+    | Sep IfAssignSepOpt        { () }
+    ;
+
+IfAssignValue :: { Expression }
+    : ':' Expr                  { $2 }
+    | ':' Sep Expr              { $3 }
+    ;
+
+IfAssignElse :: { (Expression, Token) }
+    : IfAssignSepOpt KW_ELSE IfAssignValue { ($3, $2) }
+    ;
+
+IfAssignElifBlocks :: { Expression -> Token -> (Maybe Block, Maybe Token) }
+    : IfAssignSepOpt KW_ELIF Expr IfAssignValue IfAssignElse
+        {
+            \lhs tok ->
+                let nested =
+                        If
+                            $3
+                            (Just (mkAssignIfBranchBlock lhs tok $4))
+                            (Just (mkAssignIfBranchBlock lhs tok (fst $5)))
+                            ($2, Just (snd $5))
+                in (Just (Multiple [nested]), Just $2)
+        }
+    | IfAssignSepOpt KW_ELIF Expr IfAssignValue IfAssignElifBlocks
+        {
+            \lhs tok ->
+                let (mb, mtok) = $5 lhs tok
+                    nested =
+                        If
+                            $3
+                            (Just (mkAssignIfBranchBlock lhs tok $4))
+                            mb
+                            ($2, mtok)
+                in (Just (Multiple [nested]), Just $2)
+        }
+    ;
+
+IfAssignExpr :: { Expression -> Token -> Statement }
+    : KW_IF Expr IfAssignValue IfAssignElse
+        {
+            \lhs tok ->
+                If
+                    $2
+                    (Just (mkAssignIfBranchBlock lhs tok $3))
+                    (Just (mkAssignIfBranchBlock lhs tok (fst $4)))
+                    ($1, Just (snd $4))
+        }
+    | KW_IF Expr IfAssignValue IfAssignElifBlocks
+        {
+            \lhs tok ->
+                let (mb, mtok) = $4 lhs tok
+                in If
+                    $2
+                    (Just (mkAssignIfBranchBlock lhs tok $3))
+                    mb
+                    ($1, mtok)
+        }
     ;
 
 
@@ -159,10 +222,10 @@ Expr :: { Expression }
     | Expr 'nor' error                          { Error [$2] (expectedExpression 1 "nor") }
 
     -- 14: bit implication
-    | Expr 'imp' Expr                           { Binary BitImply $1 $3 $2 }
-    | Expr 'imp' error                          { Error [$2] (expectedExpression 1 "imp") }
-    | Expr 'nimp' Expr                          { Binary BitNimply $1 $3 $2 }
-    | Expr 'nimp' error                         { Error [$2] (expectedExpression 1 "nimp") }
+    | Expr 'implies' Expr                       { Binary BitImply $1 $3 $2 }
+    | Expr 'implies' error                      { Error [$2] (expectedExpression 1 "implies") }
+    | Expr 'nimplies' Expr                      { Binary BitNimply $1 $3 $2 }
+    | Expr 'nimplies' error                     { Error [$2] (expectedExpression 1 "nimplies") }
 
     -- 15: logical-and (reserved)
     | Expr '&&' Expr                            { Binary LogicalAnd $1 $3 $2 }
@@ -184,10 +247,8 @@ Expr :: { Expression }
     | Expr '<->' Expr                           { Binary LogicalAnd (Binary LogicalImply $1 $3 $2) (Binary LogicalImply $3 $1 $2) $2 }
     | Expr '<->' error                          { Error [$2] (expectedExpression 1 "<->") }
 
-    -- helper precedence for ternary "if ... else ..."
-    | Expr KW_IF Expr KW_ELSE Expr %prec KW_IF  { Ternary $3 ($1, $5) [$2, $4] }
-
     -- 18: assignment
+    | LValue '=' IfAssignExpr                    { mkAssignIfSugarExpr $1 $2 $3 }
     | LValue '=' Expr                           { mkAssignExpr $1 $3 $2 }
     | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
 

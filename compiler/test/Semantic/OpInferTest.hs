@@ -46,7 +46,10 @@ inferBinaryOpTests = testGroup "Semantic.OpInfer.inferBinaryOp" $
         ("1", BitAnd, Char, Int8T, Int8T),
         ("2", Pow, Float128T, Float128T, Float128T),
         ("3", Mod, Int64T, Int16T, Int64T),
-        ("4", Mod, Bool, Bool, Int32T)]
+        ("4", Mod, Bool, Bool, Int32T),
+        ("5", Add, Pointer Int32T, Int32T, Pointer Int32T),
+        ("6", Add, Pointer Int32T, Pointer Int16T, Pointer Int32T),
+        ("7", Equal, Pointer Int32T, Int64T, Bool)]
 
 
 inferUnaryOpTests :: TestTree

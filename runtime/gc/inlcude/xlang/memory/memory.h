@@ -4,12 +4,6 @@
 #include <stdint.h>
 
 
-void* xlang_sys_alloc(const int64_t size);
-
-void xlang_sys_free(const void* ptr);
-
-
-
 void xlang_minit();
 
 void* xlang_malloc(const int64_t size);

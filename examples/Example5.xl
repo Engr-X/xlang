@@ -15,7 +15,7 @@ Precedence (high -> low, simplified):
 10) bit-and family: and, nand
 11) bit-xor family: xor, xnor
 12) bit-or family: or, nor
-13) bit implication: imp, nimp
+13) bit implication: implies, nimplies
 14) logical and: &&, !&&
 15) logical or: ||, !||
 16) logical implication: ->, !->
