@@ -6,7 +6,7 @@ import Data.IORef (IORef, atomicModifyIORef', newIORef)
 import Data.Word (Word32)
 import GHC.Float (castDoubleToWord64, castFloatToWord32)
 import Numeric (showHex)
-import Parse.SyntaxTree (Class(..), classMangle)
+import Parse.SyntaxTree (Class(..), Expression(..), classMangle)
 import System.Info (arch, os)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Regex.TDFA (Regex, makeRegex)
@@ -14,6 +14,7 @@ import Text.Regex.Base.RegexLike (matchTest)
 import Data.List (isSuffixOf, stripPrefix)
 
 import qualified Data.Map.Strict as Map
+import qualified Lex.Token as Lex
 
 
 intLitPat, longLitPat :: String
@@ -403,6 +404,10 @@ demangleName raw = do
             'z' -> Right (Bool, cs)
             'c' -> Right (Char, cs)
             'v' -> Right (Void, cs)
+            'P' -> do
+                (inner, rest) <- parseClassPrefix cs
+                Right (Pointer inner, rest)
+            'B' -> Right (Blob (IntConst "1" Lex.dummyToken), cs)
             'N' -> parseNestedClass cs
             _ | isDigit c -> parseSingleClass (c:cs)
               | otherwise -> Left ("demangleName: unexpected type tag: " ++ [c])

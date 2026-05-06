@@ -186,6 +186,8 @@ intRet64Classes64 = HashSet.fromList [AST.Int64T]
 
 isRefClass64 :: Class -> Bool
 isRefClass64 (AST.Class _ _) = True
+isRefClass64 (AST.Pointer _) = True
+isRefClass64 (AST.Blob _) = True
 isRefClass64 _ = False
 
 

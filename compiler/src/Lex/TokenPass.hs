@@ -1,5 +1,6 @@
 module Lex.TokenPass where
 
+import Data.Char (toLower)
 import Data.HashSet (HashSet)
 import Lex.Token (Token(EOF, TokenPass, Symbol), tokenPos)
 import Util.Type (Position(line, len, column), makePosition)
@@ -45,7 +46,7 @@ banNextSet = HashSet.fromList [
 
     Lex.Multiply, Lex.Divide, Lex.Modulo, Lex.Power,
 
-    Lex.LParen, Lex.LBracket, Lex.RBrace,
+    Lex.LParen, Lex.LBracket,
 
     Lex.Semicolon, Lex.Comma, Lex.Question, Lex.Colon, Lex.Arrow, Lex.IffArrow, Lex.FatArrow,
     Lex.QuestionArrow, Lex.Dot, Lex.DoubleDot]
@@ -73,7 +74,7 @@ banNext _ = False
 --------------------------------------------------------------------------------
 
 insertTokenPass  :: [Token] -> [Token]
-insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
+insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing, [])
     where
         dedupNL :: [Token] -> [Token]
         dedupNL = subGo False
@@ -83,9 +84,9 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
                     | isNL t = if seenNL then subGo True ts else t : subGo True ts
                     | otherwise = t : subGo False ts
 
-        go :: Int -> (Maybe Token, Maybe Token, Maybe Token) -> [Token] -> [Token]
+        go :: Int -> (Maybe Token, Maybe Token, Maybe Token, [Token]) -> [Token] -> [Token]
         go _ _ [] = []
-        go parenDepth ctx@(_, prev, _) (cursor:rest)
+        go parenDepth ctx@(_, prev, _, _) (cursor:rest)
             | isEOF cursor = case prev of
                 Just prevTok
                     | isSep prevTok -> [cursor]
@@ -101,13 +102,13 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
                     -- Prefer an NL right after '}' unless the next token is already NL or ';'.
                     after   = ensureSepAfter rbrace rest'
 
-                    out = concat [maybeInsertNL parenDepth ctx cursor,
+                    out = concat [maybeInsertNL parenDepth ctx cursor rest,
                             [cursor], inner'', [rbrace], after]
                     ctx' = advanceMany ctx out
                 in out ++ go parenDepth ctx' rest'
 
             | otherwise =
-                let out = maybeInsertNL parenDepth ctx cursor ++ [cursor]
+                let out = maybeInsertNL parenDepth ctx cursor rest ++ [cursor]
                     parenDepth' = updateParenDepth parenDepth cursor
                     ctx' = advanceMany ctx out
                 in out ++ go parenDepth' ctx' rest
@@ -118,16 +119,70 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
                 isEOF _       = False
 
        
-        maybeInsertNL :: Int -> (Maybe Token, Maybe Token, Maybe Token) -> Token -> [Token]
-        maybeInsertNL _ (_, Nothing, _) _ = []
-        maybeInsertNL parenDepth (prevPrev, Just prevTok, lineHead) cursor =
+        maybeInsertNL :: Int -> (Maybe Token, Maybe Token, Maybe Token, [Token]) -> Token -> [Token] -> [Token]
+        maybeInsertNL _ (_, Nothing, _, _) _ _ = []
+        maybeInsertNL parenDepth (prevPrev, Just prevTok, lineHead, lineRev) cursor rest =
             let lp      = line (tokenPos prevTok)
                 lc      = line (tokenPos cursor)
                 okLine  = lc > lp
                 okDepth = parenDepth == 0
-                okPrev  = not (banPrev prevTok) || isImportWildcardLineTail prevPrev prevTok lineHead
-                okNext  = not (banNext cursor)
-            in [mkNL cursor | okLine && okDepth && okPrev && okNext]
+                okPrev  = not (banPrev prevTok)
+                    || isImportWildcardLineTail prevPrev prevTok lineHead
+                    || isTypeAngleCloseLineTail lineRev prevTok
+                okElse  = not (isElseLike cursor)
+                okNext  = not (banNext cursor) || startsParenDerefAssign cursor rest
+            in [mkNL cursor | okLine && okDepth && okPrev && okElse && okNext]
+
+        -- Allow NL insertion before a parenthesized deref-assignment LHS:
+        --   (expr).deref = ...
+        -- This avoids accidentally gluing it to the previous line.
+        startsParenDerefAssign :: Token -> [Token] -> Bool
+        startsParenDerefAssign cursor rest =
+            case cursor of
+                Symbol Lex.LParen _ ->
+                    case scanToMatchedRParen 1 rest of
+                        Just (Symbol Lex.Dot _ : Lex.Ident name _ : opTok : _) ->
+                            isDerefName name && isAssignLike opTok
+                        _ -> False
+                _ -> False
+
+        scanToMatchedRParen :: Int -> [Token] -> Maybe [Token]
+        scanToMatchedRParen _ [] = Nothing
+        scanToMatchedRParen depth (tok:ts)
+            | isLParen tok = scanToMatchedRParen (depth + 1) ts
+            | isRParen tok =
+                let depth' = depth - 1
+                in if depth' == 0
+                    then Just ts
+                    else if depth' > 0
+                        then scanToMatchedRParen depth' ts
+                        else Nothing
+            | otherwise = scanToMatchedRParen depth ts
+
+        isLParen :: Token -> Bool
+        isLParen (Symbol Lex.LParen _) = True
+        isLParen _ = False
+
+        isRParen :: Token -> Bool
+        isRParen (Symbol Lex.RParen _) = True
+        isRParen _ = False
+
+        isDerefName :: String -> Bool
+        isDerefName raw =
+            let lower = map toLower raw
+            in lower == "deref" || lower == "dref"
+
+        isAssignLike :: Token -> Bool
+        isAssignLike (Symbol sym _) = sym `elem`
+            [ Lex.Assign
+            , Lex.PlusAssign
+            , Lex.MinusAssign
+            , Lex.MultiplyAssign
+            , Lex.DivideAssign
+            , Lex.ModuloAssign
+            , Lex.PowerAssign
+            ]
+        isAssignLike _ = False
 
         isImportWildcardLineTail :: Maybe Token -> Token -> Maybe Token -> Bool
         isImportWildcardLineTail prevPrev prevTok lineHead =
@@ -148,14 +203,76 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
         isImportKw (Lex.Ident "import" _) = True
         isImportKw _ = False
 
-        advanceMany :: (Maybe Token, Maybe Token, Maybe Token) -> [Token] -> (Maybe Token, Maybe Token, Maybe Token)
+        -- Keep newline-sensitive else/elif attached to preceding if-expression/loop.
+        isElseLike :: Token -> Bool
+        isElseLike (Lex.Ident "else" _) = True
+        isElseLike (Lex.Ident "elif" _) = True
+        isElseLike _ = False
+
+        advanceMany :: (Maybe Token, Maybe Token, Maybe Token, [Token]) -> [Token] -> (Maybe Token, Maybe Token, Maybe Token, [Token])
         advanceMany = foldl advanceOne
 
-        advanceOne :: (Maybe Token, Maybe Token, Maybe Token) -> Token -> (Maybe Token, Maybe Token, Maybe Token)
-        advanceOne (_, Nothing, _) tok = (Nothing, Just tok, Just tok)
-        advanceOne (_, Just prevTok, lineHead') tok
-            | line (tokenPos prevTok) == line (tokenPos tok) = (Just prevTok, Just tok, lineHead')
-            | otherwise = (Just prevTok, Just tok, Just tok)
+        advanceOne :: (Maybe Token, Maybe Token, Maybe Token, [Token]) -> Token -> (Maybe Token, Maybe Token, Maybe Token, [Token])
+        advanceOne (_, Nothing, _, _) tok
+            | isNL tok = (Nothing, Just tok, Nothing, [])
+            | otherwise = (Nothing, Just tok, Just tok, [tok])
+        advanceOne (_, Just prevTok, lineHead', lineRev) tok
+            | isNL tok = (Just prevTok, Just tok, Nothing, [])
+            | isNL prevTok = (Just prevTok, Just tok, Just tok, [tok])
+            | line (tokenPos prevTok) == line (tokenPos tok) = (Just prevTok, Just tok, lineHead', tok : lineRev)
+            | otherwise = (Just prevTok, Just tok, Just tok, [tok])
+
+        isTypeAngleCloseLineTail :: [Token] -> Token -> Bool
+        isTypeAngleCloseLineTail lineRev prevTok =
+            isGreaterThanTok prevTok &&
+            let lineToks = reverse lineRev
+            in case findMatchingLtIndex lineToks of
+                Nothing -> False
+                Just ltIdx ->
+                    let
+                        (prefix, chunk) = splitAt ltIdx lineToks
+                        hasTypeCtx = any isTypeContextMarker prefix
+                    in hasTypeCtx && all isTypeLikeAngleToken chunk
+
+        findMatchingLtIndex :: [Token] -> Maybe Int
+        findMatchingLtIndex toks = case reverse toks of
+            (lastTok : revRest) | isGreaterThanTok lastTok ->
+                let startIdx = length toks - 2
+                in goLt 0 startIdx revRest
+            _ -> Nothing
+            where
+                goLt :: Int -> Int -> [Token] -> Maybe Int
+                goLt _ _ [] = Nothing
+                goLt depth idx (t:ts)
+                    | isGreaterThanTok t = goLt (depth + 1) (idx - 1) ts
+                    | isLessThanTok t =
+                        if depth == 0
+                            then Just idx
+                            else goLt (depth - 1) (idx - 1) ts
+                    | otherwise = goLt depth (idx - 1) ts
+
+        isTypeContextMarker :: Token -> Bool
+        isTypeContextMarker (Lex.Ident "as" _) = True
+        isTypeContextMarker (Symbol Lex.Colon _) = True
+        isTypeContextMarker _ = False
+
+        isTypeLikeAngleToken :: Token -> Bool
+        isTypeLikeAngleToken (Lex.Ident _ _) = True
+        isTypeLikeAngleToken (Symbol Lex.LessThan _) = True
+        isTypeLikeAngleToken (Symbol Lex.GreaterThan _) = True
+        isTypeLikeAngleToken (Symbol Lex.Comma _) = True
+        isTypeLikeAngleToken (Symbol Lex.Dot _) = True
+        isTypeLikeAngleToken (Symbol Lex.DoubleColon _) = True
+        isTypeLikeAngleToken (Symbol Lex.Multiply _) = True
+        isTypeLikeAngleToken _ = False
+
+        isGreaterThanTok :: Token -> Bool
+        isGreaterThanTok (Symbol Lex.GreaterThan _) = True
+        isGreaterThanTok _ = False
+
+        isLessThanTok :: Token -> Bool
+        isLessThanTok (Symbol Lex.LessThan _) = True
+        isLessThanTok _ = False
 
 
         mkNL :: Token -> Token
@@ -188,7 +305,7 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing)
        
         ensureSepAfter :: Token -> [Token] -> [Token]
         ensureSepAfter anchor next = case next of
-            (t:_) | isSep t -> []
+            (t:_) | isSep t || isElseLike t -> []
             _  -> [mkNL anchor]
 
 

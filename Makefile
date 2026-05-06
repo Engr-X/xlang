@@ -74,7 +74,7 @@ NATIVE_STD_TARGET := libxlang-std
 NATIVE_BASE_STATIC_LIB := $(NATIVE_BASE_TARGET).a
 NATIVE_STD_STATIC_LIB := $(NATIVE_STD_TARGET).a
 NATIVE_SYSLIB_OUT_DIR := $(BUILD_DIR_ABS)/native
-NATIVE_SYSLIB_NAMES := libkernel32.a libmsvcrt.a
+NATIVE_SYSLIB_NAMES := libkernel32.a libmsvcrt.a libmingw32.a libmingwex.a libwinpthread.a libgcc.a libgcc_eh.a
 UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
 ifeq ($(OS),Windows_NT)
 NATIVE_SHARED_EXT := dll
@@ -112,7 +112,7 @@ define PREPARE_GRADLEW_CMD
 	chmod +x ./gradlew; if command -v perl >/dev/null 2>&1; then perl -i -pe 's/\r\n/\n/g' ./gradlew; fi
 endef
 
-.PHONY: help all build all_components full compiler move_native java_std native_std compile update maybe_update tools java_lib native_lib stage_syslibs \
+.PHONY: help all build all_components full compiler move_native java_std native_std compile update maybe_update bytecode_tool tools java_lib native_lib stage_syslibs \
 	install install_all install_bin install_tools install_java_lib install_native_lib uninstall \
 	clean clean_ide rebuild distclean
 
@@ -183,21 +183,31 @@ compile: maybe_update
 	EXE_PATH=$$(cd "$(COMPILER_DIR)" && $(CABAL) list-bin exe:$(EXE)); \
 		cp -f "$$EXE_PATH" "$(EXE_OUT)"
 
-tools:
+bytecode_tool:
 	mkdir -p "$(TOOLS_OUT_DIR)"
 	@if [ "$(OS)" != "Windows_NT" ]; then \
 		cd "$(BYTECODEGEN_DIR)" && $(PREPARE_GRADLEW_CMD); \
-		cd "$(ICONTOOLKIT_DIR)" && $(PREPARE_GRADLEW_CMD); \
 	else \
 		cd "$(BYTECODEGEN_DIR)" && chmod +x ./gradlew; \
-		cd "$(ICONTOOLKIT_DIR)" && chmod +x ./gradlew; \
 	fi
 	cd "$(BYTECODEGEN_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
+	cp -f "$(BYTECODEGEN_DIR)"/build/libs/BytecodeToolkit.jar "$(TOOLS_OUT_DIR)/BytecodeToolkit.jar"
+	@if [ ! -f "$(TOOLS_OUT_DIR)/BytecodeToolkit.jar" ]; then \
+		echo "[ERROR] missing BytecodeToolkit.jar: $(TOOLS_OUT_DIR)/BytecodeToolkit.jar"; \
+		exit 1; \
+	fi
+
+tools: bytecode_tool
+	mkdir -p "$(TOOLS_OUT_DIR)"
+	@if [ "$(OS)" != "Windows_NT" ]; then \
+		cd "$(ICONTOOLKIT_DIR)" && $(PREPARE_GRADLEW_CMD); \
+	else \
+		cd "$(ICONTOOLKIT_DIR)" && chmod +x ./gradlew; \
+	fi
 	cd "$(ICONTOOLKIT_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
-	cp -f "$(BYTECODEGEN_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(ICONTOOLKIT_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
 
-java_lib: compile
+java_lib: compile bytecode_tool
 	mkdir -p "$(JAVA_LIB_OUT_DIR)" "$(JAVA_RUNTIME_OUT_DIR)"
 	@if [ "$(OS)" != "Windows_NT" ]; then \
 		cd "$(JAVA_LIB_DIR)" && $(PREPARE_GRADLEW_CMD); \
@@ -206,9 +216,22 @@ java_lib: compile
 	fi
 	cd "$(JAVA_LIB_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(XLANG_JOBS) -PxlangExe="$(EXE_OUT_GRADLE)" $(GRADLE_ARGS)
 	rm -f "$(JAVA_LIB_DIR)/build/libs/xlang-stdlib-alpha.jar" 2>/dev/null || true
-	rm -f "$(JAVA_LIB_OUT_DIR)/xlang-stdlib-alpha.jar" 2>/dev/null || true
-	cp -f "$(JAVA_LIB_DIR)"/build/libs/* "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
+	rm -f "$(JAVA_LIB_DIR)/build/libs/xlang-stdlib.zip" 2>/dev/null || true
+	rm -f "$(JAVA_LIB_OUT_DIR)/xlang-stdlib-alpha.jar" "$(JAVA_LIB_OUT_DIR)/xlang-stdlib.zip" 2>/dev/null || true
+	cp -f "$(JAVA_LIB_DIR)/build/libs/xlang-stdlib.jar" "$(JAVA_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(JAVA_LIB_DIR)"/build/runtime-libs/*.jar "$(JAVA_RUNTIME_OUT_DIR)/" 2>/dev/null || true
+	@if [ ! -f "$(JAVA_LIB_OUT_DIR)/xlang-stdlib.jar" ]; then \
+		echo "[ERROR] missing stdlib jar: $(JAVA_LIB_OUT_DIR)/xlang-stdlib.jar"; \
+		exit 1; \
+	fi
+	@if command -v jar >/dev/null 2>&1; then \
+		jar tf "$(JAVA_LIB_OUT_DIR)/xlang-stdlib.jar" | grep -q "xlang/io/Console.class" || { \
+			echo "[ERROR] stdlib jar missing xlang/io/Console.class"; exit 1; }; \
+		jar tf "$(JAVA_LIB_OUT_DIR)/xlang-stdlib.jar" | grep -q "xlang/Math.class" || { \
+			echo "[ERROR] stdlib jar missing xlang/Math.class"; exit 1; }; \
+	else \
+		echo "[WARN] 'jar' tool not found; skip stdlib content verification"; \
+	fi
 	@if [ ! -f "$(JAVA_STD_DB_FILE)" ]; then \
 		echo "[INFO] jdk std metadata missing, download jdk$(JAVA_STD_DB_VERSION)-stdlib.db"; \
 		"$(EXE_OUT)" -download=$(JAVA_STD_DB_VERSION); \
@@ -231,10 +254,22 @@ stage_syslibs:
 ifeq ($(NATIVE_SHARED_EXT),dll)
 	@if [ -n "$(GCC_LIB)" ] && [ -d "$(GCC_LIB)" ]; then \
 		mkdir -p "$(NATIVE_SYSLIB_OUT_DIR)"; \
+		gcc_dirs="$(GCC_LIB)"; \
+		if [ -d "$(GCC_LIB)/../lib/gcc" ]; then \
+			for d in "$(GCC_LIB)"/../lib/gcc/*/*; do \
+				if [ -d "$$d" ]; then gcc_dirs="$$gcc_dirs $$d"; fi; \
+			done; \
+		fi; \
 		for n in $(NATIVE_SYSLIB_NAMES); do \
-			if [ -f "$(GCC_LIB)/$$n" ]; then \
-				cp -f "$(GCC_LIB)/$$n" "$(NATIVE_SYSLIB_OUT_DIR)/"; \
-			else \
+			found=0; \
+			for d in $$gcc_dirs; do \
+				if [ -f "$$d/$$n" ]; then \
+					cp -f "$$d/$$n" "$(NATIVE_SYSLIB_OUT_DIR)/"; \
+					found=1; \
+					break; \
+				fi; \
+			done; \
+			if [ $$found -eq 0 ]; then \
 				echo "[WARN] missing syslib in GCC_LIB: $$n"; \
 			fi; \
 		done; \

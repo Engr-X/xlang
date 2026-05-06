@@ -1,6 +1,6 @@
-﻿package com.diwang.bctoolkit.generator.artifact.operation
+package com.diwang.bctoolkit.generator.artifact.operation
 
-import com.wangdi.bctoolkit.base.Type
+import com.diwang.bctoolkit.base.Type
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes

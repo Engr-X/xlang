@@ -74,7 +74,13 @@ widenedClass Float32T = [Float32T, Float64T, Float128T]
 widenedClass Float64T = [Float64T, Float128T]
 widenedClass Float128T = [Float128T]
 widenedClass Void = [Void]
-widenedClass (Pointer inner) = [Pointer (normalizeTypeAlias inner)]
+widenedClass (Pointer inner) =
+    let normalized = Pointer (normalizeTypeAlias inner)
+        fallback = Pointer Void
+    in if normalized == fallback
+        then [fallback]
+        else [normalized, fallback]
+widenedClass blob@(Blob _) = [blob, Pointer Void]
 widenedClass cls@(Class _ _) = [normalizeTypeAlias cls]
 widenedClass ErrorClass = error "ErrorClass cannot be widened"
 
@@ -135,6 +141,7 @@ isBasicType c = Map.member c basicTypeRank
 
 isPointerType :: Class -> Bool
 isPointerType (Pointer _) = True
+isPointerType (Blob _) = True
 isPointerType _ = False
 
 
@@ -161,6 +168,7 @@ isCompareOp op = op `elem`
 iCast :: Path -> [Position] -> Class -> Class -> [Warning]
 iCast p pos fromT toT
     | fromT == toT = []
+    | isSilentWiden fromT toT = []
     | otherwise = implicitW : overflowW
     where
         fromS = prettyClass fromT
@@ -170,6 +178,34 @@ iCast p pos fromT toT
             (Just rf, Just rt) | rf > rt ->
                 [OverflowWarning (UE.makeError p pos (UE.overflowCastMsg fromS toS))]
             _ -> []
+        isPointerVoidWiden :: Class -> Class -> Bool
+        isPointerVoidWiden fromTy toTy = case (normalizeTypeAlias fromTy, normalizeTypeAlias toTy) of
+            (Pointer _, Pointer Void) -> True
+            (Blob _, Pointer Void) -> True
+            _ -> False
+
+        isIntegralType :: Class -> Bool
+        isIntegralType t = t `elem` [Bool, Char, Int8T, Int16T, Int32T, Int64T]
+
+        integralRank :: Class -> Int
+        integralRank t = case t of
+            Bool -> 0
+            Char -> 1
+            Int8T -> 1
+            Int16T -> 2
+            Int32T -> 3
+            Int64T -> 4
+            _ -> -1
+
+        isIntegralWiden :: Class -> Class -> Bool
+        isIntegralWiden fromTy toTy =
+            isIntegralType fromTy &&
+            isIntegralType toTy &&
+            integralRank fromTy <= integralRank toTy
+
+        isSilentWiden :: Class -> Class -> Bool
+        isSilentWiden fromTy toTy =
+            isPointerVoidWiden fromTy toTy || isIntegralWiden fromTy toTy
 
 
 -- | Promote two basic types to a common result type (at least Int32).
@@ -222,9 +258,18 @@ unaryOpInfer = foldr Map.union Map.empty [unaryArithmetic, unaryIncDec, unaryLog
 --   Throws an error if the operator/type combination is unsupported.
 inferUnaryOp :: Operator -> Class -> Class
 inferUnaryOp op cls =
-    case Map.lookup (op, cls) unaryOpInfer of
-        Just resT -> resT
-        Nothing -> error $ "unsupported unary operator: " ++ show op ++ " on " ++ prettyClass cls
+    case (op, cls) of
+        (IncSelf, Pointer _) -> cls
+        (DecSelf, Pointer _) -> cls
+        (SelfInc, Pointer _) -> cls
+        (SelfDec, Pointer _) -> cls
+        (IncSelf, Blob _) -> cls
+        (DecSelf, Blob _) -> cls
+        (SelfInc, Blob _) -> cls
+        (SelfDec, Blob _) -> cls
+        _ -> case Map.lookup (op, cls) unaryOpInfer of
+            Just resT -> resT
+            Nothing -> error $ "unsupported unary operator: " ++ show op ++ " on " ++ prettyClass cls
 
 
 -- | Inference table for binary operators over basic types.
@@ -313,20 +358,27 @@ inferBinaryOp op t1 t2 =
 
 inferBinaryOpMaybe :: Operator -> Class -> Class -> Maybe Class
 inferBinaryOpMaybe op t1 t2 =
-    let n1 = pointerAsInt64 t1
-        n2 = pointerAsInt64 t2
-    in fmap (preferPointerResult op t1 t2) (Map.lookup (op, n1, n2) binOpInfer)
+    case pointerArithResult op t1 t2 of
+        Just res -> Just res
+        Nothing ->
+            let n1 = pointerAsInt64 t1
+                n2 = pointerAsInt64 t2
+            in Map.lookup (op, n1, n2) binOpInfer
   where
+    pointerArithResult :: Operator -> Class -> Class -> Maybe Class
+    pointerArithResult Add a b
+        | isPointerType a && isIntegerType b = Just a
+        | isIntegerType a && isPointerType b = Just b
+        | otherwise = Nothing
+    pointerArithResult Sub a b
+        | isPointerType a && isIntegerType b = Just a
+        | otherwise = Nothing
+    pointerArithResult _ _ _ = Nothing
+
     pointerAsInt64 :: Class -> Class
     pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 (Blob _) = Int64T
     pointerAsInt64 cls = cls
-
-    preferPointerResult :: Operator -> Class -> Class -> Class -> Class
-    preferPointerResult bop lhs rhs res
-        | isCompareOp bop = res
-        | isPointerType lhs = lhs
-        | isPointerType rhs = rhs
-        | otherwise = res
 
 
 -- | Operand promotion type for a binary operator.
@@ -342,18 +394,29 @@ binaryOpCastType op t1 t2
 binaryOpCastTypeMaybe :: Operator -> Class -> Class -> Maybe Class
 binaryOpCastTypeMaybe op t1 t2 = do
     _ <- inferBinaryOpMaybe op t1 t2
-    let n1 = pointerAsInt64 t1
-        n2 = pointerAsInt64 t2
-    pure $
-        if isCompareOp op
-            then promoteBasicType n1 n2
-            else case (t1, t2) of
-                (Pointer _, _) -> Int64T
-                (_, Pointer _) -> Int64T
-                _ -> inferBinaryOp op n1 n2
+    case pointerArithCastType op t1 t2 of
+        Just castT -> pure castT
+        Nothing ->
+            let n1 = pointerAsInt64 t1
+                n2 = pointerAsInt64 t2
+            in pure $
+                if isCompareOp op
+                    then promoteBasicType n1 n2
+                    else inferBinaryOp op n1 n2
   where
+    pointerArithCastType :: Operator -> Class -> Class -> Maybe Class
+    pointerArithCastType Add a b
+        | isPointerType a && isIntegerType b = Just Int64T
+        | isIntegerType a && isPointerType b = Just Int64T
+        | otherwise = Nothing
+    pointerArithCastType Sub a b
+        | isPointerType a && isIntegerType b = Just Int64T
+        | otherwise = Nothing
+    pointerArithCastType _ _ _ = Nothing
+
     pointerAsInt64 :: Class -> Class
     pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 (Blob _) = Int64T
     pointerAsInt64 cls = cls
 
 

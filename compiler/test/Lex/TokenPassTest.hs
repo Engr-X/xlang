@@ -372,6 +372,15 @@ insertTokenPassTest = testGroup "Lex.TokenPass.insertTokenPass " $ map (\(n, s, 
         nl,
         ident "import", ident "java", sym Dot, ident "lang", sym Dot, sym Multiply,
         nl,
+        eof]),
+
+    ("18", unlines [
+        "val i = 0",
+        "(arr + i).deref = i"], [
+        ident "val", ident "i", sym Assign, number "0",
+        nl,
+        sym LParen, ident "arr", sym Plus, ident "i", sym RParen, sym Dot, ident "deref", sym Assign, ident "i",
+        nl,
         eof])]
     where
         -- Test helpers that ignore real positions (replacePos will normalize anyway).

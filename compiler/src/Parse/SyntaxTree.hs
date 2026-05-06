@@ -37,11 +37,16 @@ data Class =
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
     Pointer Class |
+    Blob Expression |
     Class [String] [Class] | -- name + general
     ErrorClass
-    deriving (Eq, Ord, Show, Generic)
+    deriving (Eq, Show, Generic)
 
-instance Hashable Class
+instance Ord Class where
+    compare a b = compare (show a) (show b)
+
+instance Hashable Class where
+    hashWithSalt s cls = hashWithSalt s (show cls)
 
 
 -- Better toString of class instance
@@ -58,6 +63,7 @@ prettyClass Void = "void"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
 prettyClass (Pointer c) = concat ["pointer<", prettyClass c, ">"]
+prettyClass (Blob e) = concat ["blob[", prettyExpr 0 (Just e), "]"]
 prettyClass (Class ss args) =
     let base = intercalate "." ss
     in case args of
@@ -77,6 +83,7 @@ classMangle Bool = "z"
 classMangle Char = "c"
 classMangle Void = "v"
 classMangle (Pointer c) = "P" ++ classMangle c
+classMangle (Blob _) = "B"
 classMangle (Class ss args) =
     case ss of
         [] -> error "classMangle: empty class qname"
@@ -119,6 +126,7 @@ classDemangleEither raw = case parseMangledType raw of
             'P' -> do
                 (inner, rest) <- parseMangledType cs
                 Right (Pointer inner, rest)
+            'B' -> Right (Blob (IntConst "1" Lex.dummyToken), cs)
             'N' -> parseNestedType cs
             _
                 | isDigit c -> parseSingleType (c : cs)
@@ -174,15 +182,74 @@ classDemangleEither raw = case parseMangledType raw of
                     then Left ("invalid identifier length: " ++ lenTxt)
                     else if length rest0 < n
                         then Left "identifier shorter than encoded length"
-                        else
-                            let (name, rest1) = splitAt n rest0
-                            in Right (name, rest1)
-
+                    else
+                        let (name, rest1) = splitAt n rest0
+                        in Right (name, rest1)
 
 classDemangle :: String -> Class
 classDemangle raw = case classDemangleEither raw of
     Right cls -> cls
     Left msg -> error ("classDemangle: " ++ msg ++ ", input=" ++ raw)
+
+
+blobSizeExprMaybe :: Class -> Maybe Expression
+blobSizeExprMaybe (Blob e) = Just e
+blobSizeExprMaybe _ = Nothing
+
+
+blobConstSizeMaybe :: Class -> Maybe Int
+blobConstSizeMaybe cls = case cls of
+    Blob e -> evalInt e
+    _ -> Nothing
+  where
+    evalInt :: Expression -> Maybe Int
+    evalInt ex = case ex of
+        IntConst s _ -> parseIntLiteral s
+        LongConst s _ -> parseIntLiteral s
+        Unary UnaryPlus inner _ -> evalInt inner
+        Unary UnaryMinus inner _ -> negate <$> evalInt inner
+        Binary Add a b _ -> (+) <$> evalInt a <*> evalInt b
+        Binary Sub a b _ -> (-) <$> evalInt a <*> evalInt b
+        Binary Mul a b _ -> (*) <$> evalInt a <*> evalInt b
+        Binary Div a b _ -> do
+            lhs <- evalInt a
+            rhs <- evalInt b
+            if rhs == 0 then Nothing else Just (lhs `div` rhs)
+        Binary Mod a b _ -> do
+            lhs <- evalInt a
+            rhs <- evalInt b
+            if rhs == 0 then Nothing else Just (lhs `mod` rhs)
+        Cast _ inner _ -> evalInt inner
+        _ -> Nothing
+
+    parseIntLiteral :: String -> Maybe Int
+    parseIntLiteral raw =
+        let s0 = if not (null raw) && (last raw == 'l' || last raw == 'L')
+                    then init raw
+                    else raw
+            (signN, body0) = case s0 of
+                ('+':xs) -> (1 :: Integer, xs)
+                ('-':xs) -> ((-1) :: Integer, xs)
+                _ -> (1 :: Integer, s0)
+            body = map toLower body0
+            parsed :: Maybe Integer
+            parsed
+                | "0x" `isPrefixOf` body =
+                    case reads ("0x" ++ drop 2 body) :: [(Integer, String)] of
+                        [(n, "")] -> Just n
+                        _ -> Nothing
+                | otherwise =
+                    case reads body :: [(Integer, String)] of
+                        [(n, "")] -> Just n
+                        _ -> Nothing
+        in do
+            n <- parsed
+            let signedN = signN * n
+                lo = toInteger (minBound :: Int)
+                hi = toInteger (maxBound :: Int)
+            if signedN < lo || signedN > hi
+                then Nothing
+                else Just (fromInteger signedN)
 
 
 
@@ -346,6 +413,7 @@ data Expression =
     | Binary Operator Expression Expression Token
     | Call Expression [Expression]
     | CallT Expression [(Class, [Token])] [Expression]
+    | IfExpr Expression Expression Expression (Token, Maybe Token)
     | BlockExpr Block
     deriving (Eq, Show)
 
@@ -380,6 +448,15 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
                 typeArgsS = concat ["<", intercalate ", " (map (prettyClass . fst) ts), ">"]
                 argsS = intercalate ", " (map (prettyExpr' . Just) args)
             in concat [calleeS, typeArgsS, "(", argsS, ")"]
+        prettyExpr' (Just (IfExpr cond thenE elseE _)) =
+            concat [
+                "if ",
+                prettyExpr' (Just cond),
+                ": ",
+                prettyExpr' (Just thenE),
+                " else: ",
+                prettyExpr' (Just elseE)
+            ]
         prettyExpr' (Just (BlockExpr b)) =
             prettyBlock 0 b
 
@@ -402,6 +479,8 @@ exprTokens (Unary _ e t) = t : exprTokens e
 exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
 exprTokens (Call e1 es) = concatMap exprTokens (e1 : es)
 exprTokens (CallT e1 cts es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
+exprTokens (IfExpr cond thenE elseE (ifTok, elseTok)) =
+    [ifTok] ++ exprTokens cond ++ exprTokens thenE ++ maybe [] pure elseTok ++ exprTokens elseE
 exprTokens (BlockExpr b) = blockTokens (Just b)
 
 
@@ -416,6 +495,8 @@ flattenExpr (Just fatherE@(Call callee args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just fatherE@(CallT callee _ args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
+flattenExpr (Just fatherE@(IfExpr cond thenE elseE _)) =
+    concat [[fatherE], flattenExpr (Just cond), flattenExpr (Just thenE), flattenExpr (Just elseE)]
 flattenExpr (Just fatherE@(BlockExpr b)) =
     fatherE : flattenBlock (Just b)
 flattenExpr (Just e) = [e]
@@ -1165,6 +1246,12 @@ inlineProgramFunctions (decls, stmts) =
             Cast ty e tok -> Cast ty (rewriteExprInline specs stack e) tok
             Unary op e tok -> Unary op (rewriteExprInline specs stack e) tok
             Binary op e1 e2 tok -> Binary op (rewriteExprInline specs stack e1) (rewriteExprInline specs stack e2) tok
+            IfExpr cond thenE elseE toks ->
+                IfExpr
+                    (rewriteExprInline specs stack cond)
+                    (rewriteExprInline specs stack thenE)
+                    (rewriteExprInline specs stack elseE)
+                    toks
             BlockExpr b ->
                 BlockExpr (rewriteBlockInline specs stack b)
             Call callee args ->
@@ -1218,6 +1305,12 @@ inlineProgramFunctions (decls, stmts) =
             Cast ty e tok -> Cast ty (substInlineExpr subst e) tok
             Unary op e tok -> Unary op (substInlineExpr subst e) tok
             Binary op e1 e2 tok -> Binary op (substInlineExpr subst e1) (substInlineExpr subst e2) tok
+            IfExpr cond thenE elseE toks ->
+                IfExpr
+                    (substInlineExpr subst cond)
+                    (substInlineExpr subst thenE)
+                    (substInlineExpr subst elseE)
+                    toks
             BlockExpr b ->
                 BlockExpr (substInlineBlock subst b)
             Call callee args -> Call (substInlineExpr subst callee) (map (substInlineExpr subst) args)
@@ -1435,6 +1528,12 @@ rewriteExprCalls callMap expr = case expr of
     Cast ty e tok -> Cast ty (rewriteExprCalls callMap e) tok
     Unary op e tok -> Unary op (rewriteExprCalls callMap e) tok
     Binary op e1 e2 tok -> Binary op (rewriteExprCalls callMap e1) (rewriteExprCalls callMap e2) tok
+    IfExpr cond thenE elseE toks ->
+        IfExpr
+            (rewriteExprCalls callMap cond)
+            (rewriteExprCalls callMap thenE)
+            (rewriteExprCalls callMap elseE)
+            toks
     BlockExpr b ->
         BlockExpr (rewriteBlockExprCalls callMap b)
     Call callee args ->
@@ -1688,13 +1787,16 @@ flattenProgram (_, ss) = concatMap (flattenStatement . Just) ss
 normalizeClass :: Class -> Class
 normalizeClass cls = case cls of
     Class [name] args ->
-        case (normalizeBuiltinClass name, args) of
+        case (normalizeBuiltinClass name, map normalizeClass args) of
             (Just prim, []) -> prim
+            (Nothing, [Class ["*"] []]) | map toLower name == "pointer" ->
+                Pointer Void
             (Nothing, [one]) | map toLower name == "pointer" ->
-                Pointer (normalizeClass one)
+                Pointer one
             _ -> Class [name] (map normalizeClass args)
     Class names args -> Class names (map normalizeClass args)
     Pointer c -> Pointer (normalizeClass c)
+    Blob n -> Blob n
     other -> other
 
 

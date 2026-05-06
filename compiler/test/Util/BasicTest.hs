@@ -141,7 +141,13 @@ mangleNameTests = testGroup "Util.Basic.mangleName" [
         mangleName [] ["main"] [] True @?= "_X4mainv",
     testCase "3" $
         mangleName ["com", "wangdi"] ["Math"] [Class ["com", "wangdi", "Pair"] []] True
-            @?= "_XN3com6wangdi4MathEN3com6wangdi4PairE"]
+            @?= "_XN3com6wangdi4MathEN3com6wangdi4PairE",
+    testCase "4" $
+        mangleName [] ["f"] [Pointer Int32T, Pointer Int32T] True
+            @?= "_X1fPiPi",
+    testCase "5" $
+        mangleName [] ["f"] [Pointer (Pointer Int32T)] True
+            @?= "_X1fPPi"]
 
 
 demangleNameTests :: TestTree
@@ -154,7 +160,13 @@ demangleNameTests = testGroup "Util.Basic.demangleName" [
             Right (["TestX"], []),
     testCase "demangle field symbol with type" $
         demangleName "_XN4demo4Math6secretEi" @?=
-            Right (["demo", "Math", "secret"], [Int32T])]
+            Right (["demo", "Math", "secret"], [Int32T]),
+    testCase "demangle pointer params PiPi" $
+        demangleName "_X1fPiPi" @?=
+            Right (["f"], [Pointer Int32T, Pointer Int32T]),
+    testCase "demangle pointer params PPi" $
+        demangleName "_X1fPPi" @?=
+            Right (["f"], [Pointer (Pointer Int32T)])]
 
 
 tests :: TestTree

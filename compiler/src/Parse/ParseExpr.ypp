@@ -34,6 +34,8 @@ import qualified Util.Exception as UE
     KW_MUT              { t@(Lex.Ident "mut" _) }
     KW_INLINE           { t@(Lex.Ident "inline" _) }
     KW_NATIVE           { t@(Lex.Ident "native" _) }
+    KW_POINTER          { t@(Lex.Ident "pointer" _) }
+    KW_BLOB             { t@(Lex.Ident "blob" _) }
 
     KW_PUBLIC           { t@(Lex.Ident "public" _) }
     KW_PROTECTED        { t@(Lex.Ident "protected" _) }
@@ -97,7 +99,6 @@ import qualified Util.Exception as UE
     '**='               { t@(Lex.Symbol Lex.PowerAssign _) }
 
     identity            { t@(Lex.Ident _ _) }
-    annotation          { t@(Lex.Annotation _ _ _) }
     number              { t@(Lex.NumberConst _ _) }
     character           { t@(Lex.CharConst _ _) }
     string              { t@(Lex.StrConst _ _) }
@@ -105,6 +106,8 @@ import qualified Util.Exception as UE
 
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
+    '['                 { t@(Lex.Symbol Lex.LBracket _) }
+    ']'                 { t@(Lex.Symbol Lex.RBracket _) }
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
     '@'                 { t@(Lex.Symbol Lex.At _) }
@@ -113,13 +116,15 @@ import qualified Util.Exception as UE
     ','                 { t@(Lex.Symbol Lex.Comma _) }
     ':'                 { t@(Lex.Symbol Lex.Colon _) }
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
-    '=>'                { t@(Lex.Symbol Lex.FatArrow _) }
     '->'                { t@(Lex.Symbol Lex.Arrow _) }
     '!->'                { t@(Lex.Symbol Lex.NotArrow _) }
     '<->'               { t@(Lex.Symbol Lex.IffArrow _) }
     '::'                { t@(Lex.Symbol Lex.DoubleColon _) }
 
 -- Happy precedence declarations are from low to high.
+
+%nonassoc NL
+%nonassoc IFX
 
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
@@ -177,9 +182,8 @@ import qualified Util.Exception as UE
 -- 1: postfix ++/-- (handled in Postfix rules)
 
 -- 0: atom/call/cast
-
-%nonassoc IFX
 %nonassoc KW_ELIF KW_ELSE
+
 
 %%
 

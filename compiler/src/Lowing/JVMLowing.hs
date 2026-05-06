@@ -31,6 +31,13 @@ float128JvmMsg = printf "float128 is native-only; JVM target does not support fl
 rejectFloat128 :: String -> a
 rejectFloat128 whereAt = errorWithoutStackTrace (float128JvmMsg whereAt)
 
+pointerJvmMsg :: String
+pointerJvmMsg =
+    "the pinter is not allowed in jvm lowing, and this error should be cateched earlier!"
+
+rejectPointerJvm :: a
+rejectPointerJvm = errorWithoutStackTrace pointerJvmMsg
+
 normalizeJvmClassAlias :: Class -> Class
 normalizeJvmClassAlias cls = case cls of
     Class ["Any"] [] -> Class ["java", "lang", "Object"] []
@@ -110,6 +117,10 @@ ensureJvmInstr (IR.IGetField dst obj _) = ensureJvmAtom dst `seq` ensureJvmAtom 
 ensureJvmInstr (IR.IPutField obj _ v) = ensureJvmAtom obj `seq` ensureJvmAtom v
 ensureJvmInstr (IR.IGetStatic dst _) = ensureJvmAtom dst
 ensureJvmInstr (IR.IPutStatic _ v) = ensureJvmAtom v
+ensureJvmInstr (IR.Ref _ _) = rejectPointerJvm
+ensureJvmInstr (IR.Deref _ _) = rejectPointerJvm
+ensureJvmInstr (IR.DerefAssign _ _ _) = rejectPointerJvm
+ensureJvmInstr (IR.NewStackMem _ _) = rejectPointerJvm
 
 ensureJvmBlock :: IR.IRBlock -> ()
 ensureJvmBlock (IR.IRBlock (_, instrs)) = ensureAll instrs ensureJvmInstr
@@ -288,6 +299,10 @@ lowerInstr (IR.IGetField {}) =
     error "IGetField is not supported yet"
 lowerInstr (IR.IPutField {}) =
     error "IPutField is not supported yet"
+lowerInstr (IR.Ref _ _) = rejectPointerJvm
+lowerInstr (IR.Deref _ _) = rejectPointerJvm
+lowerInstr (IR.DerefAssign _ _ _) = rejectPointerJvm
+lowerInstr (IR.NewStackMem _ _) = rejectPointerJvm
 
 
 data CmpKind = CmpEq | CmpNe | CmpLt | CmpLe | CmpGt | CmpGe

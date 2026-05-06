@@ -592,8 +592,7 @@ expandTypedImportEnvBySpecs currentPkg specs env =
                 (aliasKey, entry) | (keyQn, entry) <- entries,
                 let (isHidden, _) = splitHiddenQName keyQn,
                 let full = fullFromEntry entry,
-                isSamePackageFull full || any (`matchesImportSpec` full) specs,
-                alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry),
+                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels),
                 let aliasKey = if isHidden then toHiddenQName alias else alias]
             keepOld :: (AST.Class, [Position], QName) -> (AST.Class, [Position], QName) -> (AST.Class, [Position], QName)
             keepOld _ old = old
@@ -609,8 +608,7 @@ expandTypedImportEnvBySpecs currentPkg specs env =
                 (aliasKey, entry) | (keyQn, entry) <- entries,
                 let (isHidden, _) = splitHiddenQName keyQn,
                 let full = fullFromEntry entry,
-                isSamePackageFull full || any (`matchesImportSpec` full) specs,
-                alias <- aliasTargetsForSpec currentPkg (HashSet.member (fullFromEntry entry) topLevels) (fullFromEntry entry),
+                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels),
                 let aliasKey = if isHidden then toHiddenQName alias else alias]
             mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
             mergeFunEntry (newSigs, newPos, newFull) (oldSigs, oldPos, oldFull) =
@@ -627,6 +625,12 @@ expandTypedImportEnvBySpecs currentPkg specs env =
     isSamePackageFull full = case splitFullQName full of
         Just (pkg, _, _) -> pkg == currentPkg
         Nothing -> False
+
+    aliasesForEntry :: QName -> Bool -> [QName]
+    aliasesForEntry full isTopLevel =
+        if isSamePackageFull full || any (`matchesImportSpec` full) specs
+            then aliasTargetsForSpec currentPkg isTopLevel full
+            else [full]
 
 
 typedToImportEnv :: TypedImportEnv -> ImportEnv
@@ -715,6 +719,10 @@ checkPointerRulesForTarget SemanticTargetJvm path (_, stmts) =
             exprPointerErrors callee
                 ++ concatMap (\(ty, toks) -> classErrs (Just ty) toks) typeArgs
                 ++ concatMap exprPointerErrors args
+        IfExpr cond thenE elseE _ ->
+            exprPointerErrors cond
+                ++ exprPointerErrors thenE
+                ++ exprPointerErrors elseE
         BlockExpr (AST.Multiple ss) ->
             concatMap stmtPointerErrors ss
         _ -> []
@@ -731,7 +739,7 @@ checkPointerRulesForTarget SemanticTargetJvm path (_, stmts) =
     classErrs :: Maybe AST.Class -> [Lex.Token] -> [ErrorKind]
     classErrs Nothing _ = []
     classErrs (Just cls) toks
-        | containsPointerType cls = [mkErr toks "pointer type is not supported on JVM target"]
+        | containsPointerType cls = [mkErr toks "pointer/blob type is not supported on JVM target"]
         | otherwise = []
 
     opErrs :: AST.Operator -> Lex.Token -> [ErrorKind]
@@ -743,6 +751,7 @@ checkPointerRulesForTarget SemanticTargetJvm path (_, stmts) =
     containsPointerType :: AST.Class -> Bool
     containsPointerType ty = case ty of
         AST.Pointer _ -> True
+        AST.Blob _ -> True
         AST.Class _ args -> any containsPointerType args
         _ -> False
 

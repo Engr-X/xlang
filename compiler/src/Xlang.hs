@@ -651,7 +651,7 @@ main = do
                                 _ -> userLibPaths ++ defaultLibJars ++ defaultNativeJsons
                             duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
                             libPaths = combinedLibPaths
-                            runtimeLibPaths = userLibPaths ++ defaultRuntimeLibJars
+                            runtimeLibPaths = userLibPaths ++ defaultLibJars ++ defaultRuntimeLibJars
 
                         case (mTarget, srcPaths, optOutput opts) of
                             (Just _, [], _) -> do

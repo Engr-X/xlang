@@ -3,6 +3,7 @@
 module Semantic.NativeLibLoaderTest where
 
 import Data.Aeson (Value, encode, object, (.=))
+import Data.List (isInfixOf)
 import Semantic.LibLoader (loadLibEnvsWithJobs)
 import Semantic.NameEnv (toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..))
@@ -22,7 +23,8 @@ import qualified Semantic.NativeLibLoader as Native
 tests :: TestTree
 tests = testGroup "Semantic.NativeLibLoader" [
     nativeCompactJsonDecodeTests,
-    nativeAsmDecodeTests
+    nativeAsmDecodeTests,
+    fibQPowOddBranchRegressionTest
     ]
 
 
@@ -147,3 +149,12 @@ withTempAsm content action = do
     out <- action tmpPath
     removeFile tmpPath `catchIOError` (\_ -> pure ())
     pure out
+
+
+fibQPowOddBranchRegressionTest :: TestTree
+fibQPowOddBranchRegressionTest =
+    testCase "native Math.fibQPow multiplies by Q on odd exponent" $ do
+        src <- readFile "../libs/std/native/src/xlang/xlang/Math.x"
+        assertBool
+            "expected odd-branch multiply in fibQPow (regression guard against reversed parity)"
+            ("if isOdd(x): { mulByFibQ(mat); }" `isInfixOf` src)

@@ -46,6 +46,8 @@ import qualified Util.FileHelper as FileHelper
     KW_CLASSNAME        { t@(Lex.Ident "classname" _) }
     KW_JVMCLASS         { t@(Lex.Ident "JvmClass" _) }
     KW_NATIVE           { t@(Lex.Ident "native" _) }
+    KW_POINTER          { t@(Lex.Ident "pointer" _) }
+    KW_BLOB             { t@(Lex.Ident "blob" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
@@ -115,6 +117,8 @@ import qualified Util.FileHelper as FileHelper
 
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
+    '['                 { t@(Lex.Symbol Lex.LBracket _) }
+    ']'                 { t@(Lex.Symbol Lex.RBracket _) }
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
     '@'                 { t@(Lex.Symbol Lex.At _) }
@@ -126,10 +130,12 @@ import qualified Util.FileHelper as FileHelper
     '->'                { t@(Lex.Symbol Lex.Arrow _) }
     '!->'                { t@(Lex.Symbol Lex.NotArrow _) }
     '<->'               { t@(Lex.Symbol Lex.IffArrow _) }
-    '=>'                { t@(Lex.Symbol Lex.FatArrow _) }
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 -- Happy precedence declarations are from low to high.
+
+%nonassoc NL
+%nonassoc IFX
 
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
@@ -187,9 +193,8 @@ import qualified Util.FileHelper as FileHelper
 -- 1: postfix ++/-- (handled in Postfix rules)
 
 -- 0: atom/call/cast
-
-%nonassoc IFX
 %nonassoc KW_ELIF KW_ELSE
+
 
 %%
 

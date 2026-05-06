@@ -1,9 +1,9 @@
 package com.diwang.bctoolkit.reader
 
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.Type
-import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.generator.ClassEmitter
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.Type
+import com.diwang.bctoolkit.base.TypeRef
+import com.diwang.bctoolkit.generator.ClassEmitter
 import org.objectweb.asm.Opcodes
 import java.nio.file.Files
 import java.nio.file.Path

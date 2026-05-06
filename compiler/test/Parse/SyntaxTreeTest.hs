@@ -327,7 +327,9 @@ normalizeClassTests = testGroup "Parse.SyntaxTree.normalizeClass" $
         ("4", Class ["String"] [], Class ["String"] []),
         ("5", Class ["string"] [], Class ["string"] []),
         ("6", Class ["pointer"] [Class ["int"] []], Pointer Int32T),
-        ("7", Class ["pointer"] [Class ["pointer"] [Class ["int"] []]], Pointer (Pointer Int32T))]
+        ("7", Class ["pointer"] [Class ["pointer"] [Class ["int"] []]], Pointer (Pointer Int32T)),
+        ("8", Class ["pointer"] [Class ["void"] []], Pointer Void),
+        ("9", Class ["pointer"] [Class ["*"] []], Pointer Void)]
 
 
 classMangleDemangleTests :: TestTree

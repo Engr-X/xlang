@@ -15,11 +15,57 @@ Clazz :: { (Class, [Token]) }
     | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in
         (normalizeClass $ Class (reverse (fst $1)) (map fst reversed),
         concat [snd $1, [$2, $3], concatMap snd reversed, [$5]]) }
+    | KW_BLOB '[' BlobSizeExpr ']'      {
+        let (blobExpr, blobToks) = $3 in
+        (Blob blobExpr, [$1, $2] ++ blobToks ++ [$4]) }
+    | KW_POINTER '<' ClazzList '>'      { let reversed = reverse $3 in
+        (normalizeClass $ Class ["pointer"] (map fst reversed),
+        [$1, $2] ++ concatMap snd reversed ++ [$4]) }
+    | KW_POINTER '::' '<' ClazzList '>' { let reversed = reverse $4 in
+        (normalizeClass $ Class ["pointer"] (map fst reversed),
+        [$1, $2, $3] ++ concatMap snd reversed ++ [$5]) }
+    | QName '::' '<' '*' '>'            {
+        (normalizeClass $ Class (reverse (fst $1)) [Class ["*"] []],
+        concat [snd $1, [$2, $3, $4, $5]]) }
+    | KW_POINTER '<' '*' '>'            {
+        (normalizeClass $ Class ["pointer"] [Class ["*"] []],
+        [$1, $2, $3, $4]) }
+    | KW_POINTER '::' '<' '*' '>'       {
+        (normalizeClass $ Class ["pointer"] [Class ["*"] []],
+        [$1, $2, $3, $4, $5]) }
+    ;
+
+
+BlobSizeExpr :: { (Expression, [Token]) }
+    : BlobSizeExpr '+' BlobSizeTerm     { (Binary Add (fst $1) (fst $3) $2, snd $1 ++ [$2] ++ snd $3) }
+    | BlobSizeExpr '-' BlobSizeTerm     { (Binary Sub (fst $1) (fst $3) $2, snd $1 ++ [$2] ++ snd $3) }
+    | BlobSizeTerm                      { $1 }
+    ;
+
+BlobSizeTerm :: { (Expression, [Token]) }
+    : BlobSizeTerm '*' BlobSizeUnary    { (Binary Mul (fst $1) (fst $3) $2, snd $1 ++ [$2] ++ snd $3) }
+    | BlobSizeTerm '/' BlobSizeUnary    { (Binary Div (fst $1) (fst $3) $2, snd $1 ++ [$2] ++ snd $3) }
+    | BlobSizeTerm '%' BlobSizeUnary    { (Binary Mod (fst $1) (fst $3) $2, snd $1 ++ [$2] ++ snd $3) }
+    | BlobSizeUnary                     { $1 }
+    ;
+
+BlobSizeUnary :: { (Expression, [Token]) }
+    : '+' BlobSizeUnary                 { (Unary UnaryPlus (fst $2) $1, [$1] ++ snd $2) }
+    | '-' BlobSizeUnary                 { (Unary UnaryMinus (fst $2) $1, [$1] ++ snd $2) }
+    | BlobSizeAtom                      { $1 }
+    ;
+
+BlobSizeAtom :: { (Expression, [Token]) }
+    : number                            { (fromMaybe (Error [$1] "classifyNumber failed in blob size") (classifyNumber (numText $1) $1), [$1]) }
+    | QName                             { (qnameToExpr $1, snd $1) }
+    | '(' BlobSizeExpr ')'              { (fst $2, [$1] ++ snd $2 ++ [$3]) }
     ;
 
 
 LValue :: { Expression }
-    : QName                 { qnameToExpr $1 };
+    : QName                                 { qnameToExpr $1 }
+    | '(' Expr ')' '.' identity            { mkPointerSuffixExpr $2 $5 }
+    ;
 
 
 Atom :: { Expression }
@@ -46,7 +92,7 @@ Atom :: { Expression }
 
     -- parenthesized expression
     | '(' Expr ')'              { $2 }
-    | Block                     { BlockExpr $ fromMaybe (Multiple []) $1 }
+    | ExprBlock                 { BlockExpr $ fromMaybe (Multiple []) $1 }
 
     -- identifiers
     | QName                     { qnameToExpr $1 }
@@ -87,181 +133,154 @@ Postfix :: { Expression }
 
     | Postfix KW_AS Clazz       { Cast $3 $1 $2 }
     | Postfix KW_AS error       { Error [$2] (expectedExpression 0 "as") }
+    | '(' Expr ')' '.' identity { mkPointerSuffixExpr $2 $5 }
     ;
 
-IfAssignSepOpt :: { () }
-    : {- empty -}               { () }
-    | Sep IfAssignSepOpt        { () }
+ExprBlock :: { Maybe Block }
+    : Block                     { $1 }
     ;
 
-IfAssignValue :: { Expression }
-    : ':' Expr                  { $2 }
-    | ':' Sep Expr              { $3 }
+IfExprBranch :: { Expression }
+    : ':' Expr %prec IFX          { $2 }
+    | ':' Sep Expr %prec IFX      { $3 }
+    | ':' IfBranchStmt %prec IFX  { BlockExpr (Multiple [$2]) }
+    | ':' Sep IfBranchStmt %prec IFX { BlockExpr (Multiple [$3]) }
+    | Block %prec IFX             { BlockExpr (fromMaybe (Multiple []) $1) }
+    | NL Block %prec IFX          { BlockExpr (fromMaybe (Multiple []) $2) }
     ;
 
-IfAssignElse :: { (Expression, Token) }
-    : IfAssignSepOpt KW_ELSE IfAssignValue { ($3, $2) }
+IfBranchStmt :: { Statement }
+    : KW_PASS                     { Command Pass $1 }
+    | KW_CONTINUE                 { Command Continue $1 }
+    | KW_BREAK                    { Command Break $1 }
+    | KW_RETURN                   { Command (Return Nothing) $1 }
     ;
 
-IfAssignElifBlocks :: { Expression -> Token -> (Maybe Block, Maybe Token) }
-    : IfAssignSepOpt KW_ELIF Expr IfAssignValue IfAssignElse
-        {
-            \lhs tok ->
-                let nested =
-                        If
-                            $3
-                            (Just (mkAssignIfBranchBlock lhs tok $4))
-                            (Just (mkAssignIfBranchBlock lhs tok (fst $5)))
-                            ($2, Just (snd $5))
-                in (Just (Multiple [nested]), Just $2)
-        }
-    | IfAssignSepOpt KW_ELIF Expr IfAssignValue IfAssignElifBlocks
-        {
-            \lhs tok ->
-                let (mb, mtok) = $5 lhs tok
-                    nested =
-                        If
-                            $3
-                            (Just (mkAssignIfBranchBlock lhs tok $4))
-                            mb
-                            ($2, mtok)
-                in (Just (Multiple [nested]), Just $2)
-        }
+IfExprTail :: { Maybe (Expression, Maybe Token) }
+    : {- empty -} %prec IFX
+        { Nothing }
+    | KW_ELSE IfExprBranch
+        { Just ($2, Just $1) }
+    | KW_ELIF Expr IfExprBranch IfExprTail
+        { Just (mkIfElifFromTail $1 $2 $3 $4) }
     ;
 
-IfAssignExpr :: { Expression -> Token -> Statement }
-    : KW_IF Expr IfAssignValue IfAssignElse
-        {
-            \lhs tok ->
-                If
-                    $2
-                    (Just (mkAssignIfBranchBlock lhs tok $3))
-                    (Just (mkAssignIfBranchBlock lhs tok (fst $4)))
-                    ($1, Just (snd $4))
-        }
-    | KW_IF Expr IfAssignValue IfAssignElifBlocks
-        {
-            \lhs tok ->
-                let (mb, mtok) = $4 lhs tok
-                in If
-                    $2
-                    (Just (mkAssignIfBranchBlock lhs tok $3))
-                    mb
-                    ($1, mtok)
-        }
+IfExprInline :: { Expression }
+    : KW_IF Expr IfExprBranch IfExprTail
+        { mkIfExprFromTail $1 $2 $3 $4 }
     ;
 
 
 Expr :: { Expression }
-    -- 0: atom/call/cast
-    : Postfix                                   { $1 }
-
-    -- 1: postfix ++/-- (handled in Postfix)
-    -- 2: prefix ++/-- (handled in Atom)
-    -- 3: unary plus/minus (handled in Atom)
-    -- 4: unary logical/bit not (handled in Atom)
+    : AssignExpr %prec IFX                        { $1 }
+    | Postfix                                     { $1 }
+    | IfExprInline %prec IFX                      { $1 }
 
     -- 5: power
-    | Expr '**' Expr                            { Binary Pow $1 $3 $2 }
-    | Expr '**' error                           { Error [$2] (expectedExpression 1 "**") }
+    | Expr '**' Expr                              { Binary Pow $1 $3 $2 }
+    | Expr '**' error                             { Error [$2] (expectedExpression 1 "**") }
 
     -- 6: multiplicative
-    | Expr '*' Expr                             { Binary Mul $1 $3 $2 }
-    | Expr '*' error                            { Error [$2] (expectedExpression 1 "*") }
-    | Expr '/' Expr                             { Binary Div $1 $3 $2 }
-    | Expr '/' error                            { Error [$2] (expectedExpression 1 "/") }
-    | Expr '%' Expr                             { Binary Mod $1 $3 $2 }
-    | Expr '%' error                            { Error [$2] (expectedExpression 1 "%") }
+    | Expr '*' Expr                               { Binary Mul $1 $3 $2 }
+    | Expr '*' error                              { Error [$2] (expectedExpression 1 "*") }
+    | Expr '/' Expr                               { Binary Div $1 $3 $2 }
+    | Expr '/' error                              { Error [$2] (expectedExpression 1 "/") }
+    | Expr '%' Expr                               { Binary Mod $1 $3 $2 }
+    | Expr '%' error                              { Error [$2] (expectedExpression 1 "%") }
 
     -- 7: additive
-    | Expr '+' Expr                             { Binary Add $1 $3 $2 }
-    | Expr '+' error                            { Error [$2] (expectedExpression 1 "+") }
-    | Expr '-' Expr                             { Binary Sub $1 $3 $2 }
-    | Expr '-' error                            { Error [$2] (expectedExpression 1 "-") }
+    | Expr '+' Expr                               { Binary Add $1 $3 $2 }
+    | Expr '+' error                              { Error [$2] (expectedExpression 1 "+") }
+    | Expr '-' Expr                               { Binary Sub $1 $3 $2 }
+    | Expr '-' error                              { Error [$2] (expectedExpression 1 "-") }
 
     -- 8: shift (reserved)
-    | Expr 'shl' Expr                           { Binary BitLShift $1 $3 $2 }
-    | Expr 'shl' error                          { Error [$2] (expectedExpression 1 "shl") }
-    | Expr 'shr' Expr                           { Binary BitRShift $1 $3 $2 }
-    | Expr 'shr' error                          { Error [$2] (expectedExpression 1 "shr") }
-    | Expr 'ushr' Expr                          { Binary BitURShift $1 $3 $2 }
-    | Expr 'ushr' error                         { Error [$2] (expectedExpression 1 "ushr") }
+    | Expr 'shl' Expr                             { Binary BitLShift $1 $3 $2 }
+    | Expr 'shl' error                            { Error [$2] (expectedExpression 1 "shl") }
+    | Expr 'shr' Expr                             { Binary BitRShift $1 $3 $2 }
+    | Expr 'shr' error                            { Error [$2] (expectedExpression 1 "shr") }
+    | Expr 'ushr' Expr                            { Binary BitURShift $1 $3 $2 }
+    | Expr 'ushr' error                           { Error [$2] (expectedExpression 1 "ushr") }
 
     -- 9: relational
-    | Expr '>' Expr                             { Binary GreaterThan $1 $3 $2 }
-    | Expr '>' error                            { Error [$2] (expectedExpression 1 ">") }
-    | Expr '<' Expr                             { Binary LessThan $1 $3 $2 }
-    | Expr '<' error                            { Error [$2] (expectedExpression 1 "<") }
-    | Expr '>=' Expr                            { Binary GreaterEqual $1 $3 $2 }
-    | Expr '>=' error                           { Error [$2] (expectedExpression 1 ">=") }
-    | Expr '<=' Expr                            { Binary LessEqual $1 $3 $2 }
-    | Expr '<=' error                           { Error [$2] (expectedExpression 1 "<=") }
+    | Expr '>' Expr                               { Binary GreaterThan $1 $3 $2 }
+    | Expr '>' error                              { Error [$2] (expectedExpression 1 ">") }
+    | Expr '<' Expr                               { Binary LessThan $1 $3 $2 }
+    | Expr '<' error                              { Error [$2] (expectedExpression 1 "<") }
+    | Expr '>=' Expr                              { Binary GreaterEqual $1 $3 $2 }
+    | Expr '>=' error                             { Error [$2] (expectedExpression 1 ">=") }
+    | Expr '<=' Expr                              { Binary LessEqual $1 $3 $2 }
+    | Expr '<=' error                             { Error [$2] (expectedExpression 1 "<=") }
 
     -- 10: equality
-    | Expr '!=' Expr                            { Binary NotEqual $1 $3 $2 }
-    | Expr '!=' error                           { Error [$2] (expectedExpression 1 "!=") }
-    | Expr '==' Expr                            { Binary Equal $1 $3 $2 }
-    | Expr '==' error                           { Error [$2] (expectedExpression 1 "==") }
+    | Expr '!=' Expr                              { Binary NotEqual $1 $3 $2 }
+    | Expr '!=' error                             { Error [$2] (expectedExpression 1 "!=") }
+    | Expr '==' Expr                              { Binary Equal $1 $3 $2 }
+    | Expr '==' error                             { Error [$2] (expectedExpression 1 "==") }
 
     -- 11: bit-and (reserved)
-    | Expr 'and' Expr                           { Binary BitAnd $1 $3 $2 }
-    | Expr 'and' error                          { Error [$2] (expectedExpression 1 "and") }
-    | Expr 'nand' Expr                          { Binary BitNand $1 $3 $2 }
-    | Expr 'nand' error                         { Error [$2] (expectedExpression 1 "nand") }
+    | Expr 'and' Expr                             { Binary BitAnd $1 $3 $2 }
+    | Expr 'and' error                            { Error [$2] (expectedExpression 1 "and") }
+    | Expr 'nand' Expr                            { Binary BitNand $1 $3 $2 }
+    | Expr 'nand' error                           { Error [$2] (expectedExpression 1 "nand") }
 
     -- 12: bit-xor / bit-xnor (reserved)
-    | Expr 'xor' Expr                           { Binary BitXor $1 $3 $2 }
-    | Expr 'xor' error                          { Error [$2] (expectedExpression 1 "xor") }
-    | Expr 'xnor' Expr                          { Binary BitXnor $1 $3 $2 }
-    | Expr 'xnor' error                         { Error [$2] (expectedExpression 1 "xnor") }
+    | Expr 'xor' Expr                             { Binary BitXor $1 $3 $2 }
+    | Expr 'xor' error                            { Error [$2] (expectedExpression 1 "xor") }
+    | Expr 'xnor' Expr                            { Binary BitXnor $1 $3 $2 }
+    | Expr 'xnor' error                           { Error [$2] (expectedExpression 1 "xnor") }
 
     -- 13: bit-or, bit-nor (reserved)
-    | Expr 'or' Expr                            { Binary BitOr $1 $3 $2 }
-    | Expr 'or' error                           { Error [$2] (expectedExpression 1 "or") }
-    | Expr 'nor' Expr                           { Binary BitNor $1 $3 $2 }
-    | Expr 'nor' error                          { Error [$2] (expectedExpression 1 "nor") }
+    | Expr 'or' Expr                              { Binary BitOr $1 $3 $2 }
+    | Expr 'or' error                             { Error [$2] (expectedExpression 1 "or") }
+    | Expr 'nor' Expr                             { Binary BitNor $1 $3 $2 }
+    | Expr 'nor' error                            { Error [$2] (expectedExpression 1 "nor") }
 
     -- 14: bit implication
-    | Expr 'implies' Expr                       { Binary BitImply $1 $3 $2 }
-    | Expr 'implies' error                      { Error [$2] (expectedExpression 1 "implies") }
-    | Expr 'nimplies' Expr                      { Binary BitNimply $1 $3 $2 }
-    | Expr 'nimplies' error                     { Error [$2] (expectedExpression 1 "nimplies") }
+    | Expr 'implies' Expr                         { Binary BitImply $1 $3 $2 }
+    | Expr 'implies' error                        { Error [$2] (expectedExpression 1 "implies") }
+    | Expr 'nimplies' Expr                        { Binary BitNimply $1 $3 $2 }
+    | Expr 'nimplies' error                       { Error [$2] (expectedExpression 1 "nimplies") }
 
     -- 15: logical-and (reserved)
-    | Expr '&&' Expr                            { Binary LogicalAnd $1 $3 $2 }
-    | Expr '&&' error                           { Error [$2] (expectedExpression 1 "&&") }
-    | Expr '!&&' Expr                           { Binary LogicalNand $1 $3 $2 }
-    | Expr '!&&' error                          { Error [$2] (expectedExpression 1 "!&&") }
+    | Expr '&&' Expr                              { Binary LogicalAnd $1 $3 $2 }
+    | Expr '&&' error                             { Error [$2] (expectedExpression 1 "&&") }
+    | Expr '!&&' Expr                             { Binary LogicalNand $1 $3 $2 }
+    | Expr '!&&' error                            { Error [$2] (expectedExpression 1 "!&&") }
 
     -- 16: logical-or (reserved)
-    | Expr '||' Expr                            { Binary LogicalOr $1 $3 $2 }
-    | Expr '||' error                           { Error [$2] (expectedExpression 1 "||") }
-    | Expr '!||' Expr                           { Binary LogicalNor $1 $3 $2 }
-    | Expr '!||' error                          { Error [$2] (expectedExpression 1 "!||") }
+    | Expr '||' Expr                              { Binary LogicalOr $1 $3 $2 }
+    | Expr '||' error                             { Error [$2] (expectedExpression 1 "||") }
+    | Expr '!||' Expr                             { Binary LogicalNor $1 $3 $2 }
+    | Expr '!||' error                            { Error [$2] (expectedExpression 1 "!||") }
 
     -- 17: logical-implication (reserved)
-    | Expr '->' Expr                            { Binary LogicalImply $1 $3 $2 }
-    | Expr '->' error                           { Error [$2] (expectedExpression 1 "->") }
-    | Expr '!->' Expr                           { Binary LogicalNimply $1 $3 $2 }
-    | Expr '!->' error                          { Error [$2] (expectedExpression 1 "!->") }
-    | Expr '<->' Expr                           { Binary LogicalAnd (Binary LogicalImply $1 $3 $2) (Binary LogicalImply $3 $1 $2) $2 }
-    | Expr '<->' error                          { Error [$2] (expectedExpression 1 "<->") }
-
-    -- 18: assignment
-    | LValue '=' IfAssignExpr                    { mkAssignIfSugarExpr $1 $2 $3 }
-    | LValue '=' Expr                           { mkAssignExpr $1 $3 $2 }
-    | LValue '=' error                          { Error [$2] (expectedExpression 1 "=") }
-
-    | LValue '+=' Expr                          { mkAugAssignExpr Add $1 $3 $2 }
-    | LValue '+=' error                         { Error [$2] (expectedExpression 1 "+=") }
-    | LValue '-=' Expr                          { mkAugAssignExpr Sub $1 $3 $2 }
-    | LValue '-=' error                         { Error [$2] (expectedExpression 1 "-=") }
-    | LValue '*=' Expr                          { mkAugAssignExpr Mul $1 $3 $2 }
-    | LValue '*=' error                         { Error [$2] (expectedExpression 1 "*=") }
-    | LValue '/=' Expr                          { mkAugAssignExpr Div $1 $3 $2 }
-    | LValue '/=' error                         { Error [$2] (expectedExpression 1 "/=") }
-    | LValue '%=' Expr                          { mkAugAssignExpr Mod $1 $3 $2 }
-    | LValue '%=' error                         { Error [$2] (expectedExpression 1 "%=") }
-    | LValue '**=' Expr                         { mkAugAssignExpr Pow $1 $3 $2 }
-    | LValue '**=' error                        { Error [$2] (expectedExpression 1 "**=") }
+    | Expr '->' Expr                              { Binary LogicalImply $1 $3 $2 }
+    | Expr '->' error                             { Error [$2] (expectedExpression 1 "->") }
+    | Expr '!->' Expr                             { Binary LogicalNimply $1 $3 $2 }
+    | Expr '!->' error                            { Error [$2] (expectedExpression 1 "!->") }
+    | Expr '<->' Expr                             { Binary LogicalAnd (Binary LogicalImply $1 $3 $2) (Binary LogicalImply $3 $1 $2) $2 }
+    | Expr '<->' error                            { Error [$2] (expectedExpression 1 "<->") }
     ;
+
+
+AssignExpr :: { Expression }
+    : LValue '=' Expr                             { mkAssignExpr $1 $3 $2 }
+    | LValue '=' error                            { Error [$2] (expectedExpression 1 "=") }
+
+    | LValue '+=' Expr                            { mkAugAssignExpr Add $1 $3 $2 }
+    | LValue '+=' error                           { Error [$2] (expectedExpression 1 "+=") }
+    | LValue '-=' Expr                            { mkAugAssignExpr Sub $1 $3 $2 }
+    | LValue '-=' error                           { Error [$2] (expectedExpression 1 "-=") }
+    | LValue '*=' Expr                            { mkAugAssignExpr Mul $1 $3 $2 }
+    | LValue '*=' error                           { Error [$2] (expectedExpression 1 "*=") }
+    | LValue '/=' Expr                            { mkAugAssignExpr Div $1 $3 $2 }
+    | LValue '/=' error                           { Error [$2] (expectedExpression 1 "/=") }
+    | LValue '%=' Expr                            { mkAugAssignExpr Mod $1 $3 $2 }
+    | LValue '%=' error                           { Error [$2] (expectedExpression 1 "%=") }
+    | LValue '**=' Expr                           { mkAugAssignExpr Pow $1 $3 $2 }
+    | LValue '**=' error                          { Error [$2] (expectedExpression 1 "**=") }
+    ;
+
+
+

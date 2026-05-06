@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Wang Di
+ * Copyright (c) 2026 Di Wang
  * SPDX-License-Identifier: MIT
  *
  *
@@ -52,8 +52,8 @@ import java.lang.StrictMath
  *      val p: bool = isPrime(97)
  * }</pre>
  *
- * @author      Wang Di
- * @since       beta-1.0.0
+ * @author      Di Wang
+ * @since       alpha-1.0.0
  */
 
 

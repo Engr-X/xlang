@@ -1,8 +1,8 @@
-﻿package com.diwang.bctoolkit.generator.artifact
+package com.diwang.bctoolkit.generator.artifact
 
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.Type
-import com.wangdi.bctoolkit.base.TypeRef
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.Type
+import com.diwang.bctoolkit.base.TypeRef
 
 import kotlin.collections.fold
 

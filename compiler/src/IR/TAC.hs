@@ -65,6 +65,12 @@ expandExpr (AST.Binary op a b tok) =
         (ss2, b') = expandExpr b
     in (ss1 ++ ss2, AST.Binary op a' b' tok)
 
+expandExpr (AST.IfExpr cond thenE elseE toks) =
+    let (ssCond, cond') = expandExpr cond
+        (ssThen, then') = expandExpr thenE
+        (ssElse, else') = expandExpr elseE
+    in (ssCond ++ ssThen ++ ssElse, AST.IfExpr cond' then' else' toks)
+
 expandExpr (AST.BlockExpr (AST.Multiple ss)) =
     let ss' = concatMap expandStmt ss
     in ([], AST.BlockExpr (AST.Multiple ss'))
@@ -641,6 +647,8 @@ data IRInstr
     -- fr reference
     | Ref IRAtom IRAtom                             -- get reference for variable only !!! atom1 = &atom2
     | Deref IRAtom IRAtom                           -- dereference for only pointers (atom2) atom1 = *atom2
+    | DerefAssign IRAtom IRAtom Int                 -- like a* = 10; c* = *a = b, the first one must be pointer variable, Int refert the size to write only support 1, 2, 4, 8
+    | NewStackMem IRAtom IRAtom                     -- dst = stack blob allocation marker (bytes)
     deriving (Eq, Show)
 
 
@@ -690,6 +698,8 @@ prettyIRInstr n instr = insertTab n ++ case instr of
         "putstatic ", intercalate "." qname, " ", prettyIRAtom v]
     Ref atom1 atom2 -> concat [prettyIRAtom atom1, " = &", prettyIRAtom atom2]
     Deref atom1 atom2 -> concat [prettyIRAtom atom1, " = *", prettyIRAtom atom2]
+    DerefAssign atom1 atom2 _ -> concat ["*", prettyIRAtom atom1, "=", prettyIRAtom atom2]
+    NewStackMem dst sizeAtom -> concat [prettyIRAtom dst, " = newstackmem ", prettyIRAtom sizeAtom]
 
 
 -- | A basic block of IR instructions.

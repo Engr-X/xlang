@@ -515,7 +515,7 @@ checkTypeCompatTests = testGroup "Semantic.TypeCheck.checkTypeCompat" $ map (\(n
             Nothing -> pure ()
             Just n -> assertWarnCount n ctx1) [
         ("0", Int32T, Int32T, Nothing, Just 0),
-        ("1", Int64T, Int32T, Nothing, Just 1),
+        ("1", Int64T, Int32T, Nothing, Just 0),
         ("2", Int32T, Void, Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void)), Nothing),
         ("3", Class ["Foo"] [], Int32T, Just (UE.staticCastError (prettyClass Int32T) (prettyClass (Class ["Foo"] []))), Nothing),
         ("4", Bool, Int32T, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing)]
@@ -534,7 +534,16 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("8", "1 as bool", stEmpty, Map.empty, [Map.empty], [], [], Bool, Nothing, Just 0, noExtraTc),
     ("9", "a.ref", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Pointer Int32T, Nothing, Just 0, noExtraTc),
     ("10", "b.deref.dref", stWithVars ["b"], mkVarTable (stWithVars ["b"]) [("b", Pointer (Pointer Int32T))], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
-    ("11", "a.ref.ref", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], ErrorClass, Just "ref can only be used as a terminal suffix on a variable", Just 0, noExtraTc)]
+    ("11", "a.ref.ref", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], ErrorClass, Just "ref can only be used as a terminal suffix on a variable", Just 0, noExtraTc),
+    ("12", "a.ref as long", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Int64T, Nothing, Just 0, noExtraTc),
+    ("13", "a.ref as double", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Float64T, Nothing, Just 0, noExtraTc),
+    ("14", "a.ref + 1", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Int64T, Nothing, Nothing, noExtraTc),
+    ("15", "a.ref + (1 as double)", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Float64T, Nothing, Nothing, noExtraTc),
+    ("16", "p as pointer<void>", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Int32T)], [Map.empty], [], [], Pointer Void, Nothing, Just 0, noExtraTc),
+    ("17", "++p", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Void)], [Map.empty], [], [], Pointer Void, Nothing, Just 0, noExtraTc),
+    ("18", "f(p, 1)", stWithVarsFuncs ["p"] ["f"], mkVarTable (stWithVarsFuncs ["p"] ["f"]) [("p", Pointer Int32T)], [Map.fromList [(["f"], [FunSig [Pointer Void, Int32T] Int32T])]], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("19", "f(p, 1)", stWithVarsFuncs ["p"] ["f"], mkVarTable (stWithVarsFuncs ["p"] ["f"]) [("p", Pointer Int32T)], [Map.fromList [(["f"], [FunSig [Pointer Int32T, Int32T] Int16T, FunSig [Pointer Void, Int32T] Int32T])]], [], [], Int16T, Nothing, Just 0, noExtraTc),
+    ("20", "p.deref", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Void)], [Map.empty], [], [], ErrorClass, Just "deref does not support pointer<void>", Just 0, noExtraTc)]
     where
         mkCase (name, src, st0, vts, fScopes, typedEnvs, importEnvs, expectedT, errMsg, warnCount, extra) =
             testCase name $ do
@@ -987,6 +996,31 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "    return x;",
         "}",
         "a = inc(1);"
+    ], Nothing, noExtraTc),
+
+    ("19", unlines [
+        "fun fib(a: int) -> int = if a <= 1: a else: (fib(a - 1) + fib(a - 2));",
+        "a = fib(10);"
+    ], Nothing, noExtraTc),
+
+    ("20", unlines [
+        "fun fib(a: int) -> int {",
+        "    return if a <= 1: a elif a == 2: 1 else: (fib(a - 1) + fib(a - 2));",
+        "}",
+        "a = fib(10);"
+    ], Nothing, noExtraTc),
+
+    ("21", unlines [
+        "fun fib(a: int) -> int =",
+        "    if a <= 1:",
+        "        a",
+        "    else",
+        "    {",
+        "        val x = fib(a - 1)",
+        "        val y = fib(a - 2)",
+        "        x + y",
+        "    }",
+        "a = fib(10);"
     ], Nothing, noExtraTc)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do

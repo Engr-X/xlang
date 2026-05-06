@@ -3,14 +3,15 @@ plugins {
     application
 }
 
-group = "com.wangdi"
-version = "1.0-SNAPSHOT"
+group = "com.diwang"
+version = "alpha-1.1.0"
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    implementation("com.github.weisj:jsvg:2.0.0")
     testImplementation(kotlin("test"))
 }
 
@@ -19,12 +20,19 @@ tasks.test {
 }
 
 application {
-    mainClass.set("com.diwang.IconToolkit.MainKt")
+    mainClass.set("com.diwang.icontoolkit.MainKt")
 }
 
 tasks.jar {
     archiveFileName.set("IconToolkit.jar")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
-        attributes["Main-Class"] = "com.diwang.IconToolkit.MainKt"
+        attributes["Main-Class"] = "com.diwang.icontoolkit.MainKt"
     }
+    dependsOn(configurations.runtimeClasspath)
+    from({
+        configurations.runtimeClasspath.get()
+            .filter { it.name.endsWith(".jar") }
+            .map { zipTree(it) }
+    })
 }

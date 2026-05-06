@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2026 Wang Di
+ * Copyright (c) 2026 Di Wang
  * SPDX-License-Identifier: MIT
  *
  *
@@ -49,7 +49,7 @@ package xlang
  *      val p: bool = isPrime(97)
  * }</pre>
  *
- * @author      Wang Di
+ * @author      Di Wang
  * @since       beta-1.0.0
  */
 
@@ -579,18 +579,15 @@ native inline fun cbrt(x: double) -> double
  */
 fun isPrime(x: int) -> bool
 {
-    if x <= 1:
-        return false
-    elif x == 2:
-        return true
+    if x <= 1: { return false; }
+    elif x == 2: { return true; }
     else
     {
         val half: int = sqrt(x as double) as int
 
         for (var i: int = 2; i <= half; i++)
         {
-            if x % i == 0:
-                return false
+            if x % i == 0: { return false; }
         }
 
         return true
@@ -610,21 +607,82 @@ fun isPrime(x: int) -> bool
  */
 fun isPrime(x: long) -> bool
 {
-    if x <= 1L:
-        return false
-    elif x == 2L:
-        return true
+    if x <= 1L: { return false; }
+    elif x == 2L: { return true; }
     else
     {
         val half: long = sqrt(x as double) as long
 
         for (var i: long = 2L; i <= half; i++)
         {
-            if x % i == 0L:
-                return false
+            if x % i == 0L: { return false; }
         }
 
         return true
+    }
+}
+
+
+private fun matSquare22(mat: pointer<long>) -> void
+{
+    val a: long = mat.deref, b: long = (mat + 1).deref
+    val c: long = (mat + 2).deref, d: long = (mat + 3).deref
+
+    val s = a + d, p = b * c;
+
+    mat.deref = a * a + p
+    (mat + 1).deref = b * s
+    (mat + 2).deref = c * s
+    (mat + 3).deref = d * d + p
+}
+
+
+private fun mulByFibQ(mat: pointer<long>) -> void
+{
+    val a: long = mat.deref, b: long = (mat + 1).deref
+    val c: long = (mat + 2).deref, d: long = (mat + 3).deref
+
+    mat.deref = a + b
+    (mat + 1).deref = a
+    (mat + 2).deref = c + d
+    (mat + 3).deref = c
+}
+
+
+// pre: x >= 1
+private fun fibQPow(x: long, mut mat: pointer<long>) -> void
+{
+    if x == 1
+    {
+        mat = mat as pointer<long>
+        mat.deref = 1L
+        (mat + 1).deref = 1L
+        (mat + 2).deref = 1L
+        (mat + 3).deref = 0L
+    }
+    else
+    {
+        fibQPow(x / 2, mat)
+        matSquare22(mat)
+
+        if isOdd(x): { mulByFibQ(mat); }
+    }
+}
+
+
+fun fib(x: long) -> long
+{
+    if x < 0: { return -1; }
+    elif x <= 1: { return x; }
+    elif x == 2: { return 1; }
+    elif x == 3: { return 2; }
+    elif x == 4: { return 3; }
+    else
+    {
+        val mat: blob[32]
+        val matPtr = mat as pointer<long>
+        fibQPow(x - 1, matPtr)
+        return matPtr.deref
     }
 }
 

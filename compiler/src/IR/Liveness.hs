@@ -78,6 +78,10 @@ instrRD (TAC.IGetField dst obj _) = mkRD [obj] [dst]
 instrRD (TAC.IPutField obj _ v) = mkRD [obj, v] []
 instrRD (TAC.IGetStatic dst _) = mkRD [] [dst]
 instrRD (TAC.IPutStatic _ v) = mkRD [v] []
+instrRD (TAC.Ref dst src) = mkRD [src] [dst]
+instrRD (TAC.Deref dst src) = mkRD [src] [dst]
+instrRD (TAC.DerefAssign dst src _) = mkRD [dst, src] []
+instrRD (TAC.NewStackMem dst sizeAtom) = mkRD [sizeAtom] [dst]
 
 mkRD :: [IRAtom] -> [IRAtom] -> Maybe ([IRAtom], [IRAtom])
 mkRD req def = Just (normalizeAtoms req, normalizeAtoms def)

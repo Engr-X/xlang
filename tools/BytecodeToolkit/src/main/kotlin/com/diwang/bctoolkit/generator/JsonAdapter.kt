@@ -1,12 +1,12 @@
-﻿package com.wangdi.bctoolkit.generator
+package com.diwang.bctoolkit.generator
 
 import com.alibaba.fastjson2.JSONArray
 import com.alibaba.fastjson2.JSONObject
 
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.Type
-import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.generator.artifact.operation.OpBlock
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.Type
+import com.diwang.bctoolkit.base.TypeRef
+import com.diwang.bctoolkit.generator.artifact.operation.OpBlock
 import xlang.annotation.OwnerTypeMetadata
 
 import org.objectweb.asm.Opcodes

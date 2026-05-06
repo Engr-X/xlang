@@ -1,8 +1,8 @@
-﻿package com.diwang.bctoolkit.generator.artifact
+package com.diwang.bctoolkit.generator.artifact
 
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.TypeRef
-import com.wangdi.bctoolkit.generator.MethodEmitter
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.TypeRef
+import com.diwang.bctoolkit.generator.MethodEmitter
 import org.objectweb.asm.ClassWriter
 
 import java.nio.file.Files

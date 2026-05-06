@@ -1,7 +1,9 @@
 module Parse.ParserBasic where
 
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing)
 import Data.List (find, sort)
+import Data.Char (toLower)
+import Numeric (readHex)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
 import Parse.SyntaxTree
 import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
@@ -135,36 +137,112 @@ stmtToExpr _ (Expr e) = e
 stmtToExpr t _ = Error [t] (expectedExpression 1 $ show t)
 
 
+exprListToStmt :: [Expression] -> Statement
+exprListToStmt [one] = exprToStmt one
+exprListToStmt xs = Exprs xs
+
+
+exprToStmt :: Expression -> Statement
+exprToStmt (BlockExpr b) = BlockStmt b
+exprToStmt e@(IfExpr _ _ _ _) = ifExprToStmt e
+exprToStmt e = Expr e
+
+
+ifExprToStmt :: Expression -> Statement
+ifExprToStmt (IfExpr cond thenE elseE toks@(_, elseTok)) =
+    If cond (Just (exprToBlock thenE)) maybeElse toks
+  where
+    maybeElse :: Maybe Block
+    maybeElse
+        | isNothing elseTok && isMissingIfElseMarker elseE = Nothing
+        | otherwise = Just (exprToBlock elseE)
+
+    exprToBlock :: Expression -> Block
+    exprToBlock (BlockExpr b) = b
+    exprToBlock e = Multiple [exprToStmt e]
+ifExprToStmt e = Expr e
+
+
+mkIfExprNoElse :: Token -> Expression -> Expression -> Expression
+mkIfExprNoElse ifTok cond thenE =
+    IfExpr cond thenE (Error [ifTok] missingIfElseMarkerMsg) (ifTok, Nothing)
+
+mkIfExprFromTail :: Token -> Expression -> Expression -> Maybe (Expression, Maybe Token) -> Expression
+mkIfExprFromTail ifTok cond thenE mTail = case mTail of
+    Nothing ->
+        mkIfExprNoElse ifTok cond thenE
+    Just (elseExpr, elseTok) ->
+        IfExpr cond thenE elseExpr (ifTok, elseTok)
+
+mkIfElifFromTail :: Token -> Expression -> Expression -> Maybe (Expression, Maybe Token) -> (Expression, Maybe Token)
+mkIfElifFromTail ifTok cond thenE mTail =
+    let e = mkIfExprFromTail ifTok cond thenE mTail
+    in case e of
+        IfExpr _ _ _ (_, t) -> (e, t)
+        _ -> (e, Nothing)
+
+
+isMissingIfElseMarker :: Expression -> Bool
+isMissingIfElseMarker (Error _ why) = why == missingIfElseMarkerMsg
+isMissingIfElseMarker _ = False
+
+
+missingIfElseMarkerMsg :: String
+missingIfElseMarkerMsg = "if-expression requires else clause"
+
+
 -- Build an assignment expression with LHS validity check.
 mkAssignExpr :: Expression -> Expression -> Token -> Expression
 mkAssignExpr lhs rhs tok =
-    if isVariable lhs
-        then case rhs of
-            BlockExpr b ->
-                fromMaybe (Binary Assign lhs rhs tok) (rewriteAssignWithBlockExpr lhs tok b)
-            _ ->
-                Binary Assign lhs rhs tok
+    if isAssignableLhs lhs
+        then
+            let rhs' = fillIfExprMissingElse rhs lhs
+            in case rhs' of
+                BlockExpr b ->
+                    fromMaybe (Binary Assign lhs rhs' tok) (rewriteAssignWithBlockExpr lhs tok b)
+                _ ->
+                    Binary Assign lhs rhs' tok
         else Error [tok] assignErrorMsg
+
+
+fillIfExprMissingElse :: Expression -> Expression -> Expression
+fillIfExprMissingElse expr fallback = case expr of
+    IfExpr cond thenE elseE toks@(_, elseTok)
+        | isNothing elseTok && isMissingIfElseMarker elseE ->
+            IfExpr cond thenE fallback toks
+        | otherwise ->
+            IfExpr cond thenE (fillIfExprMissingElse elseE fallback) toks
+    _ -> expr
+
+
+-- | Parse pointer-style postfix suffix on an arbitrary expression.
+-- Supported:
+--   - expr.deref / expr.dref  => Unary DeRef expr
+-- Unsupported here:
+--   - expr.ref (only variable.ref is supported through qualified-name parsing)
+mkPointerSuffixExpr :: Expression -> Token -> Expression
+mkPointerSuffixExpr base suffixTok = case suffixTok of
+    Lex.Ident raw _ -> case map toLower raw of
+        "deref" -> Unary DeRef base suffixTok
+        "dref" -> Unary DeRef base suffixTok
+        "ref" -> Error [suffixTok] "ref can only be used on variables"
+        _ -> Error [suffixTok] ("unsupported postfix suffix: " ++ raw)
+    _ -> Error [suffixTok] "unsupported postfix suffix"
+
+
+-- | Parser-level assignable LHS:
+--   - regular variables/qualified names
+--   - unary dereference expression (e.g. (arr + i).deref)
+isAssignableLhs :: Expression -> Bool
+isAssignableLhs e = case e of
+    Unary DeRef _ _ -> True
+    _ -> isVariable e
 
 
 -- Build an augmented assignment expression by desugaring to plain assignment.
 mkAugAssignExpr :: Operator -> Expression -> Expression -> Token -> Expression
 mkAugAssignExpr baseOp lhs rhs tok =
     mkAssignExpr lhs (Binary baseOp lhs rhs tok) tok
-
-
-mkAssignIfBranchBlock :: Expression -> Token -> Expression -> Block
-mkAssignIfBranchBlock lhs tok rhs =
-    Multiple [Expr (mkAssignExpr lhs rhs tok)]
-
-
-mkAssignIfSugarExpr :: Expression -> Token -> (Expression -> Token -> Statement) -> Expression
-mkAssignIfSugarExpr lhs tok buildIf =
-    if isVariable lhs
-        then
-            let ifStmt = buildIf lhs tok
-            in BlockExpr (Multiple [ifStmt, Expr lhs])
-        else Error [tok] assignErrorMsg
 
 
 -- Rewrite:
@@ -195,3 +273,41 @@ rewriteAssignWithBlockExpr lhs tok (Multiple ss) =
         rewriteLastStmt (StmtGroup gs) =
             StmtGroup <$> rewriteTail gs
         rewriteLastStmt _ = Nothing
+
+
+-- | Parse an integer-like literal for blob size expressions.
+-- Supports:
+--   - decimal: 10, -3, +7
+--   - long suffix: 10L / 10l
+--   - hex: 0x10 / 0X10 (optionally with sign)
+-- Returns 0 when parsing fails.
+parseBlobSizeLiteral :: String -> Int
+parseBlobSizeLiteral raw =
+    let s0 = if not (null raw) && (last raw == 'l' || last raw == 'L')
+                then init raw
+                else raw
+        (signN, body0) = case s0 of
+            ('+':xs) -> (1, xs)
+            ('-':xs) -> (-1, xs)
+            _ -> (1, s0)
+        body = map toLower body0
+        parsed :: Maybe Integer
+        parsed
+            | "0x" `prefixOf` body =
+                case readHex (drop 2 body) of
+                    [(n, "")] -> Just n
+                    _ -> Nothing
+            | otherwise =
+                case reads body :: [(Integer, String)] of
+                    [(n, "")] -> Just n
+                    _ -> Nothing
+    in case parsed of
+        Just n ->
+            let signedN = toInteger signN * n
+            in if signedN < toInteger (minBound :: Int) || signedN > toInteger (maxBound :: Int)
+                then 0
+                else fromInteger signedN
+        Nothing -> 0
+  where
+    prefixOf :: String -> String -> Bool
+    prefixOf p s = take (length p) s == p

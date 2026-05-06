@@ -16,60 +16,23 @@ StmtSeqOpt :: { [Statement] }
     ;
 
 
+-- block
+Block :: { Maybe Block }
+    : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
+    | '{' Sep '}'               { Nothing }
+    ;
+
+
 BlockLike :: { Block }
     : ':' Stmt                      { Multiple [$2] }
+    | ':' Sep Stmt                  { Multiple [$3] }
     | Block Sep                     { fromMaybe (Multiple []) $1 }
     | NL Block Sep                  { fromMaybe (Multiple []) $2 }
     ;
 
 
-ElifBlocks :: { (Maybe Block, Maybe Token) }
-    : KW_ELIF Expr ';'                      %prec IFX
-        {
-            let nested = If $2 Nothing Nothing ($1, Nothing)
-            in (Just (Multiple [nested]), Just $1)
-        }
-    | KW_ELIF Expr ';' ElseBlock
-        {
-            let nested = If $2 Nothing (fst $4) ($1, Just $ snd $4)
-            in (Just (Multiple [nested]), Just $1)
-        }
-    | KW_ELIF Expr ';' ElifBlocks
-        {
-            let nested = If $2 Nothing (fst $4) ($1, snd $4)
-            in (Just (Multiple [nested]), Just $1)
-        }
-    | KW_ELIF Expr BlockLike                %prec IFX
-        {
-            let nested = If $2 (Just $3) Nothing ($1, Nothing)
-            in (Just (Multiple [nested]), Just $1)
-        }
-    | KW_ELIF Expr BlockLike ElseBlock
-        {
-            let nested = If $2 (Just $3) (fst $4) ($1, Just $ snd $4)
-            in (Just (Multiple [nested]), Just $1)
-        }
-    | KW_ELIF Expr BlockLike ElifBlocks
-        {
-            let nested = If $2 (Just $3) (fst $4) ($1, snd $4)
-            in (Just (Multiple [nested]), Just $1)
-        }
-    ;
-
-
 ElseBlock :: { (Maybe Block, Token) }
-    : KW_ELSE ';'                       { (Nothing, $1) }
-    | KW_ELSE BlockLike                 { (Just $2, $1) }
-    ;
-
-
-IfStmt :: { Statement }
-    : KW_IF Expr ';'                      %prec IFX { If $2 Nothing Nothing ($1, Nothing) }
-    | KW_IF Expr ';' ElseBlock                      { If $2 Nothing (fst $4) ($1, Just $ snd $4) }
-    | KW_IF Expr ';' ElifBlocks                     { If $2 Nothing (fst $4) ($1, snd $4) }
-    | KW_IF Expr BlockLike                %prec IFX { If $2 (Just $3) Nothing ($1, Nothing) }
-    | KW_IF Expr BlockLike ElseBlock                { If $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
-    | KW_IF Expr BlockLike ElifBlocks               { If $2 (Just $3) (fst $4) ($1, snd $4) }
+    : KW_ELSE BlockLike                 { (Just $2, $1) }
     ;
 
 
@@ -132,41 +95,36 @@ MaybeExpr :: { Maybe Expression }
     | Expr                                      { (Just $1) }
     ;
 
-ExprList :: { [Expression] }
-    : Expr                                      { [$1] }
-    | ExprList ',' Expr                         { $1 ++ [$3] }
+ForExprList :: { [Expression] }
+    : Expr ForExprListTail                      { $1 : $2 }
     ;
 
-ExprStmt :: { Statement }
-    : ExprList
-        {
-            case $1 of
-                [one] -> Expr one
-                _ -> Exprs $1
-        }
+ForExprListTail :: { [Expression] }
+    : {- empty -}                               { [] }
+    | ',' Expr ForExprListTail                  { $2 : $3 }
     ;
 
 ForVarInit :: { Statement }
     : VarDeclHead VarDeclItems
         { let
-              (isConst, headTokens) = $1;
-              mkDecl (names, mDeclType, mExpr, itemTokens) =
-                  (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens);
-              decls = map mkDecl $2
-          in case decls of
-              [one] -> one;
-              _ -> StmtGroup decls }
+            (isConst, headTokens) = $1;
+            mkDecl (names, mDeclType, mExpr, itemTokens) =
+                (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens);
+            decls = map mkDecl $2
+        in case decls of
+            [one] -> one;
+            _ -> StmtGroup decls }
     ;
 
 MaybeForInit :: { Maybe Statement }
     : {- empty -}                               { Nothing }
     | ForVarInit                                { Just $1 }
-    | ExprList                                  { Just $ Exprs $1 }
+    | ForExprList                               { Just $ Exprs $1 }
     ;
 
 MaybeForStep :: { Maybe Statement }
     : {- empty -}                               { Nothing }
-    | ExprList                                  { Just $ Exprs $1 }
+    | ForExprList                               { Just $ Exprs $1 }
     ;
 
 ForCondition :: { (Maybe Statement, Maybe Expression, Maybe Statement) }
@@ -310,13 +268,13 @@ VarDeclItems :: { [([String], Maybe Class, Maybe Expression, [Token])] }
 VarDeclStmt :: { Statement }
     : VarDeclHead VarDeclItems Sep
         { let
-              (isConst, headTokens) = $1;
-              mkDecl (names, mDeclType, mExpr, itemTokens) =
-                  (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens);
-              decls = map mkDecl $2
-          in case decls of
-              [one] -> one;
-              _ -> StmtGroup decls }
+            (isConst, headTokens) = $1;
+            mkDecl (names, mDeclType, mExpr, itemTokens) =
+                (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens);
+            decls = map mkDecl $2
+        in case decls of
+            [one] -> one;
+            _ -> StmtGroup decls }
     ;
 
 CDeclItem :: { ([String], Maybe Expression, [Token]) }
@@ -394,21 +352,15 @@ TypedLeadStmt :: { Statement }
     ;
 
 
--- assembled statement
-Stmt :: { Statement }
+StmtNoExpr :: { Statement }
     : KW_PASS Sep               { Command Pass $1 }
     | KW_CONTINUE Sep           { Command Continue $1 }
     | KW_BREAK Sep              { Command Break $1 }
     | KW_RETURN Sep             { Command (Return Nothing) $1 }
-    | KW_RETURN Stmt            { Command (Return (Just $ stmtToExpr $1 $2)) $1 }
-
-    | ExprStmt Sep                  { $1 }
-    
+    | KW_RETURN Expr Sep        { Command (Return (Just $2)) $1 }
     | VarDeclStmt                   { $1 }
 
     | TypedLeadStmt                 { $1 }
-    | Block Sep                     { BlockStmt $ fromMaybe (Multiple []) $1 }
-    | IfStmt                        { $1 }
     | ForStmt                       { $1 }
     | LoopStmt                      { $1 }
     | RepeatStmt                    { $1 }
@@ -420,24 +372,9 @@ Stmt :: { Statement }
     ;
 
 
--- block
-Block :: { Maybe Block }
-    : '{' StmtSeqOpt '}'        { Just $ Multiple $2 }
-    | '{' Sep '}'               { Nothing }
-    | '{' VarDeclHead VarDeclItem ',' Expr '}'
-        {
-            let
-                (isConst, headTokens) = $2;
-                (names, mDeclType, mExpr, itemTokens) = $3;
-                decl = (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens)
-            in Just $ Multiple [decl, Expr $5]
-        }
-    | '{' VarDeclHead VarDeclItem ',' Expr Sep '}'
-        {
-            let
-                (isConst, headTokens) = $2;
-                (names, mDeclType, mExpr, itemTokens) = $3;
-                decl = (if isConst then DefConstField else DefField) names mDeclType mExpr (headTokens ++ itemTokens)
-            in Just $ Multiple [decl, Expr $5]
-        }
+-- assembled statement
+Stmt :: { Statement }
+    : StmtNoExpr                   { $1 }
+    | Expr Sep
+        { exprToStmt $1 }
     ;

@@ -1,7 +1,7 @@
-﻿package com.diwang.bctoolkit.generator
+package com.diwang.bctoolkit.generator
 
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.Type
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.Type
 import xlang.annotation.OwnerTypeMetadata
 import org.objectweb.asm.ClassWriter
 

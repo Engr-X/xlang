@@ -258,6 +258,104 @@ ifElifSyntaxTests = testGroup "if_elif_syntax"
             other -> assertFailure ("expected nested If desugaring for elif, got: " ++ show other)
     ]
 
+ifColonNewlineStmtTests :: TestTree
+ifColonNewlineStmtTests = testGroup "if_colon_newline_stmt"
+    [ testCase "if body after ':' newline parses as statement" $
+        case replLexparseStmt (unlines
+            [ "if a:"
+            , "    b()"
+            ]) of
+            Right (If
+                (Variable "a" _)
+                (Just (Multiple [Expr (Call (Variable "b" _) [])]))
+                Nothing
+                _) -> pure ()
+            other -> assertFailure ("expected If statement with newline body, got: " ++ show other)
+
+    , testCase "if cast-bool condition with ':' newline body parses as statement" $
+        case replLexparseStmt (unlines
+            [ "if (x and 1) as bool:"
+            , "    mulByFibQ(mat)"
+            ]) of
+            Right (If
+                (Cast (Bool, _) (Binary BitAnd (Variable "x" _) (IntConst "1" _) _) _)
+                (Just (Multiple [Expr (Call (Variable "mulByFibQ" _) [Variable "mat" _])]))
+                Nothing
+                _) -> pure ()
+            other -> assertFailure ("expected If statement for cast-bool condition, got: " ++ show other)
+
+    , testCase "if body supports bare return without braces" $
+        case replLexparseStmt (unlines
+            [ "if size <= 1:"
+            , "    return"
+            ]) of
+            Right (If
+                (Binary LessEqual (Variable "size" _) (IntConst "1" _) _)
+                (Just (Multiple [Command (Return Nothing) _]))
+                Nothing
+                _) -> pure ()
+            other -> assertFailure ("expected If statement with bare return body, got: " ++ show other)
+
+    , testCase "if/elif with block return parses without colon-return ambiguity" $
+        case replLexparseStmt (unlines
+            [ "if x > 0: { return; }"
+            , "elif x == 0: { return; }"
+            , "else: { return; }"
+            ]) of
+            Right (If
+                (Binary GreaterThan (Variable "x" _) (IntConst "0" _) _)
+                (Just (Multiple [Command (Return Nothing) _]))
+                (Just (Multiple [If
+                    (Binary Equal (Variable "x" _) (IntConst "0" _) _)
+                    (Just (Multiple [Command (Return Nothing) _]))
+                    (Just (Multiple [Command (Return Nothing) _]))
+                    _]))
+                _) -> pure ()
+            other -> assertFailure ("expected if/elif/else with block return, got: " ++ show other)
+    ]
+
+returnIfExprTests :: TestTree
+returnIfExprTests = testGroup "return_if_expr"
+    [ testCase "return accepts if-expression with elif/else" $
+        case replLexparseStmt "return if a <= 1: a elif a == 2: 1 else: (fib(a - 1) + fib(a - 2));" of
+            Right (Command (Return (Just (IfExpr
+                (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                (Variable "a" _)
+                (IfExpr
+                    (Binary Equal (Variable "a" _) (IntConst "2" _) _)
+                    (IntConst "1" _)
+                    (Binary Add
+                        (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "1" _) _])
+                        (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "2" _) _])
+                        _)
+                    _)
+                _))) _) -> pure ()
+            other -> assertFailure ("expected return IfExpr statement, got: " ++ show other)
+    ]
+
+pointerDerefAssignStmtTests :: TestTree
+pointerDerefAssignStmtTests = testGroup "pointer_deref_assign_stmt"
+    [ testCase "parenthesized deref assignment parses as statement" $
+        case replLexparseStmt "(arr + i).deref = i;" of
+            Right (Expr (Binary Assign (Unary DeRef _ _) (Variable "i" _) _)) -> pure ()
+            other -> assertFailure ("expected deref assignment statement, got: " ++ show other)
+
+    , testCase "newline before parenthesized deref assignment is statement separator" $
+        case replLexparseStmt (unlines
+            [ "{"
+            , "val arr = 0 as pointer<int>"
+            , "val i = 0"
+            , "(arr + i).deref = i"
+            , "}"
+            ]) of
+            Right (BlockStmt (Multiple
+                [ DefConstField ["arr"] _ _ _
+                , DefConstField ["i"] _ _ _
+                , Expr (Binary Assign (Unary DeRef _ _) (Variable "i" _) _)
+                ])) -> pure ()
+            other -> assertFailure ("expected block with deref assignment line, got: " ++ show other)
+    ]
+
 inlineFunctionSyntaxTests :: TestTree
 inlineFunctionSyntaxTests = testGroup "inline_function_syntax"
     [ testCase "0" $
@@ -336,6 +434,9 @@ tests = testGroup "Parse.ParseStmt" [
     typedDeclSyntaxTests,
     loopSyntaxTests,
     ifElifSyntaxTests,
+    ifColonNewlineStmtTests,
+    returnIfExprTests,
+    pointerDerefAssignStmtTests,
     inlineFunctionSyntaxTests,
     mutParamSyntaxTests,
     templateFunctionSyntaxTests,

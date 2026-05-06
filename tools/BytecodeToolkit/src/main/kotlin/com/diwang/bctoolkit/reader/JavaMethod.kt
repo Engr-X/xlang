@@ -1,7 +1,7 @@
-﻿package com.diwang.bctoolkit.reader
+package com.diwang.bctoolkit.reader
 
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.TypeRef
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.TypeRef
 import xlang.annotation.OwnerTypeMetadata
 
 

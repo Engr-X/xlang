@@ -1,5 +1,6 @@
 import org.gradle.api.JavaVersion
 import org.gradle.api.GradleException
+import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.Sync
@@ -10,6 +11,7 @@ import org.gradle.kotlin.dsl.the
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 import java.io.File
+import java.util.zip.ZipFile
 
 plugins {
     kotlin("jvm") version "2.2.21"
@@ -30,6 +32,7 @@ val repoRoot = projectDir.resolve("../../..").canonicalFile
 val xlangSourceRoot = projectDir.resolve("src/main/xlang")
 val xlangOutDir = layout.buildDirectory.dir("generated/xlang/classes")
 val runtimeLibsDir = layout.buildDirectory.dir("runtime-libs")
+val bytecodeToolkitJar = repoRoot.resolve("build/tools/BytecodeToolkit.jar")
 val defaultXlangExe = repoRoot.resolve("build/xlang").absolutePath
 val fallbackXlangExe = repoRoot.resolve("build/xlang.exe").absolutePath
 val xlangExe = providers.gradleProperty("xlangExe")
@@ -56,6 +59,11 @@ val xlangFiles = fileTree(xlangSourceRoot) {
     include("**/*.xl")
 }
 
+val requiredStdClassEntries = listOf(
+    "xlang/Math.class",
+    "xlang/io/Console.class"
+)
+
 val compileXlang = tasks.register("compileXlang") {
     group = "build"
     description = "Compile .x sources under src/main/xlang into JVM .class files."
@@ -80,6 +88,12 @@ val compileXlang = tasks.register("compileXlang") {
                 "xlang executable not found: ${requestedExe.absolutePath}\n" +
                     "fallback also missing: $fallbackXlangExe\n" +
                     "Build it first from repo root, e.g. make compile"
+            )
+        }
+        if (!bytecodeToolkitJar.exists()) {
+            throw GradleException(
+                "BytecodeToolkit.jar not found: ${bytecodeToolkitJar.absolutePath}\n" +
+                    "Build it first from repo root, e.g. make tools (or make all_components)"
             )
         }
 
@@ -121,6 +135,17 @@ val compileXlang = tasks.register("compileXlang") {
                 environment("PATH", mergedPath)
                 environment("Path", mergedPath)
             }
+
+            val missingOutputs = requiredStdClassEntries.filterNot { entry ->
+                outDir.resolve(entry.replace('/', File.separatorChar)).exists()
+            }
+            if (missingOutputs.isNotEmpty()) {
+                throw GradleException(
+                    "xlang std compile did not produce required classes: ${missingOutputs.joinToString(", ")}\n" +
+                        "output dir: ${outDir.absolutePath}\n" +
+                        "This usually means xlang reported errors but returned exit code 0."
+                )
+            }
         }
     }
 }
@@ -134,7 +159,34 @@ tasks.named("classes") {
 }
 
 tasks.named<Jar>("jar") {
+    dependsOn(compileXlang)
+    from(xlangOutDir)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     archiveFileName.set("xlang-stdlib.jar")
+}
+
+val verifyStdlibJar = tasks.register("verifyStdlibJar") {
+    group = "verification"
+    description = "Verify xlang std jar contains required generated classes."
+    dependsOn(tasks.named<Jar>("jar"))
+
+    doLast {
+        val jarFile = tasks.named<Jar>("jar").get().archiveFile.get().asFile
+        if (!jarFile.exists()) {
+            throw GradleException("stdlib jar not found: ${jarFile.absolutePath}")
+        }
+
+        ZipFile(jarFile).use { zip ->
+            val names = zip.entries().asSequence().map { it.name }.toSet()
+            val missing = requiredStdClassEntries.filterNot { it in names }
+            if (missing.isNotEmpty()) {
+                throw GradleException(
+                    "stdlib jar is missing required classes: ${missing.joinToString(", ")}\n" +
+                        "jar: ${jarFile.absolutePath}"
+                )
+            }
+        }
+    }
 }
 
 val copyRuntimeLibs = tasks.register<Sync>("copyRuntimeLibs") {
@@ -145,6 +197,7 @@ val copyRuntimeLibs = tasks.register<Sync>("copyRuntimeLibs") {
 
 tasks.named("build") {
     dependsOn(copyRuntimeLibs)
+    dependsOn(verifyStdlibJar)
 }
 
 java {

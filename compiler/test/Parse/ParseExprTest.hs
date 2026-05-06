@@ -519,83 +519,197 @@ blockExprParseTests = testGroup "Parse.ParseExpr.blockexpr" [
 
 
 ifAssignSugarParseTests :: TestTree
-ifAssignSugarParseTests = testGroup "Parse.ParseExpr.ifAssignSugar" [
-    testCase "inline if-else assignment sugar" $
+ifAssignSugarParseTests = testGroup "Parse.ParseExpr.ifExpr" [
+    testCase "inline if-else assignment parses as IfExpr rhs" $
         case replLexparseExpr "a = if a > 10: 20 else: 10" of
-            Right (BlockExpr (Multiple [
-                If
+            Right (Binary Assign
+                (Variable "a" _)
+                (IfExpr
                     (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "20" _) _)]))
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "10" _) _)]))
-                    _,
-                Expr (Variable "a" _)
-                ])) -> pure ()
+                    (IntConst "20" _)
+                    (IntConst "10" _)
+                    _)
+                _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
-    testCase "multiline if-else assignment sugar" $
+    testCase "assignment supports missing-else sugar: a = if cond: v -> else: a" $
+        case replLexparseExpr "a = if a > 10: 20" of
+            Right (Binary Assign
+                (Variable "a" _)
+                (IfExpr
+                    (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
+                    (IntConst "20" _)
+                    (Variable "a" _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "multiline if-else assignment parses as IfExpr rhs" $
         case replLexparseExpr "a = if a > 10:\n100\nelse:\n10" of
-            Right (BlockExpr (Multiple [
-                If
+            Right (Binary Assign
+                (Variable "a" _)
+                (IfExpr
                     (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "100" _) _)]))
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "10" _) _)]))
-                    _,
-                Expr (Variable "a" _)
-                ])) -> pure ()
+                    (IntConst "100" _)
+                    (IntConst "10" _)
+                    _)
+                _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
-    testCase "elif is supported in assignment sugar" $
+    testCase "elif is supported in IfExpr rhs" $
         case replLexparseExpr "a = if a > 10: 20 elif a > 5: 15 else: 10" of
-            Right (BlockExpr (Multiple [
-                If
+            Right (Binary Assign
+                (Variable "a" _)
+                (IfExpr
                     (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "20" _) _)]))
-                    (Just (Multiple [
-                        If
-                            (Binary GreaterThan (Variable "a" _) (IntConst "5" _) _)
-                            (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "15" _) _)]))
-                            (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "10" _) _)]))
-                            _
-                        ]))
-                    _,
-                Expr (Variable "a" _)
-                ])) -> pure ()
+                    (IntConst "20" _)
+                    (IfExpr
+                        (Binary GreaterThan (Variable "a" _) (IntConst "5" _) _)
+                        (IntConst "15" _)
+                        (IntConst "10" _)
+                        _)
+                    _)
+                _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
     testCase "if branch value can be BlockExpr" $
         case replLexparseExpr "a = if a > 10: { val b = 10 + a; b * 10; } else: 10" of
-            Right (BlockExpr (Multiple [
-                If
+            Right (Binary Assign
+                (Variable "a" _)
+                (IfExpr
                     (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
-                    (Just (Multiple [Expr (BlockExpr (Multiple [
+                    (BlockExpr (Multiple [
                         DefConstField ["b"] Nothing (Just (Binary Add (IntConst "10" _) (Variable "a" _) _)) _,
-                        Expr (Binary Assign
-                            (Variable "a" _)
-                            (Binary Mul (Variable "b" _) (IntConst "10" _) _)
-                            _)
-                        ]))]))
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "10" _) _)]))
-                    _,
-                Expr (Variable "a" _)
-                ])) -> pure ()
+                        Expr (Binary Mul (Variable "b" _) (IntConst "10" _) _)
+                        ]))
+                    (IntConst "10" _)
+                    _)
+                _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
-    testCase "if branch blockexpr supports comma separator" $
-        case replLexparseExpr "a = if a > 10: { val b = 10 + a, b * 10 } else: 10" of
-            Right (BlockExpr (Multiple [
-                If
+    testCase "if branch blockexpr supports statement separator form" $
+        case replLexparseExpr "a = if a > 10: { val b = 10 + a; b * 10 } else: 10" of
+            Right (Binary Assign
+                (Variable "a" _)
+                (IfExpr
                     (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
-                    (Just (Multiple [Expr (BlockExpr (Multiple [
+                    (BlockExpr (Multiple [
                         DefConstField ["b"] Nothing (Just (Binary Add (IntConst "10" _) (Variable "a" _) _)) _,
-                        Expr (Binary Assign
-                            (Variable "a" _)
-                            (Binary Mul (Variable "b" _) (IntConst "10" _) _)
-                            _)
-                        ]))]))
-                    (Just (Multiple [Expr (Binary Assign (Variable "a" _) (IntConst "10" _) _)]))
-                    _,
-                Expr (Variable "a" _)
-                ])) -> pure ()
+                        Expr (Binary Mul (Variable "b" _) (IntConst "10" _) _)
+                        ]))
+                    (IntConst "10" _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "standalone IfExpr with bare else binary becomes (if-expr) + rhs" $
+        case replLexparseExpr "if a <= 1: a else: fib(a - 1) + fib(a - 2)" of
+            Right (Binary Add
+                (IfExpr
+                    (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                    (Variable "a" _)
+                    (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "1" _) _])
+                    _)
+                (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "2" _) _])
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "standalone IfExpr parses when else branch is parenthesized" $
+        case replLexparseExpr "if a <= 1: a else: (fib(a - 1) + fib(a - 2))" of
+            Right (IfExpr
+                (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                (Variable "a" _)
+                (Binary Add
+                    (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "1" _) _])
+                    (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "2" _) _])
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "if-expression binds tighter than binary: a = (if ...) + rhs" $
+        case replLexparseExpr "a = if a > 10: 20 else: 10 + 100" of
+            Right (Binary Assign
+                (Variable "a" _)
+                (Binary Add
+                    (IfExpr
+                        (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
+                        (IntConst "20" _)
+                        (IntConst "10" _)
+                        _)
+                    (IntConst "100" _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "parenthesized IfExpr can participate in + expression" $
+        case replLexparseExpr "a = (if a > 10: 20 else: 10) + 100" of
+            Right (Binary Assign
+                (Variable "a" _)
+                (Binary Add
+                    (IfExpr
+                        (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
+                        (IntConst "20" _)
+                        (IntConst "10" _)
+                        _)
+                    (IntConst "100" _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "else block without colon parses (same line)" $
+        case replLexparseExpr "if a <= 1: a else { val x = 1; x + 2; }" of
+            Right (IfExpr
+                (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                (Variable "a" _)
+                (BlockExpr (Multiple [
+                    DefConstField ["x"] Nothing (Just (IntConst "1" _)) _,
+                    Expr (Binary Add (Variable "x" _) (IntConst "2" _) _)
+                    ]))
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "else block without colon parses (newline)" $
+        case replLexparseExpr "if a <= 1: a else\n{\nval x = 1\nx + 2\n}" of
+            Right (IfExpr
+                (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                (Variable "a" _)
+                (BlockExpr (Multiple [
+                    DefConstField ["x"] Nothing (Just (IntConst "1" _)) _,
+                    Expr (Binary Add (Variable "x" _) (IntConst "2" _) _)
+                    ]))
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "elif block without colon parses (same line)" $
+        case replLexparseExpr "if a <= 1: a elif a == 2 { val x = 1; x + 2; } else: 0" of
+            Right (IfExpr
+                (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                (Variable "a" _)
+                (IfExpr
+                    (Binary Equal (Variable "a" _) (IntConst "2" _) _)
+                    (BlockExpr (Multiple [
+                        DefConstField ["x"] Nothing (Just (IntConst "1" _)) _,
+                        Expr (Binary Add (Variable "x" _) (IntConst "2" _) _)
+                        ]))
+                    (IntConst "0" _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "elif block without colon parses (newline)" $
+        case replLexparseExpr "if a <= 1: a elif a == 2\n{\nval x = 1\nx + 2\n}\nelse: 0" of
+            Right (IfExpr
+                (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
+                (Variable "a" _)
+                (IfExpr
+                    (Binary Equal (Variable "a" _) (IntConst "2" _) _)
+                    (BlockExpr (Multiple [
+                        DefConstField ["x"] Nothing (Just (IntConst "1" _)) _,
+                        Expr (Binary Add (Variable "x" _) (IntConst "2" _) _)
+                        ]))
+                    (IntConst "0" _)
+                    _)
+                _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 
@@ -615,6 +729,16 @@ pointerSuffixParseTests = testGroup "Parse.ParseExpr.pointerSuffix" [
     testCase "(1 + 2).ref is rejected (not a variable)" $
         case replLexparseExpr "(1 + 2).ref" of
             Left _ -> pure ()
-            other -> assertFailure ("expected parse failure, got: " ++ show other)
+            other -> assertFailure ("expected parse failure, got: " ++ show other),
+
+    testCase "cast supports pointer<*>" $
+        case replLexparseExpr "a as pointer<*>" of
+            Right (Cast (Pointer Void, _) (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "cast supports pointer::<void>" $
+        case replLexparseExpr "a as pointer::<void>" of
+            Right (Cast (Pointer Void, _) (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 

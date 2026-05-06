@@ -1,6 +1,6 @@
 package com.diwang.bctoolkit
 
-import com.wangdi.bctoolkit.generator.JsonAdapter
+import com.diwang.bctoolkit.generator.JsonAdapter
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
@@ -38,7 +38,7 @@ class JsonAdapterTest
         """.trimIndent()
 
         val adapter = JsonAdapter(json)
-        val emitter: com.wangdi.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
+        val emitter: com.diwang.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
         val outDir: Path = Files.createTempDirectory("bcg-test-a")
         emitter.save(outDir)
 
@@ -76,7 +76,7 @@ class JsonAdapterTest
         """.trimIndent()
 
         val adapter = JsonAdapter(json)
-        val emitter: com.wangdi.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
+        val emitter: com.diwang.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
         val outDir: Path = Files.createTempDirectory("bcg-test-compact")
         emitter.save(outDir)
 
@@ -123,7 +123,7 @@ class JsonAdapterTest
         """.trimIndent()
 
         val adapter = JsonAdapter(json)
-        val emitter: com.wangdi.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
+        val emitter: com.diwang.bctoolkit.generator.ClassEmitter = adapter.getClassEmitter()
         val outDir: Path = Files.createTempDirectory("bcg-test-b")
         emitter.save(outDir)
 

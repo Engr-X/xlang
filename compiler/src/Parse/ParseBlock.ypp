@@ -38,6 +38,8 @@ import qualified Util.Exception as UE
     KW_MUT              { t@(Lex.Ident "mut" _) }
     KW_INLINE           { t@(Lex.Ident "inline" _) }
     KW_NATIVE           { t@(Lex.Ident "native" _) }
+    KW_POINTER          { t@(Lex.Ident "pointer" _) }
+    KW_BLOB             { t@(Lex.Ident "blob" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
@@ -100,7 +102,6 @@ import qualified Util.Exception as UE
 
     -- literals / identifiers
     identity            { t@(Lex.Ident _ _) }
-    annotation          { t@(Lex.Annotation _ _ _) }
     number              { t@(Lex.NumberConst _ _) }
     character           { t@(Lex.CharConst _ _) }
     string              { t@(Lex.StrConst _ _) }
@@ -108,6 +109,8 @@ import qualified Util.Exception as UE
 
     '('                 { t@(Lex.Symbol Lex.LParen _) }
     ')'                 { t@(Lex.Symbol Lex.RParen _) }
+    '['                 { t@(Lex.Symbol Lex.LBracket _) }
+    ']'                 { t@(Lex.Symbol Lex.RBracket _) }
     '{'                 { t@(Lex.Symbol Lex.LBrace _) }
     '}'                 { t@(Lex.Symbol Lex.RBrace _) }
     '@'                 { t@(Lex.Symbol Lex.At _) }
@@ -119,10 +122,12 @@ import qualified Util.Exception as UE
     '->'                { t@(Lex.Symbol Lex.Arrow _) }
     '!->'                { t@(Lex.Symbol Lex.NotArrow _) }
     '<->'               { t@(Lex.Symbol Lex.IffArrow _) }
-    '=>'                { t@(Lex.Symbol Lex.FatArrow _) }
     '.'                 { t@(Lex.Symbol Lex.Dot _) }
 
 -- Happy precedence declarations are from low to high.
+
+%nonassoc NL
+%nonassoc IFX
 
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
@@ -181,9 +186,8 @@ import qualified Util.Exception as UE
 %left '++' '--'
 
 -- 0: atom/call/cast
-
-%nonassoc IFX
 %nonassoc KW_ELIF KW_ELSE
+
 
 %%
 

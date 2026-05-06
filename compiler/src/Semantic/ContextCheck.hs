@@ -62,6 +62,7 @@ hasAssign = go
     go (AST.Cast _ x _) = go x
     go (AST.Call f args) = go f || any go args
     go (AST.CallT f _ args) = go f || any go args
+    go (AST.IfExpr cond thenE elseE _) = go cond || go thenE || go elseE
     go (AST.BlockExpr (AST.Multiple ss)) = any stmtHasAssign ss
     -- Leaves
     go (AST.Error _ _) = False
@@ -307,6 +308,10 @@ checkExpr p packages envs expr = case expr of
                             else case lookupHiddenVarPos names envs of
                                 Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
                                 Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+    AST.IfExpr cond thenE elseE _ -> do
+        checkExpr p packages envs cond
+        checkExpr p packages envs thenE
+        checkExpr p packages envs elseE
     AST.BlockExpr (AST.Multiple ss) ->
         withScope $ checkBlockExprItems ss
                     
@@ -336,15 +341,21 @@ checkExpr p packages envs expr = case expr of
 
             AST.Qualified names toks ->
                 case parsePointerSuffixQualified names toks of
-                    Just _ ->
-                        addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks)
-                            (cannotAssignMsg (AST.prettyExpr 0 (Just e1)))
+                    Just (baseName, baseTok, ops) -> do
+                        checkExpr p packages envs (AST.Variable baseName baseTok)
+                        if isAssignablePtrLhs ops
+                            then pure ()
+                            else addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks)
+                                (cannotAssignMsg (AST.prettyExpr 0 (Just e1)))
                     Nothing -> do
                         c <- get
                         let cState = st c
                         case defineLocalVar p (AST.Binary AST.Assign e1 e2 tok) cState of
                             Left err -> addErr err
                             Right cState' -> put $ c { st = cState' }
+
+            AST.Unary AST.DeRef inner _ -> do
+                checkExpr p packages envs inner
 
             _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens e1) (cannotAssignMsg (AST.prettyExpr 0 (Just e1)))
 
@@ -356,6 +367,10 @@ checkExpr p packages envs expr = case expr of
     AST.Call callee args -> checkCall callee args
     AST.CallT callee _ args -> checkCall callee args
     where
+        isAssignablePtrLhs :: [PtrSuffixOp] -> Bool
+        isAssignablePtrLhs [] = False
+        isAssignablePtrLhs ops = all (== PtrDeref) ops
+
         checkBlockExprItems :: [Statement] -> CheckM ()
         checkBlockExprItems [] =
             addErr $ UE.Syntax $ UE.makeError p [] "block expression cannot be empty"
@@ -425,13 +440,13 @@ checkExpr p packages envs expr = case expr of
 
 
 checkDefDecl :: Path -> QName -> [ImportEnv] -> Bool -> Bool -> [String] -> Maybe AST.Class -> Maybe Expression -> [Token] -> CheckM ()
-checkDefDecl p package envs isFieldDecl isConstDecl names _mDeclType mRhs toks = do
+checkDefDecl p package envs isFieldDecl isConstDecl names mDeclType mRhs toks = do
     validateDeclAccess p toks
     c0 <- get
     let parentCtrl = parentCtrlFor (st c0)
         shouldBeVar = parentCtrl /= Just InClass
 
-    when (isFieldDecl && shouldBeVar && isNothing mRhs) $
+    when (isFieldDecl && shouldBeVar && isNothing mRhs && not (isBlobDeclType mDeclType)) $
         let nameText = case names of
                 [name] -> name
                 _ -> intercalate "." names
@@ -459,6 +474,10 @@ checkDefDecl p package envs isFieldDecl isConstDecl names _mDeclType mRhs toks =
                 let errPos = maybe (map tokenPos toks) (map tokenPos . exprTokens) mRhs
                 in addErr $ UE.Syntax $ UE.makeError p errPos UE.internalErrorMsg
         _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos toks) UE.unsupportedErrorMsg
+  where
+    isBlobDeclType :: Maybe AST.Class -> Bool
+    isBlobDeclType (Just (AST.Blob _)) = True
+    isBlobDeclType _ = False
 
 
 -- | Continue is valid only inside loops.

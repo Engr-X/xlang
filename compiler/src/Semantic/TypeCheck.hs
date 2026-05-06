@@ -10,11 +10,11 @@ import Data.Char (toLower)
 import Data.List (find, foldl', intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, stmtTokens, prettyClass, prettyExpr, prettyOp, promoteTopLevelFunctions, inlineProgramFunctions)
+import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, stmtTokens, prettyClass, prettyExpr, prettyOp, promoteTopLevelFunctions, inlineProgramFunctions, blobConstSizeMaybe, blobSizeExprMaybe)
 import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineDeclaredVar, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
-import Semantic.OpInfer (augAssignOp, binaryOpCastTypeMaybe, iCast, inferBinaryOpMaybe, inferUnaryOp, isBasicType, isPointerType, widenedArgs)
+import Semantic.OpInfer (augAssignOp, binaryOpCastTypeMaybe, iCast, inferBinaryOpMaybe, inferUnaryOp, isBasicType, isIntegerType, isPointerType, widenedArgs)
 import Semantic.TypeEnv (FullVarTable(..), FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable, defaultTypedImportEnv)
 import Util.Exception (ErrorKind, Warning(..), staticCastError)
 import Util.Type (Path, Position)
@@ -115,6 +115,27 @@ normalizeTypeAlias cls = case cls of
     other -> other
 
 
+checkBlobTypeConstraints :: Path -> [Position] -> Class -> TypeM ()
+checkBlobTypeConstraints path pos ty = do
+    let errs = collect ty
+    mapM_ (\why -> addErr (UE.Syntax (UE.makeError path pos why))) errs
+  where
+    collect :: Class -> [String]
+    collect cls = case cls of
+        Blob _ ->
+            case blobConstSizeMaybe cls of
+                Just n -> ["blob size must be greater than 0" | n <= 0]
+                Nothing -> []
+        Pointer (Blob _) ->
+            ["pointer<blob[N]> is not supported; use pointer<*> (void*) instead"]
+        Pointer inner ->
+            collect inner
+        Class _ args ->
+            concatMap collect args
+        _ ->
+            []
+
+
 data PtrSuffixOp
     = PtrRef
     | PtrDeref
@@ -136,6 +157,57 @@ parsePointerSuffixQualified names toks = case (names, toks) of
         "deref" -> Just PtrDeref
         "dref" -> Just PtrDeref
         _ -> Nothing
+
+isAssignablePtrLhsOps :: [PtrSuffixOp] -> Bool
+isAssignablePtrLhsOps [] = False
+isAssignablePtrLhsOps ops = all (== PtrDeref) ops
+
+inferAssignablePtrLhsType :: Path -> [Position] -> Class -> [PtrSuffixOp] -> TypeM Class
+inferAssignablePtrLhsType path pos baseTy ops = go baseTy ops
+  where
+    go :: Class -> [PtrSuffixOp] -> TypeM Class
+    go ty [] = pure ty
+    go _ (PtrRef:_) = do
+        addErr $ UE.Syntax $ UE.makeError path pos
+            "ref is not allowed on assignment left-hand side"
+        pure ErrorClass
+    go ty (PtrDeref:rest) = case ty of
+        ErrorClass -> pure ErrorClass
+        Blob _ -> do
+            addErr $ UE.Syntax $ UE.makeError path pos
+                "deref does not support blob[N], cast it to pointer<T> first"
+            pure ErrorClass
+        Pointer Void -> do
+            addErr $ UE.Syntax $ UE.makeError path pos
+                "deref does not support pointer<void>"
+            pure ErrorClass
+        Pointer inner ->
+            if null rest
+                then pure inner
+                else go inner rest
+        _ -> do
+            addErr $ UE.Syntax $ UE.makeError path pos $
+                "deref expects pointer type, got " ++ prettyClass ty
+            pure ErrorClass
+
+
+inferDirectDerefTargetType :: Path -> [Position] -> Class -> TypeM Class
+inferDirectDerefTargetType path pos ty = case ty of
+    ErrorClass -> pure ErrorClass
+    Blob _ -> do
+        addErr $ UE.Syntax $ UE.makeError path pos
+            "deref does not support blob[N], cast it to pointer<T> first"
+        pure ErrorClass
+    Pointer Void -> do
+        addErr $ UE.Syntax $ UE.makeError path pos
+            "deref does not support pointer<void>"
+        pure ErrorClass
+    Pointer inner -> pure inner
+    _ | isIntegerType ty -> pure Int64T
+    _ -> do
+        addErr $ UE.Syntax $ UE.makeError path pos $
+            "deref expects pointer or integer address type, got " ++ prettyClass ty
+        pure ErrorClass
 
 
 -- | Compute flags for a newly defined variable at the current depth.
@@ -198,6 +270,7 @@ checkTypeCompat path pos expected actual = do
   where
     pointerAsInt64 :: Class -> Class
     pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 (Blob _) = Int64T
     pointerAsInt64 c0 = c0
 
 -- | Check condition expression type (must be bool).
@@ -207,6 +280,38 @@ checkCondBool path pos actual = do
         pure ()
     else
         addErr $ UE.Syntax $ UE.makeError path pos (UE.conditionBoolMsg (prettyClass actual))
+
+
+shouldWarnBinaryCastsTC :: Operator -> Class -> Class -> Bool
+shouldWarnBinaryCastsTC bop a b = case bop of
+    Add -> not (isPointerArithPair a b)
+    Sub -> not (isPointerType a && isIntegerType b)
+    _ -> True
+  where
+    isPointerArithPair :: Class -> Class -> Bool
+    isPointerArithPair x y =
+        (isPointerType x && isIntegerType y) ||
+        (isIntegerType x && isPointerType y)
+
+
+inferIfExprType :: Path -> [Position] -> Class -> Class -> TypeM Class
+inferIfExprType _ _ ErrorClass _ = pure ErrorClass
+inferIfExprType _ _ _ ErrorClass = pure ErrorClass
+inferIfExprType path pos tThen tElse =
+    let tThenN = normalizeTypeAlias tThen
+        tElseN = normalizeTypeAlias tElse
+    in
+        if tThenN == tElseN then
+            pure tThenN
+        else
+            case binaryOpCastTypeMaybe Add tThenN tElseN of
+                Just castT -> do
+                    mapM_ addWarn (iCast path pos tThenN castT)
+                    mapM_ addWarn (iCast path pos tElseN castT)
+                    pure castT
+                Nothing -> do
+                    checkTypeCompat path pos tThenN tElseN
+                    pure tThenN
 
 
 -- | Create a new lexical scope for the duration of an action, then restore depth/scope.
@@ -284,6 +389,13 @@ inferExpr p _ _ e@(LongDoubleConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(CharConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(BoolConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(StringConst _ _) = inferLiteral p e
+
+inferExpr path packages envs (IfExpr cond thenE elseE _) = do
+    tCond <- inferExpr path packages envs cond
+    checkCondBool path (map Lex.tokenPos (exprTokens cond)) tCond
+    tThen <- inferExpr path packages envs thenE
+    tElse <- inferExpr path packages envs elseE
+    inferIfExprType path (map Lex.tokenPos (exprTokens thenE ++ exprTokens elseE)) tThen tElse
 
 inferExpr path packages envs (BlockExpr (Multiple ss)) =
     withScope (inferBlockExprItems ss)
@@ -412,6 +524,14 @@ inferExpr path packages envs (Qualified names toks) = do
     inferDerefChain pos baseTy (_:rest) =
         case baseTy of
             ErrorClass -> pure ErrorClass
+            Blob _ -> do
+                addErr $ UE.Syntax $ UE.makeError path pos
+                    "deref does not support blob[N], cast it to pointer<T> first"
+                pure ErrorClass
+            Pointer Void -> do
+                addErr $ UE.Syntax $ UE.makeError path pos
+                    "deref does not support pointer<void>"
+                pure ErrorClass
             Pointer inner -> inferDerefChain pos inner rest
             _ -> do
                 addErr $ UE.Syntax $ UE.makeError path pos $
@@ -447,7 +567,30 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
   where
     pointerAsInt64 :: Class -> Class
     pointerAsInt64 (Pointer _) = Int64T
+    pointerAsInt64 (Blob _) = Int64T
     pointerAsInt64 c0 = c0
+
+inferExpr path packages envs e@(Unary DeRef innerE _) = do
+    t0 <- inferExpr path packages envs innerE
+    let pos = map Lex.tokenPos (exprTokens e)
+    inferDirectDerefTargetType path pos t0
+
+inferExpr path packages envs e@(Unary AddrOf innerE _) = do
+    t0 <- inferExpr path packages envs innerE
+    let pos = map Lex.tokenPos (exprTokens e)
+    case innerE of
+        Variable {} -> pure (Pointer t0)
+        Qualified names toks ->
+            case parsePointerSuffixQualified names toks of
+                Just (_, _, [PtrRef]) -> pure t0
+                _ -> do
+                    addErr $ UE.Syntax $ UE.makeError path pos
+                        "ref can only be used on variables"
+                    pure ErrorClass
+        _ -> do
+            addErr $ UE.Syntax $ UE.makeError path pos
+                "ref can only be used on variables"
+            pure ErrorClass
 
 inferExpr path packages envs e@(Unary op innerE _) = do
     if isIncDecOperator op then do
@@ -520,8 +663,24 @@ inferExpr path packages envs e@(Binary Assign lhs rhs _) = do
                                     }
                         Nothing ->
                             put $ c { tcCtx = cctx { CC.st = cState'' } }
-        Qualified _ toks ->
-            addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+        Qualified names toks ->
+            case parsePointerSuffixQualified names toks of
+                Just (baseName, baseTok, ops) -> do
+                    let posAll = map Lex.tokenPos toks
+                    if not (isAssignablePtrLhsOps ops)
+                        then addErr $ UE.Syntax $ UE.makeError path posAll
+                            (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
+                        else do
+                            baseTy <- inferExpr path packages envs (Variable baseName baseTok)
+                            tLhs <- inferAssignablePtrLhsType path posAll baseTy ops
+                            checkTypeCompat path posAll tLhs tRhsN
+                Nothing ->
+                    addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+        Unary DeRef inner _ -> do
+            let posAll = map Lex.tokenPos (exprTokens lhs)
+            baseTy <- inferExpr path packages envs inner
+            tLhs <- inferDirectDerefTargetType path posAll baseTy
+            checkTypeCompat path posAll tLhs tRhsN
         _ ->
             addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens lhs)) (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
     pure tRhsN
@@ -532,9 +691,25 @@ inferExpr path packages envs e@(Binary op lhs rhs _)
         tRhs <- inferExpr path packages envs rhs
         tLhs <- case lhs of
             Variable {} -> inferExpr path packages envs lhs
-            Qualified _ toks -> do
-                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
-                pure ErrorClass
+            Qualified names toks ->
+                case parsePointerSuffixQualified names toks of
+                    Just (baseName, baseTok, ops) -> do
+                        let posAll = map Lex.tokenPos toks
+                        if not (isAssignablePtrLhsOps ops)
+                            then do
+                                addErr $ UE.Syntax $ UE.makeError path posAll
+                                    (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
+                                pure ErrorClass
+                            else do
+                                baseTy <- inferExpr path packages envs (Variable baseName baseTok)
+                                inferAssignablePtrLhsType path posAll baseTy ops
+                    Nothing -> do
+                        addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+                        pure ErrorClass
+            Unary DeRef inner _ -> do
+                let posAll = map Lex.tokenPos (exprTokens lhs)
+                baseTy <- inferExpr path packages envs inner
+                inferDirectDerefTargetType path posAll baseTy
             _ -> do
                 addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens lhs)) (UE.cannotAssignMsg (prettyExpr 0 (Just lhs)))
                 pure ErrorClass
@@ -563,8 +738,9 @@ inferExpr path packages envs e@(Binary op lhs rhs _)
                 else
                     case (inferBinaryOpMaybe baseOp tLhsN tRhsN, binaryOpCastTypeMaybe baseOp tLhsN tRhsN) of
                         (Just resT, Just castT) -> do
-                            mapM_ addWarn (iCast path pos tLhsN castT)
-                            mapM_ addWarn (iCast path pos tRhsN castT)
+                            when (shouldWarnBinaryCastsTC baseOp tLhsN tRhsN) $ do
+                                mapM_ addWarn (iCast path pos tLhsN castT)
+                                mapM_ addWarn (iCast path pos tRhsN castT)
                             checkTypeCompat path pos tLhsN resT
                             pure tLhsN
                         _ -> do
@@ -583,15 +759,15 @@ inferExpr path packages envs e@(Binary op e1 e2 _) = do
     else
         case (inferBinaryOpMaybe op t1 t2, binaryOpCastTypeMaybe op t1 t2) of
             (Just resT, Just castT) -> do
-                mapM_ addWarn (iCast path pos t1 castT)
-                mapM_ addWarn (iCast path pos t2 castT)
+                when (shouldWarnBinaryCastsTC op t1 t2) $ do
+                    mapM_ addWarn (iCast path pos t1 castT)
+                    mapM_ addWarn (iCast path pos t2 castT)
                 pure resT
             _ -> do
                 addErr $ UE.Syntax $ UE.makeError path pos $
                     "unsupported operand types for '" ++ prettyOp op ++ "': "
                         ++ prettyClass t1 ++ ", " ++ prettyClass t2
                 pure ErrorClass
-
 inferExpr path packages envs e@(Call callee args) = do
     c <- get
     let TypeCtx{tcFunScopes = fScopes} = c
@@ -795,6 +971,7 @@ isIncDecOperandType :: Class -> Bool
 isIncDecOperandType cls =
     case cls of
         Pointer _ -> True
+        Blob _ -> True
         _ -> isBasicType cls && cls /= Bool
 
 
@@ -908,6 +1085,8 @@ inferFunctionLikeStmt ::
     TypeM ()
 inferFunctionLikeStmt path packages envs retT params mBody = do
     c <- get
+    checkBlobTypeConstraints path [] retT
+    mapM_ (\(pt, _, toks) -> checkBlobTypeConstraints path (map Lex.tokenPos toks) pt) params
     let cctx = tcCtx c
         cState = CC.st cctx
         depth0 = depth cState
@@ -1103,6 +1282,14 @@ inferDefineStmt ::
 inferDefineStmt path packages envs isConst names mDeclType mRhs toks = do
     mTRhs <- traverse (inferExpr path packages envs) mRhs
     let mDeclTypeN = normalizeTypeAlias <$> mDeclType
+    mapM_ (checkBlobTypeConstraints path (map Lex.tokenPos toks)) mDeclTypeN
+    case mDeclTypeN >>= blobSizeExprMaybe of
+        Just sizeExpr -> do
+            sizeTy <- inferExpr path packages envs sizeExpr
+            unless (isIntegerType sizeTy) $
+                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens sizeExpr)) $
+                    "blob size expression must be integer, got " ++ prettyClass sizeTy
+        Nothing -> pure ()
     let declFlags = ([Final | isConst])
 
     case names of

@@ -6,6 +6,8 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Parse.SyntaxTree (Class(..), Operator(..))
 import Semantic.OpInfer
+import Util.Exception (Warning(..))
+import Util.Type (makePosition)
 
 import qualified Data.Map.Strict as Map
 
@@ -47,9 +49,10 @@ inferBinaryOpTests = testGroup "Semantic.OpInfer.inferBinaryOp" $
         ("2", Pow, Float128T, Float128T, Float128T),
         ("3", Mod, Int64T, Int16T, Int64T),
         ("4", Mod, Bool, Bool, Int32T),
-        ("5", Add, Pointer Int32T, Int32T, Pointer Int32T),
-        ("6", Add, Pointer Int32T, Pointer Int16T, Pointer Int32T),
-        ("7", Equal, Pointer Int32T, Int64T, Bool)]
+        ("5", Add, Pointer Int32T, Int32T, Int64T),
+        ("6", Add, Pointer Int32T, Pointer Int16T, Int64T),
+        ("7", Add, Pointer Int32T, Float64T, Float64T),
+        ("8", Equal, Pointer Int32T, Int64T, Bool)]
 
 
 inferUnaryOpTests :: TestTree
@@ -57,7 +60,8 @@ inferUnaryOpTests = testGroup "Semantic.OpInfer.inferUnaryOp" [
     testCase "0" $ inferUnaryOp LogicalNot Bool @?= Bool,
     testCase "1" $ inferUnaryOp BitInv Int16T @?= Int16T,
     testCase "2" $ inferUnaryOp UnaryMinus Int8T @?= Int32T,
-    testCase "3" $ do
+    testCase "3" $ inferUnaryOp SelfInc (Pointer Int32T) @?= Pointer Int32T,
+    testCase "4" $ do
         res <- try (evaluate (inferUnaryOp LogicalNot Float32T)) :: IO (Either SomeException Class)
         case res of
             Left ex -> assertBool "should report unsupported unary operator" ("unsupported unary operator" `isInfixOf` show ex)
@@ -74,7 +78,26 @@ augAssignOpTests = testGroup "Semantic.OpInfer.augAssignOp" $
         ("3", Assign, Nothing)]
 
 
+warnTag :: Warning -> String
+warnTag w = case w of
+    ImplicitCast _ -> "implicit"
+    OverflowWarning _ -> "overflow"
+    UnderflowWarning _ -> "underflow"
+    Null -> "null"
+
+
+iCastTests :: TestTree
+iCastTests = testGroup "Semantic.OpInfer.iCast" [
+    testCase "0 integer widening is silent (int -> long)" $
+        iCast "stdin" [makePosition 1 1 1] Int32T Int64T @?= [],
+    testCase "1 integer narrowing warns (long -> int)" $
+        map warnTag (iCast "stdin" [makePosition 1 1 1] Int64T Int32T) @?= ["implicit", "overflow"],
+    testCase "2 pointer<T> -> pointer<void> is silent" $
+        iCast "stdin" [makePosition 1 1 1] (Pointer Int32T) (Pointer Void) @?= []
+    ]
+
+
 tests :: TestTree
-tests = testGroup "Semantic.OpInfer" [isBasicTypeTests, promoteBasicTypeTests, binOpInferTests, inferBinaryOpTests, inferUnaryOpTests, augAssignOpTests]
+tests = testGroup "Semantic.OpInfer" [isBasicTypeTests, promoteBasicTypeTests, binOpInferTests, inferBinaryOpTests, inferUnaryOpTests, augAssignOpTests, iCastTests]
 
 

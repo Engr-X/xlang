@@ -14,14 +14,3 @@ Decl :: { Declaration }
                                 { JavaName (strVal $4) $4 }
     ;
 
-
-DeclSeq :: { [Declaration] }
-    : Decl             { [$1] }
-    | DeclSeq Decl     { $2 : $1 }
-    ;
-
-
-DeclSeqOpt :: { [Declaration] }
-    : {- empty -}     { [] }
-    | DeclSeq         { reverse $1 }
-    ;

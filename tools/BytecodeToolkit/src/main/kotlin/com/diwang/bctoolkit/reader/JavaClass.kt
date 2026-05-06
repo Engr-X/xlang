@@ -1,6 +1,6 @@
-﻿package com.diwang.bctoolkit.reader
+package com.diwang.bctoolkit.reader
 
-import com.wangdi.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.Access
 
 
 class JavaClass(

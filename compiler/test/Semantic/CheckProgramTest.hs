@@ -848,6 +848,31 @@ collectTopLevelVarsTests = mkGroup "Semantic.CheckProgram.collectTopLevelVars" [
         collectTopLevelVars "v4.x" ["p"] [stmt] ctx @?= [])
     ]
 
+externalQualifiedNoImportTests :: TestTree
+externalQualifiedNoImportTests = mkGroup "Semantic.CheckProgram.externalQualifiedNoImport" [
+    ("0", do
+        let fullQn = ["xlang", "Math", "isPrime"]
+            sig = FunSig { funParams = [Int32T], funReturn = Bool }
+            extI = IEnv { file = "ext", iVars = Map.empty, iFuncs = Map.fromList [(fullQn, [])] }
+            extT0 = emptyTypedImportEnv "ext"
+            extT = extT0 { tFuncs = Map.fromList [(fullQn, ([sig], [], fullQn))] }
+            callExpr = Call (Qualified fullQn (zipWith identTok fullQn [10..])) [intExpr 7 20]
+            mainStmt = Function (Void, [identTok "void" 1]) (varExpr "main" 2) [] (Multiple [Expr callExpr])
+            prog = mkProgram [] [] [mainStmt]
+        case checkProgmWithDeps "." [extI] [extT] [("main.x", prog)] of
+            Right _ -> pure ()
+            Left errs -> assertFailure ("expected qualified external call without import to pass, got: " ++ show errs)),
+
+    ("1", do
+        let fullQn = ["xlang", "Math", "isPrime"]
+            callExpr = Call (Qualified fullQn (zipWith identTok fullQn [10..])) [intExpr 7 20]
+            mainStmt = Function (Void, [identTok "void" 1]) (varExpr "main" 2) [] (Multiple [Expr callExpr])
+            prog = mkProgram [] [] [mainStmt]
+        assertLeftWith (checkProgmWithDeps "." [] [] [("main.x", prog)]) $ \errs ->
+            assertBool "must report undefined external symbol without deps"
+                (any (isInfixOf "'xlang.Math.isPrime' is not defined in this context." . errWhy) errs))
+    ]
+
 
 tests :: TestTree
 tests = testGroup "Semantic.CheckProgram" [
@@ -872,6 +897,7 @@ tests = testGroup "Semantic.CheckProgram" [
     checkPackageTests,
     buildExportTests,
     collectFunctionsTests,
-    collectTopLevelVarsTests
+    collectTopLevelVarsTests,
+    externalQualifiedNoImportTests
     ]
 

@@ -28,12 +28,18 @@ OBJ_DIR := $(BUILD_DIR_NORM)/obj
 LIB_DIR := $(BUILD_DIR_NORM)/libs
 endif
 
-SRC_CONSOLE := $(SRC_ROOT)/src/c/xlang/io/console.c
-SRC_MATH := $(SRC_ROOT)/src/c/xlang/math.c
+BASE_C_SOURCES := \
+	xlang/io/console.c \
+	xlang/math.c \
+	xlang/system.c
 
-OBJ_CONSOLE := $(OBJ_DIR)/xlang/io/console.o
-OBJ_MATH := $(OBJ_DIR)/xlang/math.o
-OBJ := $(OBJ_CONSOLE) $(OBJ_MATH)
+SRC_C_FILES := $(addprefix $(SRC_ROOT)/src/c/,$(BASE_C_SOURCES))
+OBJ := $(addprefix $(OBJ_DIR)/,$(BASE_C_SOURCES:.c=.o))
+
+XLANG_SOURCES := \
+	xlang/Math.x \
+	xlang/System.x \
+	xlang/io/Console.x
 STD_OBJ_DIR := $(OBJ_DIR)/xlang-std
 STD_OBJ_STAMP := $(STD_OBJ_DIR)/.built
 STD_OBJ_DIR_ABS := $(abspath $(STD_OBJ_DIR))
@@ -163,16 +169,13 @@ info:
 	@echo XLANG_EXE_FALLBACK=$(XLANG_EXE_FALLBACK)
 	@echo REPO_ROOT=$(REPO_ROOT)
 	@echo XLANG_SRC_ROOT=$(XLANG_SRC_ROOT)
+	@echo XLANG_SOURCES=$(XLANG_SOURCES)
 
 shared: $(SHARED_LIB)
 
 static: $(STATIC_LIB)
 
-$(OBJ_CONSOLE): $(SRC_CONSOLE)
-	@mkdir -p "$(@D)"
-	$(CC) $(CFLAGS) $(PIC_FLAGS) -c "$<" -o "$@"
-
-$(OBJ_MATH): $(SRC_MATH)
+$(OBJ_DIR)/%.o: $(SRC_ROOT)/src/c/%.c
 	@mkdir -p "$(@D)"
 	$(CC) $(CFLAGS) $(PIC_FLAGS) -c "$<" -o "$@"
 
@@ -222,11 +225,17 @@ $(STD_OBJ_STAMP): FORCE $(SHARED_LIB) $(STATIC_LIB)
 	fi; \
 	mkdir -p "$(STD_OBJ_DIR_ABS)"; \
 	find "$(STD_OBJ_DIR_ABS)" -type f \( -name '*.o' -o -name '.built' \) -delete; \
-	srcs="$$(cd "$(XLANG_SRC_ROOT)" && find . -type f \( -name '*.x' -o -name '*.xl' -o -name '*.xlang' \) | sed 's|^\./||' | sort)"; \
+	srcs="$(XLANG_SOURCES)"; \
 	if [ -z "$$srcs" ]; then \
 		echo "no xlang sources found under $(XLANG_SRC_ROOT)"; \
 		exit 1; \
 	fi; \
+	for src in $$srcs; do \
+		if [ ! -f "$(XLANG_SRC_ROOT)/$$src" ]; then \
+			echo "xlang source not found: $(XLANG_SRC_ROOT)/$$src"; \
+			exit 1; \
+		fi; \
+	done; \
 	"$$xlang_exe" --target=x64 $(XLANG_X64_COMPILER_FLAG) --root="$(XLANG_SRC_ROOT)" $$srcs -d "$(STD_OBJ_DIR_ABS)" -j$(XLANG_JOBS); \
 	objs="$$(find "$(STD_OBJ_DIR_ABS)" -type f -name '*.o' | sort)"; \
 	if [ -z "$$objs" ]; then \
@@ -314,7 +323,14 @@ uninstall:
 
 clean:
 	@if [ "$(BUILD_DIR_NORM)" = "." ] || [ "$(BUILD_DIR_NORM)" = "./" ]; then \
-		$(RM) -r "$(OBJ_DIR)" "$(LIB_DIR)"; \
+		$(RM) -r "$(OBJ_DIR)" 2>/dev/null || true; \
+		if ! $(RM) -r "$(LIB_DIR)" 2>/dev/null; then \
+			if [ -d "$(LIB_DIR)" ]; then \
+				echo "[WARN] clean: '$(LIB_DIR)' is busy, fallback to deleting contents only"; \
+				find "$(LIB_DIR)" -mindepth 1 -type f -delete 2>/dev/null || true; \
+				find "$(LIB_DIR)" -mindepth 1 -type d -empty -delete 2>/dev/null || true; \
+			fi; \
+		fi; \
 	else \
-		$(RM) -r "$(BUILD_DIR_NORM)"; \
+		$(RM) -r "$(BUILD_DIR_NORM)" 2>/dev/null || true; \
 	fi

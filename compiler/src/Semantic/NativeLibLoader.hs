@@ -15,7 +15,7 @@ import Data.HashSet (HashSet)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.List (dropWhileEnd, foldl', intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, stripPrefix)
 import Data.Map.Strict (Map)
-import Data.Maybe (catMaybes, fromMaybe, listToMaybe, mapMaybe)
+import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
 import Numeric (readHex)
 import Parse.SyntaxTree (Class(..), classDemangleEither, normalizeClass)
 import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
@@ -192,7 +192,7 @@ loadNativeAsmOne imports libPath = do
 
 
 loadNativeBinaryOne :: [String] -> Path -> IO (Either [ErrorKind] (ImportEnv, TypedImportEnv))
-loadNativeBinaryOne imports libPath = do
+loadNativeBinaryOne _imports libPath = do
     symRes <- readNativeSymbols libPath
     case symRes of
         Left e ->
@@ -202,8 +202,47 @@ loadNativeBinaryOne imports libPath = do
                 then readEmbeddedClassInfoEnvelope libPath
                 else pure Nothing
             let symbolEnv = parseNativeSymbolsEnvelope syms
-                env = fromMaybe symbolEnv mEmbeddedEnv
-            pure $ Right (buildEnv libPath (filterEnvelopeByImports imports env))
+                env = case mEmbeddedEnv of
+                    Nothing -> symbolEnv
+                    Just embeddedEnv -> mergeNativeEnvelopes symbolEnv embeddedEnv
+            -- For native binary libs we keep the full envelope instead of filtering by
+            -- source imports. This allows explicit qualified calls like
+            -- xlang.Math.isPrime(...) even when xlang.Math is not imported.
+            pure $ Right (buildEnv libPath env)
+
+
+mergeNativeEnvelopes :: NativeEnvelope -> NativeEnvelope -> NativeEnvelope
+mergeNativeEnvelopes (NativeEnvelope left) (NativeEnvelope right) =
+    NativeEnvelope (Map.elems merged)
+  where
+    merged = Map.fromListWith mergeClass [(ncQName cls, cls) | cls <- left ++ right]
+
+    mergeClass :: NativeClass -> NativeClass -> NativeClass
+    mergeClass newer older =
+        NativeClass {
+            ncQName = ncQName older,
+            ncAttrs = mergeFields (ncAttrs older) (ncAttrs newer),
+            ncMethods = mergeMethods (ncMethods older) (ncMethods newer)
+        }
+
+    mergeFields :: [NativeField] -> [NativeField] -> [NativeField]
+    mergeFields xs ys = dedupBy fieldKey (xs ++ ys)
+
+    mergeMethods :: [NativeMethod] -> [NativeMethod] -> [NativeMethod]
+    mergeMethods xs ys = dedupBy methodKey (xs ++ ys)
+
+    dedupBy :: Eq k => (a -> k) -> [a] -> [a]
+    dedupBy keyFn = foldl' step []
+      where
+        step acc x =
+            let k = keyFn x
+            in if any (\one -> keyFn one == k) acc then acc else acc ++ [x]
+
+    fieldKey :: NativeField -> (String, Class, OwnerType, Int)
+    fieldKey f = (nfName f, nfType f, nfOwnerType f, nfAccessMask f)
+
+    methodKey :: NativeMethod -> (String, [Class], Class, OwnerType, Int)
+    methodKey m = (nmName m, nmParamTypes m, nmReturnType m, nmOwnerType m, nmAccessMask m)
 
 
 {-# NOINLINE symbolReaderAvailableCache #-}

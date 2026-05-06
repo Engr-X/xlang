@@ -1,8 +1,8 @@
 package com.diwang.bctoolkit.generator
 
-import com.wangdi.bctoolkit.generator.artifact.operation.OpBlock
-import com.wangdi.bctoolkit.base.Access
-import com.wangdi.bctoolkit.base.Type
+import com.diwang.bctoolkit.generator.artifact.operation.OpBlock
+import com.diwang.bctoolkit.base.Access
+import com.diwang.bctoolkit.base.Type
 import xlang.annotation.OwnerTypeMetadata
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.ClassReader

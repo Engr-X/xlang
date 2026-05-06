@@ -1,10 +1,10 @@
 package com.diwang.bctoolkit.artifact.operation
 
-import com.wangdi.bctoolkit.generator.artifact.operation.ALoad
-import com.wangdi.bctoolkit.generator.artifact.operation.IAdd
-import com.wangdi.bctoolkit.generator.artifact.operation.IPush
-import com.wangdi.bctoolkit.generator.artifact.operation.Instruction
-import com.wangdi.bctoolkit.generator.artifact.operation.Return
+import com.diwang.bctoolkit.generator.artifact.operation.ALoad
+import com.diwang.bctoolkit.generator.artifact.operation.IAdd
+import com.diwang.bctoolkit.generator.artifact.operation.IPush
+import com.diwang.bctoolkit.generator.artifact.operation.Instruction
+import com.diwang.bctoolkit.generator.artifact.operation.Return
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.Label
 import org.objectweb.asm.MethodVisitor

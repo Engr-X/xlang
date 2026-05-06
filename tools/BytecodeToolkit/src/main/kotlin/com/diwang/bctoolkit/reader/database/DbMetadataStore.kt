@@ -1,8 +1,8 @@
 package com.diwang.bctoolkit.reader.database
 
-import com.wangdi.bctoolkit.reader.JavaClassDto
-import com.wangdi.bctoolkit.reader.JavaFieldDto
-import com.wangdi.bctoolkit.reader.JavaMethodDto
+import com.diwang.bctoolkit.reader.JavaClassDto
+import com.diwang.bctoolkit.reader.JavaFieldDto
+import com.diwang.bctoolkit.reader.JavaMethodDto
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.SerialName
