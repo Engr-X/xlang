@@ -720,12 +720,21 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
     linkDynWithLd target objs libs = do
         sysLibs <- collectNativeStaticLibs
         mingwTail <- mingwRuntimeTail
-        let libsUsedRaw = if includeRuntime then filterOutDynamicLibRefs libs else libs
-            libsUsed =
+        let libsUsedRaw = sanitizeDeprecatedBaseLibRefs $
+                if includeRuntime then filterOutDynamicLibRefs libs else libs
+            libsUsedPre =
                 if os == "mingw32" && not includeRuntime
                     then preferWindowsImportLibs libsUsedRaw
                     else libsUsedRaw
-            linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibs)
+            libsUsed =
+                if os == "mingw32"
+                    then stripMingwToolchainRuntimeLibRefs libsUsedPre
+                    else libsUsedPre
+            sysLibsUsed =
+                if os == "mingw32"
+                    then stripMingwToolchainRuntimeLibRefs sysLibs
+                    else sysLibs
+            linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibsUsed)
         case os of
             "mingw32" -> do
                 let implib = replaceExtension target ".dll.a"
@@ -746,12 +755,21 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
             then pure []
             else collectNativeStaticLibs
         mingwTail <- mingwRuntimeTail
-        let libsUsedRaw = if includeRuntime then filterOutDynamicLibRefs libs else libs
-            libsUsed =
+        let libsUsedRaw = sanitizeDeprecatedBaseLibRefs $
+                if includeRuntime then filterOutDynamicLibRefs libs else libs
+            libsUsedPre =
                 if os == "mingw32" && not includeRuntime
                     then preferWindowsImportLibs libsUsedRaw
                     else libsUsedRaw
-            linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibs)
+            libsUsed =
+                if os == "mingw32"
+                    then stripMingwToolchainRuntimeLibRefs libsUsedPre
+                    else libsUsedPre
+            sysLibsUsed =
+                if os == "mingw32"
+                    then stripMingwToolchainRuntimeLibRefs sysLibs
+                    else sysLibs
+            linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibsUsed)
         case os of
             "mingw32" -> do
                 let ldArgs = ["-e", "main", "-o", target]
@@ -797,19 +815,20 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                 then pure []
                 else do
                     names <- listDirectory dir
-                    pure [dir </> n | n <- sort names, map toLower (takeExtension n) == ".a"]
+                    let libs = [dir </> n | n <- sort names, map toLower (takeExtension n) == ".a"]
+                    pure (if os == "mingw32" then stripMingwToolchainRuntimeLibRefs libs else libs)
 
         collectStdNativeLibs :: [FilePath] -> IO [FilePath]
         collectStdNativeLibs dirs = do
             let preferredGroups
                     | os == "mingw32" && includeRuntime =
                         [ ["libxlang-std.a", "libxlang-std.dll.a"]
-                        , ["libxlang-base.a", "libxlang-base.dll.a"]]
+                        , ["libxlang-core.a", "libxlang-core.dll.a"]]
                     | os == "mingw32" =
-                        [ ["libxlang-base.dll.a"]
+                        [ ["libxlang-core.dll.a"]
                         , ["libxlang-std.dll.a"]]
                     | otherwise =
-                        [ ["libxlang-base.a"]
+                        [ ["libxlang-core.a"]
                         , ["libxlang-std.a"]]
             picked <- mapM (pickFirstExisting dirs) preferredGroups
             pure [p | Just p <- picked]
@@ -881,6 +900,22 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
             exists <- doesFileExist p
             if exists then pure (Just p) else firstExistingPath rest
 
+    stripMingwToolchainRuntimeLibRefs :: [FilePath] -> [FilePath]
+    stripMingwToolchainRuntimeLibRefs =
+        filter (not . isMingwToolchainRuntimeLib . takeFileName)
+      where
+        isMingwToolchainRuntimeLib :: String -> Bool
+        isMingwToolchainRuntimeLib name =
+            map toLower name `elem`
+                [ "libmingw32.a"
+                , "libmingwex.a"
+                , "libwinpthread.a"
+                , "libmsvcrt.a"
+                , "libkernel32.a"
+                , "libgcc.a"
+                , "libgcc_eh.a"
+                ]
+
     filterOutDynamicLibRefs :: [FilePath] -> [FilePath]
     filterOutDynamicLibRefs =
         filter (\p ->
@@ -890,6 +925,16 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                 && ext /= ".so"
                 && ext /= ".dylib"
                 && not (".dll.a" `isSuffixOf` pL))
+
+    sanitizeDeprecatedBaseLibRefs :: [FilePath] -> [FilePath]
+    sanitizeDeprecatedBaseLibRefs =
+        filter (\p ->
+            let f = map toLower (takeFileName p)
+            in f /= "libxlang-base.a"
+                && f /= "libxlang-base.dll.a"
+                && f /= "libxlang-base.so"
+                && f /= "libxlang-base.dylib"
+                && f /= "libxlang-base.dll")
 
     preferWindowsImportLibs :: [FilePath] -> [FilePath]
     preferWindowsImportLibs libs =

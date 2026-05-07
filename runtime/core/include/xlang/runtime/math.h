@@ -23,14 +23,16 @@
  *
  */
 
-#include <xlang/math.h>
-#include <math.h>
+#ifndef _XLANG_RUNTIME_MATH_H_
+#define _XLANG_RUNTIME_MATH_H_
 
 /**
- * xlang.Math native implementation for the xlang standard library.
+ * xlang.Math native C API for the xlang standard library.
  *
- * This file implements the xlang-prefixed C wrappers declared in math.h and
- * delegates each operation to the corresponding C standard math function.
+ * <p>For native targets, floating-point operations are routed through
+ * xlang-prefixed wrappers that delegate to C standard math functions in
+ * <math.h>. This keeps behavior aligned with the platform math library
+ * while exposing a stable ABI for xlang runtime calls.
  */
 
 
@@ -40,10 +42,7 @@
  * @param x     an angle, in radians
  * @return      the sine of {@code x}
  */
-double xlang_sin(double x)
-{
-    return sin(x);
-}
+extern double xlang_sin(double x);
 
 
 /**
@@ -52,10 +51,7 @@ double xlang_sin(double x)
  * @param x     an angle, in radians
  * @return      the cosine of {@code x}
  */
-double xlang_cos(double x)
-{
-    return cos(x);
-}
+extern double xlang_cos(double x);
 
 
 /**
@@ -64,10 +60,7 @@ double xlang_cos(double x)
  * @param x     an angle, in radians
  * @return      the tangent of {@code x}
  */
-double xlang_tan(double x)
-{
-    return tan(x);
-}
+extern double xlang_tan(double x);
 
 
 /**
@@ -76,10 +69,7 @@ double xlang_tan(double x)
  * @param x     a value (typically in [-1, 1])
  * @return      the arc sine of {@code x}, in radians
  */
-double xlang_asin(double x)
-{
-    return asin(x);
-}
+extern double xlang_asin(double x);
 
 
 /**
@@ -88,10 +78,7 @@ double xlang_asin(double x)
  * @param x     a value (typically in [-1, 1])
  * @return      the arc cosine of {@code x}, in radians
  */
-double xlang_acos(double x)
-{
-    return acos(x);
-}
+extern double xlang_acos(double x);
 
 
 /**
@@ -100,10 +87,7 @@ double xlang_acos(double x)
  * @param x     a value
  * @return      the arc tangent of {@code x}, in radians
  */
-double xlang_atan(double x)
-{
-    return atan(x);
-}
+extern double xlang_atan(double x);
 
 
 /**
@@ -112,10 +96,7 @@ double xlang_atan(double x)
  * @param x     the exponent
  * @return      e raised to the power {@code x}
  */
-double xlang_exp(double x)
-{
-    return exp(x);
-}
+extern double xlang_exp(double x);
 
 
 /**
@@ -124,10 +105,7 @@ double xlang_exp(double x)
  * @param x     a value
  * @return      the natural logarithm of {@code x}
  */
-double xlang_ln(double x)
-{
-    return log(x);
-}
+extern double xlang_ln(double x);
 
 
 /**
@@ -136,10 +114,7 @@ double xlang_ln(double x)
  * @param x     a value
  * @return      the base-10 logarithm of {@code x}
  */
-double xlang_log10(double x)
-{
-    return log10(x);
-}
+extern double xlang_log10(double x);
 
 
 /**
@@ -148,10 +123,7 @@ double xlang_log10(double x)
  * @param x     a value
  * @return      the square root of {@code x}
  */
-double xlang_sqrt(double x)
-{
-    return sqrt(x);
-}
+extern double xlang_sqrt(double x);
 
 
 /**
@@ -160,10 +132,7 @@ double xlang_sqrt(double x)
  * @param x     a value
  * @return      the cube root of {@code x}
  */
-double xlang_cbrt(double x)
-{
-    return cbrt(x);
-}
+extern double xlang_cbrt(double x);
 
 
 /**
@@ -173,7 +142,7 @@ double xlang_cbrt(double x)
  * @param y the divisor
  * @return the IEEE 754-style remainder of {@code x / y}
  */
-double xlang_IEEEremainder(double x, double y)
-{
-    return remainder(x, y);
-}
+extern double xlang_IEEEremainder(double x, double y);
+
+
+#endif

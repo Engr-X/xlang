@@ -66,8 +66,8 @@ make -j24
 - `build/tools/*.jar`: BytecodeToolkit jars
 - `build/libs/java/*`: Java std artifacts (`xlang-stdlib.jar`, `jdk<version>-stdlib.db`)
 - `build/runtime/java/*`: Java runtime jars (`kotlin-stdlib-2.2.21.jar`, `annotations-13.0.jar`)
-- `build/libs/native/*`: native static libs (`libxlang-base.a`, `libxlang-std.a`)
-- `build/runtime/native/*`: native shared libs (`libxlang-base.*`, `libxlang-std.*`)
+- `build/libs/native/*`: native static libs (`libxlang-core.a`, `libxlang-std.a`)
+- `build/runtime/native/*`: native shared libs (`libxlang-core.*`, `libxlang-std.*`)
 - `build/native/*.a`: staged system libs (Windows when `--gcc-lib` is set)
 
 ### Native Std (Standalone)
@@ -80,10 +80,13 @@ cd libs/std/native/build
 make -j24
 ```
 
-This builds both:
+This builds native std libs:
 
-- `libxlang-base` (C-side base library)
 - `libxlang-std` (xlang std native objects packed as libs)
+
+Runtime core is built under `runtime/core` as:
+
+- `libxlang-core` (C-side core runtime library)
 
 ### Quick Start
 

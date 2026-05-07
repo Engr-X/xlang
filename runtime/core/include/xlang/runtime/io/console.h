@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _XLANG_IO_CONSOLE_H_
-#define _XLANG_IO_CONSOLE_H_
+#ifndef _XLANG_RUNTIME_CONSOLE_H_
+#define _XLANG_RUNTIME_CONSOLE_H_
 
 #include <stdbool.h>
 #include <stdint.h>

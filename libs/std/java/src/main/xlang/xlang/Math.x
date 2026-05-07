@@ -592,18 +592,15 @@ native inline fun cbrt(x: double) -> double
  */
 fun isPrime(x: int) -> bool
 {
-    if x <= 1:
-        return false
-    elif x == 2:
-        return true
+    if x <= 1: { return false; }
+    elif x == 2: { return true; }
     else
     {
         val half: int = StrictMath.sqrt(x as double) as int
 
         for (var i: int = 2; i <= half; i++)
         {
-            if x % i == 0:
-                return false
+            if x % i == 0: { return false; }
         }
 
         return true
@@ -623,18 +620,15 @@ fun isPrime(x: int) -> bool
  */
 fun isPrime(x: long) -> bool
 {
-    if x <= 1L:
-        return false
-    elif x == 2L:
-        return true
+    if x <= 1L: { return false; }
+    elif x == 2L: { return true; }
     else
     {
         val half: long = StrictMath.sqrt(x as double) as long
 
         for (var i: long = 2L; i <= half; i++)
         {
-            if x % i == 0L:
-                return false
+            if x % i == 0L: { return false; }
         }
 
         return true

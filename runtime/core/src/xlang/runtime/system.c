@@ -23,7 +23,7 @@
  *
  */
 
-#include "xlang/system.h"
+#include "xlang/runtime/system.h"
 
 /**
  * Native implementation unit for xlang System.

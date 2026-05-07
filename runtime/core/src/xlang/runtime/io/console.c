@@ -23,7 +23,7 @@
  *
  */
 
-#include "xlang/io/console.h"
+#include "xlang/runtime/io/console.h"
 
 #include <stdio.h>
 

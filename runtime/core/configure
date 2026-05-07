@@ -10,7 +10,7 @@ ar="ar"
 ranlib="ranlib"
 cflags="-O3 -DNDEBUG -ffunction-sections -fdata-sections -Wall -Wextra -std=c11"
 ldflags=""
-target="libxlang-std"
+target="libxlang-core"
 prefix="/usr/local"
 libdir=""
 build_dir=""
@@ -26,7 +26,7 @@ Options:
   --ranlib=CMD             ranlib tool (default: ranlib)
   --cflags=FLAGS           extra CFLAGS (default: -O3 -DNDEBUG -ffunction-sections -fdata-sections -Wall -Wextra -std=c11)
   --ldflags=FLAGS          extra LDFLAGS (default: empty)
-  --target=NAME            artifact basename (default: libxlang-std)
+  --target=NAME            artifact basename (default: libxlang-core)
   --prefix=PATH            install prefix (default: /usr/local)
   --libdir=PATH            library install dir (default: PREFIX/lib)
   --build-dir=DIR          build output directory (default: build, or "." for out-of-tree)

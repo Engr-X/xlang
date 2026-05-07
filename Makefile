@@ -69,10 +69,16 @@ NATIVE_LIB_DIR := $(ROOT_DIR)/libs/std/native
 NATIVE_LIB_BUILD_DIR := $(NATIVE_LIB_DIR)/build
 NATIVE_LIB_OUT_DIR := $(BUILD_DIR_ABS)/libs/std/native
 NATIVE_RUNTIME_OUT_DIR := $(BUILD_DIR_ABS)/runtime/native
-NATIVE_BASE_TARGET := libxlang-base
+NATIVE_BASE_TARGET := libxlang-core
 NATIVE_STD_TARGET := libxlang-std
 NATIVE_BASE_STATIC_LIB := $(NATIVE_BASE_TARGET).a
 NATIVE_STD_STATIC_LIB := $(NATIVE_STD_TARGET).a
+RUNTIME_CORE_DIR := $(ROOT_DIR)/runtime/core
+RUNTIME_CORE_BUILD_DIR := $(RUNTIME_CORE_DIR)/build
+RUNTIME_GC_DIR := $(ROOT_DIR)/runtime/gc
+RUNTIME_GC_BUILD_DIR := $(RUNTIME_GC_DIR)/build
+RUNTIME_EXCEPTION_DIR := $(ROOT_DIR)/runtime/exception
+RUNTIME_EXCEPTION_BUILD_DIR := $(RUNTIME_EXCEPTION_DIR)/build
 NATIVE_SYSLIB_OUT_DIR := $(BUILD_DIR_ABS)/native
 NATIVE_SYSLIB_NAMES := libkernel32.a libmsvcrt.a libmingw32.a libmingwex.a libwinpthread.a libgcc.a libgcc_eh.a
 UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
@@ -112,7 +118,7 @@ define PREPARE_GRADLEW_CMD
 	chmod +x ./gradlew; if command -v perl >/dev/null 2>&1; then perl -i -pe 's/\r\n/\n/g' ./gradlew; fi
 endef
 
-.PHONY: help all build all_components full compiler move_native java_std native_std compile update maybe_update bytecode_tool tools java_lib native_lib stage_syslibs \
+.PHONY: help all build all_components full compiler move_native runtime_core runtime_gc runtime_exception runtime_ext java_std native_std compile update maybe_update bytecode_tool tools java_lib native_lib stage_syslibs \
 	install install_all install_bin install_tools install_java_lib install_native_lib uninstall \
 	clean clean_ide rebuild distclean
 
@@ -120,18 +126,22 @@ help:
 	@echo "Usage: ./configure [opts] && make -jN [target] && make install"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all/build       Build default pipeline (compiler + move_native + java_std + native_std)"
+	@echo "  all/build       Build default pipeline (compiler -> move_native -> runtime core -> runtime gc/exception -> native std -> tools)"
 	@echo "  compiler        Build xlang compiler executable"
 	@echo "  move_native     Stage native syslibs into build/native (Windows; needs --gcc-lib)"
+	@echo "  runtime_core    Build runtime/core and stage runtime base libs"
+	@echo "  runtime_gc      Build runtime/gc (depends on runtime_core)"
+	@echo "  runtime_exception Build runtime/exception (depends on runtime_core)"
+	@echo "  runtime_ext     Build runtime gc + exception"
 	@echo "  java_std        Build libs/std/java artifacts and move to build output"
 	@echo "  native_std      Build libs/std/native artifacts and move to build output"
-	@echo "  all_components  Build full pipeline + tools (legacy compatible target)"
+	@echo "  all_components  Alias of all"
 	@echo "  full            Alias of all_components"
 	@echo "  compile         Build xlang executable"
 	@echo "  update      Run cabal update in compiler/"
 	@echo "  tools       Build BytecodeToolkit + IconToolkit jars"
 	@echo "  java_lib    Build libs/std/java artifacts"
-	@echo "  native_lib  Build libs/std/native (calls its Makefile after java_lib)"
+	@echo "  native_lib  Build libs/std/native (depends on runtime libs)"
 	@echo "  install         Install all components"
 	@echo "  install_all     Install xlang + tools + java std + native std/base under \$$DESTDIR\$$XLANG_LIBDIR"
 	@echo "  uninstall       Remove installed xlang and xlang lib dir"
@@ -150,20 +160,82 @@ help:
 	@echo "  make -j24 all_components"
 	@echo "  make install_all"
 
-all: compiler move_native java_std native_std
+all: tools
 
 # Alias for people who prefer `make build`
 build: all
 
 compiler: compile
 
-move_native: stage_syslibs
+move_native: compiler stage_syslibs
+
+runtime_core: move_native
+	mkdir -p "$(RUNTIME_CORE_BUILD_DIR)"
+	cd "$(RUNTIME_CORE_BUILD_DIR)" && sh ../configure --build-dir=. --target="$(NATIVE_BASE_TARGET)"
+	$(MAKE) -C "$(RUNTIME_CORE_BUILD_DIR)" clean
+	$(MAKE) -C "$(RUNTIME_CORE_BUILD_DIR)"
+	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"
+	rm -f "$(NATIVE_LIB_OUT_DIR)/libxlang-base.a" "$(NATIVE_LIB_OUT_DIR)/libxlang-base.dll.a" 2>/dev/null || true
+	rm -f "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.dll" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.so" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.dylib" 2>/dev/null || true
+	cp -f "$(RUNTIME_CORE_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(RUNTIME_CORE_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
+	cp -f "$(RUNTIME_CORE_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
+
+runtime_gc: runtime_core
+	@set -e; \
+	module_dir="$(RUNTIME_GC_DIR)"; \
+	module_build="$(RUNTIME_GC_BUILD_DIR)"; \
+	if [ -f "$$module_dir/configure" ]; then \
+		mkdir -p "$$module_build"; \
+		cd "$$module_build" && sh ../configure --build-dir=.; \
+	fi; \
+	if [ -f "$$module_build/Makefile" ]; then \
+		$(MAKE) -C "$$module_build" clean; \
+		$(MAKE) -C "$$module_build"; \
+	elif [ -f "$$module_dir/Makefile" ]; then \
+		$(MAKE) -C "$$module_dir" clean; \
+		$(MAKE) -C "$$module_dir"; \
+	else \
+		echo "[INFO] runtime/gc has no Makefile/configure, skip build"; \
+	fi; \
+	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"; \
+	for from in "$$module_build/libs" "$$module_dir/libs"; do \
+		[ -d "$$from" ] || continue; \
+		for f in "$$from"/*.a "$$from"/*.dll.a; do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_LIB_OUT_DIR)/"; done; \
+		for f in "$$from"/*.$(NATIVE_SHARED_EXT); do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_RUNTIME_OUT_DIR)/"; done; \
+	done
+
+runtime_exception: runtime_core
+	@set -e; \
+	module_dir="$(RUNTIME_EXCEPTION_DIR)"; \
+	module_build="$(RUNTIME_EXCEPTION_BUILD_DIR)"; \
+	if [ -f "$$module_dir/configure" ]; then \
+		mkdir -p "$$module_build"; \
+		cd "$$module_build" && sh ../configure --build-dir=.; \
+	fi; \
+	if [ -f "$$module_build/Makefile" ]; then \
+		$(MAKE) -C "$$module_build" clean; \
+		$(MAKE) -C "$$module_build"; \
+	elif [ -f "$$module_dir/Makefile" ]; then \
+		$(MAKE) -C "$$module_dir" clean; \
+		$(MAKE) -C "$$module_dir"; \
+	else \
+		echo "[INFO] runtime/exception has no Makefile/configure, skip build"; \
+	fi; \
+	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"; \
+	for from in "$$module_build/libs" "$$module_dir/libs"; do \
+		[ -d "$$from" ] || continue; \
+		for f in "$$from"/*.a "$$from"/*.dll.a; do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_LIB_OUT_DIR)/"; done; \
+		for f in "$$from"/*.$(NATIVE_SHARED_EXT); do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_RUNTIME_OUT_DIR)/"; done; \
+	done
+
+runtime_ext: runtime_gc runtime_exception
 
 java_std: java_lib
 
 native_std: native_lib
 
-all_components: all tools
+all_components: all
 
 full: all_components
 
@@ -197,7 +269,7 @@ bytecode_tool:
 		exit 1; \
 	fi
 
-tools: bytecode_tool
+tools: native_std bytecode_tool
 	mkdir -p "$(TOOLS_OUT_DIR)"
 	@if [ "$(OS)" != "Windows_NT" ]; then \
 		cd "$(ICONTOOLKIT_DIR)" && $(PREPARE_GRADLEW_CMD); \
@@ -237,15 +309,12 @@ java_lib: compile bytecode_tool
 		"$(EXE_OUT)" -download=$(JAVA_STD_DB_VERSION); \
 	fi
 
-native_lib: java_lib
+native_lib: runtime_ext compile
 	mkdir -p "$(NATIVE_LIB_BUILD_DIR)"
-	cd "$(NATIVE_LIB_BUILD_DIR)" && sh ../configure --build-dir=. --target="$(NATIVE_BASE_TARGET)"
+	cd "$(NATIVE_LIB_BUILD_DIR)" && sh ../configure --build-dir=. --target="$(NATIVE_STD_TARGET)"
 	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)" clean
-	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)"
+	$(MAKE) -C "$(NATIVE_LIB_BUILD_DIR)" RUNTIME_CORE_BUILD_DIR="$(RUNTIME_CORE_BUILD_DIR)"
 	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
-	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(NATIVE_LIB_BUILD_DIR)/libs/$(NATIVE_STD_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
@@ -254,10 +323,11 @@ stage_syslibs:
 ifeq ($(NATIVE_SHARED_EXT),dll)
 	@if [ -n "$(GCC_LIB)" ] && [ -d "$(GCC_LIB)" ]; then \
 		mkdir -p "$(NATIVE_SYSLIB_OUT_DIR)"; \
+		target_triple="$${NATIVE_GCC_TRIPLE:-x86_64-w64-mingw32}"; \
 		gcc_dirs="$(GCC_LIB)"; \
 		if [ -d "$(GCC_LIB)/../lib/gcc" ]; then \
 			for d in "$(GCC_LIB)"/../lib/gcc/*/*; do \
-				if [ -d "$$d" ]; then gcc_dirs="$$gcc_dirs $$d"; fi; \
+				case "$$d" in */lib/gcc/$$target_triple/*) if [ -d "$$d" ]; then gcc_dirs="$$gcc_dirs $$d"; fi ;; esac; \
 			done; \
 		fi; \
 		for n in $(NATIVE_SYSLIB_NAMES); do \
@@ -349,8 +419,10 @@ clean:
 	rm -rf "$(BYTECODEGEN_DIR)/.gradle" "$(BYTECODEGEN_DIR)/.idea" "$(BYTECODEGEN_DIR)/.kotlin" "$(BYTECODEGEN_DIR)/bin" "$(BYTECODEGEN_DIR)/build" 2>/dev/null || true
 	rm -rf "$(ICONTOOLKIT_DIR)/.gradle" "$(ICONTOOLKIT_DIR)/.idea" "$(ICONTOOLKIT_DIR)/.kotlin" "$(ICONTOOLKIT_DIR)/bin" "$(ICONTOOLKIT_DIR)/build" 2>/dev/null || true
 	rm -rf "$(JAVA_LIB_DIR)/.gradle" "$(JAVA_LIB_DIR)/.idea" "$(JAVA_LIB_DIR)/.kotlin" "$(JAVA_LIB_DIR)/bin" "$(JAVA_LIB_DIR)/build" 2>/dev/null || true
-	rm -rf "$(NATIVE_LIB_DIR)/.vscode" "$(NATIVE_LIB_BUILD_DIR)" 2>/dev/null || true
-	rm -rf "$(ROOT_DIR)/runtime/gc/build" "$(ROOT_DIR)/runtime/gc/.vscode" 2>/dev/null || true
+	rm -rf "$(NATIVE_LIB_DIR)/.vscode" "$(NATIVE_LIB_DIR)/.idea" "$(NATIVE_LIB_BUILD_DIR)" 2>/dev/null || true
+	rm -rf "$(RUNTIME_CORE_BUILD_DIR)" "$(RUNTIME_CORE_DIR)/.vscode" "$(RUNTIME_CORE_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(RUNTIME_GC_BUILD_DIR)" "$(RUNTIME_GC_DIR)/.vscode" "$(RUNTIME_GC_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(RUNTIME_EXCEPTION_BUILD_DIR)" "$(RUNTIME_EXCEPTION_DIR)/.vscode" "$(RUNTIME_EXCEPTION_DIR)/.idea" 2>/dev/null || true
 	rm -rf "$(GRADLE_USER_HOME)/caches" || true
 	rm -rf "$(BUILD_DIR_ABS)/tools" "$(BUILD_DIR_ABS)/libs" "$(BUILD_DIR_ABS)/runtime" "$(BUILD_DIR_ABS)/std" "$(BUILD_DIR_ABS)/native" "$(BUILD_DIR_ABS)/native-libs" "$(BUILD_DIR_ABS)/$(EXE_FILE)" "$(BUILD_DIR_ABS)/$(EXE)" "$(BUILD_DIR_ABS)"/*.exe 2>/dev/null || true
 	$(MAKE) clean_ide
@@ -361,6 +433,10 @@ clean_ide:
 	rm -rf "$(BYTECODEGEN_DIR)/.vscode" "$(BYTECODEGEN_DIR)/.idea" 2>/dev/null || true
 	rm -rf "$(ICONTOOLKIT_DIR)/.vscode" "$(ICONTOOLKIT_DIR)/.idea" 2>/dev/null || true
 	rm -rf "$(JAVA_LIB_DIR)/.vscode" "$(JAVA_LIB_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(NATIVE_LIB_DIR)/.vscode" "$(NATIVE_LIB_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(RUNTIME_CORE_DIR)/.vscode" "$(RUNTIME_CORE_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(RUNTIME_GC_DIR)/.vscode" "$(RUNTIME_GC_DIR)/.idea" 2>/dev/null || true
+	rm -rf "$(RUNTIME_EXCEPTION_DIR)/.vscode" "$(RUNTIME_EXCEPTION_DIR)/.idea" 2>/dev/null || true
 
 rebuild: clean all
 

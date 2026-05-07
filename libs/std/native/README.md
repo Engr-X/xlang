@@ -1,13 +1,14 @@
-# xlang native base library build
+# xlang native std library build
 
-This directory builds the C native base runtime used by xlang `@native(...)` calls.
+This directory builds native std libraries from xlang sources and links against
+runtime core (`libxlang-core`).
 
 ## Outputs
 
-- Windows: `build/libs/libxlang-base.dll`
-- Linux: `build/libs/libxlang-base.so`
-- macOS: `build/libs/libxlang-base.dylib`
-- Static archive (all platforms): `build/libs/libxlang-base.a`
+- Windows: `build/libs/libxlang-std.dll`
+- Linux: `build/libs/libxlang-std.so`
+- macOS: `build/libs/libxlang-std.dylib`
+- Static archive (all platforms): `build/libs/libxlang-std.a`
 
 ## Build with gcc + Makefile
 
@@ -19,8 +20,8 @@ make install
 
 `make` now builds both:
 
-- shared: `libxlang-base.(dll|so|dylib)`
-- static: `libxlang-base.a`
+- shared: `libxlang-std.(dll|so|dylib)`
+- static: `libxlang-std.a`
 
 Useful variants:
 
