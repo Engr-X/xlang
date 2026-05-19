@@ -38,6 +38,13 @@ pointerJvmMsg =
 rejectPointerJvm :: a
 rejectPointerJvm = errorWithoutStackTrace pointerJvmMsg
 
+funcPtrJvmMsg :: String
+funcPtrJvmMsg =
+    "the function pointer is not allowed in jvm lowing, and this error should be cateched earlier!"
+
+rejectFuncPtrJvm :: a
+rejectFuncPtrJvm = errorWithoutStackTrace funcPtrJvmMsg
+
 normalizeJvmClassAlias :: Class -> Class
 normalizeJvmClassAlias cls = case cls of
     Class ["Any"] [] -> Class ["java", "lang", "Object"] []
@@ -83,6 +90,9 @@ ensureAll xs check = go xs
 ensureJvmClass :: String -> Class -> ()
 ensureJvmClass whereAt cls = case cls of
     Float128T -> rejectFloat128 whereAt
+    FuncPtr _ _ -> rejectFuncPtrJvm
+    Pointer _ -> rejectPointerJvm
+    Blob _ -> rejectPointerJvm
     _ -> ()
 
 ensureJvmAtom :: IR.IRAtom -> ()
@@ -121,6 +131,8 @@ ensureJvmInstr (IR.Ref _ _) = rejectPointerJvm
 ensureJvmInstr (IR.Deref _ _) = rejectPointerJvm
 ensureJvmInstr (IR.DerefAssign _ _ _) = rejectPointerJvm
 ensureJvmInstr (IR.NewStackMem _ _) = rejectPointerJvm
+ensureJvmInstr (IR.GetFuncAddr _ _) = rejectFuncPtrJvm
+ensureJvmInstr (IR.ICallPtr _ _ _) = rejectFuncPtrJvm
 
 ensureJvmBlock :: IR.IRBlock -> ()
 ensureJvmBlock (IR.IRBlock (_, instrs)) = ensureAll instrs ensureJvmInstr
@@ -134,14 +146,24 @@ ensureJvmFunction (IR.IRFunction _ name sig atomT (blocks, _) _) =
             (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("function " ++ name ++ " inferred type") cls)
         `seq` ensureAll blocks ensureJvmBlock
 
+ensureJvmCFunction :: IR.IRCFunction -> ()
+ensureJvmCFunction (IR.IRCFunction _ name sig atomT (blocks, _) _) =
+    ensureJvmClass ("cfunction " ++ name ++ " return type") (TEnv.funReturn sig)
+        `seq` ensureAll (zip [0 :: Int ..] (TEnv.funParams sig))
+            (\(idx, cls) -> ensureJvmClass ("cfunction " ++ name ++ " param #" ++ show idx) cls)
+        `seq` ensureAll (Map.toList atomT)
+            (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("cfunction " ++ name ++ " inferred type") cls)
+        `seq` ensureAll blocks ensureJvmBlock
+
 ensureJvmIRClass :: IR.IRClass -> ()
-ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit (sBody, _)) atomT funs _) =
+ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit (sBody, _)) atomT funs _ cFuns _) =
     ensureAll attrs
         (\(_, cls, fieldName, _) -> ensureJvmClass ("class " ++ name ++ " field " ++ fieldName) cls)
         `seq` ensureAll (Map.toList atomT)
             (\(atom, cls) -> ensureJvmAtom atom `seq` ensureJvmClass ("class " ++ name ++ " static inferred type") cls)
         `seq` ensureAll sBody ensureJvmBlock
         `seq` ensureAll funs ensureJvmFunction
+        `seq` ensureAll cFuns ensureJvmCFunction
 
 
 jvmLowerBlocks :: [IR.IRBlock] -> State LowerState [JVM.JCommand]
@@ -303,6 +325,8 @@ lowerInstr (IR.Ref _ _) = rejectPointerJvm
 lowerInstr (IR.Deref _ _) = rejectPointerJvm
 lowerInstr (IR.DerefAssign _ _ _) = rejectPointerJvm
 lowerInstr (IR.NewStackMem _ _) = rejectPointerJvm
+lowerInstr (IR.GetFuncAddr _ _) = rejectFuncPtrJvm
+lowerInstr (IR.ICallPtr _ _ _) = rejectFuncPtrJvm
 
 
 data CmpKind = CmpEq | CmpNe | CmpLt | CmpLe | CmpGt | CmpGe
@@ -586,7 +610,7 @@ buildParamSlots params = foldl step (Map.empty, 0) (zip [0..] params)
 
 -- | Lower an IR class into JVM class (constructors not supported yet).
 jvmClassLowing :: QName -> IR.IRClass -> JVM.JClass
-jvmClassLowing pkg irClass@(IR.IRClass decl name attrs sInit atomT funs mainKind) =
+jvmClassLowing pkg irClass@(IR.IRClass decl name attrs sInit atomT funs _ _ mainKind) =
     ensureJvmIRClass irClass `seq`
     let qname = if null pkg then [name] else pkg ++ [name]
         -- Keep source-level "no explicit parent" semantics.

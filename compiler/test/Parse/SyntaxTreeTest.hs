@@ -5,6 +5,8 @@ import Test.Tasty.HUnit
 import Parse.SyntaxTree
 import Util.Type
 import Util.Basic
+import Data.Char (toLower)
+import Data.List (isPrefixOf)
 import Lex.Token (Token, Symbol)
 
 import qualified Lex.Token as Lex
@@ -581,6 +583,257 @@ promoteTopLevelFunctionsTests = testGroup "Parse.SyntaxTree.promoteTopLevelFunct
             "inner2" `notElem` inner2Calls
     ]
 
+normalizeProgramForLoweringTests :: TestTree
+normalizeProgramForLoweringTests = testGroup "Parse.SyntaxTree.normalizeProgramForLowering" [
+    testCase "template blueprint is removed while concrete instance is kept" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet = mkIdD "return"
+            tokI = mkIdD "int"
+            tmpl = FunctionT
+                (Class ["T"] [], [tokT])
+                (Variable "add" tokF)
+                [(Class ["T"] [], [tokT])]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["T"] [], "b", [tokB])
+                ]
+                (Multiple [Command (Return (Just (Variable "a" tokA))) tokRet])
+            callStmt = Expr (CallT (Variable "add" tokF) [(Int32T, [tokI])]
+                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
+
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, callStmt])
+
+            hasTemplateStmt = any isFunctionT outStmts
+            hasGeneratedConcrete = any isGeneratedConcreteFun outStmts
+            hasGeneratedPrivateFinal = any isGeneratedPrivateFinal outStmts
+            hasCallTExpr = any isCallTExpr (flattenProgram ([], outStmts))
+
+        assertBool "template declaration should be removed from lowering program" (not hasTemplateStmt)
+        assertBool "lowering program should contain generated concrete function" hasGeneratedConcrete
+        assertBool "generated concrete function should be private final" hasGeneratedPrivateFinal
+        assertBool "all template calls should be rewritten before lowering" (not hasCallTExpr),
+
+    testCase "template call with mismatched type argument count becomes syntax error expr" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet = mkIdD "return"
+            tokI = mkIdD "int"
+            tokB2 = mkIdD "bool"
+            tmpl = FunctionT
+                (Class ["T"] [], [tokT])
+                (Variable "add" tokF)
+                [(Class ["T"] [], [tokT])]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["T"] [], "b", [tokB])
+                ]
+                (Multiple [Command (Return (Just (Variable "a" tokA))) tokRet])
+            badCallStmt = Expr (CallT (Variable "add" tokF) [(Int32T, [tokI]), (Bool, [tokB2])]
+                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
+
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, badCallStmt])
+            flatExprs = flattenProgram ([], outStmts)
+            errMsgs = [why | Error _ why <- flatExprs]
+            hasCallTExpr = any isCallTExpr flatExprs
+
+        assertBool "template type argument mismatch should become an error expression" $
+            "template type argument count mismatch: add expects 1 type argument(s), got 2" `elem` errMsgs
+        assertBool "all template calls should be rewritten before lowering" (not hasCallTExpr),
+
+    testCase "empty template argument list infers type args from local hints" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokU = mkIdD "U"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet = mkIdD "return"
+            tokX = mkIdD "x"
+            tokY = mkIdD "y"
+            tmpl = FunctionT
+                (Class ["T"] [], [tokT])
+                (Variable "add" tokF)
+                [ (Class ["T"] [], [tokT])
+                , (Class ["U"] [], [tokU])
+                ]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["U"] [], "b", [tokB])
+                ]
+                (Multiple [Command (Return (Just (Variable "a" tokA))) tokRet])
+            defX = DefConstField ["x"] (Just Int32T) (Just (IntConst "1" (mkNumD "1"))) [tokX]
+            defY = DefConstField ["y"] (Just Int64T) (Just (LongConst "2" (mkNumD "2"))) [tokY]
+            callStmt = Expr (CallT (Variable "add" tokF) []
+                [Variable "x" tokX, Variable "y" tokY])
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, defX, defY, callStmt])
+            flatExprs = flattenProgram ([], outStmts)
+            hasCallTExpr = any isCallTExpr flatExprs
+            generatedParamTypes = [map (\(t, _, _) -> t) ps | Function _ (Variable "add" _) ps _ <- outStmts]
+
+        assertBool "all template calls should be rewritten before lowering" (not hasCallTExpr)
+        assertBool "inferred concrete add(int, long) should be generated" $
+            [Int32T, Int64T] `elem` generatedParamTypes,
+
+    testCase "plain call falls back to template inference when no concrete overload exists" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet = mkIdD "return"
+            tmpl = FunctionT
+                (Class ["T"] [], [tokT])
+                (Variable "add" tokF)
+                [(Class ["T"] [], [tokT])]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["T"] [], "b", [tokB])
+                ]
+                (Multiple [Command (Return (Just (Variable "a" tokA))) tokRet])
+            callStmt = Expr (Call (Variable "add" tokF)
+                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, callStmt])
+            generatedParamTypes = [map (\(t, _, _) -> t) ps | Function _ (Variable "add" _) ps _ <- outStmts]
+            hasCallTExpr = any isCallTExpr (flattenProgram ([], outStmts))
+
+        assertBool "all template calls should be rewritten before lowering" (not hasCallTExpr)
+        assertBool "plain call should infer and instantiate add(int, int)" $
+            [Int32T, Int32T] `elem` generatedParamTypes,
+
+    testCase "infer return-only template parameter from body expression" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokU = mkIdD "U"
+            tokR = mkIdD "R"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet = mkIdD "return"
+            tmpl = FunctionT
+                (Class ["R"] [], [tokR])
+                (Variable "add" tokF)
+                [ (Class ["T"] [], [tokT])
+                , (Class ["U"] [], [tokU])
+                , (Class ["R"] [], [tokR])
+                ]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["U"] [], "b", [tokB])
+                ]
+                (Multiple [Command (Return (Just (Binary Add (Variable "a" tokA) (Variable "b" tokB) (mkSymD Lex.Plus)))) tokRet])
+            callStmt = Expr (CallT (Variable "add" tokF) []
+                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, callStmt])
+            generatedSigs =
+                [ (retT, map (\(t, _, _) -> t) ps)
+                | Function (retT, _) (Variable "add" _) ps _ <- outStmts
+                ]
+            hasCallTExpr = any isCallTExpr (flattenProgram ([], outStmts))
+
+        assertBool "all template calls should be rewritten before lowering" (not hasCallTExpr)
+        assertBool "add<int,int,int> should be generated from return-type inference" $
+            (Int32T, [Int32T, Int32T]) `elem` generatedSigs,
+
+    testCase "merge all return value types to widest numeric type" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokU = mkIdD "U"
+            tokR = mkIdD "R"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet1 = mkIdD "return"
+            tokRet2 = mkIdD "return"
+            tokIf = mkIdD "if"
+            tokElse = mkIdD "else"
+            tmpl = FunctionT
+                (Class ["R"] [], [tokR])
+                (Variable "add" tokF)
+                [ (Class ["T"] [], [tokT])
+                , (Class ["U"] [], [tokU])
+                , (Class ["R"] [], [tokR])
+                ]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["U"] [], "b", [tokB])
+                ]
+                (Multiple
+                    [ If
+                        (BoolConst True tokIf)
+                        (Just (Multiple [Command (Return (Just (Binary Add (Variable "a" tokA) (Variable "b" tokB) (mkSymD Lex.Plus)))) tokRet1]))
+                        (Just (Multiple [Command (Return (Just (LongConst "1L" (mkNumD "1")))) tokRet2]))
+                        (tokIf, Just tokElse)
+                    ])
+            callStmt = Expr (CallT (Variable "add" tokF) []
+                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, callStmt])
+            generatedSigs =
+                [ (retT, map (\(t, _, _) -> t) ps)
+                | Function (retT, _) (Variable "add" _) ps _ <- outStmts
+                ]
+
+        assertBool "add<int,int,long> should be generated from merged return types" $
+            (Int64T, [Int32T, Int32T]) `elem` generatedSigs,
+
+    testCase "mixed return and return-value should fail template return inference" $ do
+        let tokF = mkIdD "add"
+            tokT = mkIdD "T"
+            tokU = mkIdD "U"
+            tokR = mkIdD "R"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokRet1 = mkIdD "return"
+            tokRet2 = mkIdD "return"
+            tokIf = mkIdD "if"
+            tokElse = mkIdD "else"
+            tmpl = FunctionT
+                (Class ["R"] [], [tokR])
+                (Variable "add" tokF)
+                [ (Class ["T"] [], [tokT])
+                , (Class ["U"] [], [tokU])
+                , (Class ["R"] [], [tokR])
+                ]
+                [ (Class ["T"] [], "a", [tokA])
+                , (Class ["U"] [], "b", [tokB])
+                ]
+                (Multiple
+                    [ If
+                        (BoolConst True tokIf)
+                        (Just (Multiple [Command (Return Nothing) tokRet1]))
+                        (Just (Multiple [Command (Return (Just (Binary Add (Variable "a" tokA) (Variable "b" tokB) (mkSymD Lex.Plus)))) tokRet2]))
+                        (tokIf, Just tokElse)
+                    ])
+            callStmt = Expr (CallT (Variable "add" tokF) []
+                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
+            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, callStmt])
+            errMsgs = [why | Error _ why <- flattenProgram ([], outStmts)]
+
+        assertBool "mixed return styles should report inference failure" $
+            any (\msg -> "template type argument inference failed:" `isPrefixOf` msg) errMsgs
+    ]
+    where
+        isGeneratedConcreteFun :: Statement -> Bool
+        isGeneratedConcreteFun stmt = case stmt of
+            Function _ (Variable name _) params _ -> name == "add" && length params == 2
+            StaticMethod _ (Variable name _) params _ -> name == "add" && length params == 2
+            InstanceMethod _ (Variable name _) params _ -> name == "add" && length params == 2
+            _ -> False
+
+        isGeneratedPrivateFinal :: Statement -> Bool
+        isGeneratedPrivateFinal stmt = case stmt of
+            Function (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            StaticMethod (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            InstanceMethod (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            _ -> False
+
+        hasPrivateFinal :: [Token] -> Bool
+        hasPrivateFinal toks = hasWord "private" toks && hasWord "final" toks
+
+        hasWord :: String -> [Token] -> Bool
+        hasWord w = any (\t -> case t of
+            Lex.Ident s _ -> map toLower s == w
+            _ -> False)
+
+        isCallTExpr :: Expression -> Bool
+        isCallTExpr expr = case expr of
+            CallT {} -> True
+            _ -> False
+
 
 prettyExprTests :: TestTree
 prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, out) -> testCase i $ prettyExpr n inp @=? out) [
@@ -769,4 +1022,5 @@ tests = testGroup "Parse.SyntaxTree" [
      
     isPackageDeclTests, isImportDeclTests, isClassDeclarTests,
     isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests,
-    collectInputProgramTests, collectInputProgramsTests, promoteTopLevelFunctionsTests]
+    collectInputProgramTests, collectInputProgramsTests, promoteTopLevelFunctionsTests, normalizeProgramForLoweringTests]
+    

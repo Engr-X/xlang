@@ -31,14 +31,14 @@
  * Reserved for low-level runtime/system APIs.
  */
 
-#include <stdint.h>
+#include "xlang/xtypedef.h"
 
 
-extern int64_t xlang_now_s();
+extern x_i64 xlang_now_s();
 
-extern int64_t xlang_now_ms();
+extern x_i64 xlang_now_ms();
 
-extern int64_t xlang_now_ns();
+extern x_i64 xlang_now_ns();
 
 
 #endif

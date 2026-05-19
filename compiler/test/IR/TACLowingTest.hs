@@ -469,6 +469,193 @@ pointerSuffixLoweringTests = testGroup "IR.TACLowing.pointerSuffix" [
         Var _ -> True
         _ -> False
 
+pointerIntrinsicLoweringTests :: TestTree
+pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
+    testCase "arr.get(i) lowers to pointer read" $ do
+        let posArr = makePosition 10 1 3
+            posGet = makePosition 10 5 3
+            posI = makePosition 10 9 1
+            tokArr = LT.Ident "arr" posArr
+            tokGet = LT.Ident "get" posGet
+            tokI = LT.Ident "i" posI
+            expr = AST.Call (AST.Qualified ["arr", "get"] [tokArr, tokGet]) [AST.Variable "i" tokI]
+            vUses = Map.fromList
+                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0)
+                , ([posI], TEnv.VarLocal (Public, []) "i" 1)
+                ]
+            stacks = Map.fromList
+                [ (("arr", 0), [(Pointer Int32T, 0)])
+                , (("i", 1), [(Int32T, 0)])
+                ]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Int32T
+        assertBool "get should emit TAC.Deref" (any isDerefInstr nodes),
+
+    testCase "arr.set(i, v) lowers to read-old + write and returns element type" $ do
+        let posArr = makePosition 11 1 3
+            posSet = makePosition 11 5 3
+            posI = makePosition 11 9 1
+            posV = makePosition 11 12 1
+            tokArr = LT.Ident "arr" posArr
+            tokSet = LT.Ident "set" posSet
+            tokI = LT.Ident "i" posI
+            tokV = LT.Ident "v" posV
+            expr = AST.Call
+                (AST.Qualified ["arr", "set"] [tokArr, tokSet])
+                [AST.Variable "i" tokI, AST.Variable "v" tokV]
+            vUses = Map.fromList
+                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0)
+                , ([posI], TEnv.VarLocal (Public, []) "i" 1)
+                , ([posV], TEnv.VarLocal (Public, []) "v" 2)
+                ]
+            stacks = Map.fromList
+                [ (("arr", 0), [(Pointer Int32T, 0)])
+                , (("i", 1), [(Int32T, 0)])
+                , (("v", 2), [(Int32T, 0)])
+                ]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Int32T
+        assertBool "set should emit TAC.Deref (read old)" (any isDerefInstr nodes)
+        assertBool "set should emit TAC.DerefAssign (write new)" (any isDerefAssignInstr nodes),
+
+    testCase "arr[i] = v returns old value (index-set semantics)" $ do
+        let posArr = makePosition 12 1 3
+            posI = makePosition 12 5 1
+            posV = makePosition 12 9 1
+            tokArr = LT.Ident "arr" posArr
+            tokI = LT.Ident "i" posI
+            tokV = LT.Ident "v" posV
+            tokLbr = LT.Symbol LT.LBracket (makePosition 12 4 1)
+            tokAssign = LT.Symbol LT.Assign (makePosition 12 8 1)
+            lhs = AST.Unary AST.DeRef (AST.Binary AST.Add (AST.Variable "arr" tokArr) (AST.Variable "i" tokI) tokLbr) tokLbr
+            expr = AST.Binary AST.Assign lhs (AST.Variable "v" tokV) tokAssign
+            vUses = Map.fromList
+                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0)
+                , ([posI], TEnv.VarLocal (Public, []) "i" 1)
+                , ([posV], TEnv.VarLocal (Public, []) "v" 2)
+                ]
+            stacks = Map.fromList
+                [ (("arr", 0), [(Pointer Int32T, 0)])
+                , (("i", 1), [(Int32T, 0)])
+                , (("v", 2), [(Int32T, 0)])
+                ]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Int32T
+        assertBool "index assign should read old value" (any isDerefInstr nodes)
+        assertBool "index assign should still write" (any isDerefAssignInstr nodes)
+    ]
+  where
+    isDerefInstr :: IRNode -> Bool
+    isDerefInstr node = case node of
+        IRInstr (TAC.Deref _ _) -> True
+        _ -> False
+
+    isDerefAssignInstr :: IRNode -> Bool
+    isDerefAssignInstr node = case node of
+        IRInstr (TAC.DerefAssign _ _ _) -> True
+        _ -> False
+
+
+functionPointerLoweringTests :: TestTree
+functionPointerLoweringTests = testGroup "IR.TACLowing.functionPointer" [
+    testCase "function reference lowers to TAC.GetFuncAddr with function-pointer type" $ do
+        let posAdd = makePosition 30 1 3
+            tokAdd = LT.Ident "add" posAdd
+            expr = AST.Variable "add" tokAdd
+            sig = TEnv.FunSig [Int32T, Int32T] Int32T
+            fUses = Map.fromList [([posAdd], TEnv.FunLocal (Public, []) ["add"] sig)]
+            st0 = TAC.mkTACState Map.empty fUses
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                (lowered, outAtom) <- atomLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= FuncPtr Int32T [Int32T, Int32T]
+        assertBool "function reference should emit TAC.GetFuncAddr" (any isGetFuncAddr nodes),
+
+    testCase "calling function-pointer variable lowers to TAC.ICallPtr" $ do
+        let posFp = makePosition 31 1 2
+            tokFp = LT.Ident "fp" posFp
+            tok1 = LT.NumberConst "1" (makePosition 31 4 1)
+            tok2 = LT.NumberConst "2" (makePosition 31 7 1)
+            expr = AST.Call (AST.Variable "fp" tokFp)
+                [AST.IntConst "1" tok1, AST.IntConst "2" tok2]
+            fpTy = FuncPtr Int32T [Int32T, Int32T]
+            vUses = Map.fromList [([posFp], TEnv.VarLocal (Public, []) "fp" 0)]
+            stacks = Map.fromList [(("fp", 0), [(fpTy, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Int32T
+        assertBool "function-pointer call should emit TAC.ICallPtr" (any isICallPtr nodes)
+    ]
+  where
+    isGetFuncAddr :: IRNode -> Bool
+    isGetFuncAddr node = case node of
+        IRInstr (TAC.GetFuncAddr _ _) -> True
+        _ -> False
+
+    isICallPtr :: IRNode -> Bool
+    isICallPtr node = case node of
+        IRInstr (TAC.ICallPtr _ _ _) -> True
+        _ -> False
+
+
+resolveLiveVarKeyTests :: TestTree
+resolveLiveVarKeyTests = testGroup "IR.TACLowing.resolveLiveVarKey" [
+    testCase "falls back to in-scope raw variable name when position-mapped key drifts" $ do
+        let stacks = Map.fromList
+                [ (("src", 3), [(Pointer Int32T, 0)])
+                , (("acc", 4), [(Int32T, 0)])
+                ]
+            st0 = TAC.mkTACState Map.empty Map.empty
+            key = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                resolveLiveVarKey "src" ("x", 22)) st0
+        key @?= ("src", 3)
+    ]
+
+
+sizeofLoweringTests :: TestTree
+sizeofLoweringTests = testGroup "IR.TACLowing.sizeof" [
+    testCase "sizeof(type) folds to constant atom" $ do
+        let expr = AST.SizeOfType (Int32T, [LT.dummyToken]) LT.dummyToken
+            st0 = TAC.mkTACState Map.empty Map.empty
+            (nodes, outAtom) = evalState (TAC.runTACM (exprLowing expr)) st0
+        nodes @?= []
+        outAtom @?= TAC.Int32C 4,
+
+    testCase "sizeof(variable) uses type only and folds to constant atom" $ do
+        let posA = makePosition 20 1 1
+            tokA = LT.Ident "a" posA
+            expr = AST.SizeOfExpr (AST.Variable "a" tokA) LT.dummyToken
+            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0)]
+            stacks = Map.fromList [(("a", 0), [(Int64T, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outAtom) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                exprLowing expr) st0
+        nodes @?= []
+        outAtom @?= TAC.Int32C 8
+    ]
+
 tests :: TestTree
 tests = testGroup "IR.TACLowing" [
     stripIntSuffixTests,
@@ -485,7 +672,11 @@ tests = testGroup "IR.TACLowing" [
     untilLoweringTests,
     doLoopLoweringTests,
     repeatLoweringTests,
-    pointerSuffixLoweringTests
+    resolveLiveVarKeyTests,
+    sizeofLoweringTests,
+    pointerSuffixLoweringTests,
+    pointerIntrinsicLoweringTests,
+    functionPointerLoweringTests
     ]
 
 

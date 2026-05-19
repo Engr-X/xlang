@@ -4,13 +4,17 @@ Decl :: { Declaration }
     | KW_IMPORT QName '.' '*' Sep
                                 { let (ss, ts) = $2 in Import (reverse ss ++ ["*"]) (reverse ts ++ [$3, $4]) }
     | KW_CLASSNAME string Sep   { JavaName (strVal $2) $2 }
-    | annotation Sep
-        {
-            case jvmClassAnnotation $1 of
-                Just (name, tok) -> JavaName name tok
-                Nothing -> error "Decl: unsupported annotation"
+    | '@' identity '.' identity '(' string ')' Sep
+        { let scope = identText $2; key = identText $4 in
+            if scope == "file" && (key == "class" || key == "JvmClass" || key == "jvmclass" || key == "filename")
+                then JavaName (strVal $6) $6
+                else error "Decl: unsupported file annotation"
         }
-    | '@' KW_JVMCLASS '(' string ')' Sep
-                                { JavaName (strVal $4) $4 }
+    | '@' identity '.' identity Sep
+        { let scope = identText $2 in
+            if scope == "file"
+                then error "Decl: @file.<name> requires a string argument"
+                else error "Decl: unsupported annotation"
+        }
     ;
 

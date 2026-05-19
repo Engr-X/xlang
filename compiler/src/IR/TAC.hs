@@ -43,6 +43,10 @@ expandExpr e@(AST.BoolConst _ _) = ([], e)
 
 expandExpr e@(AST.Variable _ _) = ([], e)
 expandExpr e@(AST.Qualified _ _) = ([], e)
+expandExpr (AST.SizeOfExpr x tok) =
+    let (ss, x') = expandExpr x
+    in (ss, AST.SizeOfExpr x' tok)
+expandExpr e@(AST.SizeOfType _ _) = ([], e)
 
 -- Cast
 expandExpr (AST.Cast ct x tok) = let (ss, x') = expandExpr x in (ss, AST.Cast ct x' tok)
@@ -398,6 +402,12 @@ getVar pos = TACM $ do
         Nothing -> error ("getVar: no var info at " ++ show pos)
 
 
+lookupVarMaybe :: [Position] -> TACM (Maybe FullVarTable)
+lookupVarMaybe pos = TACM $ do
+    st <- get
+    pure (Map.lookup pos (tacVarUses st))
+
+
 -- | Get function usage info by source position (must exist).
 getFunction :: [Position] -> TACM FullFunctionTable
 getFunction pos = TACM $ do
@@ -405,6 +415,12 @@ getFunction pos = TACM $ do
     case Map.lookup pos (tacFunUses st) of
         Just f -> pure f
         Nothing -> error ("getFunction: no function info at " ++ show pos)
+
+
+lookupFunctionMaybe :: [Position] -> TACM (Maybe FullFunctionTable)
+lookupFunctionMaybe pos = TACM $ do
+    st <- get
+    pure (Map.lookup pos (tacFunUses st))
 
 
 -- | Lookup the current (top) version info for a var key.
@@ -631,8 +647,10 @@ data IRInstr
     --              class1, class2
     | ICast IRAtom (Class, Class) IRAtom            -- dst = cast atom from class1 to class2
 
-    | ICallStaticDirect IRAtom [String] [IRAtom]    -- dst = direct-call target(args)
+    | GetFuncAddr IRAtom TACFunction                -- dst = &function
+    | ICallPtr IRAtom IRAtom [IRAtom]               -- dst = call *fnptr(args)
 
+    | ICallStaticDirect IRAtom [String] [IRAtom]    -- dst = direct-call target(args)
     | ICallStatic IRAtom [String] [IRAtom]          -- dst = call C.f(args)
 
     | ICallVirtual IRAtom [String] [IRAtom]         -- dst = vcall C.f(args)
@@ -649,6 +667,13 @@ data IRInstr
     | Deref IRAtom IRAtom                           -- dereference for only pointers (atom2) atom1 = *atom2
     | DerefAssign IRAtom IRAtom Int                 -- like a* = 10; c* = *a = b, the first one must be pointer variable, Int refert the size to write only support 1, 2, 4, 8
     | NewStackMem IRAtom IRAtom                     -- dst = stack blob allocation marker (bytes)
+    deriving (Eq, Show)
+
+
+data TACFunction
+    = TACFunction
+        [String] -- ^ fully-qualified function qname
+        FunSig   -- ^ function signature
     deriving (Eq, Show)
 
 
@@ -680,6 +705,17 @@ prettyIRInstr n instr = insertTab n ++ case instr of
     IUnary dst op x -> concat [prettyIRAtom dst, " = ", AST.prettyOp op, prettyIRAtom x]
     IBinary dst op x y -> concat [prettyIRAtom dst, " = ", prettyIRAtom x, " ", AST.prettyOp op, " ", prettyIRAtom y]
     ICast dst (fromC, toC) x -> concat [prettyIRAtom dst, " = cast(", AST.prettyClass fromC, "->", AST.prettyClass toC, ") ", prettyIRAtom x]
+    GetFuncAddr dst (TACFunction qname sig) ->
+        concat [
+            prettyIRAtom dst, " = &",
+            intercalate "." qname, "(",
+            intercalate ", " (map AST.prettyClass (TEnv.funParams sig)),
+            ") -> ",
+            AST.prettyClass (TEnv.funReturn sig)]
+    ICallPtr dst fnPtr args ->
+        concat [
+            prettyIRAtom dst, " = call *", prettyIRAtom fnPtr, "(",
+            intercalate ", " (map prettyIRAtom args), ")"]
     ICallStaticDirect dst qname args ->
         concat [
             prettyIRAtom dst, " = call ",
@@ -761,6 +797,59 @@ prettyIRFunction n (IRFunction decl name sig atomTypes (body, _) memberType) =
         typesS = prettyTypeMap (n + 1) atomTypes
     in concat [header, bodyS, typesS]
 
+data IRCFunction
+    = IRCFunction
+        Decl           -- ^ declaration (access + flags)
+        String         -- ^ function name
+        FunSig         -- ^ function signature
+        (Map IRAtom Class) -- ^ atom -> type map
+        ([IRBlock], Int)      -- ^ function body
+        IRMemberType   -- ^ origin kind: class / class-wrapped
+    deriving (Eq, Show)
+
+prettyIRCFunction :: Int -> IRCFunction -> String
+prettyIRCFunction n (IRCFunction decl name sig atomTypes (body, _) memberType) =
+    let indent = insertTab n
+        declS = prettyDecl decl
+        declPrefix = if null declS then "" else declS ++ " "
+        retS = AST.prettyClass (TEnv.funReturn sig)
+        paramS = intercalate ", " (map AST.prettyClass (TEnv.funParams sig))
+        typeS = concat ["[cfunction/", prettyIRMemberType memberType, "] "]
+        header = concat [indent, typeS, declPrefix, retS, " ", name, "(", paramS, "):\n"]
+        bodyS = concatMap (prettyIRBlock (n + 1)) body
+        typesS = prettyTypeMap (n + 1) atomTypes
+    in concat [header, bodyS, typesS]
+
+data IRTemplateFunction
+    = IRTemplateFunction
+        Decl           -- ^ declaration (access + flags)
+        String         -- ^ function name
+        FunSig         -- ^ function signature
+        [String]       -- ^ template parameters, e.g. ["T","U"]
+        [String]       -- ^ parameter names, same order as funParams
+        String         -- ^ template body source text (body only)
+        IRMemberType   -- ^ origin kind: class / class-wrapped
+    deriving (Eq, Show)
+
+prettyIRTemplateFunction :: Int -> IRTemplateFunction -> String
+prettyIRTemplateFunction n (IRTemplateFunction decl name sig tparams pnames bodyText memberType) =
+    let indent = insertTab n
+        declS = prettyDecl decl
+        declPrefix = if null declS then "" else declS ++ " "
+        retS = AST.prettyClass (TEnv.funReturn sig)
+        paramPairs = zip (TEnv.funParams sig) (pnames ++ repeat "_")
+        paramS = intercalate ", " [AST.prettyClass ty ++ " " ++ pname | (ty, pname) <- paramPairs]
+        typeS = concat ["[template/", prettyIRMemberType memberType, "] "]
+        tps = case tparams of
+            [] -> ""
+            _ -> "<" ++ intercalate ", " tparams ++ ">"
+        header = concat [indent, typeS, declPrefix, retS, " ", name, tps, "(", paramS, "):\n"]
+        bodyLines = lines bodyText
+        bodyS = case bodyLines of
+            [] -> insertTab (n + 1) ++ "{}\n"
+            _ -> concatMap (\ln -> insertTab (n + 1) ++ ln ++ "\n") bodyLines
+    in header ++ bodyS
+
 
 -- | Static initializer body blocks + unique return block id.
 newtype StaticInit = StaticInit ([IRBlock], Int) deriving (Eq, Show)
@@ -801,11 +890,13 @@ data IRClass
         StaticInit    -- ^ static initializer
         (Map IRAtom Class) -- ^ atom -> type map (static init)
         [IRFunction]  -- ^ methods
+        [IRTemplateFunction] -- ^ template method blueprints
+        [IRCFunction] -- ^ c-link mirror methods
         MainKind      -- ^ detected class-level main entry
     deriving (Eq, Show)
 
 prettyIRClass :: Int -> IRClass -> String
-prettyIRClass n (IRClass decl name attrs sInit atomTypes funs mainKind) =
+prettyIRClass n (IRClass decl name attrs sInit atomTypes funs tFuns cFuns mainKind) =
     let indent = insertTab n
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
@@ -815,7 +906,9 @@ prettyIRClass n (IRClass decl name attrs sInit atomTypes funs mainKind) =
         staticS = prettyStaticInit (n + 1) sInit
         typesS = prettyTypeMap (n + 1) atomTypes
         funsS = concatMap (prettyIRFunction (n + 1)) funs
-    in concat [header, mainS, attrsS, staticS, typesS, funsS]
+        tFunsS = concatMap (prettyIRTemplateFunction (n + 1)) tFuns
+        cFunsS = concatMap (prettyIRCFunction (n + 1)) cFuns
+    in concat [header, mainS, attrsS, staticS, typesS, funsS, tFunsS, cFunsS]
 
 prettyTypeMap :: Int -> Map IRAtom Class -> String
 prettyTypeMap n atomTypes
@@ -867,12 +960,25 @@ flattenIRProgm :: IRProgm -> IRProgm
 flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
 
 flattenIRClass :: IRClass -> IRClass
-flattenIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (flattenBlocks blocks, retBid)) atomTypes (map flattenIRFunction funs) mainKind
+flattenIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+    IRClass
+        decl
+        name
+        fields
+        (StaticInit (flattenBlocks blocks, retBid))
+        atomTypes
+        (map flattenIRFunction funs)
+        tFuns
+        (map flattenIRCFunction cFuns)
+        mainKind
 
 flattenIRFunction :: IRFunction -> IRFunction
 flattenIRFunction (IRFunction acc name sig atomTypes (blocks, retBid) memberType) =
     IRFunction acc name sig atomTypes (flattenBlocks blocks, retBid) memberType
+
+flattenIRCFunction :: IRCFunction -> IRCFunction
+flattenIRCFunction (IRCFunction acc name sig atomTypes (blocks, retBid) memberType) =
+    IRCFunction acc name sig atomTypes (flattenBlocks blocks, retBid) memberType
 
 flattenBlocks :: [IRBlock] -> [IRBlock]
 flattenBlocks = id
@@ -885,12 +991,25 @@ pruneIRProgm :: IRProgm -> IRProgm
 pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
 
 pruneIRClass :: IRClass -> IRClass
-pruneIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (pruneBlocks blocks, retBid)) atomTypes (map pruneIRFunction funs) mainKind
+pruneIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+    IRClass
+        decl
+        name
+        fields
+        (StaticInit (pruneBlocks blocks, retBid))
+        atomTypes
+        (map pruneIRFunction funs)
+        tFuns
+        (map pruneIRCFunction cFuns)
+        mainKind
 
 pruneIRFunction :: IRFunction -> IRFunction
 pruneIRFunction (IRFunction acc name sig atomTypes (blocks, retBid) memberType) =
     IRFunction acc name sig atomTypes (pruneBlocks blocks, retBid) memberType
+
+pruneIRCFunction :: IRCFunction -> IRCFunction
+pruneIRCFunction (IRCFunction acc name sig atomTypes (blocks, retBid) memberType) =
+    IRCFunction acc name sig atomTypes (pruneBlocks blocks, retBid) memberType
 
 pruneBlocks :: [IRBlock] -> [IRBlock]
 pruneBlocks [] = []
@@ -910,12 +1029,25 @@ rmEBInProg :: IRProgm -> IRProgm
 rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
 
 rmEBInClass :: IRClass -> IRClass
-rmEBInClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs mainKind) =
-    IRClass decl name fields (StaticInit (rmEBInBlocks blocks, retBid)) atomTypes (map rmEBInFunc funs) mainKind
+rmEBInClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+    IRClass
+        decl
+        name
+        fields
+        (StaticInit (rmEBInBlocks blocks, retBid))
+        atomTypes
+        (map rmEBInFunc funs)
+        tFuns
+        (map rmEBInCFunc cFuns)
+        mainKind
 
 rmEBInFunc :: IRFunction -> IRFunction
 rmEBInFunc (IRFunction acc name sig atomTypes (blocks, retBid) memberType) =
     IRFunction acc name sig atomTypes (rmEBInBlocks blocks, retBid) memberType
+
+rmEBInCFunc :: IRCFunction -> IRCFunction
+rmEBInCFunc (IRCFunction acc name sig atomTypes (blocks, retBid) memberType) =
+    IRCFunction acc name sig atomTypes (rmEBInBlocks blocks, retBid) memberType
 
 rmEBInBlocks :: [IRBlock] -> [IRBlock]
 rmEBInBlocks = fixpoint

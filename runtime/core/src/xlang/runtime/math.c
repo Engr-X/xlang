@@ -41,7 +41,7 @@
  * @param x     an angle, in radians
  * @return      the sine of {@code x}
  */
-double xlang_sin(double x)
+x_f64 xlang_sin(x_f64 x)
 {
     return sin(x);
 }
@@ -53,7 +53,7 @@ double xlang_sin(double x)
  * @param x     an angle, in radians
  * @return      the cosine of {@code x}
  */
-double xlang_cos(double x)
+x_f64 xlang_cos(x_f64 x)
 {
     return cos(x);
 }
@@ -65,7 +65,7 @@ double xlang_cos(double x)
  * @param x     an angle, in radians
  * @return      the tangent of {@code x}
  */
-double xlang_tan(double x)
+x_f64 xlang_tan(x_f64 x)
 {
     return tan(x);
 }
@@ -77,7 +77,7 @@ double xlang_tan(double x)
  * @param x     a value (typically in [-1, 1])
  * @return      the arc sine of {@code x}, in radians
  */
-double xlang_asin(double x)
+x_f64 xlang_asin(x_f64 x)
 {
     return asin(x);
 }
@@ -89,7 +89,7 @@ double xlang_asin(double x)
  * @param x     a value (typically in [-1, 1])
  * @return      the arc cosine of {@code x}, in radians
  */
-double xlang_acos(double x)
+x_f64 xlang_acos(x_f64 x)
 {
     return acos(x);
 }
@@ -101,7 +101,7 @@ double xlang_acos(double x)
  * @param x     a value
  * @return      the arc tangent of {@code x}, in radians
  */
-double xlang_atan(double x)
+x_f64 xlang_atan(x_f64 x)
 {
     return atan(x);
 }
@@ -113,7 +113,7 @@ double xlang_atan(double x)
  * @param x     the exponent
  * @return      e raised to the power {@code x}
  */
-double xlang_exp(double x)
+x_f64 xlang_exp(x_f64 x)
 {
     return exp(x);
 }
@@ -125,7 +125,7 @@ double xlang_exp(double x)
  * @param x     a value
  * @return      the natural logarithm of {@code x}
  */
-double xlang_ln(double x)
+x_f64 xlang_ln(x_f64 x)
 {
     return log(x);
 }
@@ -137,7 +137,7 @@ double xlang_ln(double x)
  * @param x     a value
  * @return      the base-10 logarithm of {@code x}
  */
-double xlang_log10(double x)
+x_f64 xlang_log10(x_f64 x)
 {
     return log10(x);
 }
@@ -149,7 +149,7 @@ double xlang_log10(double x)
  * @param x     a value
  * @return      the square root of {@code x}
  */
-double xlang_sqrt(double x)
+x_f64 xlang_sqrt(x_f64 x)
 {
     return sqrt(x);
 }
@@ -161,7 +161,7 @@ double xlang_sqrt(double x)
  * @param x     a value
  * @return      the cube root of {@code x}
  */
-double xlang_cbrt(double x)
+x_f64 xlang_cbrt(x_f64 x)
 {
     return cbrt(x);
 }
@@ -174,7 +174,7 @@ double xlang_cbrt(double x)
  * @param y the divisor
  * @return the IEEE 754-style remainder of {@code x / y}
  */
-double xlang_IEEEremainder(double x, double y)
+x_f64 xlang_IEEEremainder(x_f64 x, x_f64 y)
 {
     return remainder(x, y);
 }

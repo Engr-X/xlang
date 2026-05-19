@@ -188,6 +188,7 @@ isRefClass64 :: Class -> Bool
 isRefClass64 (AST.Class _ _) = True
 isRefClass64 (AST.Pointer _) = True
 isRefClass64 (AST.Blob _) = True
+isRefClass64 (AST.FuncPtr _ _) = True
 isRefClass64 _ = False
 
 
@@ -207,6 +208,7 @@ castIntWidth64 cls = case Map.lookup cls bitsByClass64 of
 
 
 classBits64 :: Class -> Bits
+classBits64 (AST.FuncPtr _ _) = B64
 classBits64 cls = case Map.lookup cls bitsByClass64 of
     Just bits -> bits
     Nothing -> error $ "classBits64: unsupported class in bits map: " ++ show cls
@@ -555,6 +557,7 @@ data Instruction =
     Jbe (Either [String] Int) |
 
     Call [String] [Class] |
+    CallA Atom |
     Leave |
     Ret
     deriving (Show, Eq)
@@ -665,6 +668,7 @@ prettyInstrIntel _cc tab (Jae target) = concat [insertTab tab, "jae ", prettyJum
 prettyInstrIntel _cc tab (Jb target) = concat [insertTab tab, "jb ", prettyJumpTarget _cc target]
 prettyInstrIntel _cc tab (Jbe target) = concat [insertTab tab, "jbe ", prettyJumpTarget _cc target]
 prettyInstrIntel _cc tab (Call func sigTs) = concat [insertTab tab, "call ", mangleQNameWithSig True func sigTs]
+prettyInstrIntel _cc tab (CallA target) = concat [insertTab tab, "call ", prettyAtomIntel _cc B64 target]
 prettyInstrIntel _cc tab Leave = insertTab tab ++ "leave"
 prettyInstrIntel _cc tab Ret = insertTab tab ++ "ret"
 

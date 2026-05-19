@@ -364,6 +364,7 @@ tests = testGroup "Parse.ParseExpr" [
     genericCallSyntaxTests,
     blockExprParseTests,
     ifAssignSugarParseTests,
+    sizeofParseTests,
     pointerSuffixParseTests
     ]
 
@@ -483,6 +484,11 @@ genericCallSyntaxTests = testGroup "Parse.ParseExpr.generic_call_syntax" [
     testCase "1" $
         case replLexparseExpr "a < b" of
             Right (Binary LessThan (Variable "a" _) (Variable "b" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ,
+    testCase "2" $
+        case replLexparseExpr "add<>(m, 1)" of
+            Right (CallT (Variable "add" _) [] [Variable "m" _, IntConst "1" _]) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 
@@ -739,6 +745,80 @@ pointerSuffixParseTests = testGroup "Parse.ParseExpr.pointerSuffix" [
     testCase "cast supports pointer::<void>" $
         case replLexparseExpr "a as pointer::<void>" of
             Right (Cast (Pointer Void, _) (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ,
+
+    testCase "ptr[i] desugars to deref(ptr + i)" $
+        case replLexparseExpr "ptr[i]" of
+            Right (Unary DeRef (Binary Add (Variable "ptr" _) (Variable "i" _) _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "ptr[i] can be assignment lhs" $
+        case replLexparseExpr "ptr[i] = v" of
+            Right (Binary Assign
+                (Unary DeRef (Binary Add (Variable "ptr" _) (Variable "i" _) _) _)
+                (Variable "v" _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "ptr[i].ref desugars to ptr + i" $
+        case replLexparseExpr "ptr[i].ref" of
+            Right (Binary Add (Variable "ptr" _) (Variable "i" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ,
+
+    testCase "arr.get(i) parses as normal call target" $
+        case replLexparseExpr "arr.get(i)" of
+            Right (Call (Qualified ["arr", "get"] _) [Variable "i" _]) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "!f(ptr) parses unary-not over call" $
+        case replLexparseExpr "!f(ptr)" of
+            Right (Unary LogicalNot (Call (Variable "f" _) [Variable "ptr" _]) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "arr.get(i) cannot be assignment lhs" $
+        case replLexparseExpr "arr.get(i) = 20" of
+            Left _ -> pure ()
+            other -> assertFailure ("expected parse failure, got: " ++ show other),
+
+    testCase "ptr[i + 1] accepts full expression index" $
+        case replLexparseExpr "ptr[i + 1]" of
+            Right (Unary DeRef
+                (Binary Add
+                    (Variable "ptr" _)
+                    (Binary Add (Variable "i" _) (IntConst "1" _) _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "pp[i][j] nests index sugar" $
+        case replLexparseExpr "pp[i][j]" of
+            Right (Unary DeRef
+                (Binary Add
+                    (Unary DeRef (Binary Add (Variable "pp" _) (Variable "i" _) _) _)
+                    (Variable "j" _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+
+
+sizeofParseTests :: TestTree
+sizeofParseTests = testGroup "Parse.ParseExpr.sizeof" [
+    testCase "sizeof(a) parses as SizeOfExpr" $
+        case replLexparseExpr "sizeof(a)" of
+            Right (SizeOfExpr (Variable "a" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "sizeof(pointer<int>) parses as SizeOfType" $
+        case replLexparseExpr "sizeof(pointer<int>)" of
+            Right (SizeOfType (Pointer Int32T, _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "sizeof(blob[1000]) parses as SizeOfType" $
+        case replLexparseExpr "sizeof(blob[1000])" of
+            Right (SizeOfType (Blob (IntConst "1000" _), _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 

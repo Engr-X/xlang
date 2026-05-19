@@ -19,12 +19,12 @@ void xlang_minit()
 }
 
 
-void* xlang_malloc(const int64_t size) 
+void* xlang_malloc(const x_i64 size) 
 {
 
 }
 
-void* xlang_realloc(const void* ptr, const int64_t size) 
+void* xlang_realloc(const void* ptr, const x_i64 size) 
 {
     
 }

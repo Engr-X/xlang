@@ -107,6 +107,22 @@ paringTests = testGroup "Util.Basic.paring" [
     testCase "3" $ paring (2, 3) @?= 18]
 
 
+excelColumnNameTests :: TestTree
+excelColumnNameTests = testGroup "Util.Basic.excelColumnNames" [
+    testCase "prefix A..AF" $
+        take 32 excelColumnNames
+            @?= ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "AA", "AB", "AC", "AD", "AE", "AF"],
+    testCase "index checkpoints" $ do
+        excelColumnName 1 @?= "A"
+        excelColumnName 26 @?= "Z"
+        excelColumnName 27 @?= "AA"
+        excelColumnName 52 @?= "AZ"
+        excelColumnName 53 @?= "BA"
+        excelColumnName 702 @?= "ZZ"
+        excelColumnName 703 @?= "AAA"
+    ]
+
+
 toDataTests :: TestTree
 toDataTests = testGroup "Util.Basic.toData" [
     testCase "0" $ toData 10.0 @?= "0x41200000",
@@ -181,6 +197,7 @@ tests = testGroup "Util.Basic" [
     insertSpaceTests,
     insertTabTests,
     paringTests,
+    excelColumnNameTests,
     toDataTests,
     hostArchTests,
     hostPlatformTests,

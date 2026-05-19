@@ -5,7 +5,7 @@ module Semantic.CheckProgram where
 import Control.Monad (foldM)
 import Data.Char (toLower, toUpper)
 import Data.Graph (SCC(..), stronglyConnComp)
-import Data.List (foldl', intercalate, isPrefixOf, stripPrefix, maximumBy, sortOn)
+import Data.List (foldl', intercalate, isPrefixOf, stripPrefix, maximumBy, sortOn, nub)
 import Data.Map.Strict (Map)
 import Data.HashSet (HashSet)
 import Data.Maybe (fromMaybe, mapMaybe)
@@ -233,6 +233,7 @@ externalPackages envs =
         fromEnv env =
             mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tVars env))
             ++ mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tFuncs env))
+            ++ mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tTemplates env))
 
         pkgFromFull :: QName -> Maybe QName
         pkgFromFull full
@@ -422,7 +423,8 @@ mergeTypedEnv :: TypedImportEnv -> TypedImportEnv -> TypedImportEnv
 mergeTypedEnv a b =
     a {
         tVars = Map.union (tVars a) (tVars b),
-        tFuncs = Map.unionWith mergeFunEntry (tFuncs a) (tFuncs b)
+        tFuncs = Map.unionWith mergeFunEntry (tFuncs a) (tFuncs b),
+        tTemplates = Map.unionWith mergeTemplateEntry (tTemplates a) (tTemplates b)
     }
     where
         mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
@@ -431,6 +433,13 @@ mergeTypedEnv a b =
                 poses = posA ++ posB
                 full = if null fullA then fullB else fullA
             in (sigs, poses, full)
+
+        mergeTemplateEntry :: ([Statement], [Position], QName) -> ([Statement], [Position], QName) -> ([Statement], [Position], QName)
+        mergeTemplateEntry (defsA, posA, fullA) (defsB, posB, fullB) =
+            let defs = defsA ++ filter (`notElem` defsA) defsB
+                poses = posA ++ posB
+                full = if null fullA then fullB else fullA
+            in (defs, poses, full)
 
 
 data ImportSpec
@@ -476,6 +485,7 @@ collectFullQNames envs =
     oneEnv env =
         map (\(_, _, full) -> full) (Map.elems (tVars env))
         ++ map (\(_, _, full) -> full) (Map.elems (tFuncs env))
+        ++ map (\(_, _, full) -> full) (Map.elems (tTemplates env))
 
 
 splitFullQName :: QName -> Maybe (QName, String, String)
@@ -578,7 +588,8 @@ expandTypedImportEnvBySpecs :: QName -> [ImportSpec] -> TypedImportEnv -> TypedI
 expandTypedImportEnvBySpecs currentPkg specs env =
     env {
         tVars = expandVarMap (tVars env),
-        tFuncs = expandFunMap (tFuncs env)
+        tFuncs = expandFunMap (tFuncs env),
+        tTemplates = expandTemplateMap (tTemplates env)
     }
   where
     expandVarMap :: Map QName (AST.Class, [Position], QName) -> Map QName (AST.Class, [Position], QName)
@@ -618,6 +629,26 @@ expandTypedImportEnvBySpecs currentPkg specs env =
                 in (sigs, poses, full)
         in foldl' (\acc (k, v) -> Map.insertWith mergeFunEntry k v acc) Map.empty aliases
 
+    expandTemplateMap :: Map QName ([Statement], [Position], QName) -> Map QName ([Statement], [Position], QName)
+    expandTemplateMap mp =
+        let entries = Map.toList mp
+            topLevels = HashSet.fromList [
+                fullQn | (keyQn, (_, _, fullQn)) <- entries,
+                let (_, payload) = splitHiddenQName keyQn, isTopLevelAliasPayload payload fullQn]
+            aliases = [
+                (aliasKey, entry) | (keyQn, entry) <- entries,
+                let (isHidden, _) = splitHiddenQName keyQn,
+                let full = fullFromEntry entry,
+                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels),
+                let aliasKey = if isHidden then toHiddenQName alias else alias]
+            mergeTemplateEntry :: ([Statement], [Position], QName) -> ([Statement], [Position], QName) -> ([Statement], [Position], QName)
+            mergeTemplateEntry (newDefs, newPos, newFull) (oldDefs, oldPos, oldFull) =
+                let defs = oldDefs ++ filter (`notElem` oldDefs) newDefs
+                    poses = oldPos ++ newPos
+                    full = if null oldFull then newFull else oldFull
+                in (defs, poses, full)
+        in foldl' (\acc (k, v) -> Map.insertWith mergeTemplateEntry k v acc) Map.empty aliases
+
     fullFromEntry :: (a, b, QName) -> QName
     fullFromEntry (_, _, full) = full
 
@@ -627,18 +658,32 @@ expandTypedImportEnvBySpecs currentPkg specs env =
         Nothing -> False
 
     aliasesForEntry :: QName -> Bool -> [QName]
-    aliasesForEntry full isTopLevel =
-        if isSamePackageFull full || any (`matchesImportSpec` full) specs
-            then aliasTargetsForSpec currentPkg isTopLevel full
-            else [full]
+    aliasesForEntry full isTopLevel
+        | isSamePackageFull full || any (`matchesImportSpec` full) specs =
+            aliasTargetsForSpec currentPkg isTopLevel full
+        | isTopLevel =
+            case splitFullQName full of
+                Just (pkg, _, member) ->
+                    dedupQNames [full, pkg ++ [member]]
+                Nothing ->
+                    [full]
+        | otherwise =
+            [full]
+      where
+        dedupQNames :: [QName] -> [QName]
+        dedupQNames = HashSet.toList . HashSet.fromList
 
 
 typedToImportEnv :: TypedImportEnv -> ImportEnv
 typedToImportEnv env =
+    let funPos = Map.map (\(_, pos, _) -> pos) (tFuncs env)
+        templatePos = Map.map (\(_, pos, _) -> pos) (tTemplates env)
+        mergedFunPos = Map.unionWith (++) funPos templatePos
+    in
     IEnv {
         file = tFile env,
         iVars = Map.map (\(_, pos, _) -> pos) (tVars env),
-        iFuncs = Map.map (\(_, pos, _) -> pos) (tFuncs env)
+        iFuncs = mergedFunPos
     }
 
 
@@ -780,30 +825,110 @@ checkOneProgram path prog0 importEnvs typedEnvs =
 
 checkOneProgramForTarget :: SemanticTarget -> Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
 checkOneProgramForTarget target path prog0 importEnvs typedEnvs =
-    let prog@(decls, stmts) = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions prog0)
-    in
-    case checkPointerRulesForTarget target path prog of
-        Left errs -> Left errs
-        Right () ->
-            case RC.returnCheckProg path prog of
-                Left errs -> Left errs
-                Right () -> do
-                    packageName <- getPackageName path decls
-                    importedDeclSpecs <- validateImportDeclSpecs path typedEnvs (importDeclSpecs decls)
-                    let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
-                        typedEnvs0 =
-                            map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
-                        importEnvs0 =
-                            if null typedEnvs
-                                then defaultImportEnv path : importEnvs
-                                else defaultImportEnv path : map typedToImportEnv typedEnvs0
-                    case CC.checkProgmWithUses path prog importEnvs0 of
-                        Left errs -> Left errs
-                        Right (st, uses) ->
-                            TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
+    let decls0 = fst prog0
+    in do
+        packageName <- getPackageName path decls0
+        importedDeclSpecs <- validateImportDeclSpecs path typedEnvs (importDeclSpecs decls0)
+        let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
+            typedEnvs0 = map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
+            importedTemplateStmts = collectImportedTemplateStmts typedEnvs0
+            prog@(decls, stmts) = AST.normalizeProgramWithExternalTemplates importedTemplateStmts prog0
+            importEnvs0 =
+                if null typedEnvs
+                    then defaultImportEnv path : importEnvs
+                    else defaultImportEnv path : map typedToImportEnv typedEnvs0
+        case checkNativeLinkConflict path prog of
+            Left errs -> Left errs
+            Right () ->
+                case checkPointerRulesForTarget target path prog of
+                    Left errs -> Left errs
+                    Right () ->
+                        case RC.returnCheckProg path prog of
+                            Left errs -> Left errs
+                            Right () ->
+                                case CC.checkProgmWithUses path prog importEnvs0 of
+                                    Left errs -> Left errs
+                                    Right (st, uses) ->
+                                        TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
     where
         defaultImportedSpecs :: [ImportSpec]
         defaultImportedSpecs = [ImportWildcard ["xlang", "io"]]
+
+        collectImportedTemplateStmts :: [TypedImportEnv] -> [Statement]
+        collectImportedTemplateStmts envs =
+            dedupStmts (concatMap oneEnv envs)
+
+        oneEnv :: TypedImportEnv -> [Statement]
+        oneEnv env = concat [defs | (defs, _, _) <- Map.elems (tTemplates env)]
+
+        dedupStmts :: [Statement] -> [Statement]
+        dedupStmts = nub
+
+
+checkNativeLinkConflict :: Path -> Program -> Either [ErrorKind] ()
+checkNativeLinkConflict path (_, stmts) =
+    let errs = concatMap stmtErrs stmts
+    in if null errs then Right () else Left errs
+    where
+        stmtErrs :: Statement -> [ErrorKind]
+        stmtErrs stmt = case stmt of
+            Function (_, retToks) _ _ _ -> declErrs retToks
+            FunctionT (_, retToks) _ _ _ _ -> declErrs retToks
+            NativeMethod (_, retToks) _ _ _ -> declErrs retToks
+            StmtGroup ss -> concatMap stmtErrs ss
+            BlockStmt (AST.Multiple ss) -> concatMap stmtErrs ss
+            If _ b1 b2 _ ->
+                blockErrs b1 ++ blockErrs b2
+            For (mInit, _, mStep) b1 b2 _ ->
+                maybe [] stmtErrs mInit ++ maybe [] stmtErrs mStep ++ blockErrs b1 ++ blockErrs b2
+            Loop b _ -> blockErrs b
+            Repeat _ b1 b2 _ -> blockErrs b1 ++ blockErrs b2
+            While _ b1 b2 _ -> blockErrs b1 ++ blockErrs b2
+            Until _ b1 b2 _ -> blockErrs b1 ++ blockErrs b2
+            DoWhile b1 _ b2 _ -> blockErrs b1 ++ blockErrs b2
+            DoUntil b1 _ b2 _ -> blockErrs b1 ++ blockErrs b2
+            Switch _ cases _ -> concatMap caseErrs cases
+            _ -> []
+
+        blockErrs :: Maybe AST.Block -> [ErrorKind]
+        blockErrs Nothing = []
+        blockErrs (Just (AST.Multiple ss)) = concatMap stmtErrs ss
+
+        caseErrs :: AST.SwitchCase -> [ErrorKind]
+        caseErrs sc = case sc of
+            AST.Case _ mb _ -> blockErrs mb
+            AST.Default b _ -> blockErrs (Just b)
+
+        declErrs :: [Lex.Token] -> [ErrorKind]
+        declErrs toks
+            | hasNative && hasLink = [UE.Syntax (UE.makeError path poss why)]
+            | otherwise = []
+            where
+                hasNative = any isNativeTok toks
+                hasLink = hasLinkCTok toks
+                poss = map Lex.tokenPos toks
+                why = "invalid declaration: @native and @link(\"C\") cannot be used together on the same function"
+
+        isNativeTok :: Lex.Token -> Bool
+        isNativeTok tok = case tok of
+            Lex.Ident s _ -> map toLower s == "native"
+            Lex.Annotation name _ _ -> map toLower name == "native"
+            _ -> False
+
+        hasLinkCTok :: [Lex.Token] -> Bool
+        hasLinkCTok toks = any isLinkAnnTok toks || isLinkKeywordC toks
+            where
+                isLinkAnnTok t = case t of
+                    Lex.Annotation name [Lex.StrConst s _] _ ->
+                        map toLower name == "link" && map toLower s == "c"
+                    _ -> False
+
+                isLinkKeywordC ts = case ts of
+                    (_ : Lex.Ident name _ : _ : Lex.StrConst s _ : _)
+                        | map toLower name == "link" && map toLower s == "c" -> True
+                    (Lex.Ident name _ : _ : Lex.StrConst s _ : _)
+                        | map toLower name == "link" && map toLower s == "c" -> True
+                    _ -> False
 
 
 buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport
@@ -814,6 +939,7 @@ buildExport mi ctx =
         wrapperClass = fromMaybe (fileClassName path) (getJavaName prog)
 
         funDecls = collectFunctionsWithClass wrapperClass pkg stmts
+        templateDecls = collectTemplatesWithClass wrapperClass pkg stmts
         varDecls = collectTopLevelVarsWithClass wrapperClass pkg stmts ctx
 
         iVarsMap = Map.fromListWith (++) [(keyQn, pos) | (keyQn, _, _, pos) <- varDecls]
@@ -829,7 +955,8 @@ buildExport mi ctx =
         tFuncsMap = foldl' insertFun Map.empty funDecls
 
         typedEnv0 = emptyTypedImportEnv path
-        typedEnv = typedEnv0 { tVars = tVarsMap, tFuncs = tFuncsMap }
+        tTemplatesMap = foldl' insertTemplate Map.empty templateDecls
+        typedEnv = typedEnv0 { tVars = tVarsMap, tFuncs = tFuncsMap, tTemplates = tTemplatesMap }
     in ModuleExport {
         meImportEnv = importEnv,
         meTypedEnv = typedEnv
@@ -846,6 +973,19 @@ buildExport mi ctx =
                         poses = oldPos ++ newPos
                         full = if null oldFull then newFull else oldFull
                     in (sigs, poses, full)
+            in Map.insertWith merge keyQn entry mp
+
+        insertTemplate ::
+            Map QName ([Statement], [Position], QName) ->
+            (QName, QName, Statement, [Position]) ->
+            Map QName ([Statement], [Position], QName)
+        insertTemplate mp (keyQn, fullQn, defStmt, pos) =
+            let entry = ([defStmt], pos, fullQn)
+                merge (newDefs, newPos, newFull) (oldDefs, oldPos, oldFull) =
+                    let defs = oldDefs ++ filter (`notElem` oldDefs) newDefs
+                        poses = oldPos ++ newPos
+                        full = if null oldFull then newFull else oldFull
+                    in (defs, poses, full)
             in Map.insertWith merge keyQn entry mp
 
 
@@ -933,6 +1073,25 @@ collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
 
         fst3 :: (a, b, c) -> a
         fst3 (a, _, _) = a
+
+
+collectTemplatesWithClass :: String -> QName -> [Statement] -> [(QName, QName, Statement, [Position])]
+collectTemplatesWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
+  where
+    one :: Statement -> [(QName, QName, Statement, [Position])]
+    one stmt@(FunctionT (_, retToks) nameExpr _ _ _) =
+        let pos = choosePos nameExpr retToks
+            access = accessOfStmt stmt
+        in case nameExpr of
+            Variable name _ ->
+                let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
+                    keys = map (applyVisibilityKey access) aliases
+                in [(key, fullQn, stmt, pos) | key <- keys]
+            Qualified names _ ->
+                let key = applyVisibilityKey access names
+                in [(key, names, stmt, pos)]
+            _ -> []
+    one _ = []
 
 
 collectTopLevelVars :: Path -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]

@@ -221,6 +221,46 @@ lexparseProgmTests = testGroup "Parse.ParseProgm.lexparseProgm" $ map (\(n, src,
                     Nothing
                     (mkId "while" 1 1 5, Nothing)
             ])),
+
+        ("6c", unlines [
+            "fun add(a, b) = a + b",
+            "",
+            "fun main() {",
+            "    putln(add<>(1, 2))",
+            "}"],
+
+            ([], [
+                FunctionT
+                    (Class ["A"] [], [mkId "fun" 1 1 3])
+                    (Variable "add" (mkId "add" 1 5 3))
+                    [ (Class ["A"] [], [mkId "fun" 1 1 3])
+                    , (Class ["B"] [], [mkId "fun" 1 1 3])
+                    , (Class ["C"] [], [mkId "fun" 1 1 3])
+                    ]
+                    [ (Class ["B"] [], "a", [mkId "a" 1 9 1])
+                    , (Class ["C"] [], "b", [mkId "b" 1 12 1])
+                    ]
+                    (Multiple [Command (Return (Just (Binary Add
+                        (Variable "a" (mkId "a" 1 17 1))
+                        (Variable "b" (mkId "b" 1 21 1))
+                        (mkSym Lex.Plus 1 19 1)))) (mkSym Lex.Assign 1 15 1)]),
+
+                Function
+                    (Void, [mkId "fun" 3 1 3])
+                    (Variable "main" (mkId "main" 3 5 4))
+                    []
+                    (Multiple [
+                        Expr (Call
+                            (Variable "putln" (mkId "putln" 4 5 5))
+                            [CallT
+                                (Variable "add" (mkId "add" 4 11 3))
+                                []
+                                [ IntConst "1" (mkNum "1" 4 17 1)
+                                , IntConst "2" (mkNum "2" 4 20 1)
+                                ]
+                            ])
+                    ])
+            ])),
             
         ("7", unlines [
             "a = a + 1",

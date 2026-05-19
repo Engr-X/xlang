@@ -1,4 +1,4 @@
--- this qname is reversed
+-- this qname is reversed (value/name path)
 QName :: { ([String], [Token]) }
     : identity              { ([identText $1], [$1]) }
     | QName '.' identity    { let (xs, ts) = $1 in (identText $3 : xs, $3 : ts) }
@@ -10,8 +10,77 @@ ClazzList :: { [(Class, [Token])] }
     | ClazzList ',' Clazz      { $3 : $1 }
     ;
 
+-- Function pointer type parameters support:
+--   named form:   (x: T, y: U) -> R          -- 1 or more params
+--   type-only:    (T, U, ...) -> R           -- 2 or more params
+FuncPtrNamedParam :: { (Class, [Token]) }
+    : identity ':' Clazz
+        { (fst $3, [$1, $2] ++ snd $3) }
+    | KW_MUT identity ':' Clazz
+        { (fst $4, [$1, $2, $3] ++ snd $4) }
+    ;
+
+-- reversed
+FuncPtrNamedParams :: { [(Class, [Token])] }
+    : FuncPtrNamedParam
+        { [$1] }
+    | FuncPtrNamedParams ',' FuncPtrNamedParam
+        { $3 : $1 }
+    ;
+
+-- reversed, at least two unnamed params to avoid QName/Atom ambiguity
+FuncPtrUnnamedParams :: { [(Class, [Token])] }
+    : Clazz ',' Clazz
+        { [$3, $1] }
+    | FuncPtrUnnamedParams ',' Clazz
+        { $3 : $1 }
+    ;
+
 Clazz :: { (Class, [Token]) }
-    : QName                             { (normalizeClass $ Class (reverse (fst $1)) [] , snd $1) }
+    : '(' ')' '->' Clazz                 {
+        let (retTy, retToks) = $4 in
+        (normalizeClass $ FuncPtr retTy [], [$1, $2, $3] ++ retToks) }
+    | '(' FuncPtrUnnamedParams ')' '->' Clazz {
+        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
+        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
+    | '(' FuncPtrNamedParams ')' '->' Clazz {
+        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
+        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
+    | QName                             { (normalizeClass $ Class (reverse (fst $1)) [] , snd $1) }
+    | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in
+        (normalizeClass $ Class (reverse (fst $1)) (map fst reversed),
+        concat [snd $1, [$2, $3], concatMap snd reversed, [$5]]) }
+    | KW_BLOB '[' BlobSizeExpr ']'      {
+        let (blobExpr, blobToks) = $3 in
+        (Blob blobExpr, [$1, $2] ++ blobToks ++ [$4]) }
+    | KW_POINTER '<' ClazzList '>'      { let reversed = reverse $3 in
+        (normalizeClass $ Class ["pointer"] (map fst reversed),
+        [$1, $2] ++ concatMap snd reversed ++ [$4]) }
+    | KW_POINTER '::' '<' ClazzList '>' { let reversed = reverse $4 in
+        (normalizeClass $ Class ["pointer"] (map fst reversed),
+        [$1, $2, $3] ++ concatMap snd reversed ++ [$5]) }
+    | QName '::' '<' '*' '>'            {
+        (normalizeClass $ Class (reverse (fst $1)) [Class ["*"] []],
+        concat [snd $1, [$2, $3, $4, $5]]) }
+    | KW_POINTER '<' '*' '>'            {
+        (normalizeClass $ Class ["pointer"] [Class ["*"] []],
+        [$1, $2, $3, $4]) }
+    | KW_POINTER '::' '<' '*' '>'       {
+        (normalizeClass $ Class ["pointer"] [Class ["*"] []],
+        [$1, $2, $3, $4, $5]) }
+    ;
+
+
+SizeofTypeExpr :: { (Class, [Token]) }
+    : '(' ')' '->' Clazz                 {
+        let (retTy, retToks) = $4 in
+        (normalizeClass $ FuncPtr retTy [], [$1, $2, $3] ++ retToks) }
+    | '(' FuncPtrUnnamedParams ')' '->' Clazz {
+        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
+        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
+    | '(' FuncPtrNamedParams ')' '->' Clazz {
+        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
+        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
     | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in
         (normalizeClass $ Class (reverse (fst $1)) (map fst reversed),
         concat [snd $1, [$2, $3], concatMap snd reversed, [$5]]) }
@@ -58,6 +127,8 @@ BlobSizeUnary :: { (Expression, [Token]) }
 BlobSizeAtom :: { (Expression, [Token]) }
     : number                            { (fromMaybe (Error [$1] "classifyNumber failed in blob size") (classifyNumber (numText $1) $1), [$1]) }
     | QName                             { (qnameToExpr $1, snd $1) }
+    | KW_SIZEOF '(' SizeofTypeExpr ')'  { (SizeOfType $3 $1, [$1, $2] ++ snd $3 ++ [$4]) }
+    | KW_SIZEOF '(' QName ')'           { (SizeOfExpr (qnameToExpr $3) $1, [$1, $2] ++ snd $3 ++ [$4]) }
     | '(' BlobSizeExpr ')'              { (fst $2, [$1] ++ snd $2 ++ [$3]) }
     ;
 
@@ -65,17 +136,21 @@ BlobSizeAtom :: { (Expression, [Token]) }
 LValue :: { Expression }
     : QName                                 { qnameToExpr $1 }
     | '(' Expr ')' '.' identity            { mkPointerSuffixExpr $2 $5 }
+    | Postfix '[' Expr ']'                 { mkPointerIndexExpr $1 $3 $2 }
+    | Postfix '[' Expr ']' '.' identity    { mkPointerIndexSuffixExpr $1 $3 $2 $6 }
     ;
 
 
 Atom :: { Expression }
     : KW_TRUE   { BoolConst True $1 }
     | KW_FALSE  { BoolConst False $1 }
+    | KW_SIZEOF '(' Expr ')'            { SizeOfExpr $3 $1 }
+    | KW_SIZEOF '(' SizeofTypeExpr ')'  { SizeOfType $3 $1 }
 
     -- unary operators
-    | '!' Atom %prec '!'        { Unary LogicalNot $2 $1 }
+    | '!' Postfix %prec '!'     { Unary LogicalNot $2 $1 }
     | '!' error %prec '!'       { Error [$1] (expectedExpression 1 "!") }
-    | 'inv' Atom %prec '!'      { Unary BitInv $2 $1 }
+    | 'inv' Postfix %prec '!'   { Unary BitInv $2 $1 }
     | 'inv' error %prec '!'     { Error [$1] (expectedExpression 1 "inv") }
 
     | '+' Atom %prec UPLUS      { Unary UnaryPlus $2 $1}
@@ -130,6 +205,8 @@ Postfix :: { Expression }
 
     | Postfix '++'              { Unary SelfInc $1 $2 }
     | Postfix '--'              { Unary SelfDec $1 $2 }
+    | Postfix '[' Expr ']'      { mkPointerIndexExpr $1 $3 $2 }
+    | Postfix '[' Expr ']' '.' identity { mkPointerIndexSuffixExpr $1 $3 $2 $6 }
 
     | Postfix KW_AS Clazz       { Cast $3 $1 $2 }
     | Postfix KW_AS error       { Error [$2] (expectedExpression 0 "as") }
@@ -153,7 +230,8 @@ IfBranchStmt :: { Statement }
     : KW_PASS                     { Command Pass $1 }
     | KW_CONTINUE                 { Command Continue $1 }
     | KW_BREAK                    { Command Break $1 }
-    | KW_RETURN                   { Command (Return Nothing) $1 }
+    | KW_RETURN %prec IFX         { Command (Return Nothing) $1 }
+    | KW_RETURN Expr %prec IFX    { Command (Return (Just $2)) $1 }
     ;
 
 IfExprTail :: { Maybe (Expression, Maybe Token) }

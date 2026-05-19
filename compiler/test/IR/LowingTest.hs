@@ -43,7 +43,7 @@ topLevelValFinalTests = testGroup "IR.Lowing.topLevelValFinal" $ map (uncurry te
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ attrs _ _ _ _], _) -> do
+            Right (IRProgm _ [IRClass _ _ attrs _ _ _ _ _], _) -> do
                 case findAttr "pi" attrs of
                     Nothing -> assertFailure "missing field: pi"
                     Just ((_, flags), cls, _, _) -> do
@@ -119,12 +119,45 @@ callArgCastTests = testGroup "IR.Lowing.callArgCast" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _ _], _) -> do
                 case find (\(IRFunction _ name _ _ _ _) -> name == "g") funs of
                     Nothing -> assertFailure "missing function g"
                     Just (IRFunction _ _ _ _ blocks _) ->
                         assertBool "g should cast int argument to double before call"
                             (hasIntToDoubleCast (collectInstrs (fst blocks)))
+            Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
+    ]
+
+templateInstantiationLoweringTests :: TestTree
+templateInstantiationLoweringTests = testGroup "IR.Lowing.templateInstantiation" [
+    testCase "template call should instantiate concrete function and call it in IR" $ do
+        let src = unlines [
+                "fun add<T>(a: T, b: T) -> T = a;",
+                "fun main() -> int {",
+                "    return add<int>(1L, 2L)",
+                "}"
+                ]
+            collectInstrs :: [IRBlock] -> [IRInstr]
+            collectInstrs = concatMap (\(IRBlock (_, body)) -> body)
+            hasAddCall :: [IRInstr] -> Bool
+            hasAddCall = any isAddCall
+                where
+                    isAddCall instr = case instr of
+                        ICallStatic _ qname _ -> not (null qname) && last qname == "add"
+                        ICallVirtual _ qname _ -> not (null qname) && last qname == "add"
+                        ICallStaticDirect _ qname _ -> not (null qname) && last qname == "add"
+                        _ -> False
+
+        case codeToIRSingleWithRoot "." "Main.x" src of
+            Left errs -> assertFailure ("unexpected errors: " ++ show errs)
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _ _], _) -> do
+                assertBool "should generate concrete add function"
+                    (any (\(IRFunction _ name _ _ _ _) -> name == "add") funs)
+                case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
+                    Nothing -> assertFailure "missing function main"
+                    Just (IRFunction _ _ _ _ blocks _) ->
+                        assertBool "main should call concrete add function"
+                            (hasAddCall (collectInstrs (fst blocks)))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
 
@@ -149,7 +182,7 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) ->
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _ _], _) ->
                 case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
                     Nothing -> assertFailure "missing function main"
                     Just (IRFunction _ _ _ _ blocks _) ->
@@ -175,7 +208,7 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) ->
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _ _], _) ->
                 case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
                     Nothing -> assertFailure "missing function main"
                     Just (IRFunction _ _ _ _ blocks _) ->
@@ -215,7 +248,7 @@ inlineFunctionLoweringTests = testGroup "IR.Lowing.inlineFunction" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) ->
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _ _], _) ->
                 case find (\(IRFunction _ name _ _ _ _) -> name == "main") funs of
                     Nothing -> assertFailure "missing function main"
                     Just (IRFunction _ _ _ _ blocks _) -> do
@@ -245,7 +278,7 @@ stringLiteralLoweringTests = testGroup "IR.Lowing.stringLiteral" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) -> do
                 assertBool "main should contain string literal assignment lowering"
                     (hasStringAssign (collectInstrs (fst blocks)))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
@@ -340,7 +373,7 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) -> do
                 let instrs = collectInstrs (fst blocks)
                 assertBool "postfix ++ should generate add op" (any isAdd instrs)
                 assertBool "postfix ++ should not generate sub op in this snippet" (not (any isSub instrs))
@@ -356,7 +389,7 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) -> do
                 let instrs = collectInstrs (fst blocks)
                 assertBool "postfix -- should generate sub op" (any isSub instrs)
                 assertBool "postfix -- should not generate add op in this snippet" (not (any isAdd instrs))
@@ -371,7 +404,7 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) -> do
                 assertBool "prefix ++ should generate add op" (any isAdd (collectInstrs (fst blocks)))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir),
 
@@ -384,7 +417,7 @@ incDecLoweringTests = testGroup "IR.Lowing.incDecLowering" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) -> do
                 assertBool "prefix -- should generate sub op" (any isSub (collectInstrs (fst blocks)))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
     ]
@@ -422,7 +455,7 @@ assignmentRhsIsolationTests = testGroup "IR.Lowing.assignmentRhsIsolation" [
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) ->
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) ->
                 assertBool "rhs lowering should not turn eta*2*x into x*x"
                     (not (any isBuggySelfMul (collectInstrs (fst blocks))))
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
@@ -447,7 +480,7 @@ nestedFunctionLoweringTests = testGroup "IR.Lowing.nestedFunction" [
                 ]
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ funs _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ funs _ _], _) -> do
                 assertBool "outer function should remain" (any isAdd funs)
                 assertBool "hoisted nested functions should be generated" (any isGenerated funs)
             Right (ir, _) -> assertFailure ("unexpected ir shape: " ++ show ir)
@@ -478,7 +511,7 @@ shortCircuitAssignPlacementTests = testGroup "IR.Lowing.shortCircuitAssignPlacem
 
         case codeToIRSingleWithRoot "." "Main.x" src of
             Left errs -> assertFailure ("unexpected errors: " ++ show errs)
-            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _], _) -> do
+            Right (IRProgm _ [IRClass _ _ _ _ _ [IRFunction _ "main" _ _ blocks _] _ _], _) -> do
                 let bad = findBlockWithTrailingInstrAfterTerminator (fst blocks)
                 case bad of
                     Nothing -> pure ()
@@ -508,11 +541,11 @@ shortCircuitAssignPlacementTests = testGroup "IR.Lowing.shortCircuitAssignPlacem
             VReturn -> True
             _ -> False
 
-
 tests :: TestTree
 tests = testGroup "IR.Lowing" [
     topLevelValFinalTests,
     callArgCastTests,
+    templateInstantiationLoweringTests,
     inlineFunctionLoweringTests,
     stringLiteralLoweringTests,
     staticFieldReadLoweringTests,

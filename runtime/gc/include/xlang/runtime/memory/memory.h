@@ -6,7 +6,7 @@
 
 void xlang_minit();
 
-void* xlang_malloc(const int64_t size);
+void* xlang_malloc(const x_i64 size);
 
 void xlang_mfree(const void* ptr);
 

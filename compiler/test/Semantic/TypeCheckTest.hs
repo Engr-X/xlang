@@ -11,7 +11,7 @@ import Util.Type (Position, makePosition)
 import Parse.ParseExpr (replLexparseExpr)
 import Parse.ParseStmt (replLexparseStmt)
 import Parse.ParseProgm (replLexparseProgm)
-import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), pattern Function, SwitchCase(..), prettyClass)
+import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), prettyClass)
 import Parse.ParserBasic (DeclFlag(..))
 import Semantic.TypeCheck
 import Semantic.NameEnv (CheckState(..), ImportEnv(..), QName, Scope(..), VarId, lookupVarId)
@@ -543,7 +543,22 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("17", "++p", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Void)], [Map.empty], [], [], Pointer Void, Nothing, Just 0, noExtraTc),
     ("18", "f(p, 1)", stWithVarsFuncs ["p"] ["f"], mkVarTable (stWithVarsFuncs ["p"] ["f"]) [("p", Pointer Int32T)], [Map.fromList [(["f"], [FunSig [Pointer Void, Int32T] Int32T])]], [], [], Int32T, Nothing, Just 0, noExtraTc),
     ("19", "f(p, 1)", stWithVarsFuncs ["p"] ["f"], mkVarTable (stWithVarsFuncs ["p"] ["f"]) [("p", Pointer Int32T)], [Map.fromList [(["f"], [FunSig [Pointer Int32T, Int32T] Int16T, FunSig [Pointer Void, Int32T] Int32T])]], [], [], Int16T, Nothing, Just 0, noExtraTc),
-    ("20", "p.deref", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Void)], [Map.empty], [], [], ErrorClass, Just "deref does not support pointer<void>", Just 0, noExtraTc)]
+    ("20", "p.deref", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Void)], [Map.empty], [], [], ErrorClass, Just "deref does not support pointer<void>", Just 0, noExtraTc),
+    ("21", "p[i]", stWithVars ["p", "i"], mkVarTable (stWithVars ["p", "i"]) [("p", Pointer Int32T), ("i", Int32T)], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("22", "p[i].ref", stWithVars ["p", "i"], mkVarTable (stWithVars ["p", "i"]) [("p", Pointer Int32T), ("i", Int32T)], [Map.empty], [], [], Pointer Int32T, Nothing, Just 0, noExtraTc),
+    ("23", "p[i]", stWithVars ["p", "i"], mkVarTable (stWithVars ["p", "i"]) [("p", Pointer Void), ("i", Int32T)], [Map.empty], [], [], ErrorClass, Just "indexing does not support pointer<void>", Just 0, noExtraTc),
+    ("24", "pp[i][j]", stWithVars ["pp", "i", "j"], mkVarTable (stWithVars ["pp", "i", "j"]) [("pp", Pointer (Pointer Int32T)), ("i", Int32T), ("j", Int32T)], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("25", "p[i][j]", stWithVars ["p", "i", "j"], mkVarTable (stWithVars ["p", "i", "j"]) [("p", Pointer Int32T), ("i", Int32T), ("j", Int32T)], [Map.empty], [], [], ErrorClass, Just "indexing expects pointer type, got int", Just 0, noExtraTc),
+    ("26", "p[i + 1]", stWithVars ["p", "i"], mkVarTable (stWithVars ["p", "i"]) [("p", Pointer Int32T), ("i", Int32T)], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("27", "arr.get(i)", stWithVars ["arr", "i"], mkVarTable (stWithVars ["arr", "i"]) [("arr", Pointer Int32T), ("i", Int32T)], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("28", "arr.set(i, v)", stWithVars ["arr", "i", "v"], mkVarTable (stWithVars ["arr", "i", "v"]) [("arr", Pointer Int32T), ("i", Int32T), ("v", Int32T)], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("29", "arr.set(i, 1L)", stWithVars ["arr", "i"], mkVarTable (stWithVars ["arr", "i"]) [("arr", Pointer Int32T), ("i", Int32T)], [Map.empty], [], [], Int32T, Nothing, Nothing, noExtraTc),
+    ("30", "arr.get(i, j)", stWithVars ["arr", "i", "j"], mkVarTable (stWithVars ["arr", "i", "j"]) [("arr", Pointer Int32T), ("i", Int32T), ("j", Int32T)], [Map.empty], [], [], ErrorClass, Just "pointer.get expects 1 argument, got 2", Just 0, noExtraTc),
+    ("31", "arr.set(i)", stWithVars ["arr", "i"], mkVarTable (stWithVars ["arr", "i"]) [("arr", Pointer Int32T), ("i", Int32T)], [Map.empty], [], [], ErrorClass, Just "pointer.set expects 2 arguments, got 1", Just 0, noExtraTc),
+    ("32", "pv.get(i)", stWithVars ["pv", "i"], mkVarTable (stWithVars ["pv", "i"]) [("pv", Pointer Void), ("i", Int32T)], [Map.empty], [], [], ErrorClass, Just "pointer.get does not support pointer<void>", Just 0, noExtraTc),
+    ("33", "f", stWithVarsFuncs [] ["f"], Map.empty, [Map.fromList [(["f"], [FunSig [Int32T, Int32T] Int32T])]], [], [], FuncPtr Int32T [Int32T, Int32T], Nothing, Just 0, noExtraTc),
+    ("34", "fp(1, 2)", stWithVars ["fp"], mkVarTable (stWithVars ["fp"]) [("fp", FuncPtr Int32T [Int32T, Int32T])], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
+    ("35", "fp + 10", stWithVars ["fp"], mkVarTable (stWithVars ["fp"]) [("fp", FuncPtr Int32T [Int32T, Int32T])], [Map.empty], [], [], ErrorClass, Just "unsupported operand types for '+': (int, int) -> int, int", Just 0, noExtraTc)]
     where
         mkCase (name, src, st0, vts, fScopes, typedEnvs, importEnvs, expectedT, errMsg, warnCount, extra) =
             testCase name $ do
@@ -811,10 +826,15 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
     ("1", [stmtCallF0, stmtFunF0], Nothing),
     ("2", [stmtFunF0, stmtFunF0], Just (UE.duplicateMethodMsg "int f()")),
     ("3", [stmtFunF1, stmtFunF2, stmtCallF1], Nothing),
-    ("4", [stmtCallF1, stmtNativeF1], Nothing)]
+    ("4", [stmtCallF1, stmtNativeF1], Nothing),
+    ("5", [stmtTemplateF1, stmtFunF1], Just (UE.duplicateMethodMsg "int f(int x)")),
+    ("6", [stmtTemplateF1, stmtTemplateF1b], Just (UE.duplicateMethodMsg "T f<T>(T y)")),
+    ("7", [stmtFunF1, stmtFunF2], Nothing)]
     where
         tokF = Lex.Ident "f" pos1
         tokX = Lex.Ident "x" pos1
+        tokY = Lex.Ident "y" pos1
+        tokT = Lex.Ident "T" pos1
         tokNum1 = Lex.NumberConst "1" pos1
 
         stmtCallF0 = Expr (Call (Variable "f" tokF) [])
@@ -823,6 +843,8 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
         stmtFunF1 = Function (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] (Multiple [])
         stmtFunF2 = Function (Float32T, []) (Variable "f" tokF) [(Float32T, "x", [tokX])] (Multiple [])
         stmtNativeF1 = NativeMethod (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] "return x;"
+        stmtTemplateF1 = FunctionT (Class ["T"] [], []) (Variable "f" tokF) [(Class ["T"] [], [tokT])] [(Class ["T"] [], "x", [tokX])] (Multiple [])
+        stmtTemplateF1b = FunctionT (Class ["T"] [], []) (Variable "f" tokF) [(Class ["T"] [], [tokT])] [(Class ["T"] [], "y", [tokY])] (Multiple [])
 
         mkCase (name, stmts, errMsg) = testCase name $ do
             let ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
@@ -1021,6 +1043,164 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "        x + y",
         "    }",
         "a = fib(10);"
+    ], Nothing, noExtraTc),
+
+    ("22", unlines [
+        "fun add<T>(a: T, b: T) -> T = a;",
+        "val x = add<int>(1L, 2L);"
+    ], Nothing, assertWarnsNonEmpty),
+
+    ("23", unlines [
+        "fun add<T>(a: T, b: T) -> T = a;",
+        "val x = add<int, int>(1, 2);"
+    ], Just "template type argument count mismatch: add expects 1 type argument(s), got 2", noExtraTc),
+
+    ("24", unlines [
+        "fun add<T, U>(a: T, b: U) -> T = a;",
+        "val a: int = 1;",
+        "val b: long = 2L;",
+        "val x = add<>(a, b);"
+    ], Nothing, noExtraTc),
+
+    ("25", unlines [
+        "fun add<T, U>(a: T, b: U) -> T = a;",
+        "val a: int = 1;",
+        "val b: long = 2L;",
+        "val x = add<int>(a, b);"
+    ], Just "template type argument count mismatch: add expects 2 type argument(s), got 1", noExtraTc),
+
+    ("26", unlines [
+        "fun add<T>(a: T, b: T) -> T = a + b;",
+        "val x = 1;"
+    ], Nothing, noExtraTc),
+
+    ("27", unlines [
+        "fun add<T>(a: T, b: T) -> T = a;",
+        "val x = add(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("28", unlines [
+        "fun add<T, U, R>(a: T, b: U) -> R = a + b;",
+        "val x = add<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("29", unlines [
+        "fun add<T, U, R>(a: T, b: U) -> R {",
+        "    if true {",
+        "        return;",
+        "    }",
+        "    else {",
+        "        return a + b;",
+        "    }",
+        "}",
+        "val x = add<>(1, 2);"
+    ], Just "template type argument inference failed: cannot infer template type argument(s) for add", noExtraTc),
+
+    ("30", unlines [
+        "fun add<T, U, R>(a: T, b: U) -> R {",
+        "    if true {",
+        "        return a + b;",
+        "    }",
+        "    else {",
+        "        return 1L;",
+        "    }",
+        "}",
+        "val x = add<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("31", unlines [
+        "fun add(a, b) = a + b;",
+        "val x = add(1, 2);",
+        "val y = add(1L, 2L);"
+    ], Nothing, noExtraTc),
+
+    ("32", unlines [
+        "fun add(a, b):",
+        "    a + b",
+        "val x = add<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("33", unlines [
+        "fun add(a, b)",
+        "{",
+        "    a + b",
+        "}",
+        "val x = add<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("34", unlines [
+        "fun add<T>(a: T, b: T) -> T:",
+        "    a + b",
+        "val x = add<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("35", unlines [
+        "fun add<T>(a: T, b: T) -> T",
+        "{",
+        "    a + b",
+        "}",
+        "val x = add<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("36", unlines [
+        "fun add(a, b) = a + b;",
+        "fun add(a, b, c) = add(a, b) + c;",
+        "val x = add<>(1, 2, 3);"
+    ], Nothing, noExtraTc),
+
+    ("37", unlines [
+        "fun set(arr, size)",
+        "{",
+        "    var i = 0",
+        "    for (i = 0; i < size; i++):",
+        "        arr[i] = i",
+        "}",
+        "val buf: blob[40]",
+        "set(buf as pointer<int>, 10);"
+    ], Nothing, noExtraTc),
+
+    ("38", unlines [
+        "fun sum(arr, size)",
+        "{",
+        "    var s = 0",
+        "    return s",
+        "}",
+        "val x = sum<>(1, 2);"
+    ], Nothing, noExtraTc),
+
+    ("39", unlines [
+        "fun sum(arr, size)",
+        "{",
+        "    if size <= 0:",
+        "        return 0 as A",
+        "",
+        "    var s = arr[0]",
+        "    return s",
+        "}",
+        "val buf: blob[40]",
+        "val ptr = buf as pointer<int>",
+        "val x = sum(ptr, 10);"
+    ], Nothing, noExtraTc),
+
+    ("40", unlines [
+        "val a = sizeof(int);",
+        "val b: pointer<int> = 0 as pointer<int>;",
+        "val c = sizeof(b);"
+    ], Nothing, noExtraTc),
+
+    ("41", unlines [
+        "val a = sizeof(pointer<int>);",
+        "val b = sizeof(blob[1000]);"
+    ], Nothing, noExtraTc),
+
+    ("42", unlines [
+        "val a = sizeof(void);"
+    ], Just "sizeof(void) is not allowed", noExtraTc),
+
+    ("43", unlines [
+        "fun add(a, b) = a + b;",
+        "fun apply<T, U>(x: U, y: T, f: (U, T) -> U) -> U = f(x, y);",
+        "val z = apply(1, 2, add);"
     ], Nothing, noExtraTc)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do

@@ -6,7 +6,7 @@ import Data.Char (toLower)
 import Numeric (readHex)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
 import Parse.SyntaxTree
-import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble)
+import Util.Basic (isInt, isLong, isFloat, isDouble, isLongDouble, excelColumnNames)
 import Util.Exception (ErrorKind, expectedExpression, assignErrorMsg)
 import Util.Type (Path, makePosition)
 
@@ -65,6 +65,155 @@ prettyDecl (acc, flags) =
 qnameToExpr :: ([String], [Token]) -> Expression
 qnameToExpr ([x], [t]) = Variable x t
 qnameToExpr (xs, ts) = Qualified (reverse xs) (reverse ts)
+
+
+-- Build sugar function:
+--   fun add(a, b) = a + b
+-- =>
+--   fun add<A, B, C>(a: B, b: C) -> A = a + b
+mkUntypedSugarFunction ::
+    [Token] ->
+    ([String], [Token]) ->
+    [(String, [Token])] ->
+    Block ->
+    Statement
+mkUntypedSugarFunction funToks qname bareParams body =
+    InstanceMethodT retDecl (qnameToExpr qname) genParams typedParams body'
+  where
+    returnsValue = untypedBodyReturnsValue body
+
+    body' = normalizeFunctionBodyByRet (fst retDecl) body
+
+    typeNames
+        | returnsValue = take (length bareParams + 1) excelColumnNames
+        | otherwise = take (length bareParams) excelColumnNames
+    mkType n = Class [n] []
+
+    retDecl :: (Class, [Token])
+    retDecl
+        | returnsValue =
+            case typeNames of
+                [] -> (Void, funToks)
+                (retName:_) -> (mkType retName, funToks)
+        | otherwise = (Void, funToks)
+
+    genParams :: [(Class, [Token])]
+    genParams = map (\n -> (mkType n, funToks)) typeNames
+
+    typedParams :: [(Class, String, [Token])]
+    typedParams =
+        zipWith
+            (\(name, toks) tyName -> (mkType tyName, name, toks))
+            bareParams
+            paramTypeNames
+
+    paramTypeNames :: [String]
+    paramTypeNames
+        | returnsValue = drop 1 typeNames
+        | otherwise = typeNames
+
+-- Infer whether an untyped sugar function should be value-returning.
+-- Rule:
+--   - has explicit `return expr`, or
+--   - has a tail expression in function body.
+-- Otherwise it is treated as `void` (implicit `return;`).
+untypedBodyReturnsValue :: Block -> Bool
+untypedBodyReturnsValue body =
+    blockHasValueReturn body || blockTailIsExpr body
+  where
+    blockHasValueReturn :: Block -> Bool
+    blockHasValueReturn (Multiple ss) = any stmtHasValueReturn ss
+
+    stmtHasValueReturn :: Statement -> Bool
+    stmtHasValueReturn st = case st of
+        Command (Return (Just _)) _ -> True
+        StmtGroup ss -> any stmtHasValueReturn ss
+        BlockStmt b -> blockHasValueReturn b
+        If _ mb1 mb2 _ ->
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        For (s1, _, s3) mb1 mb2 _ ->
+            maybe False stmtHasValueReturn s1 ||
+            maybe False stmtHasValueReturn s3 ||
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        Loop mb _ -> maybe False blockHasValueReturn mb
+        Repeat _ mb1 mb2 _ ->
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        While _ mb1 mb2 _ ->
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        Until _ mb1 mb2 _ ->
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        DoWhile mb1 _ mb2 _ ->
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        DoUntil mb1 _ mb2 _ ->
+            maybe False blockHasValueReturn mb1 ||
+            maybe False blockHasValueReturn mb2
+        Switch _ cases _ -> any switchCaseHasValueReturn cases
+        Function {} -> False
+        FunctionT {} -> False
+        NativeMethod {} -> False
+        _ -> False
+
+    switchCaseHasValueReturn :: SwitchCase -> Bool
+    switchCaseHasValueReturn one = case one of
+        Case _ mb _ -> maybe False blockHasValueReturn mb
+        Default b _ -> blockHasValueReturn b
+
+    blockTailIsExpr :: Block -> Bool
+    blockTailIsExpr (Multiple ss) = stmtsTailIsExpr ss
+
+    stmtsTailIsExpr :: [Statement] -> Bool
+    stmtsTailIsExpr [] = False
+    stmtsTailIsExpr xs = case reverse xs of
+        (one:_) -> stmtTailIsExpr one
+        [] -> False
+
+    stmtTailIsExpr :: Statement -> Bool
+    stmtTailIsExpr st = case st of
+        Expr _ -> True
+        Exprs es -> not (null es)
+        StmtGroup ss -> stmtsTailIsExpr ss
+        BlockStmt b -> blockTailIsExpr b
+        _ -> False
+
+-- Normalize function body with Rust-like tail-expression return.
+-- Only applies to non-void functions.
+normalizeFunctionBodyByRet :: Class -> Block -> Block
+normalizeFunctionBodyByRet retTy body
+    | normalizeClass retTy == Void = body
+    | otherwise = rewriteTailReturnBlock body
+
+rewriteTailReturnBlock :: Block -> Block
+rewriteTailReturnBlock (Multiple ss) =
+    Multiple (rewriteTailToReturn ss)
+  where
+    rewriteTailToReturn :: [Statement] -> [Statement]
+    rewriteTailToReturn [] = []
+    rewriteTailToReturn xs =
+        let (revHead, lastStmt) = case reverse xs of
+                [] -> ([], Nothing)
+                (y:ys) -> (reverse ys, Just y)
+        in case lastStmt of
+            Nothing -> xs
+            Just one -> revHead ++ [rewriteLastStmt one]
+
+    rewriteLastStmt :: Statement -> Statement
+    rewriteLastStmt st = case st of
+        Expr e ->
+            Command (Return (Just e)) (nearestTok (exprTokens e))
+        Exprs es -> case reverse es of
+            (e:_) -> Command (Return (Just e)) (nearestTok (exprTokens e))
+            [] -> st
+        StmtGroup ssInner ->
+            StmtGroup (rewriteTailToReturn ssInner)
+        BlockStmt b ->
+            BlockStmt (rewriteTailReturnBlock b)
+        _ -> st
 
 
 --  Choose a token to anchor diagnostics.
@@ -226,6 +375,27 @@ mkPointerSuffixExpr base suffixTok = case suffixTok of
         "deref" -> Unary DeRef base suffixTok
         "dref" -> Unary DeRef base suffixTok
         "ref" -> Error [suffixTok] "ref can only be used on variables"
+        _ -> Error [suffixTok] ("unsupported postfix suffix: " ++ raw)
+    _ -> Error [suffixTok] "unsupported postfix suffix"
+
+
+-- | Build pointer index sugar:
+--   ptr[i]  ==>  (ptr + i).deref
+mkPointerIndexExpr :: Expression -> Expression -> Token -> Expression
+mkPointerIndexExpr base idx lbrTok =
+    Unary DeRef (Binary Add base idx lbrTok) lbrTok
+
+
+-- | Build pointer index + suffix sugar:
+--   ptr[i].ref   ==> ptr + i
+--   ptr[i].deref ==> (ptr[i]).deref
+--   ptr[i].dref  ==> (ptr[i]).deref
+mkPointerIndexSuffixExpr :: Expression -> Expression -> Token -> Token -> Expression
+mkPointerIndexSuffixExpr base idx lbrTok suffixTok = case suffixTok of
+    Lex.Ident raw _ -> case map toLower raw of
+        "ref" -> Binary Add base idx lbrTok
+        "deref" -> Unary DeRef (mkPointerIndexExpr base idx lbrTok) suffixTok
+        "dref" -> Unary DeRef (mkPointerIndexExpr base idx lbrTok) suffixTok
         _ -> Error [suffixTok] ("unsupported postfix suffix: " ++ raw)
     _ -> Error [suffixTok] "unsupported postfix suffix"
 

@@ -10,23 +10,26 @@ import Control.Monad (filterM)
 import Data.Aeson (FromJSON(..), Result(..), Value(..), eitherDecode, fromJSON, withObject, (.:), (.:?), (.!=))
 import Data.Aeson.Types (Parser)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
-import Data.Char (isDigit, isSpace, toLower)
+import Data.Char (isAlphaNum, isDigit, isSpace, ord, toLower)
 import Data.HashSet (HashSet)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.List (dropWhileEnd, foldl', intercalate, isInfixOf, isPrefixOf, isSuffixOf, nub, stripPrefix)
 import Data.Map.Strict (Map)
 import Data.Maybe (catMaybes, listToMaybe, mapMaybe)
 import Numeric (readHex)
-import Parse.SyntaxTree (Class(..), classDemangleEither, normalizeClass)
+import Parse.ParseProgm (lexparseProgm)
+import Parse.SyntaxTree (Block, Class(..), Statement, classDemangleEither, normalizeClass, prettyClass)
 import Semantic.NameEnv (ImportEnv(..), QName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
 import Util.Basic (demangleNameFromMetaSymbol)
-import Util.Type (Path, Position)
+import Util.Type (Path, Position, makePosition)
 
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
+import qualified Lex.Token as Lex
+import qualified Parse.SyntaxTree as AST
 import qualified Util.Exception as UE
 import System.Directory (findExecutable)
 import System.Exit (ExitCode(..))
@@ -59,14 +62,17 @@ data NativeMethod = NativeMethod {
     nmReturnType :: Class,
     nmName :: String,
     nmParamTypes :: [Class],
-    nmOwnerType :: OwnerType
+    nmOwnerType :: OwnerType,
+    nmTemplateParams :: [String],
+    nmTemplateParamNames :: [String],
+    nmTemplateBody :: Maybe String
 }
 
 
 data OwnerType
     = OwnerClass
     | OwnerTopLevel
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 
 accessPublicBit :: Int
@@ -141,6 +147,9 @@ instance FromJSON NativeMethod where
             Just v -> pure (Just v)
             Nothing -> o .:? "return_type")
         paramsVal <- (o .:? "param_types" .!= Array mempty)
+        templateParams <- o .:? "templates" .!= []
+        templateParamNames <- o .:? "param_names" .!= []
+        templateBody <- o .:? "template_body"
         allParamTypes <- parseParamTypes paramsVal
         (retTy, paramsOnly) <- case mRetVal of
             Just retVal -> do
@@ -155,6 +164,9 @@ instance FromJSON NativeMethod where
             <*> o .: "name"
             <*> pure paramsOnly
             <*> parseOwnerType ownerVal
+            <*> pure templateParams
+            <*> pure templateParamNames
+            <*> pure templateBody
 
 
 loadNativeJsonOne :: [String] -> Path -> IO (Either [ErrorKind] (ImportEnv, TypedImportEnv))
@@ -198,9 +210,10 @@ loadNativeBinaryOne _imports libPath = do
         Left e ->
             pure $ Left [mkSyntax libPath ("failed to read native symbols from binary: " ++ e)]
         Right syms -> do
-            mEmbeddedEnv <- if hasClassInfoSymbols syms
-                then readEmbeddedClassInfoEnvelope libPath
-                else pure Nothing
+            -- Always try embedded class-info JSON. On some archives (.a/.lib),
+            -- metadata symbols are not exported globally, so symbol scans may
+            -- miss `_info`/`_info_len` even though payload exists in binary data.
+            mEmbeddedEnv <- readEmbeddedClassInfoEnvelope libPath
             let symbolEnv = parseNativeSymbolsEnvelope syms
                 env = case mEmbeddedEnv of
                     Nothing -> symbolEnv
@@ -229,7 +242,29 @@ mergeNativeEnvelopes (NativeEnvelope left) (NativeEnvelope right) =
     mergeFields xs ys = dedupBy fieldKey (xs ++ ys)
 
     mergeMethods :: [NativeMethod] -> [NativeMethod] -> [NativeMethod]
-    mergeMethods xs ys = dedupBy methodKey (xs ++ ys)
+    mergeMethods xs ys =
+        Map.elems (Map.fromListWith mergeMethodByKey [(methodKey m, m) | m <- xs ++ ys])
+
+    mergeMethodByKey :: NativeMethod -> NativeMethod -> NativeMethod
+    mergeMethodByKey newer older =
+        NativeMethod {
+            nmAccessMask = nmAccessMask newer,
+            nmReturnType = nmReturnType newer,
+            nmName = nmName newer,
+            nmParamTypes = nmParamTypes newer,
+            nmOwnerType = nmOwnerType newer,
+            nmTemplateParams = pickList (nmTemplateParams newer) (nmTemplateParams older),
+            nmTemplateParamNames = pickList (nmTemplateParamNames newer) (nmTemplateParamNames older),
+            nmTemplateBody = pickMaybe (nmTemplateBody newer) (nmTemplateBody older)
+        }
+      where
+        pickList :: [a] -> [a] -> [a]
+        pickList a b = if null a then b else a
+
+        pickMaybe :: Maybe a -> Maybe a -> Maybe a
+        pickMaybe a b = case a of
+            Just _ -> a
+            Nothing -> b
 
     dedupBy :: Eq k => (a -> k) -> [a] -> [a]
     dedupBy keyFn = foldl' step []
@@ -347,11 +382,19 @@ readEmbeddedClassInfoEnvelope libPath = do
   where
     decodeOneJsonObject :: String -> [NativeClass]
     decodeOneJsonObject rawJson =
-        case eitherDecode (BL.pack rawJson) :: Either String NativeClass of
-            Right cls -> [cls]
-            Left _ -> case eitherDecode (BL.pack rawJson) :: Either String NativeEnvelope of
-                Right (NativeEnvelope classes) -> classes
-                Left _ -> []
+        case listToMaybe (mapMaybe decodeAsClasses candidates) of
+            Just classes -> classes
+            Nothing -> []
+      where
+        candidates = nub [rawJson, sanitizeJsonStringControls rawJson]
+
+        decodeAsClasses :: String -> Maybe [NativeClass]
+        decodeAsClasses oneJson =
+            case eitherDecode (BL.pack oneJson) :: Either String NativeClass of
+                Right cls -> Just [cls]
+                Left _ -> case eitherDecode (BL.pack oneJson) :: Either String NativeEnvelope of
+                    Right (NativeEnvelope classes) -> Just classes
+                    Left _ -> Nothing
 
     dedupClassesByQName :: [NativeClass] -> [NativeClass]
     dedupClassesByQName classes =
@@ -361,16 +404,57 @@ readEmbeddedClassInfoEnvelope libPath = do
     keepFirst old _ = old
 
 
-extractJsonObjectsFromBinary :: String -> [String]
-extractJsonObjectsFromBinary s = case s of
-    [] -> []
-    ('{':_) -> case parseOne s of
-        Just (obj, rest) ->
-            let xs = if isLikelyClassInfoJson obj then [obj] else []
-            in xs ++ extractJsonObjectsFromBinary rest
-        Nothing -> extractJsonObjectsFromBinary (tail s)
-    (_:rest) -> extractJsonObjectsFromBinary rest
+sanitizeJsonStringControls :: String -> String
+sanitizeJsonStringControls = reverse . go False False []
   where
+    go :: Bool -> Bool -> String -> String -> String
+    go _ _ acc [] = acc
+    go inString escaped acc (c:cs)
+        | inString =
+            if escaped
+                then go True False (c:acc) cs
+                else if c == '\\'
+                    then go True True (c:acc) cs
+                    else if c == '"'
+                        then go False False (c:acc) cs
+                        else case c of
+                            '\n' -> go True False ('n' : '\\' : acc) cs
+                            '\r' -> go True False ('r' : '\\' : acc) cs
+                            '\t' -> go True False ('t' : '\\' : acc) cs
+                            _ | ord c < 0x20 ->
+                                let h = intToHex2 (ord c)
+                                in go True False (reverse ("\\u00" ++ h) ++ acc) cs
+                            _ -> go True False (c:acc) cs
+        | c == '"' = go True False (c:acc) cs
+        | otherwise = go False False (c:acc) cs
+
+    intToHex2 :: Int -> String
+    intToHex2 n =
+        let hex = "0123456789abcdef"
+            hi = (n `div` 16) .&. 0xF
+            lo = n .&. 0xF
+        in [hex !! hi, hex !! lo]
+
+
+extractJsonObjectsFromBinary :: String -> [String]
+extractJsonObjectsFromBinary s =
+    case findNextJsonStart s of
+        Nothing -> []
+        Just fromStart ->
+            case parseOne fromStart of
+                Just (obj, rest) ->
+                    let xs = if isLikelyClassInfoJson obj then [obj] else []
+                    in xs ++ extractJsonObjectsFromBinary rest
+                Nothing ->
+                    extractJsonObjectsFromBinary (drop 1 fromStart)
+  where
+    findNextJsonStart :: String -> Maybe String
+    findNextJsonStart [] = Nothing
+    findNextJsonStart xs
+        | "{\"access\":" `isPrefixOf` xs = Just xs
+        | "{\"target\":\"x64\"" `isPrefixOf` xs = Just xs
+        | otherwise = findNextJsonStart (tail xs)
+
     maxLen = 1 * 1024 * 1024
 
     parseOne :: String -> Maybe (String, String)
@@ -508,7 +592,10 @@ parseNativeSymbolsEnvelope symbols =
                     nmReturnType = retTy,
                     nmName = last (symQName p),
                     nmParamTypes = paramTys,
-                    nmOwnerType = OwnerTopLevel
+                    nmOwnerType = OwnerTopLevel,
+                    nmTemplateParams = [],
+                    nmTemplateParamNames = [],
+                    nmTemplateBody = Nothing
                 }
             }
 
@@ -718,7 +805,10 @@ parseLegacyAsmEnvelope blocks =
                                     nmReturnType = retTy,
                                     nmName = last qn,
                                     nmParamTypes = paramTys,
-                                    nmOwnerType = owner
+                                    nmOwnerType = owner,
+                                    nmTemplateParams = [],
+                                    nmTemplateParamNames = [],
+                                    nmTemplateBody = Nothing
                                 }
                             }
             _ -> Nothing
@@ -933,6 +1023,7 @@ buildEnv :: Path -> NativeEnvelope -> (ImportEnv, TypedImportEnv)
 buildEnv path (NativeEnvelope classes) =
     let fieldDecls = concatMap collectFieldDecls classes
         methodDecls = concatMap collectMethodDecls classes
+        templateDecls = concatMap (collectTemplateDecls path) classes
 
         iVarMap = Map.fromListWith (++) [(k, pos) | (k, _, _, pos) <- fieldDecls]
         iFunMap = Map.fromListWith (++) [(k, pos) | (k, _, _, pos) <- methodDecls]
@@ -940,8 +1031,9 @@ buildEnv path (NativeEnvelope classes) =
 
         tVarMap = Map.fromListWith keepFirst [(k, (t, pos, full)) | (k, full, t, pos) <- fieldDecls]
         tFunMap = foldl' insertFun Map.empty methodDecls
+        tTemplateMap = foldl' insertTemplate Map.empty templateDecls
         tEnv0 = emptyTypedImportEnv path
-        tEnv = tEnv0 { tVars = tVarMap, tFuncs = tFunMap }
+        tEnv = tEnv0 { tVars = tVarMap, tFuncs = tFunMap, tTemplates = tTemplateMap }
     in (iEnv, tEnv)
   where
     keepFirst :: a -> a -> a
@@ -958,6 +1050,19 @@ buildEnv path (NativeEnvelope classes) =
                     poses = oldPos ++ newPos
                     full = if null oldFull then newFull else oldFull
                 in (sigs, poses, full)
+        in Map.insertWith merge keyQn entry mp
+
+    insertTemplate ::
+        Map QName ([Statement], [Position], QName) ->
+        (QName, QName, Statement, [Position]) ->
+        Map QName ([Statement], [Position], QName)
+    insertTemplate mp (keyQn, fullQn, stmt, pos) =
+        let entry = ([stmt], pos, fullQn)
+            merge (newDefs, newPos, newFull) (oldDefs, oldPos, oldFull) =
+                let defs = oldDefs ++ filter (`notElem` oldDefs) newDefs
+                    poses = oldPos ++ newPos
+                    full = if null oldFull then newFull else oldFull
+                in (defs, poses, full)
         in Map.insertWith merge keyQn entry mp
 
 
@@ -987,6 +1092,196 @@ collectMethodDecls cls = concatMap one (ncMethods cls)
                 funReturn = nmReturnType m
             }
         in [(k, fullQn, sig, []) | k <- keys]
+
+
+collectTemplateDecls :: Path -> NativeClass -> [(QName, QName, Statement, [Position])]
+collectTemplateDecls path cls = concatMap one (ncMethods cls)
+  where
+    one :: NativeMethod -> [(QName, QName, Statement, [Position])]
+    one m = case nativeTemplateStmtFromMethod path m of
+        Nothing -> []
+        Just stmt ->
+            let (pkg, clsName) = splitOwnerQName (ncQName cls)
+                fullQn = ncQName cls ++ [nmName m]
+                aliases = aliasesFor pkg clsName (nmName m) (nmOwnerType m)
+                keys = map (applyVisibility (isPublicAccessMask (nmAccessMask m))) aliases
+            in [(k, fullQn, stmt, []) | k <- keys]
+
+
+nativeTemplateStmtFromMethod :: Path -> NativeMethod -> Maybe Statement
+nativeTemplateStmtFromMethod path m = do
+    bodySrc <- nmTemplateBody m
+    if null (nmTemplateParams m)
+        then Nothing
+        else do
+            body <- parseTemplateBodyBlock
+                path
+                (nmTemplateParams m)
+                (effectiveParamNames (nmParamTypes m) (nmTemplateParamNames m))
+                (nmParamTypes m)
+                (nmReturnType m)
+                bodySrc
+            let tok = Lex.Ident (nmName m) (syntheticPos 1 (nmName m))
+                nameExpr = AST.Variable (nmName m) tok
+                ret = (nmReturnType m, [tok])
+                gens = zipWith (\i tp -> (Class [tp] [], [Lex.Ident tp (syntheticPos (100 + i) tp)])) [0 :: Int ..] (nmTemplateParams m)
+                params = zipWith3 mkParam [0 :: Int ..] (effectiveParamNames (nmParamTypes m) (nmTemplateParamNames m)) (nmParamTypes m)
+            pure (AST.FunctionT ret nameExpr gens params body)
+  where
+    mkParam :: Int -> String -> Class -> (Class, String, [Lex.Token])
+    mkParam idx name ty =
+        let tok = Lex.Ident name (syntheticPos (200 + idx) name)
+        in (ty, name, [tok])
+
+    syntheticPos :: Int -> String -> Position
+    syntheticPos col s = makePosition 1 col (max 1 (length s))
+
+    effectiveParamNames :: [Class] -> [String] -> [String]
+    effectiveParamNames tys names
+        | length names == length tys && all isValidParamName names = names
+        | otherwise = ["arg" ++ show i | i <- [0 :: Int .. length tys - 1]]
+
+    isValidParamName :: String -> Bool
+    isValidParamName [] = False
+    isValidParamName (c:cs) =
+        isStart c && all isRest cs
+      where
+        isStart ch = ch == '_' || ch `elem` ['A' .. 'Z'] || ch `elem` ['a' .. 'z']
+        isRest ch = isStart ch || ch `elem` ['0' .. '9']
+
+parseTemplateBodyBlock :: Path -> [String] -> [String] -> [Class] -> Class -> String -> Maybe Block
+parseTemplateBodyBlock path tps paramNames paramTys retTy bodySrc =
+    let funName = "__xlang_native_template__"
+        tpText = if null tps then "" else "<" ++ intercalate ", " tps ++ ">"
+        paramsText = intercalate ", " (zipWith mkParamText paramNames paramTys)
+        header = concat ["fun ", funName, tpText, "(", paramsText, ") -> ", prettyClass retTy, " "]
+        bodyCandidates = nub [bodySrc, rewriteLegacyTemplateBody tps bodySrc]
+    in listToMaybe (mapMaybe (parseOneBody header) bodyCandidates)
+  where
+    mkParamText :: String -> Class -> String
+    mkParamText pName ty = pName ++ ": " ++ prettyClass ty
+
+    parseOneBody :: String -> String -> Maybe Block
+    parseOneBody header bodyText =
+        case lexparseProgm path (header ++ bodyText) of
+            Left _ -> Nothing
+            Right (_, stmts) ->
+                listToMaybe (mapMaybe extractBody stmts)
+
+    extractBody :: Statement -> Maybe Block
+    extractBody stmt = case stmt of
+        AST.FunctionT _ (AST.Variable n _) _ _ b
+            | n == "__xlang_native_template__" -> Just b
+        _ -> Nothing
+
+
+rewriteLegacyTemplateBody :: [String] -> String -> String
+rewriteLegacyTemplateBody tparams =
+    rewriteLegacyDerefIndex . rewriteLegacyTemplateCasts tparams
+
+
+rewriteLegacyTemplateCasts :: [String] -> String -> String
+rewriteLegacyTemplateCasts tparams body =
+    foldl' (\acc tp -> rewriteOneLegacyCast tp acc) body tparams
+
+
+rewriteOneLegacyCast :: String -> String -> String
+rewriteOneLegacyCast tp = go
+  where
+    go :: String -> String
+    go [] = []
+    go ('(' : xs) =
+        case stripPrefix tp xs of
+            Just afterTp ->
+                let afterTp' = dropWhile isSpace afterTp
+                in case afterTp' of
+                    (')' : rest1) ->
+                        let rest1' = dropWhile isSpace rest1
+                        in case rest1' of
+                            ('(' : restExpr) ->
+                                case takeParenExpr restExpr of
+                                    Just (innerExpr, rest2) ->
+                                        "(" ++ innerExpr ++ " as " ++ tp ++ ")" ++ go rest2
+                                    Nothing ->
+                                        '(' : go xs
+                            _ ->
+                                '(' : go xs
+                    _ ->
+                        '(' : go xs
+            Nothing ->
+                '(' : go xs
+    go (c : cs) = c : go cs
+
+
+rewriteLegacyDerefIndex :: String -> String
+rewriteLegacyDerefIndex = go
+  where
+    go :: String -> String
+    go [] = []
+    go ('*' : xs) =
+        let xsNoWs = dropWhile isSpace xs
+        in case parseIdent xsNoWs of
+            Just (baseName, restAfterBase) ->
+                let restNoWs = dropWhile isSpace restAfterBase
+                in case restNoWs of
+                    ('+' : restAfterPlus) ->
+                        let termStart = dropWhile isSpace restAfterPlus
+                        in case parseTerm termStart of
+                            Just (idxTerm, restAfterTerm) ->
+                                "(" ++ baseName ++ " + " ++ idxTerm ++ ").deref" ++ go restAfterTerm
+                            Nothing ->
+                                '*' : go xs
+                    _ ->
+                        '*' : go xs
+            Nothing ->
+                '*' : go xs
+    go (c : cs) = c : go cs
+
+    parseIdent :: String -> Maybe (String, String)
+    parseIdent [] = Nothing
+    parseIdent s@(c : _)
+        | isIdentStart c =
+            let (name, rest) = span isIdentRest s
+            in Just (name, rest)
+        | otherwise = Nothing
+
+    parseTerm :: String -> Maybe (String, String)
+    parseTerm [] = Nothing
+    parseTerm s@(c : _)
+        | isIdentStart c =
+            let (name, rest) = span isIdentRest s
+            in Just (name, rest)
+        | isDigit c || c == '-' =
+            let (num, rest) = span isNumRest s
+            in if null num then Nothing else Just (num, rest)
+        | c == '(' =
+            do
+                (inner, rest) <- takeParenExpr (tail s)
+                pure ("(" ++ inner ++ ")", rest)
+        | otherwise = Nothing
+
+    isIdentStart :: Char -> Bool
+    isIdentStart ch = ch == '_' || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+
+    isIdentRest :: Char -> Bool
+    isIdentRest ch = isIdentStart ch || isDigit ch
+
+    isNumRest :: Char -> Bool
+    isNumRest ch = isAlphaNum ch || ch == '_' || ch == '.'
+
+
+takeParenExpr :: String -> Maybe (String, String)
+takeParenExpr = go 1 []
+  where
+    go :: Int -> String -> String -> Maybe (String, String)
+    go _ _ [] = Nothing
+    go depth acc (c : cs)
+        | c == '(' = go (depth + 1) (c : acc) cs
+        | c == ')' =
+            if depth == 1
+                then Just (reverse acc, cs)
+                else go (depth - 1) (c : acc) cs
+        | otherwise = go depth (c : acc) cs
 
 
 splitOwnerQName :: QName -> (QName, String)

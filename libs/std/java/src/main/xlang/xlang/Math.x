@@ -23,7 +23,7 @@
  *
  */
 
-@class("Math")
+@file.class("Math")
 package xlang
 
 import java.lang.Math

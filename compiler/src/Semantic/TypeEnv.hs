@@ -1,7 +1,7 @@
 module Semantic.TypeEnv where
 
 import Data.Map.Strict (Map)
-import Parse.SyntaxTree (Class(..))
+import Parse.SyntaxTree (Class(..), Statement)
 import Parse.ParserBasic (DeclFlags, Decl)
 import Semantic.NameEnv (QName, VarId)
 import Util.Type (Path, Position)
@@ -65,7 +65,9 @@ data TypedImportEnv = TIEnv {
     tFile :: Path,
     -- | key: imported name as written (possibly short); value carries full qname.
     tVars :: Map QName (Class, [Position], QName),
-    tFuncs :: Map QName ([FunSig], [Position], QName)
+    tFuncs :: Map QName ([FunSig], [Position], QName),
+    -- | imported template blueprint functions (uninstantiated).
+    tTemplates :: Map QName ([Statement], [Position], QName)
 } deriving (Eq, Show)
 
 
@@ -84,7 +86,7 @@ data FullFunctionTable
 
 
 emptyTypedImportEnv :: Path -> TypedImportEnv
-emptyTypedImportEnv p = TIEnv { tFile = p, tVars = Map.empty, tFuncs = Map.empty }
+emptyTypedImportEnv p = TIEnv { tFile = p, tVars = Map.empty, tFuncs = Map.empty, tTemplates = Map.empty }
 
 -- | Default typed import environment with built-in functions preloaded.
 defaultTypedImportEnv :: Path -> TypedImportEnv

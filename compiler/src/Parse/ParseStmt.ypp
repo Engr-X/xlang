@@ -41,6 +41,7 @@ import qualified Util.Exception as UE
     KW_PRIVATE          { t@(Lex.Ident "private" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
+    KW_SIZEOF           { t@(Lex.Ident "sizeof" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELIF             { t@(Lex.Ident "elif" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
@@ -101,6 +102,7 @@ import qualified Util.Exception as UE
 
     -- literals / identifiers
     identity            { t@(Lex.Ident _ _) }
+    annotation          { t@(Lex.Annotation _ _ _) }
     number              { t@(Lex.NumberConst _ _) }
     character           { t@(Lex.CharConst _ _) }
     string              { t@(Lex.StrConst _ _) }
@@ -127,6 +129,7 @@ import qualified Util.Exception as UE
 
 %nonassoc NL
 %nonassoc IFX
+%nonassoc '{'
 
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
@@ -178,6 +181,9 @@ import qualified Util.Exception as UE
 
 -- 3: unary plus/minus
 %right UPLUS UMINUS
+
+-- 2: postfix cast/index/inc/dec
+%left KW_AS '[' '++' '--'
 
 -- 2: prefix ++/-- (handled in Atom rules)
 

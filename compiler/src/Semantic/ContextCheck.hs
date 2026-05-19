@@ -62,6 +62,8 @@ hasAssign = go
     go (AST.Cast _ x _) = go x
     go (AST.Call f args) = go f || any go args
     go (AST.CallT f _ args) = go f || any go args
+    go (AST.SizeOfExpr x _) = go x
+    go (AST.SizeOfType _ _) = False
     go (AST.IfExpr cond thenE elseE _) = go cond || go thenE || go elseE
     go (AST.BlockExpr (AST.Multiple ss)) = any stmtHasAssign ss
     -- Leaves
@@ -276,6 +278,8 @@ checkExpr p packages envs expr = case expr of
                                 let uses' = Map.insert (tokenPos tok) vid (varUses c)
                                 put $ c { varUses = uses' }
                             Nothing -> pure ()
+                    else if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs
+                        then pure ()
                     else case lookupHiddenVarPos (packages ++ [name]) envs of
                         Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
                         Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
@@ -303,7 +307,7 @@ checkExpr p packages envs expr = case expr of
                             else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                     -- non-this qualified name is resolved only through imports.
-                    _ -> if isVarImport names envs
+                    _ -> if isVarImport names envs || isFunImport names envs
                             then pure ()
                             else case lookupHiddenVarPos names envs of
                                 Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
@@ -312,6 +316,31 @@ checkExpr p packages envs expr = case expr of
         checkExpr p packages envs cond
         checkExpr p packages envs thenE
         checkExpr p packages envs elseE
+    AST.SizeOfExpr inner _ ->
+        do
+            c <- get
+            case inner of
+                AST.Variable name _ ->
+                    let hasLocal = isVarDefine name (st c) || case lookupVarId name (st c) of
+                            Just _ -> True
+                            Nothing -> False
+                    in if name == "this" || hasLocal || isVarImport (packages ++ [name]) envs
+                        then checkExpr p packages envs inner
+                        else pure ()
+                AST.Qualified names toks ->
+                    case parsePointerSuffixQualified names toks of
+                        Just _ -> checkExpr p packages envs inner
+                        Nothing ->
+                            case names of
+                                ("this":_) -> checkExpr p packages envs inner
+                                _ ->
+                                    if isVarImport names envs
+                                        then checkExpr p packages envs inner
+                                        else pure ()
+                _ ->
+                    checkExpr p packages envs inner
+    AST.SizeOfType _ _ ->
+        pure ()
     AST.BlockExpr (AST.Multiple ss) ->
         withScope $ checkBlockExprItems ss
                     
@@ -409,33 +438,79 @@ checkExpr p packages envs expr = case expr of
                 AST.Variable name tok -> do
                     c <- get
                     let cState = st c
-                    if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs then pure ()
-                    else case lookupHiddenFunPos (packages ++ [name]) envs of
-                        Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
-                        Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+                    if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs
+                        then pure ()
+                        else if isVarDefine name cState || isVarImport (packages ++ [name]) envs
+                            then pure ()
+                            else case lookupHiddenFunPos (packages ++ [name]) envs of
+                                Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
+                                Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
                 AST.Qualified names tokens -> do
                     c <- get
                     let cState = st c
+                    case parsePointerIntrinsicCall names tokens of
+                        Just (baseName, baseTok, intrinsicName)
+                            | shouldTreatAsPointerIntrinsic baseName cState -> do
+                            checkExpr p packages envs (AST.Variable baseName baseTok)
+                            let argc = length args
+                                expectN = case intrinsicName of
+                                    "get" -> 1
+                                    "set" -> 2
+                                    _ -> error "unreachable intrinsic name"
+                            when (argc /= expectN) $
+                                addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) $
+                                    "invalid intrinsic call: pointer." ++ intrinsicName
+                                        ++ " expects " ++ show expectN ++ " argument(s), got " ++ show argc
+                        Nothing -> do
+                            case names of
+                                -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
+                                ("this":field:_) -> case classScope cState of
+                                    [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                    case names of
-                        -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
-                        ("this":field:_) -> case classScope cState of
-                            [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                                    (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
+                                        else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                            (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
-                                else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                                -- non-this qualified name is resolved only through imports.
+                                _ -> if isFunImport names envs || isVarImport names envs
+                                        then pure ()
+                                        else case lookupHiddenFunPos names envs of
+                                            Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                            Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                        _ -> do
+                            case names of
+                                -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
+                                ("this":field:_) -> case classScope cState of
+                                    [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                        -- non-this qualified name is resolved only through imports.
-                        _ -> if isFunImport names envs
-                                then pure ()
-                                else case lookupHiddenFunPos names envs of
-                                    Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
-                                    Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                                    (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
+                                        else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+
+                                -- non-this qualified name is resolved only through imports.
+                                _ -> if isFunImport names envs || isVarImport names envs
+                                        then pure ()
+                                        else case lookupHiddenFunPos names envs of
+                                            Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                            Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
 
                 other -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens other) invalidFunctionName
 
             mapM_ (checkExpr p packages envs) args
+
+        parsePointerIntrinsicCall :: [String] -> [Token] -> Maybe (String, Token, String)
+        parsePointerIntrinsicCall names tokens = case (names, tokens) of
+            ([baseName, rawIntrinsic], baseTok : _) ->
+                let intrinsic = map toLower rawIntrinsic
+                in if intrinsic `elem` ["get", "set"]
+                    then Just (baseName, baseTok, intrinsic)
+                    else Nothing
+            _ -> Nothing
+
+        shouldTreatAsPointerIntrinsic :: String -> CheckState -> Bool
+        shouldTreatAsPointerIntrinsic baseName cState =
+            baseName == "this" ||
+            isVarDefine baseName cState ||
+            isVarImport (packages ++ [baseName]) envs
 
 
 

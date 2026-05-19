@@ -26,10 +26,12 @@
 #ifndef _XLANG_RUNTIME_MATH_H_
 #define _XLANG_RUNTIME_MATH_H_
 
+#include "xlang/xtypedef.h"
+
 /**
  * xlang.Math native C API for the xlang standard library.
  *
- * <p>For native targets, floating-point operations are routed through
+ * <p>For native targets, x_f32ing-point operations are routed through
  * xlang-prefixed wrappers that delegate to C standard math functions in
  * <math.h>. This keeps behavior aligned with the platform math library
  * while exposing a stable ABI for xlang runtime calls.
@@ -42,7 +44,7 @@
  * @param x     an angle, in radians
  * @return      the sine of {@code x}
  */
-extern double xlang_sin(double x);
+extern x_f64 xlang_sin(x_f64 x);
 
 
 /**
@@ -51,7 +53,7 @@ extern double xlang_sin(double x);
  * @param x     an angle, in radians
  * @return      the cosine of {@code x}
  */
-extern double xlang_cos(double x);
+extern x_f64 xlang_cos(x_f64 x);
 
 
 /**
@@ -60,7 +62,7 @@ extern double xlang_cos(double x);
  * @param x     an angle, in radians
  * @return      the tangent of {@code x}
  */
-extern double xlang_tan(double x);
+extern x_f64 xlang_tan(x_f64 x);
 
 
 /**
@@ -69,7 +71,7 @@ extern double xlang_tan(double x);
  * @param x     a value (typically in [-1, 1])
  * @return      the arc sine of {@code x}, in radians
  */
-extern double xlang_asin(double x);
+extern x_f64 xlang_asin(x_f64 x);
 
 
 /**
@@ -78,7 +80,7 @@ extern double xlang_asin(double x);
  * @param x     a value (typically in [-1, 1])
  * @return      the arc cosine of {@code x}, in radians
  */
-extern double xlang_acos(double x);
+extern x_f64 xlang_acos(x_f64 x);
 
 
 /**
@@ -87,7 +89,7 @@ extern double xlang_acos(double x);
  * @param x     a value
  * @return      the arc tangent of {@code x}, in radians
  */
-extern double xlang_atan(double x);
+extern x_f64 xlang_atan(x_f64 x);
 
 
 /**
@@ -96,7 +98,7 @@ extern double xlang_atan(double x);
  * @param x     the exponent
  * @return      e raised to the power {@code x}
  */
-extern double xlang_exp(double x);
+extern x_f64 xlang_exp(x_f64 x);
 
 
 /**
@@ -105,7 +107,7 @@ extern double xlang_exp(double x);
  * @param x     a value
  * @return      the natural logarithm of {@code x}
  */
-extern double xlang_ln(double x);
+extern x_f64 xlang_ln(x_f64 x);
 
 
 /**
@@ -114,7 +116,7 @@ extern double xlang_ln(double x);
  * @param x     a value
  * @return      the base-10 logarithm of {@code x}
  */
-extern double xlang_log10(double x);
+extern x_f64 xlang_log10(x_f64 x);
 
 
 /**
@@ -123,7 +125,7 @@ extern double xlang_log10(double x);
  * @param x     a value
  * @return      the square root of {@code x}
  */
-extern double xlang_sqrt(double x);
+extern x_f64 xlang_sqrt(x_f64 x);
 
 
 /**
@@ -132,7 +134,7 @@ extern double xlang_sqrt(double x);
  * @param x     a value
  * @return      the cube root of {@code x}
  */
-extern double xlang_cbrt(double x);
+extern x_f64 xlang_cbrt(x_f64 x);
 
 
 /**
@@ -142,7 +144,7 @@ extern double xlang_cbrt(double x);
  * @param y the divisor
  * @return the IEEE 754-style remainder of {@code x / y}
  */
-extern double xlang_IEEEremainder(double x, double y);
+extern x_f64 xlang_IEEEremainder(x_f64 x, x_f64 y);
 
 
 #endif

@@ -44,12 +44,12 @@ import qualified Util.FileHelper as FileHelper
     KW_PACKAGE          { t@(Lex.Ident "package" _) }
     KW_IMPORT           { t@(Lex.Ident "import" _) }
     KW_CLASSNAME        { t@(Lex.Ident "classname" _) }
-    KW_JVMCLASS         { t@(Lex.Ident "JvmClass" _) }
     KW_NATIVE           { t@(Lex.Ident "native" _) }
     KW_POINTER          { t@(Lex.Ident "pointer" _) }
     KW_BLOB             { t@(Lex.Ident "blob" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
+    KW_SIZEOF           { t@(Lex.Ident "sizeof" _) }
     KW_IF               { t@(Lex.Ident "if" _) }
     KW_ELIF             { t@(Lex.Ident "elif" _) }
     KW_ELSE             { t@(Lex.Ident "else" _) }
@@ -136,6 +136,7 @@ import qualified Util.FileHelper as FileHelper
 
 %nonassoc NL
 %nonassoc IFX
+%nonassoc '{'
 
 -- 18: assignment
 %right '=' '+=' '-=' '*=' '/=' '%=' '**='
@@ -188,6 +189,9 @@ import qualified Util.FileHelper as FileHelper
 -- 3: unary plus/minus
 %right UPLUS UMINUS
 
+-- 2: postfix cast/index/inc/dec
+%left KW_AS '[' '++' '--'
+
 -- 2: prefix ++/-- (handled in Atom rules)
 
 -- 1: postfix ++/-- (handled in Postfix rules)
@@ -220,6 +224,7 @@ TopItem :: { Either Declaration Statement }
 TopSeq :: { [Either Declaration Statement] }
     : TopItem            { [$1] }
     | TopSeq TopItem     { $2 : $1 }
+    | TopSeq SepSeq TopItem { $3 : $1 }
 
 
 SepSeq :: { () }

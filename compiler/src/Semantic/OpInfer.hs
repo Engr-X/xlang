@@ -59,6 +59,8 @@ normalizeTypeAlias cls = case cls of
     Class ["Any"] [] -> Class ["Any"] []
     Class ["xlang", "Any"] [] -> Class ["Any"] []
     Class ["java", "lang", "Object"] [] -> Class ["Any"] []
+    Pointer inner -> Pointer (normalizeTypeAlias inner)
+    FuncPtr ret args -> FuncPtr (normalizeTypeAlias ret) (map normalizeTypeAlias args)
     Class qn args -> Class qn (map normalizeTypeAlias args)
     other -> other
 
@@ -80,9 +82,10 @@ widenedClass (Pointer inner) =
     in if normalized == fallback
         then [fallback]
         else [normalized, fallback]
+widenedClass fp@(FuncPtr _ _) = [normalizeTypeAlias fp]
 widenedClass blob@(Blob _) = [blob, Pointer Void]
 widenedClass cls@(Class _ _) = [normalizeTypeAlias cls]
-widenedClass ErrorClass = error "ErrorClass cannot be widened"
+widenedClass ErrorClass = [ErrorClass]
 
 
 widenedArgs :: Path -> [Position] -> [(Class, [Position])] -> [FunSig] -> Either ErrorKind (FunSig, [Warning])

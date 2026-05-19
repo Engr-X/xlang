@@ -296,6 +296,18 @@ ifColonNewlineStmtTests = testGroup "if_colon_newline_stmt"
                 _) -> pure ()
             other -> assertFailure ("expected If statement with bare return body, got: " ++ show other)
 
+    , testCase "if body supports value return without braces" $
+        case replLexparseStmt (unlines
+            [ "if size <= 0:"
+            , "    return 0 as A"
+            ]) of
+            Right (If
+                (Binary LessEqual (Variable "size" _) (IntConst "0" _) _)
+                (Just (Multiple [Command (Return (Just (Cast (Class ["A"] _, _) (IntConst "0" _) _))) _]))
+                Nothing
+                _) -> pure ()
+            other -> assertFailure ("expected If statement with value return body, got: " ++ show other)
+
     , testCase "if/elif with block return parses without colon-return ambiguity" $
         case replLexparseStmt (unlines
             [ "if x > 0: { return; }"
@@ -398,6 +410,121 @@ templateFunctionSyntaxTests = testGroup "template_function_syntax"
                 fst tpl @?= Class ["T"] []
                 length params @?= 2
             other -> assertFailure ("expected template function declaration without ::, got: " ++ show other)
+    , testCase "tail expr in colon body rewrites to return for typed template function" $
+        case replLexparseStmt (unlines
+            [ "fun add<T>(a: T, b: T) -> T:"
+            , "    a + b"
+            ]) of
+            Right (FunctionT (Class ["T"] _, _) (Variable "add" _) _ _ (Multiple [Command (Return (Just (Binary Add _ _ _))) _])) ->
+                pure ()
+            other -> assertFailure ("expected typed template colon-body tail expr rewrite, got: " ++ show other)
+    , testCase "tail expr in brace body rewrites to return for typed template function" $
+        case replLexparseStmt (unlines
+            [ "fun add<T>(a: T, b: T) -> T"
+            , "{"
+            , "    a + b"
+            , "}"
+            ]) of
+            Right (FunctionT (Class ["T"] _, _) (Variable "add" _) _ _ (Multiple [Command (Return (Just (Binary Add _ _ _))) _])) ->
+                pure ()
+            other -> assertFailure ("expected typed template brace-body tail expr rewrite, got: " ++ show other)
+    ]
+
+untypedFunctionSugarTests :: TestTree
+untypedFunctionSugarTests = testGroup "untyped_function_sugar"
+    [ testCase "fun add(a, b) lowers to template with excel type params" $
+        case replLexparseStmt "fun add(a, b) = a + b;" of
+            Right (FunctionT (Class ["A"] _, _) (Variable "add" _) gens params (Multiple [Command (Return (Just _)) _])) -> do
+                map fst gens @?= [Class ["A"] [], Class ["B"] [], Class ["C"] []]
+                map (\(t, n, _) -> (t, n)) params @?=
+                    [ (Class ["B"] [], "a")
+                    , (Class ["C"] [], "b")
+                    ]
+            other -> assertFailure ("expected untyped function sugar to template function, got: " ++ show other)
+    , testCase "fun add(mut a, b) keeps mut token on first parameter" $
+        case replLexparseStmt "fun add(mut a, b) = a + b;" of
+            Right (FunctionT _ (Variable "add" _) _ [(_, "a", toksA), (_, "b", _)] _) ->
+                assertBool "first param token list should contain mut" (any isMutTok toksA)
+            other -> assertFailure ("expected mut token to survive sugar expansion, got: " ++ show other)
+    , testCase "fun add(a, b): tail expr is rewritten to return" $
+        case replLexparseStmt (unlines
+            [ "fun add(a, b):"
+            , "    a + b"
+            ]) of
+            Right (FunctionT _ (Variable "add" _) _ _ (Multiple [Command (Return (Just (Binary Add _ _ _))) _])) ->
+                pure ()
+            other -> assertFailure ("expected colon-body tail expr rewrite to return, got: " ++ show other)
+    , testCase "fun add(a, b): explicit return remains valid" $
+        case replLexparseStmt (unlines
+            [ "fun add(a, b):"
+            , "    return a + b"
+            ]) of
+            Right (FunctionT _ (Variable "add" _) _ _ (Multiple [Command (Return (Just (Binary Add _ _ _))) _])) ->
+                pure ()
+            other -> assertFailure ("expected colon-body explicit return, got: " ++ show other)
+    , testCase "fun add(a, b) { tail expr } rewrites to return" $
+        case replLexparseStmt (unlines
+            [ "fun add(a, b)"
+            , "{"
+            , "    a + b"
+            , "}"
+            ]) of
+            Right (FunctionT _ (Variable "add" _) _ _ (Multiple [Command (Return (Just (Binary Add _ _ _))) _])) ->
+                pure ()
+            other -> assertFailure ("expected brace-body tail expr rewrite to return, got: " ++ show other)
+    , testCase "fun add(a, b) { return a + b } remains valid" $
+        case replLexparseStmt (unlines
+            [ "fun add(a, b)"
+            , "{"
+            , "    return a + b"
+            , "}"
+            ]) of
+            Right (FunctionT _ (Variable "add" _) _ _ (Multiple [Command (Return (Just (Binary Add _ _ _))) _])) ->
+                pure ()
+            other -> assertFailure ("expected brace-body explicit return, got: " ++ show other)
+    , testCase "fun set(arr, size) without value return defaults to void template" $
+        case replLexparseStmt (unlines
+            [ "fun set(arr, size)"
+            , "{"
+            , "    var i = 0"
+            , "}"
+            ]) of
+            Right (FunctionT (Void, _) (Variable "set" _) gens params (Multiple _)) -> do
+                map fst gens @?= [Class ["A"] [], Class ["B"] []]
+                map (\(t, n, _) -> (t, n)) params @?=
+                    [ (Class ["A"] [], "arr")
+                    , (Class ["B"] [], "size")
+                    ]
+            other -> assertFailure ("expected void untyped sugar template function, got: " ++ show other)
+    ]
+  where
+    isMutTok :: Token -> Bool
+    isMutTok tok = case tok of
+        Lex.Ident "mut" _ -> True
+        _ -> False
+
+defaultVoidFunctionSyntaxTests :: TestTree
+defaultVoidFunctionSyntaxTests = testGroup "default_void_function_syntax"
+    [ testCase "fun without return type uses void (colon body)" $
+        case replLexparseStmt (unlines
+            [ "fun foo(a: int, b: int):"
+            , "    return;"
+            ]) of
+            Right (Function (Void, _) (Variable "foo" _) [(Int32T, "a", _), (Int32T, "b", _)] (Multiple [Command (Return Nothing) _])) ->
+                pure ()
+            other -> assertFailure ("expected default-void function with colon body, got: " ++ show other)
+
+    , testCase "fun without return type uses void (brace body)" $
+        case replLexparseStmt "fun foo(a: int, b: int) {}" of
+            Right (Function (Void, _) (Variable "foo" _) [(Int32T, "a", _), (Int32T, "b", _)] (Multiple [])) ->
+                pure ()
+            other -> assertFailure ("expected default-void function with brace body, got: " ++ show other)
+
+    , testCase "template fun without return type uses void" $
+        case replLexparseStmt "fun foo<T>(a: T, b: T) {}" of
+            Right (FunctionT (Void, _) (Variable "foo" _) [tpl] [(Class ["T"] _, "a", _), (Class ["T"] _, "b", _)] (Multiple [])) -> do
+                fst tpl @?= Class ["T"] []
+            other -> assertFailure ("expected default-void template function, got: " ++ show other)
     ]
 
 nativeFunctionSyntaxTests :: TestTree
@@ -408,11 +535,23 @@ nativeFunctionSyntaxTests = testGroup "native_function_syntax"
                 bodyS @?= "return (a+b)"
             other -> assertFailure ("expected NativeMethod with expression body string, got: " ++ show other)
 
+    , testCase "expr-body link function is lowered to return string" $
+        case replLexparseStmt "link(\"C\") fun add(int a, int b) -> int = a + b;" of
+            Right (NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS) ->
+                bodyS @?= "C"
+            other -> assertFailure ("expected NativeMethod from link(...) with expression body string, got: " ++ show other)
+
     , testCase "native block body keeps raw text without braces" $
         case replLexparseProgm "@native(\"C\") fun add(int a, int b) -> int {return a & b;}" of
             Right ([], [NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS]) ->
                 bodyS @?= "return a & b;"
             other -> assertFailure ("expected NativeMethod with native raw body, got: " ++ show other)
+
+    , testCase "link modifier order: native inline" $
+        case replLexparseStmt "link(\"putln_int\") native inline fun putln(a: int) -> void;" of
+            Right (NativeMethod (Void, _) (Variable "putln" _) [(Int32T, "a", _)] targetS) ->
+                targetS @?= "putln_int"
+            other -> assertFailure ("expected NativeMethod for link native-inline order, got: " ++ show other)
 
     , testCase "native modifier order: inline native" $
         case replLexparseStmt "@native(\"putln_int\") inline native fun putln(a: int) -> void;" of
@@ -425,6 +564,29 @@ nativeFunctionSyntaxTests = testGroup "native_function_syntax"
             Right (NativeMethod (Void, _) (Variable "putln" _) [(Int32T, "a", _)] targetS) ->
                 targetS @?= "putln_int"
             other -> assertFailure ("expected NativeMethod for native inline order, got: " ++ show other)
+    ]
+
+functionPointerTypeSyntaxTests :: TestTree
+functionPointerTypeSyntaxTests = testGroup "function_pointer_type_syntax"
+    [ testCase "legacy unnamed function pointer type is accepted" $
+        case replLexparseStmt "fun sort(src: pointer<*>, comp: (pointer<*>, pointer<*>) -> int) -> void { return; }" of
+            Right (Function (Void, _) (Variable "sort" _)
+                [ (Pointer Void, "src", _)
+                , (FuncPtr Int32T [Pointer Void, Pointer Void], "comp", _)
+                ]
+                (Multiple [Command (Return Nothing) _])) ->
+                    pure ()
+            other -> assertFailure ("expected legacy unnamed function pointer parameter type, got: " ++ show other)
+
+    , testCase "named function pointer parameter list remains compatible" $
+        case replLexparseStmt "fun sort(src: pointer<*>, comp: (left: pointer<*>, right: pointer<*>) -> int) -> void { return; }" of
+            Right (Function (Void, _) (Variable "sort" _)
+                [ (Pointer Void, "src", _)
+                , (FuncPtr Int32T [Pointer Void, Pointer Void], "comp", _)
+                ]
+                (Multiple [Command (Return Nothing) _])) ->
+                    pure ()
+            other -> assertFailure ("expected compatible named function pointer parameter list, got: " ++ show other)
     ]
 
 tests :: TestTree
@@ -440,5 +602,8 @@ tests = testGroup "Parse.ParseStmt" [
     inlineFunctionSyntaxTests,
     mutParamSyntaxTests,
     templateFunctionSyntaxTests,
-    nativeFunctionSyntaxTests
+    untypedFunctionSugarTests,
+    defaultVoidFunctionSyntaxTests,
+    nativeFunctionSyntaxTests,
+    functionPointerTypeSyntaxTests
     ]

@@ -151,9 +151,23 @@ TypedParams :: { [(Class, String, [Token])] }
     | TypedParams ',' KW_MUT identity ':' Clazz { (fst $6, identText $4, [$3, $4, $5] ++ snd $6) : $1 }
     ;
 
+UntypedParam :: { (String, [Token]) }
+    : identity                    { (identText $1, [$1]) }
+    | KW_MUT identity             { (identText $2, [$1, $2]) }
+    ;
+
+UntypedParams :: { [(String, [Token])] }
+    : UntypedParam                        { [$1] }
+    | UntypedParams ',' UntypedParam      { $1 ++ [$3] }
+    ;
+
 FunctionParams :: { [(Class, String, [Token])] }
     : '(' ')'                       { [] }
     | '(' TypedParams ')'           { reverse $2 }
+    ;
+
+UntypedFunctionParams :: { [(String, [Token])] }
+    : '(' UntypedParams ')'          { $2 }
     ;
 
 -- generic parameters for function declarations:
@@ -196,16 +210,19 @@ FunModifier :: { Token }
     | KW_PROTECTED                  { $1 }
     | KW_PUBLIC                     { $1 }
     | KW_INLINE                     { $1 }
+    | annotation                    { $1 }
     ;
 
 FunModifierSeq :: { [Token] }
     : FunModifier                   { [$1] }
     | FunModifierSeq FunModifier    { $1 ++ [$2] }
+    | FunModifierSeq Sep FunModifier { $1 ++ [$3] }
     ;
 
 FunModifierSeqOpt :: { [Token] }
     : {- empty -}                   { [] }
     | FunModifierSeq                { $1 }
+    | FunModifierSeq Sep            { $1 }
     ;
 
 NativeFunModifier :: { Token }
@@ -214,16 +231,19 @@ NativeFunModifier :: { Token }
     | KW_PUBLIC                     { $1 }
     | KW_INLINE                     { $1 }
     | KW_NATIVE                     { $1 }
+    | annotation                    { $1 }
     ;
 
 NativeFunModifierSeq :: { [Token] }
     : NativeFunModifier                     { [$1] }
     | NativeFunModifierSeq NativeFunModifier { $1 ++ [$2] }
+    | NativeFunModifierSeq Sep NativeFunModifier { $1 ++ [$3] }
     ;
 
 NativeFunModifierSeqOpt :: { [Token] }
     : {- empty -}                   { [] }
     | NativeFunModifierSeq          { $1 }
+    | NativeFunModifierSeq Sep      { $1 }
     ;
 
 NativeSepOpt :: { () }
@@ -297,25 +317,34 @@ FunctionStmt :: { Statement }
     | NativeSpecifier NativeSepOpt NativeFunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz CFunctionBlock
         { NativeMethod (fst $8, fst $1 ++ $3 ++ snd $8) (qnameToExpr $5) $6 (snd $1) }
 
+    | FunModifierSeqOpt KW_FUNC QName UntypedFunctionParams FunctionBlock
+        { mkUntypedSugarFunction ($1 ++ [$2]) $3 $4 $5 }
+
+    | FunModifierSeqOpt KW_FUNC QName FunctionParams FunctionBlock
+        { InstanceMethod (Void, $1 ++ [$2]) (qnameToExpr $3) $4 $5 }
+
+    | FunModifierSeqOpt KW_FUNC QName DeclGenericParamList FunctionParams FunctionBlock
+        { InstanceMethodT (Void, $1 ++ [$2]) (qnameToExpr $3) $4 $5 $6 }
+
     | FunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz FunctionBlock
-        { InstanceMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 $7 }
+        { InstanceMethod (fst $6, $1 ++ snd $6) (qnameToExpr $3) $4 (normalizeFunctionBodyByRet (fst $6) $7) }
 
     | FunModifierSeqOpt KW_FUNC QName DeclGenericParamList FunctionParams '->' Clazz FunctionBlock
-        { InstanceMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 $8 }
+        { InstanceMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 (normalizeFunctionBodyByRet (fst $7) $8) }
     ;
 
 TypedLeadStmt :: { Statement }
     : Clazz QName FunctionParams FunctionBlock
-        { InstanceMethod (fst $1, snd $1) (qnameToExpr $2) $3 $4 }
+        { InstanceMethod (fst $1, snd $1) (qnameToExpr $2) $3 (normalizeFunctionBodyByRet (fst $1) $4) }
 
     | Clazz QName DeclGenericParamList FunctionParams FunctionBlock
-        { InstanceMethodT (fst $1, snd $1) (qnameToExpr $2) $3 $4 $5 }
+        { InstanceMethodT (fst $1, snd $1) (qnameToExpr $2) $3 $4 (normalizeFunctionBodyByRet (fst $1) $5) }
 
     | AccessOpt Clazz QName FunctionParams FunctionBlock
-        { InstanceMethod (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 }
+        { InstanceMethod (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 (normalizeFunctionBodyByRet (fst $2) $5) }
 
     | AccessOpt Clazz QName DeclGenericParamList FunctionParams FunctionBlock
-        { InstanceMethodT (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 $6 }
+        { InstanceMethodT (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 (normalizeFunctionBodyByRet (fst $2) $6) }
 
     -- C-like declarations: int a; / int a = 10, b = 20;
     | Clazz CDeclItems Sep

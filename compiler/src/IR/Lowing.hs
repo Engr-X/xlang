@@ -17,7 +17,7 @@ import Control.Exception (evaluate)
 import Control.Monad.State.Strict (runState)
 import Data.Char (toUpper)
 import Data.Either (lefts, rights)
-import Data.List (partition)
+import Data.List (nub, partition)
 import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
 import Data.Word (Word64)
@@ -25,11 +25,11 @@ import GHC.Clock (getMonotonicTimeNSec)
 import Lex.Tokenizer (tokenizeWithNL)
 import Parse.ParseProgm (parseProgm)
 import Parse.ParserBasic (toException)
-import Parse.SyntaxTree (Program, getErrorProgram)
+import Parse.SyntaxTree (Program, Statement, getErrorProgram)
 import Semantic.CheckProgram (SemanticTarget(..), checkProgmWithDepsForTarget)
 import Semantic.NameEnv (ImportEnv)
 import Semantic.TypeCheck (tcFullFunUses, tcFullVarUses, tcWarnings)
-import Semantic.TypeEnv (FullFunctionTable, FullVarTable, TypedImportEnv)
+import Semantic.TypeEnv (FullFunctionTable, FullVarTable, TypedImportEnv, tTemplates)
 import Util.Exception (ErrorKind, Warning)
 import Util.Type (Path, Position)
 
@@ -40,6 +40,14 @@ import qualified Data.Map.Strict as Map
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeCheck as TC
 import qualified Util.Exception as UE
+
+
+collectExternalTemplateStmts :: [TypedImportEnv] -> [AST.Statement]
+collectExternalTemplateStmts envs =
+    nub (concatMap oneEnv envs)
+  where
+    oneEnv :: TypedImportEnv -> [AST.Statement]
+    oneEnv env = concat [defs | (defs, _, _) <- Map.elems (tTemplates env)]
 
 
 data FrontendStageTiming = FrontendStageTiming {
@@ -95,13 +103,14 @@ codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
     let parsed = map parseOne files
         parseErrs = concat (lefts parsed)
         progms = rights parsed
+        externalTemplateStmts = collectExternalTemplateStmts depTypedEnvs
     in if not (null parseErrs)
         then Left parseErrs
         else case checkProgmWithDepsForTarget target root depImportEnvs depTypedEnvs progms of
             Left errs -> Left errs
             Right ctxs ->
                 let ctxMap = Map.fromList ctxs
-                    lowered = map (lowerOne ctxMap) progms
+                    lowered = map (lowerOne externalTemplateStmts ctxMap) progms
                     lowerErrs = concat (lefts lowered)
                     loweredOk = rights lowered
                 in if not (null lowerErrs)
@@ -124,16 +133,18 @@ codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
                         else Left (map (toException path) parseErrs)
 
         lowerOne ::
+            [Statement] ->
             Map Path TC.TypeCtx ->
             (Path, Program) ->
             Either [ErrorKind] ((Path, TAC.IRProgm), [Warning])
         -- | Lower one already-checked program with its per-file type context.
-        lowerOne ctxMap (path, prog) =
+        lowerOne extTemplates ctxMap (path, progRaw) =
             case Map.lookup path ctxMap of
                 Nothing ->
                     Left [UE.Syntax (UE.makeError path [] UE.internalErrorMsg)]
                 Just ctx ->
-                    let (ir, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
+                    let prog = AST.normalizeProgramWithExternalTemplates extTemplates progRaw
+                        (ir, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns = tcWarnings ctx ++ tacWarns
                     in Right ((path, ir), warns)
 
@@ -161,6 +172,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
         parsed = map snd parsedWithTime
         parseErrs = concat (lefts parsed)
         progms = rights parsed
+        externalTemplateStmts = collectExternalTemplateStmts depTypedEnvs
     if not (null parseErrs)
         then pure (Left parseErrs)
         else do
@@ -177,7 +189,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                 Left errs -> pure (Left errs)
                 Right ctxs -> do
                     let ctxMap = Map.fromList ctxs
-                    loweredWithTime <- mapM (lowerOneTimed ctxMap) progms
+                    loweredWithTime <- mapM (lowerOneTimed externalTemplateStmts ctxMap) progms
                     let irTimings = map fst loweredWithTime
                         lowered = map snd loweredWithTime
                         lowerErrs = concat (lefts lowered)
@@ -228,10 +240,11 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                     )
 
     lowerOneTimed ::
+        [Statement] ->
         Map Path TC.TypeCtx ->
         (Path, Program) ->
         IO (IrLoweringStageTiming, Either [ErrorKind] ((Path, TAC.IRProgm), [Warning]))
-    lowerOneTimed ctxMap (path, prog) =
+    lowerOneTimed extTemplates ctxMap (path, progRaw) =
         case Map.lookup path ctxMap of
             Nothing ->
                 pure
@@ -240,7 +253,8 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                     )
             Just ctx -> do
                 ((ir, warns), irNs) <- timedIO $ do
-                    let (ir0, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
+                    let prog = AST.normalizeProgramWithExternalTemplates extTemplates progRaw
+                        (ir0, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns0 = tcWarnings ctx ++ tacWarns
                     _ <- evaluate (length warns0)
                     pure (ir0, warns0)
@@ -278,7 +292,7 @@ lowerWithUses ::
     Map [Position] FullFunctionTable ->
     (TAC.IRProgm, [Warning])
 lowerWithUses path (decls, stmts) vUses fUses =
-    let (decls', stmts') = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions (decls, stmts))
+    let (decls', stmts') = AST.normalizeProgramForLowering (decls, stmts)
         (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
         pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d

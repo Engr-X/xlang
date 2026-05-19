@@ -63,6 +63,44 @@ refAssignTests = testGroup "X64Lowing.IAssign.ref" [
         assertBool "expected ref assign lowered as mov/mov sequence" (length instrs == 2)
     ]
 
+indirectCallRegTests :: TestTree
+indirectCallRegTests = testGroup "X64Lowing.ICallPtr.reg" [
+    testCase "indirect call keeps rcx arg and uses r10 as call target" $ do
+        let fn = Var ("fn", 0, 0)
+            a = Var ("a", 0, 0)
+            b = Var ("b", 0, 0)
+            dst = Var ("dst", 0, 0)
+            ir = ICallPtr dst fn [a, b]
+            fun = mkFun (Map.fromList [
+                (fn, FuncPtr Int32T [Int32T, Int32T]),
+                (a, Int32T),
+                (b, Int32T),
+                (dst, Int32T)])
+            st = runX64LowerState64 fun 32 X64.winCC64
+            instrs = evalState (x64StmtCode64 ir) st
+            hasMovFnToR10 = any isMovFnToR10 instrs
+            hasCallR10 = any isCallR10 instrs
+            clobbersRcXWithFn = any isMovFnToRCX instrs
+        assertBool "expected function pointer moved into r10 before indirect call" hasMovFnToR10
+        assertBool "expected indirect call through r10" hasCallR10
+        assertBool "must not move function pointer into rcx (would clobber arg0)" (not clobbersRcXWithFn)
+  ]
+  where
+    isMovFnToR10 :: X64.Instruction -> Bool
+    isMovFnToR10 instr = case instr of
+        X64.Mov (X64.Reg X64.R10 X64.B64) _ X64.B64 -> True
+        _ -> False
+
+    isCallR10 :: X64.Instruction -> Bool
+    isCallR10 instr = case instr of
+        X64.CallA (X64.Reg X64.R10 X64.B64) -> True
+        _ -> False
+
+    isMovFnToRCX :: X64.Instruction -> Bool
+    isMovFnToRCX instr = case instr of
+        X64.Mov (X64.Reg X64.C X64.B64) _ X64.B64 -> True
+        _ -> False
+
 
 tests :: TestTree
-tests = testGroup "X64Lowing.LowingTest" [newStackMemChkstkTests, refAssignTests]
+tests = testGroup "X64Lowing.LowingTest" [newStackMemChkstkTests, refAssignTests, indirectCallRegTests]

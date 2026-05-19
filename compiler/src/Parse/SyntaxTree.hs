@@ -4,17 +4,19 @@
 
 module Parse.SyntaxTree where
 
-import Data.List (intercalate, isPrefixOf, stripPrefix)
+import Data.List (intercalate, isPrefixOf, stripPrefix, nub, sort, foldl')
 import Data.Map.Strict (Map)
 import Data.Maybe (listToMaybe, fromMaybe, isNothing, isJust, mapMaybe)
 import Data.Char (isDigit, toLower, isSpace)
 import Data.HashSet (HashSet)
+import Data.Set (Set)
 import Data.Hashable (Hashable(..))
 import GHC.Generics (Generic)
 import Lex.Token (Token, tokenPos)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.HashSet as HashSet
+import qualified Data.Set as Set
 import qualified Lex.Token as Lex
 
 
@@ -37,6 +39,7 @@ data Class =
     Float32T | Float64T | Float128T |
     Bool | Char | Void |
     Pointer Class |
+    FuncPtr Class [Class] |
     Blob Expression |
     Class [String] [Class] | -- name + general
     ErrorClass
@@ -63,6 +66,8 @@ prettyClass Void = "void"
 prettyClass Bool = "bool"
 prettyClass Char = "char"
 prettyClass (Pointer c) = concat ["pointer<", prettyClass c, ">"]
+prettyClass (FuncPtr ret args) =
+    concat ["(", intercalate ", " (map prettyClass args), ") -> ", prettyClass ret]
 prettyClass (Blob e) = concat ["blob[", prettyExpr 0 (Just e), "]"]
 prettyClass (Class ss args) =
     let base = intercalate "." ss
@@ -83,6 +88,7 @@ classMangle Bool = "z"
 classMangle Char = "c"
 classMangle Void = "v"
 classMangle (Pointer c) = "P" ++ classMangle c
+classMangle (FuncPtr ret args) = concat ["FI", concatMap classMangle args, "E", classMangle ret]
 classMangle (Blob _) = "B"
 classMangle (Class ss args) =
     case ss of
@@ -126,11 +132,29 @@ classDemangleEither raw = case parseMangledType raw of
             'P' -> do
                 (inner, rest) <- parseMangledType cs
                 Right (Pointer inner, rest)
+            'F' -> parseFuncPtrType cs
             'B' -> Right (Blob (IntConst "1" Lex.dummyToken), cs)
             'N' -> parseNestedType cs
             _
                 | isDigit c -> parseSingleType (c : cs)
                 | otherwise -> Left ("unexpected tag '" ++ [c] ++ "'")
+
+        parseFuncPtrType :: String -> Either String (Class, String)
+        parseFuncPtrType s = case s of
+            ('I' : rest0) -> do
+                (args, rest1) <- parseFuncPtrArgs [] rest0
+                (retTy, rest2) <- parseMangledType rest1
+                Right (FuncPtr retTy args, rest2)
+            _ ->
+                Left "function pointer mangle must start with FI"
+
+        parseFuncPtrArgs :: [Class] -> String -> Either String ([Class], String)
+        parseFuncPtrArgs acc s = case s of
+            [] -> Left "unexpected eof while parsing function pointer args"
+            ('E' : rest) -> Right (reverse acc, rest)
+            _ -> do
+                (argTy, rest) <- parseMangledType s
+                parseFuncPtrArgs (argTy : acc) rest
 
         parseNestedType :: String -> Either String (Class, String)
         parseNestedType s = do
@@ -413,6 +437,8 @@ data Expression =
     | Binary Operator Expression Expression Token
     | Call Expression [Expression]
     | CallT Expression [(Class, [Token])] [Expression]
+    | SizeOfExpr Expression Token
+    | SizeOfType (Class, [Token]) Token
     | IfExpr Expression Expression Expression (Token, Maybe Token)
     | BlockExpr Block
     deriving (Eq, Show)
@@ -448,6 +474,10 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
                 typeArgsS = concat ["<", intercalate ", " (map (prettyClass . fst) ts), ">"]
                 argsS = intercalate ", " (map (prettyExpr' . Just) args)
             in concat [calleeS, typeArgsS, "(", argsS, ")"]
+        prettyExpr' (Just (SizeOfExpr inner _)) =
+            concat ["sizeof(", prettyExpr' (Just inner), ")"]
+        prettyExpr' (Just (SizeOfType (cls, _) _)) =
+            concat ["sizeof(", prettyClass cls, ")"]
         prettyExpr' (Just (IfExpr cond thenE elseE _)) =
             concat [
                 "if ",
@@ -479,6 +509,8 @@ exprTokens (Unary _ e t) = t : exprTokens e
 exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
 exprTokens (Call e1 es) = concatMap exprTokens (e1 : es)
 exprTokens (CallT e1 cts es) = concatMap snd cts ++ concatMap exprTokens (e1 : es)
+exprTokens (SizeOfExpr e t) = t : exprTokens e
+exprTokens (SizeOfType (_, toks) t) = t : toks
 exprTokens (IfExpr cond thenE elseE (ifTok, elseTok)) =
     [ifTok] ++ exprTokens cond ++ exprTokens thenE ++ maybe [] pure elseTok ++ exprTokens elseE
 exprTokens (BlockExpr b) = blockTokens (Just b)
@@ -495,6 +527,9 @@ flattenExpr (Just fatherE@(Call callee args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just fatherE@(CallT callee _ args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
+flattenExpr (Just fatherE@(SizeOfExpr inner _)) =
+    concat [[fatherE], flattenExpr (Just inner)]
+flattenExpr (Just fatherE@(SizeOfType _ _)) = [fatherE]
 flattenExpr (Just fatherE@(IfExpr cond thenE elseE _)) =
     concat [[fatherE], flattenExpr (Just cond), flattenExpr (Just thenE), flattenExpr (Just elseE)]
 flattenExpr (Just fatherE@(BlockExpr b)) =
@@ -1258,6 +1293,10 @@ inlineProgramFunctions (decls, stmts) =
                 inlineCall specs stack (Call callee args)
             CallT callee tys args ->
                 inlineCallT specs stack (CallT callee tys args)
+            SizeOfExpr inner tok ->
+                SizeOfExpr (rewriteExprInline specs stack inner) tok
+            SizeOfType _ _ ->
+                expr
 
         inlineCall :: Map String InlineFunSpec -> [String] -> Expression -> Expression
         inlineCall specs stack (Call callee args) =
@@ -1315,6 +1354,8 @@ inlineProgramFunctions (decls, stmts) =
                 BlockExpr (substInlineBlock subst b)
             Call callee args -> Call (substInlineExpr subst callee) (map (substInlineExpr subst) args)
             CallT callee tys args -> CallT (substInlineExpr subst callee) tys (map (substInlineExpr subst) args)
+            SizeOfExpr inner tok -> SizeOfExpr (substInlineExpr subst inner) tok
+            SizeOfType _ _ -> expr
 
         substInlineBlock :: Map String Expression -> Block -> Block
         substInlineBlock subst (Multiple ss) = Multiple (map (substInlineStmt subst) ss)
@@ -1350,6 +1391,1304 @@ inlineProgramFunctions (decls, stmts) =
         substInlineCase subst sc = case sc of
             Case e mb tok -> Case (substInlineExpr subst e) (fmap (substInlineBlock subst) mb) tok
             Default b tok -> Default (substInlineBlock subst b) tok
+
+
+data TemplateDef = TemplateDef {
+    tdIsStatic :: Bool,
+    tdName :: String,
+    tdNameTok :: Token,
+    tdRet :: (Class, [Token]),
+    tdTypeParams :: [String],
+    tdParams :: [ParamDecl],
+    tdBody :: Block
+}
+
+type TemplateReq = (String, [Class], Int)
+
+
+collectTemplateDefsFromStmts :: [Statement] -> Map String [TemplateDef]
+collectTemplateDefsFromStmts = foldl step Map.empty
+  where
+    step :: Map String [TemplateDef] -> Statement -> Map String [TemplateDef]
+    step acc stmt = case stmt of
+        StaticMethodT ret (Variable name tok) gens params body ->
+            case mapM templateParamNameFromClass (map fst gens) of
+                Just tpNames ->
+                    let def = TemplateDef True name tok ret tpNames params body
+                    in Map.insertWith (++) name [def] acc
+                Nothing -> acc
+        InstanceMethodT ret (Variable name tok) gens params body ->
+            case mapM templateParamNameFromClass (map fst gens) of
+                Just tpNames ->
+                    let def = TemplateDef False name tok ret tpNames params body
+                    in Map.insertWith (++) name [def] acc
+                Nothing -> acc
+        _ -> acc
+
+templateParamNameFromClass :: Class -> Maybe String
+templateParamNameFromClass cls = case cls of
+    Class [n] [] -> Just n
+    _ -> Nothing
+
+-- | Instantiate template calls (`CallT`) into concrete generated functions.
+--   Instantiated functions keep the original function name and become
+--   ordinary overload candidates resolved by normal type checking/mangling.
+--   This keeps call checking deterministic and lets implicit-cast warnings
+--   reuse the normal function-call checker.
+instantiateTemplateCallsProgramWithExternal :: [Statement] -> Program -> Program
+instantiateTemplateCallsProgramWithExternal extTemplateStmts =
+    instantiateTemplateCallsProgramWithDefs (collectTemplateDefsFromStmts (flattenStmtGroups extTemplateStmts))
+
+
+instantiateTemplateCallsProgram :: Program -> Program
+instantiateTemplateCallsProgram = instantiateTemplateCallsProgramWithDefs Map.empty
+
+
+instantiateTemplateCallsProgramWithDefs :: Map String [TemplateDef] -> Program -> Program
+instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
+    let stmts = flattenTop stmts0
+        defs = Map.unionWith (++) (collectTemplateDefs stmts) externalDefs
+        (stmts1, reqs0, _) = rewriteStmts False defs Map.empty stmts
+        (_, _, generatedRev) = processReqs defs Set.empty Map.empty [] reqs0
+    in (decls, stmts1 ++ reverse generatedRev)
+    where
+        templateDefsAll :: Map String [TemplateDef]
+        templateDefsAll = Map.unionWith (++) (collectTemplateDefs (flattenTop stmts0)) externalDefs
+
+        concreteArities :: Map String [Int]
+        concreteArities = collectConcreteCallArities (flattenTop stmts0)
+
+        flattenTop :: [Statement] -> [Statement]
+        flattenTop = concatMap go
+          where
+            go (StmtGroup ss) = flattenTop ss
+            go st = [st]
+
+        collectTemplateDefs :: [Statement] -> Map String [TemplateDef]
+        collectTemplateDefs = collectTemplateDefsFromStmts
+
+        collectConcreteCallArities :: [Statement] -> Map String [Int]
+        collectConcreteCallArities = foldl step Map.empty
+          where
+            step :: Map String [Int] -> Statement -> Map String [Int]
+            step acc stmt = case stmt of
+                StaticMethod _ (Variable name _) params _ ->
+                    insertArity name (length params) acc
+                InstanceMethod _ (Variable name _) params _ ->
+                    insertArity name (length params) acc
+                NativeMethod _ (Variable name _) params _ ->
+                    insertArity name (length params) acc
+                Function _ (Variable name _) params _ ->
+                    insertArity name (length params) acc
+                _ -> acc
+
+            insertArity :: String -> Int -> Map String [Int] -> Map String [Int]
+            insertArity name arity =
+                Map.insertWith
+                    (\new old -> nub (new ++ old))
+                    name
+                    [arity]
+
+        hasConcreteArity :: String -> Int -> Bool
+        hasConcreteArity name arity =
+            maybe False (elem arity) (Map.lookup name concreteArities)
+
+        templateCalleeName :: Expression -> Maybe (String, Token)
+        templateCalleeName calleeE = case calleeE of
+            Variable name tok ->
+                Just (name, tok)
+            Qualified names toks -> case reverse names of
+                (name:_) -> case reverse toks of
+                    (tok:_) -> Just (name, tok)
+                    [] -> Nothing
+                [] -> Nothing
+            _ -> Nothing
+
+        hasInferableTemplateArity :: Map String [TemplateDef] -> String -> Int -> Bool
+        hasInferableTemplateArity defs0 name arity =
+            case Map.lookup name defs0 of
+                Nothing -> False
+                Just ds ->
+                    any
+                        (\d -> length (tdParams d) == arity && not (null (tdTypeParams d)))
+                        ds
+
+        hasMatchingTemplate :: Map String [TemplateDef] -> String -> Int -> Int -> Bool
+        hasMatchingTemplate defs0 name arity tArgCount =
+            case Map.lookup name defs0 of
+                Nothing -> False
+                Just xs ->
+                    any (\d -> length (tdParams d) == arity && length (tdTypeParams d) == tArgCount) xs
+
+        templateTypeArgCountMismatch ::
+            Map String [TemplateDef] ->
+            String ->
+            Int ->
+            Int ->
+            Maybe [Int]
+        templateTypeArgCountMismatch defs0 name arity tArgCount =
+            case Map.lookup name defs0 of
+                Nothing -> Nothing
+                Just xs ->
+                    let sameArity = filter (\d -> length (tdParams d) == arity) xs
+                    in if null sameArity
+                        then Nothing
+                        else
+                            let expected = sort (nub (map (length . tdTypeParams) sameArity))
+                            in if tArgCount `elem` expected
+                                then Nothing
+                                else Just expected
+
+        formatExpectedTypeArgCounts :: [Int] -> String
+        formatExpectedTypeArgCounts counts = case counts of
+            [] -> "unknown"
+            [n] -> show n
+            _ -> concat ["one of {", intercalate ", " (map show counts), "}"]
+
+        inferExprTypeHint :: Map String Class -> Expression -> Maybe Class
+        inferExprTypeHint hints expr = case expr of
+            IntConst {} -> Just Int32T
+            LongConst {} -> Just Int64T
+            FloatConst {} -> Just Float32T
+            DoubleConst {} -> Just Float64T
+            LongDoubleConst {} -> Just Float128T
+            CharConst {} -> Just Char
+            BoolConst {} -> Just Bool
+            StringConst {} -> Just (Class ["String"] [])
+            Variable n _ -> Map.lookup n hints
+            Cast (ty, _) _ _ -> Just (normalizeClass ty)
+            Unary AddrOf e _ -> Pointer <$> inferExprTypeHint hints e
+            Unary DeRef e _ -> case inferExprTypeHint hints e of
+                Just (Pointer inner) -> Just inner
+                _ -> Nothing
+            Unary _ e _ -> inferExprTypeHint hints e
+            Binary Assign _ rhs _ -> inferExprTypeHint hints rhs
+            Binary Add e1 e2 _ -> inferAddSub hints e1 e2
+            Binary Sub e1 e2 _ -> inferAddSub hints e1 e2
+            Binary Mul e1 e2 _ -> inferNumeric hints e1 e2
+            Binary Div e1 e2 _ -> inferNumeric hints e1 e2
+            Binary Mod e1 e2 _ -> inferNumeric hints e1 e2
+            Binary Pow e1 e2 _ -> inferNumeric hints e1 e2
+            Binary LessThan _ _ _ -> Just Bool
+            Binary LessEqual _ _ _ -> Just Bool
+            Binary GreaterThan _ _ _ -> Just Bool
+            Binary GreaterEqual _ _ _ -> Just Bool
+            Binary Equal _ _ _ -> Just Bool
+            Binary NotEqual _ _ _ -> Just Bool
+            Binary LogicalAnd _ _ _ -> Just Bool
+            Binary LogicalOr _ _ _ -> Just Bool
+            Binary LogicalImply _ _ _ -> Just Bool
+            Binary LogicalNimply _ _ _ -> Just Bool
+            Binary LogicalNand _ _ _ -> Just Bool
+            Binary LogicalNor _ _ _ -> Just Bool
+            IfExpr _ t1 t2 _ ->
+                case (inferExprTypeHint hints t1, inferExprTypeHint hints t2) of
+                    (Just a, Just b) | a == b -> Just a
+                    _ -> Nothing
+            Call callee args ->
+                inferCallReturnHint hints callee args
+            CallT callee tys args ->
+                inferCallTReturnHint hints callee tys args
+            SizeOfExpr {} -> Just Int32T
+            SizeOfType {} -> Just Int32T
+            BlockExpr (Multiple ss) -> inferBlockTail hints ss
+            _ -> Nothing
+          where
+            inferBlockTail :: Map String Class -> [Statement] -> Maybe Class
+            inferBlockTail _ [] = Nothing
+            inferBlockTail hs xs = case reverse xs of
+                (Expr eLast:_) -> inferExprTypeHint hs eLast
+                _ -> Nothing
+
+            inferCallReturnHint :: Map String Class -> Expression -> [Expression] -> Maybe Class
+            inferCallReturnHint hs callee args = case templateCalleeName callee of
+                Just (name, _) ->
+                    inferTemplateReturnHint hs name (length args) args
+                Nothing -> Nothing
+
+            inferCallTReturnHint ::
+                Map String Class ->
+                Expression ->
+                [(Class, [Token])] ->
+                [Expression] ->
+                Maybe Class
+            inferCallTReturnHint hs callee tys args = case callee of
+                Variable name _ ->
+                    let arity = length args
+                        explicitTypeArgs = map (normalizeClass . fst) tys
+                    in
+                        if null explicitTypeArgs
+                            then inferTemplateReturnHint hs name arity args
+                            else inferTemplateReturnHintWithArgs name arity explicitTypeArgs
+                _ -> case templateCalleeName callee of
+                    Just (name, _) ->
+                        let arity = length args
+                            explicitTypeArgs = map (normalizeClass . fst) tys
+                        in
+                            if null explicitTypeArgs
+                                then inferTemplateReturnHint hs name arity args
+                                else inferTemplateReturnHintWithArgs name arity explicitTypeArgs
+                    Nothing -> Nothing
+
+            inferTemplateReturnHint ::
+                Map String Class ->
+                String ->
+                Int ->
+                [Expression] ->
+                Maybe Class
+            inferTemplateReturnHint hs name arity args =
+                case inferTemplateTypeArgsFromCall templateDefsAll hs name arity args of
+                    Right inferredArgs ->
+                        inferTemplateReturnHintWithArgs name arity inferredArgs
+                    Left _ -> Nothing
+
+            inferTemplateReturnHintWithArgs ::
+                String ->
+                Int ->
+                [Class] ->
+                Maybe Class
+            inferTemplateReturnHintWithArgs name arity typeArgs =
+                case Map.lookup name templateDefsAll of
+                    Nothing -> Nothing
+                    Just ds ->
+                        let sameArity = filter (\d -> length (tdParams d) == arity) ds
+                            exactArityAndTypeCount =
+                                filter (\d -> length (tdTypeParams d) == length typeArgs) sameArity
+                            retTypes = mapMaybe (retTypeForDef typeArgs) exactArityAndTypeCount
+                            uniqRetTypes = nub retTypes
+                        in case uniqRetTypes of
+                            [one] -> Just one
+                            _ -> Nothing
+
+            retTypeForDef :: [Class] -> TemplateDef -> Maybe Class
+            retTypeForDef typeArgs def = do
+                subst <- buildTypeSubst def typeArgs
+                pure (normalizeClass (substituteClass subst (normalizeClass (fst (tdRet def)))))
+
+            inferAddSub :: Map String Class -> Expression -> Expression -> Maybe Class
+            inferAddSub hs e1 e2 = do
+                t1 <- inferExprTypeHint hs e1
+                t2 <- inferExprTypeHint hs e2
+                case (t1, t2) of
+                    (Pointer inner, t) | isIntegerHintType t -> Just (Pointer inner)
+                    (t, Pointer inner) | isIntegerHintType t -> Just (Pointer inner)
+                    _ -> numericWiden t1 t2
+
+            inferNumeric :: Map String Class -> Expression -> Expression -> Maybe Class
+            inferNumeric hs e1 e2 = do
+                t1 <- inferExprTypeHint hs e1
+                t2 <- inferExprTypeHint hs e2
+                numericWiden t1 t2
+
+            numericWiden :: Class -> Class -> Maybe Class
+            numericWiden a b =
+                let rank t = case normalizeClass t of
+                        Int8T -> Just (1 :: Int)
+                        Int16T -> Just 2
+                        Int32T -> Just 3
+                        Int64T -> Just 4
+                        Float32T -> Just 5
+                        Float64T -> Just 6
+                        Float128T -> Just 7
+                        _ -> Nothing
+                    fromRank r = case r of
+                        1 -> Int8T
+                        2 -> Int16T
+                        3 -> Int32T
+                        4 -> Int64T
+                        5 -> Float32T
+                        6 -> Float64T
+                        7 -> Float128T
+                        _ -> Int32T
+                in case (rank a, rank b) of
+                    (Just ra, Just rb) -> Just (fromRank (max ra rb))
+                    _ -> Nothing
+
+            isIntegerHintType :: Class -> Bool
+            isIntegerHintType t = case normalizeClass t of
+                Int8T -> True
+                Int16T -> True
+                Int32T -> True
+                Int64T -> True
+                _ -> False
+
+        insertTypeHints :: Map String Class -> [String] -> Class -> Map String Class
+        insertTypeHints hints names ty =
+            foldl (\m n -> Map.insert n (normalizeClass ty) m) hints names
+
+        updateHintsFromDecl ::
+            Map String Class ->
+            [String] ->
+            Maybe Class ->
+            Maybe Expression ->
+            Map String Class
+        updateHintsFromDecl hints names mTy mRhs =
+            case mTy of
+                Just ty -> insertTypeHints hints names ty
+                Nothing ->
+                    case mRhs >>= inferExprTypeHint hints of
+                        Just ty -> insertTypeHints hints names ty
+                        Nothing -> hints
+
+        inferTemplateTypeArgsFromCall ::
+            Map String [TemplateDef] ->
+            Map String Class ->
+            String ->
+            Int ->
+            [Expression] ->
+            Either String [Class]
+        inferTemplateTypeArgsFromCall defs0 hints name arity argsN =
+            case Map.lookup name defs0 of
+                Nothing -> Left ("'" ++ name ++ "' is not a template in this context")
+                Just ds ->
+                    let sameArity = filter (\d -> length (tdParams d) == arity) ds
+                        templated = filter (\d -> not (null (tdTypeParams d))) sameArity
+                        inferred = mapMaybe (\d -> inferTypeArgsForDef d hints argsN) templated
+                        uniques = nub inferred
+                    in case templated of
+                        [] -> Left ("'" ++ name ++ "' is not a template in this context")
+                        _ -> case uniques of
+                            [tys] -> Right tys
+                            [] -> Left ("cannot infer template type argument(s) for " ++ name)
+                            _ -> Left ("ambiguous template type inference for " ++ name)
+
+        inferTemplateTypeArgsFromFuncPtrExpected ::
+            Map String [TemplateDef] ->
+            String ->
+            Class ->
+            [Class] ->
+            Either String [Class]
+        inferTemplateTypeArgsFromFuncPtrExpected defs0 name retTy argTys =
+            case Map.lookup name defs0 of
+                Nothing -> Left ("'" ++ name ++ "' is not a template in this context")
+                Just ds ->
+                    let arity = length argTys
+                        sameArity = filter (\d -> length (tdParams d) == arity) ds
+                        templated = filter (\d -> not (null (tdTypeParams d))) sameArity
+                        inferred = mapMaybe (\d -> inferTypeArgsForFuncPtrDef d retTy argTys) templated
+                        uniques = nub inferred
+                    in case templated of
+                        [] -> Left ("'" ++ name ++ "' is not a template in this context")
+                        _ -> case uniques of
+                            [tys] -> Right tys
+                            [] -> Left ("cannot infer template type argument(s) for " ++ name)
+                            _ -> Left ("ambiguous template type inference for " ++ name)
+          where
+            inferTypeArgsForFuncPtrDef :: TemplateDef -> Class -> [Class] -> Maybe [Class]
+            inferTypeArgsForFuncPtrDef def expectedRet expectedArgs
+                | length (tdParams def) /= length expectedArgs = Nothing
+                | null (tdTypeParams def) = Nothing
+                | otherwise = do
+                    subst0 <- unifyMany tparamsSet Map.empty paramTypes expectedArgs
+                    subst1 <- unifyTemplateType tparamsSet subst0 declaredRet (normalizeClass expectedRet)
+                    mapM (`Map.lookup` subst1) (tdTypeParams def)
+              where
+                tparamsSet = Set.fromList (tdTypeParams def)
+                paramTypes = map (\(t, _, _) -> normalizeClass t) (tdParams def)
+                declaredRet = normalizeClass (fst (tdRet def))
+
+                unifyTemplateType ::
+                    Set String ->
+                    Map String Class ->
+                    Class ->
+                    Class ->
+                    Maybe (Map String Class)
+                unifyTemplateType tset subst0 pTy aTy = case normalizeClass pTy of
+                    Class [n] [] | Set.member n tset ->
+                        case Map.lookup n subst0 of
+                            Nothing -> Just (Map.insert n (normalizeClass aTy) subst0)
+                            Just old
+                                | normalizeClass old == normalizeClass aTy -> Just subst0
+                                | otherwise -> Nothing
+                    Pointer pInner -> case normalizeClass aTy of
+                        Pointer aInner -> unifyTemplateType tset subst0 pInner aInner
+                        _ -> Nothing
+                    FuncPtr pRet pArgs -> case normalizeClass aTy of
+                        FuncPtr aRet aArgs
+                            | length pArgs == length aArgs -> do
+                                subst1 <- unifyMany tset subst0 pArgs aArgs
+                                unifyTemplateType tset subst1 pRet aRet
+                        _ -> Nothing
+                    Class pName pArgs -> case normalizeClass aTy of
+                        Class aName aArgs
+                            | pName == aName && length pArgs == length aArgs ->
+                                unifyMany tset subst0 pArgs aArgs
+                        _ -> Nothing
+                    other ->
+                        if other == normalizeClass aTy then Just subst0 else Nothing
+
+                unifyMany ::
+                    Set String ->
+                    Map String Class ->
+                    [Class] ->
+                    [Class] ->
+                    Maybe (Map String Class)
+                unifyMany _ subst0 [] [] = Just subst0
+                unifyMany tset subst0 (p:ps) (a:as) = do
+                    subst1 <- unifyTemplateType tset subst0 p a
+                    unifyMany tset subst1 ps as
+                unifyMany _ _ _ _ = Nothing
+
+        inferTypeArgsForDef :: TemplateDef -> Map String Class -> [Expression] -> Maybe [Class]
+        inferTypeArgsForDef def hints argsN
+            | length (tdParams def) /= length argsN = Nothing
+            | null (tdTypeParams def) = Nothing
+            | otherwise = do
+                subst0 <- inferSubstArgs tparamsSet Map.empty paramTypes argsN
+                subst1 <- inferReturnSubst subst0
+                mapM (`Map.lookup` subst1) (tdTypeParams def)
+          where
+            paramTypes = map (\(t, _, _) -> normalizeClass t) (tdParams def)
+            tparamsSet = Set.fromList (tdTypeParams def)
+
+            inferSubstArgs ::
+                Set String ->
+                Map String Class ->
+                [Class] ->
+                [Expression] ->
+                Maybe (Map String Class)
+            inferSubstArgs _ subst0 [] [] = Just subst0
+            inferSubstArgs tset subst0 (p:ps) (argE:as) =
+                case inferExprTypeHint hints argE of
+                    Just aTy -> do
+                        subst1 <- unifyTemplateType tset subst0 (normalizeClass p) (normalizeClass aTy)
+                        inferSubstArgs tset subst1 ps as
+                    Nothing ->
+                        inferSubstArgs tset subst0 ps as
+            inferSubstArgs _ _ _ _ = Nothing
+
+            unifyTemplateType ::
+                Set String ->
+                Map String Class ->
+                Class ->
+                Class ->
+                Maybe (Map String Class)
+            unifyTemplateType tset subst0 pTy aTy = case normalizeClass pTy of
+                Class [n] [] | Set.member n tset ->
+                    case Map.lookup n subst0 of
+                        Nothing -> Just (Map.insert n (normalizeClass aTy) subst0)
+                        Just old
+                            | normalizeClass old == normalizeClass aTy -> Just subst0
+                            | otherwise -> Nothing
+                Pointer pInner -> case normalizeClass aTy of
+                    Pointer aInner -> unifyTemplateType tset subst0 pInner aInner
+                    _ -> Nothing
+                FuncPtr pRet pArgs -> case normalizeClass aTy of
+                    FuncPtr aRet aArgs
+                        | length pArgs == length aArgs -> do
+                            subst1 <- unifyMany tset subst0 pArgs aArgs
+                            unifyTemplateType tset subst1 pRet aRet
+                    _ -> Nothing
+                Class pName pArgs -> case normalizeClass aTy of
+                    Class aName aArgs
+                        | pName == aName && length pArgs == length aArgs ->
+                            unifyMany tset subst0 pArgs aArgs
+                    _ -> Nothing
+                other ->
+                    if other == normalizeClass aTy then Just subst0 else Nothing
+
+            unifyMany ::
+                Set String ->
+                Map String Class ->
+                [Class] ->
+                [Class] ->
+                Maybe (Map String Class)
+            unifyMany _ subst0 [] [] = Just subst0
+            unifyMany tset subst0 (p:ps) (a:as) = do
+                subst1 <- unifyTemplateType tset subst0 p a
+                unifyMany tset subst1 ps as
+            unifyMany _ _ _ _ = Nothing
+
+            inferReturnSubst :: Map String Class -> Maybe (Map String Class)
+            inferReturnSubst subst0 =
+                let unresolved = filter (`Map.notMember` subst0) (tdTypeParams def)
+                in if null unresolved
+                    then Just subst0
+                    else do
+                        retBodyTy <- inferTemplateBodyReturnType subst0
+                        let declaredRetTy = substituteTemplateClass subst0 (normalizeClass (fst (tdRet def)))
+                        unifyTemplateType tparamsSet subst0 declaredRetTy (normalizeClass retBodyTy)
+
+            inferTemplateBodyReturnType :: Map String Class -> Maybe Class
+            inferTemplateBodyReturnType subst0 =
+                let paramHints = foldl addParamHint hints (tdParams def)
+                    bodyHints = inferLocalHintsFromBlock paramHints (tdBody def)
+                    returns = collectReturnsFromBlock (tdBody def)
+                in case returns of
+                    [] ->
+                        inferTailTypeFromBlock bodyHints (tdBody def)
+                    _ ->
+                        inferMergedReturnType bodyHints subst0 returns
+              where
+                addParamHint :: Map String Class -> ParamDecl -> Map String Class
+                addParamHint acc (t, n, _) =
+                    Map.insert n (substituteTemplateClass subst0 (normalizeClass t)) acc
+
+                inferLocalHintsFromBlock :: Map String Class -> Block -> Map String Class
+                inferLocalHintsFromBlock hs (Multiple ss) = foldl' inferLocalHintsFromStmt hs ss
+
+                inferLocalHintsFromStmt :: Map String Class -> Statement -> Map String Class
+                inferLocalHintsFromStmt hs st = case st of
+                    DefField names mTy mRhs _ ->
+                        updateHintsFromDecl hs names (fmap substTy mTy) mRhs
+                    DefConstField names mTy mRhs _ ->
+                        updateHintsFromDecl hs names (fmap substTy mTy) mRhs
+                    DefVar names mTy mRhs _ ->
+                        updateHintsFromDecl hs names (fmap substTy mTy) mRhs
+                    DefConstVar names mTy mRhs _ ->
+                        updateHintsFromDecl hs names (fmap substTy mTy) mRhs
+                    Expr e ->
+                        inferLocalHintsFromExpr hs e
+                    Exprs es ->
+                        foldl' inferLocalHintsFromExpr hs es
+                    StmtGroup ss ->
+                        foldl' inferLocalHintsFromStmt hs ss
+                    BlockStmt b ->
+                        inferLocalHintsFromBlock hs b
+                    _ -> hs
+
+                inferLocalHintsFromExpr :: Map String Class -> Expression -> Map String Class
+                inferLocalHintsFromExpr hs expr = case expr of
+                    Binary Assign (Variable n _) rhsE _ ->
+                        case inferExprTypeHint hs rhsE of
+                            Just ty -> Map.insert n (normalizeClass ty) hs
+                            Nothing -> hs
+                    _ -> hs
+
+                substTy :: Class -> Class
+                substTy = substituteTemplateClass subst0 . normalizeClass
+
+            collectReturnsFromBlock :: Block -> [Maybe Expression]
+            collectReturnsFromBlock (Multiple ss) = concatMap collectReturnsFromStmt ss
+
+            collectReturnsFromStmt :: Statement -> [Maybe Expression]
+            collectReturnsFromStmt st = case st of
+                Command (Return me) _ -> [me]
+                StmtGroup ss -> concatMap collectReturnsFromStmt ss
+                BlockStmt b -> collectReturnsFromBlock b
+                If _ b1 b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                For (_, _, _) b1 b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                Loop mb _ ->
+                    collectFromMaybeBlock mb
+                Repeat _ b1 b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                While _ b1 b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                Until _ b1 b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                DoWhile b1 _ b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                DoUntil b1 _ b2 _ ->
+                    collectFromMaybeBlock b1 ++ collectFromMaybeBlock b2
+                Switch _ scs _ ->
+                    concatMap collectReturnsFromCase scs
+                _ -> []
+
+            collectReturnsFromCase :: SwitchCase -> [Maybe Expression]
+            collectReturnsFromCase sc = case sc of
+                Case _ mb _ -> collectFromMaybeBlock mb
+                Default b _ -> collectReturnsFromBlock b
+
+            collectFromMaybeBlock :: Maybe Block -> [Maybe Expression]
+            collectFromMaybeBlock Nothing = []
+            collectFromMaybeBlock (Just b) = collectReturnsFromBlock b
+
+            inferTailTypeFromBlock :: Map String Class -> Block -> Maybe Class
+            inferTailTypeFromBlock hs (Multiple ss) = inferTailTypeFromStmts hs ss
+
+            inferTailTypeFromStmts :: Map String Class -> [Statement] -> Maybe Class
+            inferTailTypeFromStmts _ [] = Nothing
+            inferTailTypeFromStmts hs xs = case reverse xs of
+                (one:_) -> inferTailTypeFromStmt hs one
+                [] -> Nothing
+
+            inferTailTypeFromStmt :: Map String Class -> Statement -> Maybe Class
+            inferTailTypeFromStmt hs st = case st of
+                Expr e -> inferExprTypeHint hs e
+                Exprs es -> case reverse es of
+                    (e:_) -> inferExprTypeHint hs e
+                    [] -> Nothing
+                StmtGroup ss -> inferTailTypeFromStmts hs ss
+                BlockStmt b -> inferTailTypeFromBlock hs b
+                _ -> Nothing
+
+            inferMergedReturnType :: Map String Class -> Map String Class -> [Maybe Expression] -> Maybe Class
+            inferMergedReturnType hs substBase retExprs =
+                let hasVoid = any isNothing retExprs
+                    hasValue = any isJust retExprs
+                in case (hasVoid, hasValue) of
+                    (True, True) -> Nothing
+                    (True, False) -> Just Void
+                    (False, True) -> do
+                        ts <- mapM (\me -> me >>= inferExprTypeHint hs) retExprs
+                        mergeReturnTypes substBase ts
+                    (False, False) -> Nothing
+
+            mergeReturnTypes :: Map String Class -> [Class] -> Maybe Class
+            mergeReturnTypes _ [] = Nothing
+            mergeReturnTypes substBase (t:ts) = foldl' step (Just (normalizeClass t)) (map normalizeClass ts)
+              where
+                step :: Maybe Class -> Class -> Maybe Class
+                step Nothing _ = Nothing
+                step (Just acc) one = mergeTwo acc one
+
+                mergeTwo :: Class -> Class -> Maybe Class
+                mergeTwo a b
+                    | a == b = Just a
+                    | otherwise =
+                        case unifyTemplateType tparamsSet substBase a b of
+                            Just substX -> Just (substituteTemplateClass substX (normalizeClass a))
+                            Nothing
+                                | bothInt a b -> Just (widerInt a b)
+                                | bothFloat a b -> Just (widerFloat a b)
+                                | isNumeric a && isNumeric b -> Just (widerNumeric a b)
+                                | otherwise -> Nothing
+
+                bothInt :: Class -> Class -> Bool
+                bothInt x y = isIntClass x && isIntClass y
+
+                bothFloat :: Class -> Class -> Bool
+                bothFloat x y = isFloatClass x && isFloatClass y
+
+                isNumeric :: Class -> Bool
+                isNumeric x = isIntClass x || isFloatClass x
+
+                isIntClass :: Class -> Bool
+                isIntClass x = case normalizeClass x of
+                    Int8T -> True
+                    Int16T -> True
+                    Int32T -> True
+                    Int64T -> True
+                    _ -> False
+
+                isFloatClass :: Class -> Bool
+                isFloatClass x = case normalizeClass x of
+                    Float32T -> True
+                    Float64T -> True
+                    Float128T -> True
+                    _ -> False
+
+                widerInt :: Class -> Class -> Class
+                widerInt x y = fromIntRank (max (intRank x) (intRank y))
+
+                intRank :: Class -> Int
+                intRank x = case normalizeClass x of
+                    Int8T -> 1
+                    Int16T -> 2
+                    Int32T -> 3
+                    Int64T -> 4
+                    _ -> 0
+
+                fromIntRank :: Int -> Class
+                fromIntRank r = case r of
+                    1 -> Int8T
+                    2 -> Int16T
+                    3 -> Int32T
+                    4 -> Int64T
+                    _ -> Int32T
+
+                widerFloat :: Class -> Class -> Class
+                widerFloat x y = fromFloatRank (max (floatRank x) (floatRank y))
+
+                floatRank :: Class -> Int
+                floatRank x = case normalizeClass x of
+                    Float32T -> 1
+                    Float64T -> 2
+                    Float128T -> 3
+                    _ -> 0
+
+                fromFloatRank :: Int -> Class
+                fromFloatRank r = case r of
+                    1 -> Float32T
+                    2 -> Float64T
+                    3 -> Float128T
+                    _ -> Float64T
+
+                widerNumeric :: Class -> Class -> Class
+                widerNumeric x y
+                    | isFloatClass x && isIntClass y = x
+                    | isIntClass x && isFloatClass y = y
+                    | otherwise = Float64T
+
+            substituteTemplateClass :: Map String Class -> Class -> Class
+            substituteTemplateClass subst0 cls = case normalizeClass cls of
+                Class [n] [] -> fromMaybe (Class [n] []) (Map.lookup n subst0)
+                Class qn args -> Class qn (map (substituteTemplateClass subst0) args)
+                Pointer inner -> Pointer (substituteTemplateClass subst0 inner)
+                FuncPtr ret args ->
+                    FuncPtr (substituteTemplateClass subst0 ret) (map (substituteTemplateClass subst0) args)
+                Blob e -> Blob e
+                other -> other
+
+        rewriteStmts ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            [Statement] ->
+            ([Statement], [TemplateReq], Map String Class)
+        rewriteStmts rewriteTemplateBodies defs0 hints0 stmtsN =
+            let step (ssAcc, reqAcc, hintsAcc) st =
+                    let (st', reqs, hints') = rewriteStmt rewriteTemplateBodies defs0 hintsAcc st
+                    in (st' : ssAcc, reqs ++ reqAcc, hints')
+                (ssRev, reqRev, hintsOut) = foldl step ([], [], hints0) stmtsN
+            in (reverse ssRev, reverse reqRev, hintsOut)
+
+        rewriteStmt ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            Statement ->
+            (Statement, [TemplateReq], Map String Class)
+        rewriteStmt rewriteTemplateBodies defs0 hints stmt = case stmt of
+            FunctionT {} | not rewriteTemplateBodies -> (stmt, [], hints)
+            Command (Return me) tok ->
+                let (me', reqs) = rewriteMaybeExpr defs0 hints me
+                in (Command (Return me') tok, reqs, hints)
+            Command _ _ -> (stmt, [], hints)
+            Expr e ->
+                let (e', reqs) = rewriteExpr defs0 hints e
+                    hints' = case e' of
+                        Binary Assign (Variable n _) rhsE _ ->
+                            case inferExprTypeHint hints rhsE of
+                                Just ty -> Map.insert n ty hints
+                                Nothing -> hints
+                        _ -> hints
+                in (Expr e', reqs, hints')
+            Exprs es ->
+                let (es', reqs) = rewriteExprs defs0 hints es
+                in (Exprs es', reqs, hints)
+            DefField names mTy mRhs toks ->
+                let (mRhs', reqs) = rewriteMaybeExpr defs0 hints mRhs
+                    hints' = updateHintsFromDecl hints names mTy mRhs'
+                in (DefField names mTy mRhs' toks, reqs, hints')
+            DefConstField names mTy mRhs toks ->
+                let (mRhs', reqs) = rewriteMaybeExpr defs0 hints mRhs
+                    hints' = updateHintsFromDecl hints names mTy mRhs'
+                in (DefConstField names mTy mRhs' toks, reqs, hints')
+            DefVar names mTy mRhs toks ->
+                let (mRhs', reqs) = rewriteMaybeExpr defs0 hints mRhs
+                    hints' = updateHintsFromDecl hints names mTy mRhs'
+                in (DefVar names mTy mRhs' toks, reqs, hints')
+            DefConstVar names mTy mRhs toks ->
+                let (mRhs', reqs) = rewriteMaybeExpr defs0 hints mRhs
+                    hints' = updateHintsFromDecl hints names mTy mRhs'
+                in (DefConstVar names mTy mRhs' toks, reqs, hints')
+            StmtGroup ss ->
+                let (ss', reqs, hints') = rewriteStmts rewriteTemplateBodies defs0 hints ss
+                in (StmtGroup ss', reqs, hints')
+            BlockStmt b ->
+                let (b', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 hints b
+                in (BlockStmt b', reqs, hints)
+            If e b1 b2 toks ->
+                let (e', reqE) = rewriteExpr defs0 hints e
+                    (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (If e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+            For (s1, e2, s3) b1 b2 toks ->
+                let (s1', reqS1, _) = rewriteMaybeStmt rewriteTemplateBodies defs0 hints s1
+                    (e2', reqE2) = rewriteMaybeExpr defs0 hints e2
+                    (s3', reqS3, _) = rewriteMaybeStmt rewriteTemplateBodies defs0 hints s3
+                    (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (For (s1', e2', s3') b1' b2' toks, reqS1 ++ reqE2 ++ reqS3 ++ reqB1 ++ reqB2, hints)
+            Loop b tok ->
+                let (b', reqs, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b
+                in (Loop b' tok, reqs, hints)
+            Repeat e b1 b2 toks ->
+                let (e', reqE) = rewriteExpr defs0 hints e
+                    (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (Repeat e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+            While e b1 b2 toks ->
+                let (e', reqE) = rewriteExpr defs0 hints e
+                    (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (While e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+            Until e b1 b2 toks ->
+                let (e', reqE) = rewriteExpr defs0 hints e
+                    (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (Until e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+            DoWhile b1 e b2 toks ->
+                let (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (e', reqE) = rewriteExpr defs0 hints e
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (DoWhile b1' e' b2' toks, reqB1 ++ reqE ++ reqB2, hints)
+            DoUntil b1 e b2 toks ->
+                let (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
+                    (e', reqE) = rewriteExpr defs0 hints e
+                    (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
+                in (DoUntil b1' e' b2' toks, reqB1 ++ reqE ++ reqB2, hints)
+            Switch e scs tok ->
+                let (e', reqE) = rewriteExpr defs0 hints e
+                    (scs', reqS, _) = rewriteSwitchCases rewriteTemplateBodies defs0 hints scs
+                in (Switch e' scs' tok, reqE ++ reqS, hints)
+            Function ret name params body ->
+                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
+                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
+                in (Function ret name params body', reqs, hints)
+            StaticMethod ret name params body ->
+                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
+                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
+                in (StaticMethod ret name params body', reqs, hints)
+            InstanceMethod ret name params body ->
+                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
+                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
+                in (InstanceMethod ret name params body', reqs, hints)
+            NativeMethod {} -> (stmt, [], hints)
+            FunctionT ret name gens params body ->
+                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
+                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
+                in (FunctionT ret name gens params body', reqs, hints)
+            StaticMethodT ret name gens params body ->
+                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
+                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
+                in (StaticMethodT ret name gens params body', reqs, hints)
+            InstanceMethodT ret name gens params body ->
+                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
+                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
+                in (InstanceMethodT ret name gens params body', reqs, hints)
+
+        rewriteMaybeStmt ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            Maybe Statement ->
+            (Maybe Statement, [TemplateReq], Map String Class)
+        rewriteMaybeStmt _ _ hints Nothing = (Nothing, [], hints)
+        rewriteMaybeStmt rewriteTemplateBodies defs0 hints (Just st) =
+            let (st', reqs, hints') = rewriteStmt rewriteTemplateBodies defs0 hints st
+            in (Just st', reqs, hints')
+
+        rewriteBlock ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            Block ->
+            (Block, [TemplateReq], Map String Class)
+        rewriteBlock rewriteTemplateBodies defs0 hints (Multiple ss) =
+            let (ss', reqs, hints') = rewriteStmts rewriteTemplateBodies defs0 hints ss
+            in (Multiple ss', reqs, hints')
+
+        rewriteMaybeBlock ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            Maybe Block ->
+            (Maybe Block, [TemplateReq], Map String Class)
+        rewriteMaybeBlock _ _ hints Nothing = (Nothing, [], hints)
+        rewriteMaybeBlock rewriteTemplateBodies defs0 hints (Just b) =
+            let (b', reqs, hints') = rewriteBlock rewriteTemplateBodies defs0 hints b
+            in (Just b', reqs, hints')
+
+        rewriteSwitchCase ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            SwitchCase ->
+            (SwitchCase, [TemplateReq], Map String Class)
+        rewriteSwitchCase rewriteTemplateBodies defs0 hints sc = case sc of
+            Case e mb tok ->
+                let (e', reqE) = rewriteExpr defs0 hints e
+                    (mb', reqB, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints mb
+                in (Case e' mb' tok, reqE ++ reqB, hints)
+            Default b tok ->
+                let (b', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 hints b
+                in (Default b' tok, reqs, hints)
+
+        rewriteSwitchCases ::
+            Bool ->
+            Map String [TemplateDef] ->
+            Map String Class ->
+            [SwitchCase] ->
+            ([SwitchCase], [TemplateReq], Map String Class)
+        rewriteSwitchCases rewriteTemplateBodies defs0 hints0 scs =
+            let step (accS, accR, hintsAcc) sc =
+                    let (sc', reqs, hints') = rewriteSwitchCase rewriteTemplateBodies defs0 hintsAcc sc
+                    in (sc' : accS, reqs ++ accR, hints')
+                (scRev, reqRev, hintsOut) = foldl step ([], [], hints0) scs
+            in (reverse scRev, reverse reqRev, hintsOut)
+
+        rewriteMaybeExpr ::
+            Map String [TemplateDef] ->
+            Map String Class ->
+            Maybe Expression ->
+            (Maybe Expression, [TemplateReq])
+        rewriteMaybeExpr _ _ Nothing = (Nothing, [])
+        rewriteMaybeExpr defs0 hints (Just e) =
+            let (e', reqs) = rewriteExpr defs0 hints e
+            in (Just e', reqs)
+
+        rewriteExprs ::
+            Map String [TemplateDef] ->
+            Map String Class ->
+            [Expression] ->
+            ([Expression], [TemplateReq])
+        rewriteExprs defs0 hints = foldr step ([], [])
+          where
+            step e (accE, accR) =
+                let (e', reqs) = rewriteExpr defs0 hints e
+                in (e' : accE, reqs ++ accR)
+
+        rewriteExpr ::
+            Map String [TemplateDef] ->
+            Map String Class ->
+            Expression ->
+            (Expression, [TemplateReq])
+        rewriteExpr defs0 hints expr = case expr of
+            Error {} -> (expr, [])
+            IntConst {} -> (expr, [])
+            LongConst {} -> (expr, [])
+            FloatConst {} -> (expr, [])
+            DoubleConst {} -> (expr, [])
+            LongDoubleConst {} -> (expr, [])
+            CharConst {} -> (expr, [])
+            StringConst {} -> (expr, [])
+            BoolConst {} -> (expr, [])
+            Variable {} -> (expr, [])
+            Qualified {} -> (expr, [])
+            Cast ty e tok ->
+                let (e', reqs) = rewriteExpr defs0 hints e
+                in (Cast ty e' tok, reqs)
+            Unary op e tok ->
+                let (e', reqs) = rewriteExpr defs0 hints e
+                in (Unary op e' tok, reqs)
+            Binary op e1 e2 tok ->
+                let (e1', req1) = rewriteExpr defs0 hints e1
+                    (e2', req2) = rewriteExpr defs0 hints e2
+                in (Binary op e1' e2' tok, req1 ++ req2)
+            SizeOfExpr inner tok ->
+                let (inner', reqs) = rewriteExpr defs0 hints inner
+                in (SizeOfExpr inner' tok, reqs)
+            SizeOfType {} ->
+                (expr, [])
+            Call callee args ->
+                let (callee', req0) = rewriteExpr defs0 hints callee
+                    (args', reqA) = rewriteExprs defs0 hints args
+                    arity = length args'
+                    reqBase = req0 ++ reqA
+                in case templateCalleeName callee' of
+                    Just (name, tok)
+                        | not (hasConcreteArity name arity)
+                        , hasInferableTemplateArity defs0 name arity ->
+                            case inferTemplateTypeArgsFromCall defs0 hints name arity args' of
+                                Right inferredArgs ->
+                                    let req = (name, inferredArgs, arity)
+                                        argsCast = applyTemplateArgCasts defs0 name inferredArgs arity tok args'
+                                        extraReqs = fromMaybe [] (collectFuncPtrTemplateReqs defs0 <$> concreteParamTypes defs0 name inferredArgs arity <*> pure args')
+                                    in (Call (Variable name tok) argsCast, reqBase ++ [req] ++ extraReqs)
+                                Left inferWhy ->
+                                    let why = "template type argument inference failed: " ++ inferWhy
+                                    in (Error [tok] why, reqBase)
+                    _ ->
+                        (Call callee' args', reqBase)
+            CallT callee tys args ->
+                let (callee', req0) = rewriteExpr defs0 hints callee
+                    (args', reqA) = rewriteExprs defs0 hints args
+                    typeArgs = map (normalizeClass . fst) tys
+                    arity = length args'
+                    reqBase = req0 ++ reqA
+                in case templateCalleeName callee' of
+                    Just (name, tok)
+                        | null typeArgs ->
+                            case Map.lookup name defs0 of
+                                Just _ ->
+                                    case inferTemplateTypeArgsFromCall defs0 hints name arity args' of
+                                        Right inferredArgs ->
+                                            let req = (name, inferredArgs, arity)
+                                                argsCast = applyTemplateArgCasts defs0 name inferredArgs arity tok args'
+                                                extraReqs = fromMaybe [] (collectFuncPtrTemplateReqs defs0 <$> concreteParamTypes defs0 name inferredArgs arity <*> pure args')
+                                            in (Call (Variable name tok) argsCast, reqBase ++ [req] ++ extraReqs)
+                                        Left inferWhy ->
+                                            let why = "template type argument inference failed: " ++ inferWhy
+                                            in (Error [tok] why, reqBase)
+                                Nothing ->
+                                    (Call callee' args', reqBase)
+                        | hasMatchingTemplate defs0 name arity (length typeArgs) ->
+                            let req = (name, typeArgs, arity)
+                                argsCast = applyTemplateArgCasts defs0 name typeArgs arity tok args'
+                                extraReqs = fromMaybe [] (collectFuncPtrTemplateReqs defs0 <$> concreteParamTypes defs0 name typeArgs arity <*> pure args')
+                            in (Call (Variable name tok) argsCast, reqBase ++ [req] ++ extraReqs)
+                        | Just expected <- templateTypeArgCountMismatch defs0 name arity (length typeArgs) ->
+                            let typeTok = case concatMap snd tys of
+                                    (t:_) -> t
+                                    [] -> tok
+                                why = "template type argument count mismatch: "
+                                    ++ name
+                                    ++ " expects "
+                                    ++ formatExpectedTypeArgCounts expected
+                                    ++ " type argument(s), got "
+                                    ++ show (length typeArgs)
+                            in (Error [typeTok] why, reqBase)
+                    _ ->
+                        -- keep execution deterministic: once type args are parsed,
+                        -- lower as an ordinary call if no local template definition matches.
+                        (Call callee' args', reqBase)
+            IfExpr cond thenE elseE toks ->
+                let (cond', req0) = rewriteExpr defs0 hints cond
+                    (thenE', req1) = rewriteExpr defs0 hints thenE
+                    (elseE', req2) = rewriteExpr defs0 hints elseE
+                in (IfExpr cond' thenE' elseE' toks, req0 ++ req1 ++ req2)
+            BlockExpr b ->
+                let (b', reqs, _) = rewriteBlock False defs0 hints b
+                in (BlockExpr b', reqs)
+
+        processReqs ::
+            Map String [TemplateDef] ->
+            Set TemplateReq ->
+            Map TemplateReq Statement ->
+            [Statement] ->
+            [TemplateReq] ->
+            (Set TemplateReq, Map TemplateReq Statement, [Statement])
+        processReqs _ seen genMap genRev [] = (seen, genMap, genRev)
+        processReqs defs0 seen genMap genRev (req:rest)
+            | Set.member req seen = processReqs defs0 seen genMap genRev rest
+            | otherwise =
+                case instantiateReq defs0 req of
+                    Nothing ->
+                        processReqs defs0 (Set.insert req seen) genMap genRev rest
+                    Just rawStmt ->
+                        let (stmt', reqsNew, _) = rewriteStmt False defs0 Map.empty rawStmt
+                            seen' = Set.insert req seen
+                            genMap' = Map.insert req stmt' genMap
+                            rest' = rest ++ reqsNew
+                        in processReqs defs0 seen' genMap' (stmt' : genRev) rest'
+
+        instantiateReq :: Map String [TemplateDef] -> TemplateReq -> Maybe Statement
+        instantiateReq defs0 (name, typeArgs, arity) = do
+            def <- selectTemplateDef defs0 name typeArgs arity
+            subst <- buildTypeSubst def typeArgs
+            let retTy = substituteClass subst (fst (tdRet def))
+                retTok = tdRet def
+                retToks' = generatedTemplateRetTokens (tdNameTok def) (snd retTok)
+                params' = map (\(t, n, toks) -> (substituteClass subst t, n, toks)) (tdParams def)
+                body' = substituteBlock subst (tdBody def)
+                ret' = (retTy, retToks')
+            if tdIsStatic def
+                then Just (StaticMethod ret' (Variable name (tdNameTok def)) params' body')
+                else Just (InstanceMethod ret' (Variable name (tdNameTok def)) params' body')
+
+        selectTemplateDef :: Map String [TemplateDef] -> String -> [Class] -> Int -> Maybe TemplateDef
+        selectTemplateDef defs0 name typeArgs arity = do
+            ds <- Map.lookup name defs0
+            let matched = filter (\d ->
+                    length (tdParams d) == arity &&
+                    length (tdTypeParams d) == length typeArgs) ds
+            case matched of
+                [one] -> Just one
+                _ -> Nothing
+
+        buildTypeSubst :: TemplateDef -> [Class] -> Maybe (Map String Class)
+        buildTypeSubst def typeArgs
+            | length (tdTypeParams def) /= length typeArgs = Nothing
+            | otherwise = Just (Map.fromList (zip (tdTypeParams def) typeArgs))
+
+        concreteParamTypes :: Map String [TemplateDef] -> String -> [Class] -> Int -> Maybe [Class]
+        concreteParamTypes defs0 name typeArgs arity = do
+            def <- selectTemplateDef defs0 name typeArgs arity
+            subst <- buildTypeSubst def typeArgs
+            pure (map (\(t, _, _) -> substituteClass subst t) (tdParams def))
+
+        applyTemplateArgCasts :: Map String [TemplateDef] -> String -> [Class] -> Int -> Token -> [Expression] -> [Expression]
+        applyTemplateArgCasts defs0 name typeArgs arity castTok argsN =
+            case concreteParamTypes defs0 name typeArgs arity of
+                Just paramTs
+                    | length paramTs == length argsN ->
+                        zipWith (\toT argE -> Cast (toT, [castTok]) argE castTok) paramTs argsN
+                _ -> argsN
+
+        collectFuncPtrTemplateReqs ::
+            Map String [TemplateDef] ->
+            [Class] ->
+            [Expression] ->
+            [TemplateReq]
+        collectFuncPtrTemplateReqs defs0 paramTs argsN =
+            concat (zipWith one paramTs argsN)
+          where
+            one :: Class -> Expression -> [TemplateReq]
+            one pTy argE = case normalizeClass pTy of
+                FuncPtr retTy fpArgTys -> case argE of
+                    Variable fname _ ->
+                        case inferTemplateTypeArgsFromFuncPtrExpected defs0 fname retTy fpArgTys of
+                            Right typeArgs -> [(fname, typeArgs, length fpArgTys)]
+                            Left _ -> []
+                    _ -> []
+                _ -> []
+
+        generatedTemplateRetTokens :: Token -> [Token] -> [Token]
+        generatedTemplateRetTokens nameTok toks =
+            [ Lex.Ident "private" (tokenPos nameTok)
+            , Lex.Ident "final" (tokenPos nameTok)
+            ] ++ dropWhile isFunctionModifierToken toks
+
+        substituteClass :: Map String Class -> Class -> Class
+        substituteClass subst cls = case cls of
+            Class [n] [] -> fromMaybe cls (Map.lookup n subst)
+            Class qn args -> Class qn (map (substituteClass subst) args)
+            Pointer inner -> Pointer (substituteClass subst inner)
+            FuncPtr ret args -> FuncPtr (substituteClass subst ret) (map (substituteClass subst) args)
+            Blob e -> Blob (substituteExpr subst e)
+            _ -> cls
+
+        substituteExpr :: Map String Class -> Expression -> Expression
+        substituteExpr subst expr = case expr of
+            Cast (ty, toks) e tok -> Cast (substituteClass subst ty, toks) (substituteExpr subst e) tok
+            Unary op e tok -> Unary op (substituteExpr subst e) tok
+            Binary op e1 e2 tok -> Binary op (substituteExpr subst e1) (substituteExpr subst e2) tok
+            Call callee args -> Call (substituteExpr subst callee) (map (substituteExpr subst) args)
+            CallT callee tys args ->
+                let tys' = map (\(t, toks) -> (substituteClass subst t, toks)) tys
+                in CallT (substituteExpr subst callee) tys' (map (substituteExpr subst) args)
+            SizeOfExpr inner tok ->
+                SizeOfExpr (substituteExpr subst inner) tok
+            SizeOfType (ty, toks) tok ->
+                SizeOfType (substituteClass subst ty, toks) tok
+            IfExpr cond thenE elseE toks ->
+                IfExpr
+                    (substituteExpr subst cond)
+                    (substituteExpr subst thenE)
+                    (substituteExpr subst elseE)
+                    toks
+            BlockExpr b -> BlockExpr (substituteBlock subst b)
+            _ -> expr
+
+        substituteMaybeExpr :: Map String Class -> Maybe Expression -> Maybe Expression
+        substituteMaybeExpr subst = fmap (substituteExpr subst)
+
+        substituteBlock :: Map String Class -> Block -> Block
+        substituteBlock subst (Multiple ss) = Multiple (map (substituteStmt subst) ss)
+
+        substituteStmt :: Map String Class -> Statement -> Statement
+        substituteStmt subst stmt = case stmt of
+            Command (Return me) tok -> Command (Return (substituteMaybeExpr subst me)) tok
+            Expr e -> Expr (substituteExpr subst e)
+            Exprs es -> Exprs (map (substituteExpr subst) es)
+            DefField names mTy mRhs toks -> DefField names (fmap (substituteClass subst) mTy) (substituteMaybeExpr subst mRhs) toks
+            DefConstField names mTy mRhs toks -> DefConstField names (fmap (substituteClass subst) mTy) (substituteMaybeExpr subst mRhs) toks
+            DefVar names mTy mRhs toks -> DefVar names (fmap (substituteClass subst) mTy) (substituteMaybeExpr subst mRhs) toks
+            DefConstVar names mTy mRhs toks -> DefConstVar names (fmap (substituteClass subst) mTy) (substituteMaybeExpr subst mRhs) toks
+            StmtGroup ss -> StmtGroup (map (substituteStmt subst) ss)
+            BlockStmt b -> BlockStmt (substituteBlock subst b)
+            If e b1 b2 toks ->
+                If
+                    (substituteExpr subst e)
+                    (fmap (substituteBlock subst) b1)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            For (s1, e2, s3) b1 b2 toks ->
+                For
+                    ( fmap (substituteStmt subst) s1
+                    , fmap (substituteExpr subst) e2
+                    , fmap (substituteStmt subst) s3
+                    )
+                    (fmap (substituteBlock subst) b1)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            Loop b tok -> Loop (fmap (substituteBlock subst) b) tok
+            Repeat e b1 b2 toks ->
+                Repeat
+                    (substituteExpr subst e)
+                    (fmap (substituteBlock subst) b1)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            While e b1 b2 toks ->
+                While
+                    (substituteExpr subst e)
+                    (fmap (substituteBlock subst) b1)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            Until e b1 b2 toks ->
+                Until
+                    (substituteExpr subst e)
+                    (fmap (substituteBlock subst) b1)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            DoWhile b1 e b2 toks ->
+                DoWhile
+                    (fmap (substituteBlock subst) b1)
+                    (substituteExpr subst e)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            DoUntil b1 e b2 toks ->
+                DoUntil
+                    (fmap (substituteBlock subst) b1)
+                    (substituteExpr subst e)
+                    (fmap (substituteBlock subst) b2)
+                    toks
+            Switch e scs tok ->
+                Switch (substituteExpr subst e) (map (substituteCase subst) scs) tok
+            Function (retT, retToks) name params body ->
+                Function
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    (substituteBlock subst body)
+            StaticMethod (retT, retToks) name params body ->
+                StaticMethod
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    (substituteBlock subst body)
+            InstanceMethod (retT, retToks) name params body ->
+                InstanceMethod
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    (substituteBlock subst body)
+            NativeMethod (retT, retToks) name params target ->
+                NativeMethod
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    target
+            FunctionT (retT, retToks) name gens params body ->
+                FunctionT
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, toks) -> (substituteClass subst t, toks)) gens)
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    (substituteBlock subst body)
+            StaticMethodT (retT, retToks) name gens params body ->
+                StaticMethodT
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, toks) -> (substituteClass subst t, toks)) gens)
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    (substituteBlock subst body)
+            InstanceMethodT (retT, retToks) name gens params body ->
+                InstanceMethodT
+                    (substituteClass subst retT, retToks)
+                    name
+                    (map (\(t, toks) -> (substituteClass subst t, toks)) gens)
+                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
+                    (substituteBlock subst body)
+
+        substituteCase :: Map String Class -> SwitchCase -> SwitchCase
+        substituteCase subst sc = case sc of
+            Case e mb tok -> Case (substituteExpr subst e) (fmap (substituteBlock subst) mb) tok
+            Default b tok -> Default (substituteBlock subst b) tok
+
+
+-- | Shared frontend normalization before semantic/type/IR phases:
+--   1) hoist/promote top-level forms,
+--   2) inline marked functions,
+--   3) instantiate template calls into generated concrete functions.
+normalizeProgramWithExternalTemplates :: [Statement] -> Program -> Program
+normalizeProgramWithExternalTemplates externalTemplates =
+    instantiateTemplateCallsProgramWithExternal externalTemplates . inlineProgramFunctions . promoteTopLevelFunctions
+
+
+normalizeProgram :: Program -> Program
+normalizeProgram = normalizeProgramWithExternalTemplates []
+
+-- | Lowering-stage normalization:
+--   semantic/template checks have already happened; keep template
+--   blueprints so native backends can emit template metadata.
+normalizeProgramForLowering :: Program -> Program
+normalizeProgramForLowering (decls, stmts) =
+    normalizeProgram (decls, stmts)
 
 
 -- | Promote top-level declarations into static form.
@@ -1534,6 +2873,10 @@ rewriteExprCalls callMap expr = case expr of
             (rewriteExprCalls callMap thenE)
             (rewriteExprCalls callMap elseE)
             toks
+    SizeOfExpr inner tok ->
+        SizeOfExpr (rewriteExprCalls callMap inner) tok
+    SizeOfType _ _ ->
+        expr
     BlockExpr b ->
         BlockExpr (rewriteBlockExprCalls callMap b)
     Call callee args ->
@@ -1796,6 +3139,7 @@ normalizeClass cls = case cls of
             _ -> Class [name] (map normalizeClass args)
     Class names args -> Class names (map normalizeClass args)
     Pointer c -> Pointer (normalizeClass c)
+    FuncPtr ret args -> FuncPtr (normalizeClass ret) (map normalizeClass args)
     Blob n -> Blob n
     other -> other
 

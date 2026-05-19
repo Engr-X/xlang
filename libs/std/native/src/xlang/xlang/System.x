@@ -23,7 +23,7 @@
  *
  */
 
-@class("System")
+@file.class("System")
 package xlang
 
 
@@ -46,7 +46,7 @@ native inline fun nowNs() -> long
 inline fun now() -> double = nowNs() as double * NS_PER_S
 
 
-fun memcopy(mut src: pointer<*>, mut dest: pointer<*>, int size) -> void
+fun memcopy(mut dest: pointer<*>, mut src: pointer<*>, int size) -> void
 {
     if size <= 0: { return; }
 
@@ -56,7 +56,8 @@ fun memcopy(mut src: pointer<*>, mut dest: pointer<*>, int size) -> void
     val longCount: int = size / 8
     val remain: int = size % 8
 
-    if d <= s || d >= s + n {
+    if d <= s || d >= s + n
+    {
         var srcLong: pointer<long> = src as pointer<long>
         var destLong: pointer<long> = dest as pointer<long>
 
@@ -69,7 +70,8 @@ fun memcopy(mut src: pointer<*>, mut dest: pointer<*>, int size) -> void
         for (var i: int = 0; i < remain; i++, srcByte++, destByte++):
             destByte.deref = srcByte.deref
     }
-    else {
+    else
+    {
         var srcByteEnd: pointer<byte> = src as pointer<byte> + size
         var destByteEnd: pointer<byte> = dest as pointer<byte> + size
 
@@ -83,7 +85,7 @@ fun memcopy(mut src: pointer<*>, mut dest: pointer<*>, int size) -> void
         var srcLongEnd: pointer<long> = srcByteEnd as pointer<long>
         var destLongEnd: pointer<long> = destByteEnd as pointer<long>
 
-        for (var i: int = 0; i < longCount; i++)
+        for (var i: int = 0; i < longCount; i++):
         {
             srcLongEnd--
             destLongEnd--
@@ -93,5 +95,9 @@ fun memcopy(mut src: pointer<*>, mut dest: pointer<*>, int size) -> void
 }
 
 
-fun memcopy(src: pointer<*>, srcPos: int, dest: pointer<*>, destPos: int, int size) -> void:
-    memcopy(src as pointer<byte> + srcPos, dest as pointer<byte> + destPos, size)
+fun memcopy(dest: pointer<*>, src: pointer<*>, length: int, tsize: int) -> void:
+    memcopy(dest, src, length * tsize)
+
+
+fun memcopy(dest: pointer<*>, src: pointer<*>, srcPos: int, destPos: int, int size) -> void:
+    memcopy(dest as pointer<byte> + destPos, src as pointer<byte> + srcPos, size)

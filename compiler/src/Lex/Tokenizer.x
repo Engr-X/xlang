@@ -735,11 +735,16 @@ fileTokenize p = do
 foldAnnotations :: [Token] -> [Token]
 foldAnnotations toks = case toks of
     (atTok@(Symbol At pAt) : nameTok@(Ident name _) : rest) ->
-        if map DC.toLower name == "native"
+        if lowName == "native" || startsWithDot rest
             then atTok : nameTok : foldAnnotations rest
             else case consumeAnnArgs rest of
                 Just (args, rest') -> Annotation name args pAt : foldAnnotations rest'
                 Nothing -> atTok : nameTok : foldAnnotations rest
+        where
+            lowName = map DC.toLower name
+            startsWithDot ts = case ts of
+                (Symbol Dot _ : _) -> True
+                _ -> False
     (t : ts) -> t : foldAnnotations ts
     [] -> []
 

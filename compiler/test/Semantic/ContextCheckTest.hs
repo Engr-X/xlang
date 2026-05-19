@@ -347,7 +347,11 @@ checkExprTests = testGroup "Semantic.ContextCheck.checkExpr" $ map (\(name, src,
         ("8", "a.ref", stWithVars ["a"], [], Nothing, noExtra),
         ("9", "b.deref.dref", stWithVars ["b"], [], Nothing, noExtra),
         ("10", "a.ref.ref", stWithVars ["a"], [], Just "ref can only be used as a terminal suffix on a variable", noExtra),
-        ("11", "a.ref = 1", stWithVars ["a"], [], Just (UE.cannotAssignMsg "a.ref"), noExtra)]
+        ("11", "a.ref = 1", stWithVars ["a"], [], Just (UE.cannotAssignMsg "a.ref"), noExtra),
+        ("12", "arr.get(i)", stWithVars ["arr", "i"], [], Nothing, noExtra),
+        ("13", "arr.set(i, v)", stWithVars ["arr", "i", "v"], [], Nothing, noExtra),
+        ("14", "arr.get(i, j)", stWithVars ["arr", "i", "j"], [], Just "invalid intrinsic call: pointer.get expects 1 argument(s), got 2", noExtra),
+        ("15", "arr.set(i)", stWithVars ["arr", "i"], [], Just "invalid intrinsic call: pointer.set expects 2 argument(s), got 1", noExtra)]
 
 
 isContinueValidTests :: TestTree

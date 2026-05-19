@@ -7,7 +7,7 @@ module IR.TACLowing where
 import Data.Bits ((.&.))
 import Control.Monad (unless)
 import Control.Monad.State.Strict (evalState)
-import Data.List (partition, foldl')
+import Data.List (partition, foldl', nub)
 import Data.Char (toUpper, toLower, isSpace)
 import Text.Read (readMaybe)
 import Data.Maybe (listToMaybe, fromMaybe, catMaybes, mapMaybe)
@@ -15,11 +15,11 @@ import Data.Foldable (foldrM)
 import Data.Map.Strict (Map)
 import Numeric (readHex)
 
-import Lex.Token (Token(..), tokenPos)
+import Lex.Token (Token(..), Symbol(..), tokenPos)
 import Parse.SyntaxTree (Block, Class(..), Expression, Program, Statement)
 import Semantic.OpInfer (binaryOpCastType, binaryOpCastTypeMaybe, inferUnaryOp, inferBinaryOp, isCompareOp)
 import IR.TAC (IRInstr, IRAtom, TACM, IRProgm, IRFunction, IRClass, newSubVar, newSubCVar, getVar, peekVarStack,
-    resolveVarKey,
+    resolveVarKey, lookupVarMaybe,
     getAtomType, incBlockId, getCurrentLoop, withLoop, getCurrentFun, getCurrentFunMaybe, addStaticVars, isStaticVar,
     getVarStacks, setVarStacks, pushLoopPhis, popLoopPhis, getCurrentLoopPhis, getAtomTypes)
 import Semantic.NameEnv (QName)
@@ -299,33 +299,43 @@ atomLowing (AST.CharConst value _) = return ([], TAC.CharC value)
 atomLowing (AST.BoolConst value _) = return ([], TAC.BoolC value)
 atomLowing (AST.StringConst value _) = return ([], TAC.StringC value)
 
-atomLowing (AST.Variable _ tok) = do
+atomLowing (AST.Variable rawName tok) = do
     let pos = tokenPos tok
-    vinfo <- getVar [pos]
-    case vinfo of
-        -- ????????? VarId + ??????
-        TEnv.VarLocal _ realName vid -> do
-            key <- resolveVarKey (realName, vid)
-            isStatic <- isStaticVar key
-            if isStatic
-                then do
-                    (clazz, _) <- peekVarStack key
-                    nAtom <- newSubCVar clazz
-                    return ([IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
-                else do
-                    let (resolvedName, resolvedVid) = key
-                    (_, ver) <- peekVarStack key
-                    let atom = TAC.Var (resolvedName, resolvedVid, ver)
+    mVarInfo <- lookupVarMaybe [pos]
+    case mVarInfo of
+        Just vinfo -> case vinfo of
+            -- ????????? VarId + ??????
+            TEnv.VarLocal _ realName vid -> do
+                key <- resolveLiveVarKey rawName (realName, vid)
+                isStatic <- isStaticVar key
+                if isStatic
+                    then do
+                        (clazz, _) <- peekVarStack key
+                        nAtom <- newSubCVar clazz
+                        return ([IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
+                    else do
+                        let (resolvedName, resolvedVid) = key
+                        (_, ver) <- peekVarStack key
+                        let atom = TAC.Var (resolvedName, resolvedVid, ver)
 
-                    mFun <- TAC.getCurrentFunMaybe
-                    case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
-                        Just idx -> return ([], TAC.Param idx)
-                        Nothing -> return ([], atom)
+                        mFun <- TAC.getCurrentFunMaybe
+                        case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
+                            Just idx -> return ([], TAC.Param idx)
+                            Nothing -> return ([], atom)
 
-        -- ??????
-        TEnv.VarImported _ clazz _ fullQname -> do
-            nAtom <- newSubCVar clazz
-            return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
+            -- ??????
+            TEnv.VarImported _ clazz _ fullQname -> do
+                nAtom <- newSubCVar clazz
+                return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
+        Nothing -> do
+            finfo <- TAC.getFunction [pos]
+            let (targetQn, sig) = case finfo of
+                    TEnv.FunLocal _ qn sig0 -> (qn, sig0)
+                    TEnv.FunImported _ _ fullQn sig0 -> (fullQn, sig0)
+                ptrTy = FuncPtr (TEnv.funReturn sig) (TEnv.funParams sig)
+                tfun = TAC.TACFunction targetQn sig
+            out <- newSubCVar ptrTy
+            pure ([IRInstr (TAC.GetFuncAddr out tfun)], out)
 
 atomLowing (AST.Qualified names tokens) =
     case parsePointerSuffixQualified names tokens of
@@ -334,12 +344,23 @@ atomLowing (AST.Qualified names tokens) =
             baseClass <- getAtomType baseAtom
             lowerPointerSuffixes ops baseClass baseAtom baseInstrs
         Nothing -> do
-            vinfo <- getVar (map tokenPos tokens)
-            case vinfo of
-                TEnv.VarImported _ clazz _ fullQname -> do
-                    nAtom <- newSubCVar clazz
-                    return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
-                _ -> error "qualified name is not an imported variable"
+            let poss = map tokenPos tokens
+            mVarInfo <- lookupVarMaybe poss
+            case mVarInfo of
+                Just vinfo -> case vinfo of
+                    TEnv.VarImported _ clazz _ fullQname -> do
+                        nAtom <- newSubCVar clazz
+                        return ([IRInstr (TAC.IGetStatic nAtom fullQname)], nAtom)
+                    _ -> error "qualified name is not an imported variable"
+                Nothing -> do
+                    finfo <- TAC.getFunction poss
+                    let (targetQn, sig) = case finfo of
+                            TEnv.FunLocal _ qn sig0 -> (qn, sig0)
+                            TEnv.FunImported _ _ fullQn sig0 -> (fullQn, sig0)
+                        ptrTy = FuncPtr (TEnv.funReturn sig) (TEnv.funParams sig)
+                        tfun = TAC.TACFunction targetQn sig
+                    out <- newSubCVar ptrTy
+                    pure ([IRInstr (TAC.GetFuncAddr out tfun)], out)
 
 atomLowing _ = error "other type is not allowed for IR atom"
 
@@ -455,6 +476,31 @@ pointerElemBytes ptrCls = case ptrCls of
         Float128T -> 16
         Void -> 1
         ErrorClass -> 1
+
+
+sizeofClassBytesIR :: Class -> Maybe Int
+sizeofClassBytesIR cls0 = case AST.normalizeClass cls0 of
+    Int8T -> Just 1
+    Bool -> Just 1
+    Char -> Just 1
+    Int16T -> Just 2
+    Int32T -> Just 4
+    Float32T -> Just 4
+    Int64T -> Just 8
+    Float64T -> Just 8
+    Float128T -> Just 16
+    Pointer _ -> Just 8
+    Class _ _ -> Just 8
+    Blob _ -> AST.blobConstSizeMaybe cls0
+    Void -> Nothing
+    ErrorClass -> Nothing
+
+
+sizeofResultAtom :: Class -> TACM IRAtom
+sizeofResultAtom cls =
+    case sizeofClassBytesIR cls of
+        Just n -> pure (TAC.Int32C (fromIntegral n))
+        Nothing -> error $ "sizeof: unsupported or non-constant class " ++ show cls
 
 
 pointerArithResultType :: AST.Operator -> Class -> Class -> Maybe Class
@@ -647,12 +693,12 @@ exprLowing (AST.Unary op inner _) = do
         nAtom <- newSubCVar toClass
         return (IRInstr (TAC.IUnary nAtom op castAtom) : castInstrs ++ instr, nAtom)
 
-exprLowing (AST.Binary AST.Assign (AST.Variable _ tok) e2 _) = do
+exprLowing (AST.Binary AST.Assign (AST.Variable lhsName tok) e2 _) = do
     let pos = tokenPos tok
     vinfo <- getVar [pos]
     case vinfo of
         TEnv.VarLocal _ realName vid -> do
-            key <- resolveVarKey (realName, vid)
+            key <- resolveLiveVarKey lhsName (realName, vid)
             isStatic <- isStaticVar key
 
             oldCur <- TAC.getCurrentVar
@@ -725,8 +771,22 @@ exprLowing (AST.Binary AST.Assign (AST.Unary AST.DeRef inner _) e2 _) = do
         rhsForward = reverse (rhsCastInstrs ++ rhsInstrs0)
         seqForward1 = appendAfterCond baseForward rhsForward
         seqForward2 = appendAfterCond seqForward1 ptrCastForward
-        seqForward3 = appendAfterCond seqForward2 [IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
-    return (reverse seqForward3, rhsAtom)
+    case inner of
+        AST.Binary AST.Add _ _ idxTok
+            | isIndexAssignToken idxTok -> do
+                oldAtom <- newSubCVar targetClass
+                let seqForward3 = appendAfterCond seqForward2 [
+                        IRInstr (TAC.Deref oldAtom ptrAtom),
+                        IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
+                return (reverse seqForward3, oldAtom)
+        _ -> do
+            let seqForward3 = appendAfterCond seqForward2 [IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
+            return (reverse seqForward3, rhsAtom)
+  where
+    isIndexAssignToken :: Token -> Bool
+    isIndexAssignToken tok = case tok of
+        Symbol LBracket _ -> True
+        _ -> False
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -973,29 +1033,112 @@ exprLowing (AST.BlockExpr (AST.Multiple ss)) = do
             (instrsRev, _) <- if AST.isAtom e then atomLowing e else exprLowing e
             return (reverse instrsRev)
 
-exprLowing (AST.Call funName params) = do
-    funInfo <- case funName of
-        AST.Variable _ tok -> TAC.getFunction [tokenPos tok]
-        AST.Qualified _ toks -> TAC.getFunction (map tokenPos toks)
-        _ -> error "call target is not a function name"
+exprLowing (AST.SizeOfType (cls, _) _) = do
+    out <- sizeofResultAtom cls
+    pure ([], out)
 
-    case funInfo of
-        TEnv.FunLocal _ qname sig -> do
-            let retT = TEnv.funReturn sig
-            (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
-            dst <- newSubCVar retT
-            mInlineNative <- TAC.getInlineNativeTarget qname
-            case mInlineNative of
-                Just targetQn ->
-                    return (IRInstr (TAC.ICallStaticDirect dst targetQn argAtoms) : argInstrs, dst)
-                _ ->
-                    return (IRInstr (TAC.ICallStatic dst qname argAtoms) : argInstrs, dst)
-        TEnv.FunImported _ _ fullQname sig -> do
-            let retT = TEnv.funReturn sig
-            (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
-            dst <- newSubCVar retT
-            return (IRInstr (TAC.ICallStatic dst fullQname argAtoms) : argInstrs, dst)
+exprLowing (AST.SizeOfExpr inner _) = do
+    cls <- case inner of
+        AST.Variable name tok -> do
+            mInfo <- lookupVarMaybe [tokenPos tok]
+            case mInfo of
+                Just (TEnv.VarLocal _ realName vid) -> do
+                    key <- resolveVarKey (realName, vid)
+                    (ty, _) <- peekVarStack key
+                    pure ty
+                Just (TEnv.VarImported _ ty _ _) ->
+                    pure ty
+                Nothing -> do
+                    stacks <- getVarStacks
+                    let matches = nub
+                            [ty | ((n, _), (ty, _):_) <- Map.toList stacks, n == name]
+                    case matches of
+                        [ty] -> pure ty
+                        _ -> pure (AST.normalizeClass (Class [name] []))
+        AST.Qualified names toks ->
+            case parsePointerSuffixQualified names toks of
+                Just _ -> do
+                    (_, atom) <- atomLowing inner
+                    getAtomType atom
+                Nothing -> do
+                    mInfo <- lookupVarMaybe (map tokenPos toks)
+                    case mInfo of
+                        Just (TEnv.VarLocal _ realName vid) -> do
+                            key <- resolveVarKey (realName, vid)
+                            (ty, _) <- peekVarStack key
+                            pure ty
+                        Just (TEnv.VarImported _ ty _ _) ->
+                            pure ty
+                        Nothing ->
+                            pure (AST.normalizeClass (Class names []))
+        _ ->
+            error "sizeof(expr): only variable/qualified-name is supported in TAC lowering"
+    out <- sizeofResultAtom cls
+    pure ([], out)
+
+exprLowing (AST.Call funName params) = do
+    case parsePointerIntrinsicCall funName of
+        Just (baseName, baseTok, intrinsicName) ->
+            lowerPointerIntrinsicCall baseName baseTok intrinsicName params
+        Nothing -> do
+            mFunInfo <- case funName of
+                AST.Variable _ tok -> TAC.lookupFunctionMaybe [tokenPos tok]
+                AST.Qualified _ toks -> TAC.lookupFunctionMaybe (map tokenPos toks)
+                _ -> pure Nothing
+            case mFunInfo of
+                Just funInfo -> case funInfo of
+                    TEnv.FunLocal _ qname sig -> do
+                        let retT = TEnv.funReturn sig
+                        (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
+                        dst <- newSubCVar retT
+                        mInlineNative <- TAC.getInlineNativeTarget qname
+                        case mInlineNative of
+                            Just targetQn ->
+                                return (IRInstr (TAC.ICallStaticDirect dst targetQn argAtoms) : argInstrs, dst)
+                            _ ->
+                                return (IRInstr (TAC.ICallStatic dst qname argAtoms) : argInstrs, dst)
+                    TEnv.FunImported _ _ fullQname sig -> do
+                        let retT = TEnv.funReturn sig
+                        (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
+                        dst <- newSubCVar retT
+                        return (IRInstr (TAC.ICallStatic dst fullQname argAtoms) : argInstrs, dst)
+                Nothing -> do
+                    (calleeInstrs, calleeAtom) <- if AST.isAtom funName then atomLowing funName else exprLowing funName
+                    calleeTy <- getAtomType calleeAtom
+                    case calleeTy of
+                        FuncPtr retT paramTs -> do
+                            (argInstrs, argAtoms) <- lowerArgsWithSig paramTs params
+                            dst <- newSubCVar retT
+                            return (IRInstr (TAC.ICallPtr dst calleeAtom argAtoms) : (argInstrs ++ calleeInstrs), dst)
+                        _ ->
+                            error $ "call target is not callable: " ++ show calleeTy
     where
+        parsePointerIntrinsicCall :: Expression -> Maybe (String, Token, String)
+        parsePointerIntrinsicCall expr = case expr of
+            AST.Qualified [baseName, rawIntrinsic] (baseTok : _) ->
+                let intrinsic = map toLower rawIntrinsic
+                in if intrinsic `elem` ["get", "set"]
+                    then Just (baseName, baseTok, intrinsic)
+                    else Nothing
+            _ -> Nothing
+
+        lowerPointerIntrinsicCall :: String -> Token -> String -> [Expression] -> TACM ([IRNode], IRAtom)
+        lowerPointerIntrinsicCall baseName baseTok intrinsicName args = case (intrinsicName, args) of
+            ("get", [idxExpr]) -> do
+                let addTok = Symbol LBracket (tokenPos baseTok)
+                    addExpr = AST.Binary AST.Add (AST.Variable baseName baseTok) idxExpr addTok
+                    derefExpr = AST.Unary AST.DeRef addExpr addTok
+                exprLowing derefExpr
+            ("set", [idxExpr, valExpr]) -> do
+                let addTok = Symbol LBracket (tokenPos baseTok)
+                    assignTok = Symbol Assign (tokenPos baseTok)
+                    addExpr = AST.Binary AST.Add (AST.Variable baseName baseTok) idxExpr addTok
+                    lhsExpr = AST.Unary AST.DeRef addExpr addTok
+                    assignExpr = AST.Binary AST.Assign lhsExpr valExpr assignTok
+                exprLowing assignExpr
+            _ ->
+                error $ "invalid intrinsic pointer call arity: " ++ intrinsicName
+
         lowerArgsWithSig :: [Class] -> [Expression] -> TACM ([IRNode], [IRAtom])
         lowerArgsWithSig paramTs args
             | length paramTs /= length args = error "internal error: argument count mismatch after typecheck"
@@ -1176,6 +1319,24 @@ shortCircuitLogical op e1 e2 = do
 
 type VarKey = (String, Int)
 
+resolveLiveVarKey :: String -> VarKey -> TACM VarKey
+resolveLiveVarKey rawName key@(realName, vid) = do
+    key0 <- resolveVarKey key
+    stacks <- getVarStacks
+    if Map.member key0 stacks
+        then pure key0
+        else do
+            let byRawName = nub [k | k@(n, _) <- Map.keys stacks, n == rawName]
+                byRealName = nub [k | k@(n, _) <- Map.keys stacks, n == realName]
+                byVarId = nub [k | k@(_, v) <- Map.keys stacks, v == vid]
+            case byRawName of
+                [k] -> pure k
+                _ -> case byRealName of
+                    [k] -> pure k
+                    _ -> case byVarId of
+                        [k] -> pure k
+                        _ -> pure key0
+
 paramifyAtom :: IRAtom -> TACM IRAtom
 paramifyAtom atom@(TAC.Var {}) = do
     mFun <- getCurrentFunMaybe
@@ -1328,11 +1489,11 @@ collectAssignKeysBlock (AST.Multiple ss) = do
 
         collectAssignKeysLhs :: Expression -> TACM [VarKey]
         collectAssignKeysLhs lhs = case lhs of
-            AST.Variable _ tok -> do
+            AST.Variable lhsName tok -> do
                 vinfo <- getVar [tokenPos tok]
                 case vinfo of
                     TEnv.VarLocal _ realName vid -> do
-                        key <- resolveVarKey (realName, vid)
+                        key <- resolveLiveVarKey lhsName (realName, vid)
                         return [key]
                     _ -> return []
             _ -> return []
@@ -2120,6 +2281,8 @@ atomsInInstr (TAC.IAssign dst src) = [dst, src]
 atomsInInstr (TAC.IUnary dst _ x) = [dst, x]
 atomsInInstr (TAC.IBinary dst _ x y) = [dst, x, y]
 atomsInInstr (TAC.ICast dst _ x) = [dst, x]
+atomsInInstr (TAC.GetFuncAddr dst _) = [dst]
+atomsInInstr (TAC.ICallPtr dst fnPtr args) = dst : fnPtr : args
 atomsInInstr (TAC.ICallStaticDirect dst _ args) = dst : args
 atomsInInstr (TAC.ICallStatic dst _ args) = dst : args
 atomsInInstr (TAC.ICallVirtual dst _ args) = dst : args
@@ -2180,7 +2343,7 @@ collectAtomTypesStatic stmts = do
                 [] -> Nothing
                 
 
-functionLowering :: Statement -> TACM IRFunction
+functionLowering :: Statement -> TACM (IRFunction, Maybe TAC.IRCFunction)
 functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args functB) = do
     atoms <- loadFunctionArgs args
     let _argsMap = genArgMap atoms
@@ -2203,7 +2366,8 @@ functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args f
         access = if generated then PB.Private else access0
         flags = if generated then [PB.Static, PB.Final] else [PB.Static]
         decl = (access, flags)
-    return $ TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
+    let irFun = TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
+    return (irFun, mkCLinkMirror declToks irFun)
 
 functionLowering (AST.NativeMethod (clazz, declToks) (AST.Variable funName _) args targetName) = do
     let paramN = length args
@@ -2233,23 +2397,35 @@ functionLowering (AST.NativeMethod (clazz, declToks) (AST.Variable funName _) ar
             then PB.Final : (PB.Static : inlineFlags)
             else PB.Static : inlineFlags
         decl = (access, flags)
-    return $ TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
+    let irFun = TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
+    return (irFun, mkCLinkMirror declToks irFun)
 
 functionLowering (AST.Function _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
 functionLowering (AST.NativeMethod _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
 functionLowering _ = error "this is not a function!!!"
+
+mkCLinkMirror :: [Token] -> IRFunction -> Maybe TAC.IRCFunction
+mkCLinkMirror declToks irFun
+    | hasLinkCDeclToken declToks = Just (toCFunction irFun)
+    | otherwise = Nothing
+    where
+        toCFunction :: IRFunction -> TAC.IRCFunction
+        toCFunction (TAC.IRFunction decl name sig atomTypes body memberType) =
+            TAC.IRCFunction decl name sig atomTypes body memberType
 
 
 loadFunctionArgs :: [(Class, String, [Token])] -> TACM [IRAtom]
 loadFunctionArgs = mapM loadOne
     where
         loadOne :: (Class, String, [Token]) -> TACM IRAtom
-        loadOne (argClazz, _, tokens) = do
+        loadOne (argClazz, argName, tokens) = do
             let pos = tokenPos $ head tokens
             vinfo <- getVar [pos]
             case vinfo of
                 TEnv.VarImported {} -> error "args cannot be imported"
-                TEnv.VarLocal _ str vid -> newSubVar argClazz (str, vid)
+                TEnv.VarLocal _ str vid -> do
+                    key <- resolveLiveVarKey argName (str, vid)
+                    newSubVar argClazz key
 
 
 genArgMap :: [IRAtom] -> Map Int IRAtom
@@ -2263,6 +2439,31 @@ hasInlineDeclToken = any isInlineTok
         isInlineTok tok = case tok of
             Ident s _ -> map toLower s == "inline"
             _ -> False
+
+
+hasLinkCDeclToken :: [Token] -> Bool
+hasLinkCDeclToken toks = hasLinkAnnotation toks || hasLinkKeywordC toks
+    where
+        hasLinkAnnotation :: [Token] -> Bool
+        hasLinkAnnotation = any isLinkAnnTok
+
+        isLinkAnnTok :: Token -> Bool
+        isLinkAnnTok tok = case tok of
+            Annotation name args _ ->
+                map toLower name == "link" && isCArg args
+            _ -> False
+
+        hasLinkKeywordC :: [Token] -> Bool
+        hasLinkKeywordC ts = case ts of
+            (_ : Ident name _ : _ : StrConst s _ : _)
+                | map toLower name == "link" && map toLower s == "c" -> True
+            (Ident name _ : _ : StrConst s _ : _)
+                | map toLower name == "link" && map toLower s == "c" -> True
+            _ -> False
+
+        isCArg :: [Token] -> Bool
+        isCArg [StrConst s _] = map toLower s == "c"
+        isCArg _ = False
 
 
 parseNativeTargetQName :: String -> [String]
@@ -2318,7 +2519,7 @@ accessFromDeclTokens toks = case toks of
 classStmtsLowing :: [String] -> String -> [Statement] -> TACM IRClass
 classStmtsLowing pkgSegs name stmts = do
     let (funcDef, rest0) = partition AST.isFunction stmts
-    let (_, rest1) = partition AST.isFunctionT rest0
+    let (templateDef, rest1) = partition AST.isFunctionT rest0
     let inlineNativeMap = Map.fromList (mapMaybe (inlineNativeFromStmt pkgSegs) funcDef)
     TAC.setInlineNativeTargets inlineNativeMap
 
@@ -2333,14 +2534,18 @@ classStmtsLowing pkgSegs name stmts = do
     let staticStmts = staticStmts0 ++ [staticRet]
     staticAtomTypes <- collectAtomTypesStatic staticStmts
     staticFields <- mapM (staticFieldFor constKeyMap) staticKeys
-    funcs0 <- mapM functionLowering funcDef
+    funcsWithC <- mapM functionLowering funcDef
     let classQName = pkgSegs ++ [name]
         staticBlocks0 = packIRBlocks staticStmts
         staticBlocks = qualifyBlocks classQName staticBlocks0
+        funcs0 = map fst funcsWithC
+        tFuncs = mapMaybe templateFunctionLowering templateDef
+        cFuncs0 = catMaybes (map snd funcsWithC)
         funcs = map (qualifyFunction classQName) funcs0
+        cFuncs = map (qualifyCFunction classQName) cFuncs0
         mainKind = detectMainKind classQName funcs
     let decl = (PB.Public, []) -- TODO: default class decl until parser carries modifiers.
-    return $ TAC.IRClass decl name staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs mainKind
+    return $ TAC.IRClass decl name staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs tFuncs cFuncs mainKind
     where
         resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
         resolveStaticKey (_, poss) = do
@@ -2361,6 +2566,10 @@ classStmtsLowing pkgSegs name stmts = do
         qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes (body, retBid) memberType) =
             TAC.IRFunction decl fname sig atomTypes (qualifyBlocks cls body, retBid) memberType
 
+        qualifyCFunction :: [String] -> TAC.IRCFunction -> TAC.IRCFunction
+        qualifyCFunction cls (TAC.IRCFunction decl fname sig atomTypes (body, retBid) memberType) =
+            TAC.IRCFunction decl fname sig atomTypes (qualifyBlocks cls body, retBid) memberType
+
         qualifyBlocks :: [String] -> [TAC.IRBlock] -> [TAC.IRBlock]
         qualifyBlocks cls = map (qualifyBlock cls)
 
@@ -2370,6 +2579,8 @@ classStmtsLowing pkgSegs name stmts = do
 
         qualifyInstr :: [String] -> IRInstr -> IRInstr
         qualifyInstr cls instr = case instr of
+            TAC.GetFuncAddr dst (TAC.TACFunction qn sig) ->
+                TAC.GetFuncAddr dst (TAC.TACFunction (qualifyQName cls qn) sig)
             TAC.ICallStatic dst qn args -> TAC.ICallStatic dst (qualifyQName cls qn) args
             TAC.ICallVirtual dst qn args -> TAC.ICallVirtual dst (qualifyQName cls qn) args
             TAC.IGetStatic dst qn -> TAC.IGetStatic dst (qualifyQName cls qn)
@@ -2413,6 +2624,29 @@ detectMainKind classQName = foldl' pick TAC.NoMain . map classify
         mainQName = classQName ++ ["main"]
 
 
+templateFunctionLowering :: Statement -> Maybe TAC.IRTemplateFunction
+templateFunctionLowering stmt = case stmt of
+    AST.FunctionT (retTy, declToks) (AST.Variable funName _) gens params body ->
+        let funSig = TEnv.FunSig {
+                TEnv.funParams = map (\(a, _, _) -> a) params,
+                TEnv.funReturn = retTy
+            }
+            paramNames = map (\(_, pname, _) -> pname) params
+            access0 = accessFromDeclTokens declToks
+            generated = '$' `elem` funName
+            access = if generated then PB.Private else access0
+            flags = if generated then [PB.Static, PB.Final] else [PB.Static]
+            decl = (access, flags)
+            tParams = map templateParamName gens
+            bodyText = AST.prettyBlock 0 body
+        in Just (TAC.IRTemplateFunction decl funName funSig tParams paramNames bodyText TAC.MemberClassWrapped)
+    _ -> Nothing
+  where
+    templateParamName :: (Class, [Token]) -> String
+    templateParamName (Class [name] [], _) = name
+    templateParamName (clazz, _) = AST.prettyClass clazz
+
+
 -- | Lower a class statement into IR (not implemented yet).
 classLowing :: Statement -> TACM IRClass
 classLowing _ = error "the class is not implement"
@@ -2422,7 +2656,7 @@ classLowing _ = error "the class is not implement"
 --   extract class declarations, and wrap remaining stmts into a synthetic class.
 progmLowing :: Path -> Program -> IRProgm
 progmLowing path (decls, stmts) =
-    let (decls', stmts') = AST.inlineProgramFunctions (AST.promoteTopLevelFunctions (decls, stmts))
+    let (decls', stmts') = AST.normalizeProgramForLowering (decls, stmts)
         (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
         pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d

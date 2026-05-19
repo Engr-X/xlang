@@ -31,6 +31,8 @@ endif
 XLANG_SOURCES := \
 	xlang/Math.x \
 	xlang/System.x \
+	xlang/functional/List.x \
+	xlang/sort/HeapSort.x \
 	xlang/io/Console.x
 
 STD_OBJ_DIR := $(OBJ_DIR)/xlang-std

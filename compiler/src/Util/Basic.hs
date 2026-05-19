@@ -181,6 +181,27 @@ splitLast (x : xs) = go [] x xs
         go acc lastOne (y : ys) = go (lastOne : acc) y ys
 
 
+-- | Infinite Excel-style column labels:
+--   A, B, ..., Z, AA, AB, ..., AZ, BA, ...
+excelColumnNames :: [String]
+excelColumnNames = map excelColumnName [1 ..]
+
+
+-- | Convert a 1-based column index to Excel-style label.
+--   1 -> A, 26 -> Z, 27 -> AA, 703 -> AAA.
+excelColumnName :: Int -> String
+excelColumnName n
+    | n <= 0 = error "excelColumnName: index must be positive"
+    | otherwise = reverse (go n)
+  where
+    go :: Int -> String
+    go 0 = []
+    go x =
+        let (q, r) = (x - 1) `divMod` 26
+            c = toEnum (fromEnum 'A' + r) :: Char
+        in c : go q
+
+
 -- | IEEE754 float bit pattern in hex.
 --
 -- Example:

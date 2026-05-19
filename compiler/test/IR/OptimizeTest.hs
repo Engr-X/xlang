@@ -29,7 +29,7 @@ mkFun instrs =
 
 mkClass :: [IRInstr] -> [IRFunction] -> IRClass
 mkClass staticInstrs funs =
-    IRClass (Public, []) "C" [] (StaticInit ([IRBlock (0, staticInstrs)], 0)) Map.empty funs NoMain
+    IRClass (Public, []) "C" [] (StaticInit ([IRBlock (0, staticInstrs)], 0)) Map.empty funs [] NoMain
 
 
 stripPhiStmtTests :: TestTree

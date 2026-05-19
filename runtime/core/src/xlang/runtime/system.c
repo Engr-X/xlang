@@ -32,6 +32,7 @@
 
 #include <time.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(_WIN32)
@@ -108,29 +109,29 @@ static int xlang_get_realtime_ts(struct timespec* ts)
 }
 
 
-int64_t xlang_now_s()
+x_i64 xlang_now_s()
 {
     struct timespec ts;
     xlang_get_realtime_ts(&ts);
-    return (int64_t)(ts.tv_sec);
+    return (x_i64)(ts.tv_sec);
 }
 
 
-int64_t xlang_now_ms()
+x_i64 xlang_now_ms()
 {
     struct timespec ts;
     xlang_get_realtime_ts(&ts);
 
-    return (int64_t)(ts.tv_sec) * XLANG_MS_PER_S +
-        (int64_t)(ts.tv_nsec) / XLANG_NS_PER_MS;
+    return (x_i64)(ts.tv_sec) * XLANG_MS_PER_S +
+        (x_i64)(ts.tv_nsec) / XLANG_NS_PER_MS;
 }
 
 
-int64_t xlang_now_ns()
+x_i64 xlang_now_ns()
 {
     struct timespec ts;
     xlang_get_realtime_ts(&ts);
 
-    return (int64_t)(ts.tv_sec) * XLANG_NS_PER_S +
-        (int64_t)(ts.tv_nsec);
+    return (x_i64)(ts.tv_sec) * XLANG_NS_PER_S +
+        (x_i64)(ts.tv_nsec);
 }

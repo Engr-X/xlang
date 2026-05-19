@@ -563,6 +563,7 @@ classBytes64 :: Class -> Int
 classBytes64 (AST.Class {}) = 8
 classBytes64 (AST.Pointer _) = 8
 classBytes64 (AST.Blob _) = 8
+classBytes64 (AST.FuncPtr _ _) = 8
 classBytes64 AST.Void = 0
 classBytes64 cls = case Map.lookup cls sizeByClass64 of
     Just n -> n
@@ -869,6 +870,8 @@ atomsInInstr64 instr = case instr of
     IR.IUnary dst _ x -> [dst, x]
     IR.IBinary dst _ x y -> [dst, x, y]
     IR.ICast dst _ x -> [dst, x]
+    IR.GetFuncAddr dst _ -> [dst]
+    IR.ICallPtr dst fnPtr args -> dst : fnPtr : args
     IR.ICallStaticDirect dst _ args -> dst : args
     IR.ICallStatic dst _ args -> dst : args
     IR.ICallVirtual dst _ args -> dst : args
@@ -904,10 +907,11 @@ floatImmStaticData64 key label = case key of
 
 
 collectClassFloatConsts64 :: X64.CallConv64 -> Int -> IR.IRClass -> (Map FloatImmKey64 String, [X64.StaticData], Int)
-collectClassFloatConsts64 cc seqStart (IR.IRClass _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _) =
+collectClassFloatConsts64 cc seqStart (IR.IRClass _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _ cFuns _) =
     let staticKeys = concatMap floatImmKeysFromBlock64 sBlocks
         funKeys = concatMap funFloatKeys funs
-        keys = uniqueInOrder64 (staticKeys ++ funKeys)
+        cFunKeys = concatMap cFunFloatKeys cFuns
+        keys = uniqueInOrder64 (staticKeys ++ funKeys ++ cFunKeys)
         pairs = zip keys [seqStart ..]
         keyToLabel = Map.fromList [(k, floatConstLabel64 cc idx) | (k, idx) <- pairs]
         dataSegs = [floatImmStaticData64 k (floatConstLabel64 cc idx) | (k, idx) <- pairs]
@@ -916,6 +920,8 @@ collectClassFloatConsts64 cc seqStart (IR.IRClass _ _ _ (IR.StaticInit (sBlocks,
     where
         funFloatKeys :: IR.IRFunction -> [FloatImmKey64]
         funFloatKeys (IR.IRFunction _ _ _ _ (blocks, _) _) = concatMap floatImmKeysFromBlock64 blocks
+        cFunFloatKeys :: IR.IRCFunction -> [FloatImmKey64]
+        cFunFloatKeys (IR.IRCFunction _ _ _ _ (blocks, _) _) = concatMap floatImmKeysFromBlock64 blocks
 
 
 lookupFloatConstLabel64 :: FloatImmKey64 -> X64LowerM String
@@ -1001,6 +1007,7 @@ movMemToReg memAtom@(X64.Mem {}) cls =
     case cls of
         AST.Pointer _ -> movInt X64.B64
         AST.Blob _ -> movInt X64.B64
+        AST.FuncPtr _ _ -> movInt X64.B64
         AST.Int64T -> movInt X64.B64
         AST.Int32T -> movInt X64.B32
         AST.Int16T -> movInt X64.B16
@@ -1347,8 +1354,12 @@ x64StmtCode64 (IR.IAssign dst src) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
     (srcAtom, srcCls, _) <- tySizeM64 src
     let bothRefClasses = isRefClass64 dstCls && isRefClass64 srcCls
-    if dstCls /= srcCls && not bothRefClasses
-        then error $ "x64StmtLowing64(IAssign): type mismatch: " ++ show (dstCls, srcCls)
+    if dstCls == AST.Void || srcCls == AST.Void
+        then return []
+        else if dstCls /= srcCls && not bothRefClasses
+        -- Lowering can still see mixed-class IAssign from late sugar/template flows.
+        -- Reuse ICast lowering so backend stays robust and cast semantics remain central.
+        then x64StmtCode64 (IR.ICast dst (srcCls, dstCls) src)
         else if isRefClass64 dstCls || isRefClass64 srcCls
             then do
                 tmp <- getTmpIRegM64
@@ -1532,7 +1543,9 @@ x64StmtCode64 (IR.IBinary _ op _ _) =
 x64StmtCode64 (IR.ICast dst (fromC, toC) src) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
     (srcAtom, srcCls, _) <- tySizeM64 src
-    if srcCls /= fromC || dstCls /= toC
+    if toC == AST.Void || srcCls == AST.Void
+        then return []
+        else if srcCls /= fromC || dstCls /= toC
         then error $ "x64StmtLowing64(ICast): type mismatch between IR annotation and atom types: " ++ show (fromC, toC, srcCls, dstCls)
         else
             let fromCN = castClassNorm fromC
@@ -1577,7 +1590,71 @@ x64StmtCode64 (IR.ICast dst (fromC, toC) src) = do
     castClassNorm :: Class -> Class
     castClassNorm (AST.Pointer _) = AST.Int64T
     castClassNorm (AST.Blob _) = AST.Int64T
+    castClassNorm (AST.FuncPtr _ _) = AST.Int64T
     castClassNorm c = c
+
+x64StmtCode64 (IR.GetFuncAddr dst (IR.TACFunction qname sig)) = do
+    (dstAtom, dstCls, _) <- tySizeM64 dst
+    rip <- getRipRegM64
+    tmpI <- getTmpIRegM64
+    let fullSig = TEnv.funParams sig ++ [TEnv.funReturn sig]
+        (symQn, symSig) = mkStaticCallName64 qname fullSig
+        src = X64.Bss symQn symSig rip
+        tmpReg = X64.Reg tmpI X64.B64
+    case dstCls of
+        cls | cls == AST.Int64T || isRefClass64 cls ->
+            case dstAtom of
+                X64.Reg _ _ -> return [X64.Lea dstAtom src X64.B64]
+                _ -> return [X64.Lea tmpReg src X64.B64, X64.Mov dstAtom tmpReg X64.B64]
+        _ ->
+            error $ "x64StmtLowing64(GetFuncAddr): destination must be int64/reference, got: " ++ show dstCls
+
+x64StmtCode64 (IR.ICallPtr dst fnPtr args) = do
+    (dstAtom, dstCls, _) <- tySizeM64 dst
+    (fnAtom, fnCls, _) <- tySizeM64 fnPtr
+    argTriples <- mapM tySizeM64 args
+    cc <- getCCM64
+    iRet <- getIRetRegM64
+    fRet <- getFRetRegM64
+
+    (paramTypes, retTypeByPtr) <- case fnCls of
+        AST.FuncPtr retTy argTs -> pure (argTs, retTy)
+        _ -> error $ "x64StmtLowing64(ICallPtr): callee must be function pointer, got: " ++ show fnCls
+
+    if retTypeByPtr /= dstCls
+        then error $ "x64StmtLowing64(ICallPtr): return type mismatch between callee and destination: "
+            ++ show (retTypeByPtr, dstCls)
+        else pure ()
+
+    let argAtoms = map (\(a, _, _) -> a) argTriples
+        argClasses = map (\(_, c, _) -> c) argTriples
+    if argClasses /= paramTypes
+        then error $ "x64StmtLowing64(ICallPtr): argument type mismatch: "
+            ++ show (argClasses, paramTypes)
+        else pure ()
+
+    regPlan <- assignArgRegs64 cc argClasses
+    let callFrameBytes = callFrameReserveBytes64 cc regPlan
+        preCall = [X64.Sub (X64.Reg X64.SP X64.B64) (X64.Imm callFrameBytes) X64.B64 | callFrameBytes > 0]
+        postCall = [X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm callFrameBytes) X64.B64 | callFrameBytes > 0]
+        argPairs = zip regPlan (zip3 args argAtoms argClasses)
+        stackPairs = [one | one@(regSel, _) <- argPairs, isStackArgSel64 regSel]
+        regPairs = [one | one@(regSel, _) <- argPairs, not (isStackArgSel64 regSel)]
+        -- Keep argument registers intact (e.g. rcx/rdx on Win64):
+        -- use a dedicated volatile register for indirect call target.
+        callReg = X64.Reg X64.R10 X64.B64
+        movFnPtr = [X64.Mov callReg fnAtom X64.B64]
+        retInstrs = case dstCls of
+            AST.Void -> []
+            AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
+            AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
+            cls | isRefClass64 cls -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
+            cls -> case Map.lookup cls bitsByClass64 of
+                Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
+                Nothing -> error $ "x64StmtLowing64(ICallPtr): unsupported return class: " ++ show cls
+    stackInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) stackPairs
+    regInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) regPairs
+    return (preCall ++ stackInstrs ++ regInstrs ++ movFnPtr ++ [X64.CallA callReg] ++ postCall ++ retInstrs)
 
 x64StmtCode64 (IR.ICallStaticDirect dst qname args) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
@@ -2064,6 +2141,7 @@ staticBits64 cls = case cls of
     AST.Float128T -> X64.B64
     AST.Pointer _ -> X64.B64
     AST.Blob _ -> X64.B64
+    AST.FuncPtr _ _ -> X64.B64
     AST.Class _ _ -> X64.B64
     AST.Void -> error "staticBits64: void cannot be a field storage type"
     AST.ErrorClass -> error "staticBits64: error class cannot be lowered"
@@ -2306,23 +2384,85 @@ classInfoMethodJson64 (IR.IRFunction decl funName sig _ _ memberTy) = object [
     ]
 
 
-classInfoJsonValue64 :: Parse.Decl -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> Value
-classInfoJsonValue64 classDecl ownerQName mainKind attrs funs = object [
+classInfoTemplateMethodJson64 :: IR.IRTemplateFunction -> Value
+classInfoTemplateMethodJson64 (IR.IRTemplateFunction decl funName sig tparams pnames bodyText memberTy) = object [
+    "access" .= declAccessMask64 decl,
+    "name" .= funName,
+    "owner_type" .= ownerTypeCode64 memberTy,
+    "param_types" .= map classTypeToken64 (TEnv.funParams sig),
+    "param_names" .= pnames,
+    "return" .= classTypeToken64 (TEnv.funReturn sig),
+    "templates" .= tparams,
+    "template_body" .= bodyText
+    ]
+
+
+classInfoJsonValue64 :: Parse.Decl -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> [IR.IRTemplateFunction] -> Value
+classInfoJsonValue64 classDecl ownerQName mainKind attrs funs tFuns = object [
     "access" .= declAccessMask64 classDecl,
     "attributes" .= map classInfoFieldJson64 attrs,
     "class" .= ownerQName,
     "interfaces" .= ([] :: [[String]]),
     "main_qname" .= mainQName64 mainKind,
     "main_type" .= mainTypeCode64 mainKind,
-    "methods" .= map classInfoMethodJson64 funs,
+    "methods" .= (map classInfoMethodJson64 funs ++ map classInfoTemplateMethodJson64 tFuns),
     "signature" .= ([] :: [[String]]),
     "super_class" .= ([] :: [String])
     ]
 
 
-classInfoJsonText64 :: Parse.Decl -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> String
-classInfoJsonText64 classDecl ownerQName mainKind attrs funs =
-    BL8.unpack (encode (classInfoJsonValue64 classDecl ownerQName mainKind attrs funs))
+classInfoJsonText64 :: Parse.Decl -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> [IR.IRTemplateFunction] -> String
+classInfoJsonText64 classDecl ownerQName mainKind attrs funs tFuns =
+    BL8.unpack (encode (classInfoJsonValue64 classDecl ownerQName mainKind attrs funs tFuns))
+
+
+templateMethodBaseSymbol64 :: [String] -> IR.IRTemplateFunction -> String
+templateMethodBaseSymbol64 ownerQName (IR.IRTemplateFunction _ funName sig _ _ _ _) =
+    mangleQNameWithSig64 True (ownerQName ++ [funName]) (TEnv.funParams sig ++ [TEnv.funReturn sig]) ++ "T"
+
+
+templateMethodSymbols64 :: [String] -> IR.IRTemplateFunction -> (String, String, String, String)
+templateMethodSymbols64 ownerQName tf@(IR.IRTemplateFunction _ _ _ _ _ bodyText _) =
+    let base = templateMethodBaseSymbol64 ownerQName tf
+        ptrSym = base
+        lenSym = base ++ "_len"
+        dataSym = base ++ "_body"
+    in (ptrSym, lenSym, dataSym, bodyText)
+
+
+templateMethodArtifacts64 :: X64.CallConv64 -> [String] -> [IR.IRTemplateFunction] -> X64LowerM ([X64.StaticData], [X64.X64Segment])
+templateMethodArtifacts64 cc ownerQName tFuns = do
+    rip <- getRipRegM64
+    let one tf =
+            let (ptrSym, lenSym, dataSym, bodyText) = templateMethodSymbols64 ownerQName tf
+                bodyStored = escapeTemplateBodyText64 bodyText
+                dataSeg = X64.StaticData dataSym (stringBytesData64 cc bodyStored)
+                ptrInstrs = [
+                    X64.Lea (X64.Reg X64.A X64.B64) (X64.Bss (X64.mkRawQName64 dataSym) [] rip) X64.B64,
+                    X64.Ret
+                    ]
+                lenInstrs = [
+                    X64.Mov (X64.Reg X64.A X64.B32) (X64.Imm (length bodyStored)) X64.B32,
+                    X64.Ret
+                    ]
+                ptrSeg = X64.X64Segement (X64.mkRawQName64 ptrSym) ptrInstrs
+                lenSeg = X64.X64Segement (X64.mkRawQName64 lenSym) lenInstrs
+            in (dataSeg, [ptrSeg, lenSeg])
+        parts = map one tFuns
+        dataSegs = map fst parts
+        textSegs = concatMap snd parts
+    return (dataSegs, textSegs)
+
+
+escapeTemplateBodyText64 :: String -> String
+escapeTemplateBodyText64 = concatMap one
+  where
+    one :: Char -> String
+    one '\r' = ""
+    one '\n' = "\\n"
+    one '\t' = "\\t"
+    one '\\' = "\\\\"
+    one ch = [ch]
 
 
 -- Lower one IR function into segmented output:
@@ -2402,6 +2542,25 @@ lowerFun ownerQName floatConstLblMap fun = do
     withLowerState64 stFun (x64LowingFunc ownerQName fun)
 
 
+lowerCFun :: [String] -> Map FloatImmKey64 String -> IR.IRCFunction -> X64LowerM ([X64.X64Segment], [ExternRef])
+lowerCFun ownerQName floatConstLblMap cfun = do
+    let irFun = cFunctionToIR64 cfun
+    (segs, refs) <- lowerFun ownerQName floatConstLblMap irFun
+    let rawQn = X64.mkRawQName64 (cFunctionRawSymbol64 cfun)
+        segs' = case segs of
+            (X64.X64Func _ sigPair instrs : rest) -> X64.X64Func rawQn sigPair instrs : rest
+            other -> other
+    return (segs', refs)
+    where
+        cFunctionToIR64 :: IR.IRCFunction -> IR.IRFunction
+        cFunctionToIR64 (IR.IRCFunction decl name sig atomTypes body memberType) =
+            IR.IRFunction decl name sig atomTypes body memberType
+
+
+cFunctionRawSymbol64 :: IR.IRCFunction -> String
+cFunctionRawSymbol64 (IR.IRCFunction _ name _ _ _ _) = takeWhile (/= '(') name
+
+
 -- Lower class static initializer into one or more code segments.
 -- First segment is always named ".clinit".
 x64LowingClinit :: [String] -> IR.StaticInit -> X64LowerM ([X64.X64Segment], [ExternRef])
@@ -2430,12 +2589,12 @@ x64LowingClinit ownerQName (IR.StaticInit (blocks, retBid)) = do
 --   2) all method segments
 -- Return value keeps static data and text segments separated.
 x64LowingClass :: [String] -> IR.IRClass -> X64LowerM (X64.X64Class, [ExternRef])
-x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes funs mainKind) = do
+x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes funs tFuns cFuns mainKind) = do
     cc <- getCCM64
     seqStart <- gets stFloatConstSeq64
     let baseOff = 0
         ownerQName = pkgSegs ++ [className]
-        (floatConstLblMap, floatConstData, seqNext) = collectClassFloatConsts64 cc seqStart (IR.IRClass decl className attrs sInit staticAtomTypes funs mainKind)
+        (floatConstLblMap, floatConstData, seqNext) = collectClassFloatConsts64 cc seqStart (IR.IRClass decl className attrs sInit staticAtomTypes funs tFuns cFuns mainKind)
         stClinit = (mkClinitState64 sInit staticAtomTypes baseOff cc) {
             stFloatConstLabelMap64 = floatConstLblMap,
             stOwnerQName64 = ownerQName,
@@ -2443,21 +2602,25 @@ x64LowingClass pkgSegs (IR.IRClass decl className attrs sInit staticAtomTypes fu
             stInClinit64 = True
             }
         classInfoAttrs = filter isStaticAttr64 attrs
-        classInfoText = classInfoJsonText64 decl ownerQName mainKind classInfoAttrs funs
+        classInfoText = classInfoJsonText64 decl ownerQName mainKind classInfoAttrs funs tFuns
         classInfoDataLabel = mangleQName64 False ownerQName ++ "_infoData"
         classInfoData = X64.StaticData classInfoDataLabel (stringBytesData64 cc classInfoText)
-        staticData = classInfoData : (staticLowing64 ownerQName attrs ++ floatConstData)
         classInfoSeg = X64.X64ClassInfo ownerQName classInfoDataLabel (length classInfoText)
     modify' (\s -> s { stFloatConstSeq64 = seqNext })
+    (templateStaticData, templateSegs) <- templateMethodArtifacts64 cc ownerQName tFuns
     (clinitSegs, clinitRefs) <- withLowerState64 stClinit (x64LowingClinit ownerQName sInit)
     funOuts <- mapM (lowerFun ownerQName floatConstLblMap) funs
+    cFunOuts <- mapM (lowerCFun ownerQName floatConstLblMap) cFuns
     let funSegs = concatMap fst funOuts
+        cFunSegs = concatMap fst cFunOuts
+        staticData = classInfoData : (staticLowing64 ownerQName attrs ++ floatConstData ++ templateStaticData)
         funRefs = foldl' (\acc (_, rs) -> rs ++ acc) [] funOuts
-    return ((staticData, classInfoSeg : clinitSegs ++ funSegs), funRefs ++ clinitRefs)
+        cFunRefs = foldl' (\acc (_, rs) -> rs ++ acc) [] cFunOuts
+    return ((staticData, classInfoSeg : clinitSegs ++ funSegs ++ cFunSegs ++ templateSegs), funRefs ++ cFunRefs ++ clinitRefs)
 
 
 classGlobalSymbols64 :: [String] -> IR.IRClass -> [ExternSym]
-classGlobalSymbols64 pkgSegs (IR.IRClass _ className _ _ _ funs _) =
+classGlobalSymbols64 pkgSegs (IR.IRClass _ className _ _ _ funs tFuns cFuns _) =
     let ownerQName = pkgSegs ++ [className]
         clinitSym = (ownerQName ++ [staticInitName], [AST.Void])
         funSyms =
@@ -2465,24 +2628,44 @@ classGlobalSymbols64 pkgSegs (IR.IRClass _ className _ _ _ funs _) =
                 (\(IR.IRFunction _ funName sig _ _ _) ->
                     (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig]))
                 funs
-    in clinitSym : funSyms
+        cFunSyms =
+            map
+                (\(IR.IRCFunction _ funName sig _ _ _) ->
+                    (X64.mkRawQName64 (takeWhile (/= '(') funName), TEnv.funParams sig ++ [TEnv.funReturn sig]))
+                cFuns
+        tFunSyms = concatMap
+            (\tf ->
+                let (ptrSym, lenSym, _, _) = templateMethodSymbols64 ownerQName tf
+                in [(X64.mkRawQName64 ptrSym, []), (X64.mkRawQName64 lenSym, [])])
+            tFuns
+    in clinitSym : (funSyms ++ tFunSyms ++ cFunSyms)
 
 
 classInfoSymbol64 :: [String] -> IR.IRClass -> [String]
-classInfoSymbol64 pkgSegs (IR.IRClass _ className _ _ _ _ _) = pkgSegs ++ [className]
+classInfoSymbol64 pkgSegs (IR.IRClass _ className _ _ _ _ _ _ _) = pkgSegs ++ [className]
 
 
 classMethodSymbols64 :: [String] -> IR.IRClass -> [ExternSym]
-classMethodSymbols64 pkgSegs (IR.IRClass _ className _ _ _ funs _) =
+classMethodSymbols64 pkgSegs (IR.IRClass _ className _ _ _ funs tFuns cFuns _) =
     let ownerQName = pkgSegs ++ [className]
-    in map
-        (\(IR.IRFunction _ funName sig _ _ _) ->
-            (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig]))
-        funs
+        funSyms = map
+            (\(IR.IRFunction _ funName sig _ _ _) ->
+                (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig]))
+            funs
+        tFunSyms = concatMap
+            (\tf ->
+                let (ptrSym, lenSym, _, _) = templateMethodSymbols64 ownerQName tf
+                in [(X64.mkRawQName64 ptrSym, []), (X64.mkRawQName64 lenSym, [])])
+            tFuns
+        cFunSyms = map
+            (\(IR.IRCFunction _ funName sig _ _ _) ->
+                (X64.mkRawQName64 (takeWhile (/= '(') funName), TEnv.funParams sig ++ [TEnv.funReturn sig]))
+            cFuns
+    in funSyms ++ tFunSyms ++ cFunSyms
 
 
 classPrefix64 :: [String] -> IR.IRClass -> [String]
-classPrefix64 pkgSegs (IR.IRClass _ className _ _ _ _ _) = pkgSegs ++ [className]
+classPrefix64 pkgSegs (IR.IRClass _ className _ _ _ _ _ _ _) = pkgSegs ++ [className]
 
 
 collectExternDeclsFromRefs64 :: [[String]] -> [ExternRef] -> [X64.X64Decl]
@@ -2496,7 +2679,7 @@ collectExternDeclsFromRefs64 classPrefixes refs =
 
 
 initClassState64 :: X64.CallConv64 -> IR.IRClass -> StackLayoutState
-initClassState64 cc (IR.IRClass _ _ _ sInit staticAtomTypes _ _) =
+initClassState64 cc (IR.IRClass _ _ _ sInit staticAtomTypes _ _ _ _) =
     mkClinitState64 sInit staticAtomTypes 0 cc
 
 

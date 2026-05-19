@@ -135,7 +135,7 @@ writePerClassIRFiles classesRoot irs = mapM_ writeOne (collectArtifacts irs)
         map (artifactFromClass pkgSegs) classes
 
     artifactFromClass :: [String] -> TAC.IRClass -> (FilePath, String)
-    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _) =
+    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _ _ _) =
         let pkgDir = foldl' (</>) classesRoot pkgSegs
             irPath = pkgDir </> className <.> "ir"
             pkgPrefix = case pkgSegs of
@@ -361,7 +361,7 @@ lowerOneFile :: X64.CallConv64 -> (FilePath, TAC.IRProgm) -> [ClassAsmUnit]
 lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) = map (lowerOneClass srcPath pkgSegs) classes
   where
     lowerOneClass :: FilePath -> [String] -> TAC.IRClass -> ClassAsmUnit
-    lowerOneClass path pkg cls@(TAC.IRClass _ className _ _ _ _ _) =
+    lowerOneClass path pkg cls@(TAC.IRClass _ className _ _ _ _ _ _ _) =
         let st0 = X64L.initClassState64 ccUsed cls
             (x64Class, refs) = evalState (X64L.x64LowingClass pkg cls) st0
             (staticData, segs) = x64Class
@@ -375,17 +375,32 @@ lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) = map (lowerOneClass 
 
 
 classGlobalDecls64 :: [String] -> TAC.IRClass -> [X64.X64Decl]
-classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs _) =
+classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs tFuns cFuns _) =
     let ownerQName = pkgSegs ++ [className]
         clinitGlobal = X64.Global (ownerQName ++ [X64.staticInitName]) [AST.Void]
         classInfoGlobal = X64.GlobalClassInfo ownerQName
         pubFunSymbols = [
             (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig])
             | TAC.IRFunction decl funName sig _ _ _ <- funs, isPublicDecl64 decl]
+        pubCFunSymbols = [
+            (X64.mkRawQName64 (takeWhile (/= '(') funName), TEnv.funParams sig ++ [TEnv.funReturn sig])
+            | TAC.IRCFunction decl funName sig _ _ _ <- cFuns, isPublicDecl64 decl]
+        pubTemplateSymbols = [
+            (X64.mkRawQName64 symName, [])
+            | tf@(TAC.IRTemplateFunction decl _ _ _ _ _ _) <- tFuns
+            , isPublicDecl64 decl
+            , symName <- templateSymbolNames ownerQName tf
+            ]
         wrappedMainSymbols = classWrappedMainSymbols64 pkgSegs irCls
-        funSymbols = nub (pubFunSymbols ++ wrappedMainSymbols)
+        funSymbols = nub (pubFunSymbols ++ pubCFunSymbols ++ pubTemplateSymbols ++ wrappedMainSymbols)
         funGlobals = map (uncurry X64.Global) funSymbols
     in classInfoGlobal : clinitGlobal : funGlobals
+  where
+    templateSymbolNames :: [String] -> TAC.IRTemplateFunction -> [String]
+    templateSymbolNames clsQName (TAC.IRTemplateFunction _ funName sig _ _ _ _) =
+        let fullSig = TEnv.funParams sig ++ [TEnv.funReturn sig]
+            base = X64.mangleQNameWithSig True (clsQName ++ [funName]) fullSig ++ "T"
+        in [base, base ++ "_len"]
 
 
 isPublicDecl64 :: PB.Decl -> Bool
@@ -393,7 +408,7 @@ isPublicDecl64 (acc, _) = acc == PB.Public
 
 
 classWrappedMainSymbols64 :: [String] -> TAC.IRClass -> [([String], [AST.Class])]
-classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ funs _) = [
+classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ funs _ _ _) = [
     (pkgSegs ++ [className, "main"], [retT]) |
     TAC.IRFunction _ "main" sig _ _ memberType <- funs,
     memberType == TAC.MemberClassWrapped,

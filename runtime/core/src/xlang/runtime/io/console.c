@@ -74,7 +74,7 @@ void xlang_put_char(const char value)
  *
  * @param value int8 value to print
  */
-void xlang_put_i8(const int8_t value)
+void xlang_put_i8(const x_i8 value)
 {
     printf("%d", value);
 }
@@ -85,7 +85,7 @@ void xlang_put_i8(const int8_t value)
  *
  * @param value int16 value to print
  */
-void xlang_put_i16(const int16_t value)
+void xlang_put_i16(const x_i16 value)
 {
     printf("%d", value);
 }
@@ -96,7 +96,7 @@ void xlang_put_i16(const int16_t value)
  *
  * @param value int32 value to print
  */
-void xlang_put_i32(const int32_t value)
+void xlang_put_i32(const x_i32 value)
 {
     printf("%d", value);
 }
@@ -107,29 +107,29 @@ void xlang_put_i32(const int32_t value)
  *
  * @param value int64 value to print
  */
-void xlang_put_i64(const int64_t value)
+void xlang_put_i64(const x_i64 value)
 {
     printf("%lld", value);
 }
 
 
 /**
- * Prints a float32 value without a trailing newline.
+ * Prints a x_f3232 value without a trailing newline.
  *
- * @param value float32 value to print
+ * @param value x_f3232 value to print
  */
-void xlang_put_f32(const float value)
+void xlang_put_f32(const x_f32 value)
 {
     printf("%f", value);
 }
 
 
 /**
- * Prints a float64 value without a trailing newline.
+ * Prints a x_f3264 value without a trailing newline.
  *
- * @param value float64 value to print
+ * @param value x_f3264 value to print
  */
-void xlang_put_f64(const double value)
+void xlang_put_f64(const x_f64 value)
 {
     printf("%lf", value);
 }
@@ -186,7 +186,7 @@ void xlang_putln_char(const char value)
  *
  * @param value int8 value to print
  */
-void xlang_putln_i8(const int8_t value)
+void xlang_putln_i8(const x_i8 value)
 {
     printf("%d\n", value);
 }
@@ -197,7 +197,7 @@ void xlang_putln_i8(const int8_t value)
  *
  * @param value int16 value to print
  */
-void xlang_putln_i16(const int16_t value)
+void xlang_putln_i16(const x_i16 value)
 {
     printf("%d\n", value);
 }
@@ -208,7 +208,7 @@ void xlang_putln_i16(const int16_t value)
  *
  * @param value int32 value to print
  */
-void xlang_putln_i32(const int32_t value)
+void xlang_putln_i32(const x_i32 value)
 {
     printf("%d\n", value);
 }
@@ -219,29 +219,29 @@ void xlang_putln_i32(const int32_t value)
  *
  * @param value int64 value to print
  */
-void xlang_putln_i64(const int64_t value)
+void xlang_putln_i64(const x_i64 value)
 {
     printf("%lld\n", value);
 }
 
 
 /**
- * Prints a float32 value and then prints a newline.
+ * Prints a x_f3232 value and then prints a newline.
  *
- * @param value float32 value to print
+ * @param value x_f3232 value to print
  */
-void xlang_putln_f32(const float value)
+void xlang_putln_f32(const x_f32 value)
 {
     printf("%f\n", value);
 }
 
 
 /**
- * Prints a float64 value and then prints a newline.
+ * Prints a x_f3264 value and then prints a newline.
  *
- * @param value float64 value to print
+ * @param value x_f3264 value to print
  */
-void xlang_putln_f64(const double value)
+void xlang_putln_f64(const x_f64 value)
 {
     printf("%lf\n", value);
 }

@@ -67,7 +67,7 @@ JAVA_STD_DB_FILE := $(JAVA_LIB_OUT_DIR)/jdk$(JAVA_STD_DB_VERSION)-stdlib.db
 # Native std/base project (Makefile)
 NATIVE_LIB_DIR := $(ROOT_DIR)/libs/std/native
 NATIVE_LIB_BUILD_DIR := $(NATIVE_LIB_DIR)/build
-NATIVE_LIB_OUT_DIR := $(BUILD_DIR_ABS)/libs/std/native
+NATIVE_LIB_OUT_DIR := $(BUILD_DIR_ABS)/libs/native
 NATIVE_RUNTIME_OUT_DIR := $(BUILD_DIR_ABS)/runtime/native
 NATIVE_BASE_TARGET := libxlang-core
 NATIVE_STD_TARGET := libxlang-std
@@ -134,14 +134,14 @@ help:
 	@echo "  runtime_exception Build runtime/exception (depends on runtime_core)"
 	@echo "  runtime_ext     Build runtime gc + exception"
 	@echo "  java_std        Build libs/std/java artifacts and move to build output"
-	@echo "  native_std      Build libs/std/native artifacts and move to build output"
+	@echo "  native_std      Build libs/std/native artifacts and move to build/libs/native"
 	@echo "  all_components  Alias of all"
 	@echo "  full            Alias of all_components"
 	@echo "  compile         Build xlang executable"
 	@echo "  update      Run cabal update in compiler/"
 	@echo "  tools       Build BytecodeToolkit + IconToolkit jars"
 	@echo "  java_lib    Build libs/std/java artifacts"
-	@echo "  native_lib  Build libs/std/native (depends on runtime libs)"
+	@echo "  native_lib  Build libs/std/native (depends on runtime libs; outputs to build/libs/native)"
 	@echo "  install         Install all components"
 	@echo "  install_all     Install xlang + tools + java std + native std/base under \$$DESTDIR\$$XLANG_LIBDIR"
 	@echo "  uninstall       Remove installed xlang and xlang lib dir"

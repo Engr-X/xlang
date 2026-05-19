@@ -448,9 +448,17 @@ irMethodMetaToJSON (IR.IRFunction decl fname sig _ _ memberType) = object [
     returnKey .= typeToCompactText (funReturn sig),
     paramTypesKey .= map typeToCompactText (funParams sig)]
 
+irCMethodMetaToJSON :: IR.IRCFunction -> Value
+irCMethodMetaToJSON (IR.IRCFunction decl fname sig _ _ memberType) = object [
+    ownerTypeKey .= ownerTypeFromIRMember memberType,
+    accessKey .= declToAccessMask decl,
+    nameKey .= fname,
+    returnKey .= typeToCompactText (funReturn sig),
+    paramTypesKey .= map typeToCompactText (funParams sig)]
+
 
 irClassMetaToJSON :: Int -> QName -> IR.IRClass -> Value
-irClassMetaToJSON jvmTarget pkgSegs (IR.IRClass decl className attrs _ _ funs mainKind) =
+irClassMetaToJSON jvmTarget pkgSegs (IR.IRClass decl className attrs _ _ funs _ cFuns mainKind) =
     object $ [
         jvmTargetKey .= jvmTarget,
         classKey .= (pkgSegs ++ [className]),
@@ -461,7 +469,7 @@ irClassMetaToJSON jvmTarget pkgSegs (IR.IRClass decl className attrs _ _ funs ma
         attributesKey .= map irFieldMetaToJSON attrs,
         clinitKey .= object [methodOpsKey .= ([] :: [Value])],
         initKey .= ([] :: [Value]),
-        methodsKey .= map irMethodMetaToJSON funs,
+        methodsKey .= (map irMethodMetaToJSON funs ++ map irCMethodMetaToJSON cFuns),
         mainTypeKey .= mainType
         ] ++ mainQNameField
   where

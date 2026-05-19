@@ -134,7 +134,7 @@ writePerClassIRFiles classesRoot irs = mapM_ writeOne (collectArtifacts irs)
         map (artifactFromClass pkgSegs) classes
 
     artifactFromClass :: [String] -> TAC.IRClass -> (FilePath, String)
-    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _) =
+    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _ _ _) =
         let pkgDir = foldl' (</>) classesRoot pkgSegs
             irPath = pkgDir </> className <.> "ir"
             pkgPrefix = case pkgSegs of
@@ -288,7 +288,7 @@ selectJarMainClass irs = case sortOn candidateKey candidates of
     progmCandidates (TAC.IRProgm _ classes) = mapMaybe classCandidate classes
 
     classCandidate :: TAC.IRClass -> Maybe [String]
-    classCandidate (TAC.IRClass _ _ _ _ _ funs mainKind) =
+    classCandidate (TAC.IRClass _ _ _ _ _ funs _ _ mainKind) =
         case mainQNameFromKind mainKind of
             Just qn | any isWrappedMainFunction funs -> Just qn
             _ -> Nothing
