@@ -3,7 +3,7 @@ module IR.TACLowingTest where
 import Control.Monad.State.Strict (evalState)
 import IR.TAC (IRAtom(..), IRFunction(..), IRMemberType(..))
 import IR.TACLowing
-import Parse.ParserBasic (AccessModified(..))
+import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty

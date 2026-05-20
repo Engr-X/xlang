@@ -3,7 +3,7 @@ module X64Lowing.LowingTest where
 import Control.Monad.State.Strict (evalState)
 import Data.Map.Strict (Map)
 import IR.TAC (IRAtom(..), IRFunction(..), IRInstr(..), IRMemberType(..))
-import Parse.ParserBasic (AccessModified(..))
+import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty

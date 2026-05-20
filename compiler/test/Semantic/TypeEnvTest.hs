@@ -44,7 +44,8 @@ emptyTypedImportEnvTests = testGroup "Semantic.TypeEnv.emptyTypedImportEnv" $
     map (\(name, path) -> testCase name $ emptyTypedImportEnv path @?= TIEnv {
         tFile = path,
         tVars = Map.empty,
-        tFuncs = Map.empty
+        tFuncs = Map.empty,
+        tTemplates = Map.empty
     }) [
         ("0", "a.x"),
         ("1", "src/Main.x"),

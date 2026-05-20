@@ -2,7 +2,7 @@ module Semantic.TypeEnv where
 
 import Data.Map.Strict (Map)
 import Parse.SyntaxTree (Class(..), Statement)
-import Parse.ParserBasic (DeclFlags, Decl)
+import Parse.SyntaxTree (DeclFlags, Decl)
 import Semantic.NameEnv (QName, VarId)
 import Util.Type (Path, Position)
 

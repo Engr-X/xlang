@@ -1,6 +1,6 @@
 module Lowing.JVMTest where
 
-import Parse.ParserBasic (AccessModified(..))
+import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty
@@ -30,6 +30,7 @@ mkClass name funs = IR.IRClass
     Map.empty
     funs
     []
+    []
     IR.NoMain
 
 
@@ -49,7 +50,7 @@ specialOptimizationTests = testGroup "Lowing.JVM.specialOptimization" $ map (unc
 
     ("3", do
         let attrs = [((Public, []), Int32T, "x", IR.MemberClass)]
-            cls = IR.IRClass (Public, []) "C" attrs (IR.StaticInit ([], 0)) Map.empty [mkVoidFun "h"] [] IR.NoMain
+            cls = IR.IRClass (Public, []) "C" attrs (IR.StaticInit ([], 0)) Map.empty [mkVoidFun "h"] [] [] IR.NoMain
             ir = IR.IRProgm [] [cls]
         JVM.specialOptimization ir @?= ir)
     ]

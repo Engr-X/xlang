@@ -10,24 +10,6 @@ ClazzList :: { [(Class, [Token])] }
     | ClazzList ',' Clazz      { $3 : $1 }
     ;
 
--- Function pointer type parameters support:
---   named form:   (x: T, y: U) -> R          -- 1 or more params
---   type-only:    (T, U, ...) -> R           -- 2 or more params
-FuncPtrNamedParam :: { (Class, [Token]) }
-    : identity ':' Clazz
-        { (fst $3, [$1, $2] ++ snd $3) }
-    | KW_MUT identity ':' Clazz
-        { (fst $4, [$1, $2, $3] ++ snd $4) }
-    ;
-
--- reversed
-FuncPtrNamedParams :: { [(Class, [Token])] }
-    : FuncPtrNamedParam
-        { [$1] }
-    | FuncPtrNamedParams ',' FuncPtrNamedParam
-        { $3 : $1 }
-    ;
-
 -- reversed, at least two unnamed params to avoid QName/Atom ambiguity
 FuncPtrUnnamedParams :: { [(Class, [Token])] }
     : Clazz ',' Clazz
@@ -41,9 +23,6 @@ Clazz :: { (Class, [Token]) }
         let (retTy, retToks) = $4 in
         (normalizeClass $ FuncPtr retTy [], [$1, $2, $3] ++ retToks) }
     | '(' FuncPtrUnnamedParams ')' '->' Clazz {
-        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
-        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
-    | '(' FuncPtrNamedParams ')' '->' Clazz {
         let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
         (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
     | QName                             { (normalizeClass $ Class (reverse (fst $1)) [] , snd $1) }
@@ -76,9 +55,6 @@ SizeofTypeExpr :: { (Class, [Token]) }
         let (retTy, retToks) = $4 in
         (normalizeClass $ FuncPtr retTy [], [$1, $2, $3] ++ retToks) }
     | '(' FuncPtrUnnamedParams ')' '->' Clazz {
-        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
-        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
-    | '(' FuncPtrNamedParams ')' '->' Clazz {
         let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
         (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
     | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in

@@ -1,7 +1,7 @@
 module Parse.ParserBasic where
 
-import Data.Maybe (listToMaybe, fromMaybe, isNothing)
-import Data.List (find, sort)
+import Data.Maybe (listToMaybe, fromMaybe, isNothing, mapMaybe)
+import Data.List (find, sort, foldl', dropWhileEnd)
 import Data.Char (toLower)
 import Numeric (readHex)
 import Lex.Token (Token, isLBracketToken, isRBracketToken, tokenPos)
@@ -13,10 +13,6 @@ import Util.Type (Path, makePosition)
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
 
-
--- | Access modifiers for declarations.
-data AccessModified = Private | Protected | Public
-    deriving (Eq, Ord, Show)
 
 type AccessOp = Maybe AccessModified
 
@@ -31,25 +27,15 @@ prettyAccess Protected = "protected"
 prettyAccess Public = "public"
 
 
--- | Declaration flags (used by variables/functions).
-data DeclFlag = Static | Final | Inline
-    deriving (Eq, Ord, Show)
-
-
 prettyDeclFlag :: DeclFlag -> String
 prettyDeclFlag Static = "static"
 prettyDeclFlag Final = "final"
 prettyDeclFlag Inline = "inline"
 
 
-type DeclFlags = [DeclFlag]
-
 -- | Render a list of declaration flags as a single string.
 prettyDeclFlags :: DeclFlags -> String
 prettyDeclFlags = unwords . map prettyDeclFlag . sort
-
-
-type Decl = (AccessModified, DeclFlags)
 
 -- | Render a declaration as "access [flags]".
 prettyDecl :: Decl -> String
@@ -58,6 +44,117 @@ prettyDecl (acc, flags) =
         flagsS = prettyDeclFlags flags
         parts = filter (not . null) [accS, flagsS]
     in unwords parts
+
+
+methodDeclFromTokens :: [Token] -> Decl
+methodDeclFromTokens toks = (access, flags)
+  where
+    access = fromMaybe Public (listToMaybe [a | Lex.Ident s _ <- toks, Just a <- [toAccessMaybe s]])
+    flags = uniq [f | Lex.Ident s _ <- toks, f <- toFlag s]
+
+    toAccessMaybe :: String -> Maybe AccessModified
+    toAccessMaybe s = case map toLower s of
+        "private" -> Just Private
+        "protected" -> Just Protected
+        "public" -> Just Public
+        _ -> Nothing
+
+    toFlag :: String -> [DeclFlag]
+    toFlag s = case map toLower s of
+        "inline" -> [Inline]
+        "final" -> [Final]
+        _ -> []
+
+    uniq :: Ord a => [a] -> [a]
+    uniq = foldl' (\acc x -> if x `elem` acc then acc else acc ++ [x]) []
+
+
+methodDeclsFromTokens :: [Token] -> [Decl]
+methodDeclsFromTokens toks = [methodDeclFromTokens toks]
+
+
+methodAnnotationsFromTokens :: [Token] -> [Annotation]
+methodAnnotationsFromTokens = mapMaybe tokenToAnnotation
+  where
+    tokenToAnnotation :: Token -> Maybe Annotation
+    tokenToAnnotation tok@(Lex.Annotation name rawArgs _) =
+        Just (name, tok, parseAnnotationArgExprs rawArgs)
+    tokenToAnnotation _ = Nothing
+
+
+nativeSpecifierAnnotation :: ([Token], String) -> Annotation
+nativeSpecifierAnnotation (specToks, target) =
+    ("native", annTok, [StringConst target strTok])
+  where
+    annTok = case specToks of
+        [] -> Lex.dummyToken
+        (t:_) -> t
+    strTok = case reverse specToks of
+        (Lex.StrConst _ tPos : _) -> Lex.StrConst target tPos
+        _ -> annTok
+
+
+parseAnnotationArgExprs :: [Token] -> [Expression]
+parseAnnotationArgExprs rawArgs
+    | null cleaned = []
+    | otherwise = map parseOne (splitTopLevelCommas cleaned)
+  where
+    cleaned = filter (not . isTokenPass) rawArgs
+
+    parseOne :: [Token] -> Expression
+    parseOne seg =
+        let ts = trimTokenPass seg
+        in case parseLiteralExpr ts of
+            Just e -> e
+            Nothing -> Error ts "invalid annotation argument: literal expected"
+
+    isTokenPass :: Token -> Bool
+    isTokenPass tok = case tok of
+        Lex.TokenPass _ -> True
+        _ -> False
+
+    trimTokenPass :: [Token] -> [Token]
+    trimTokenPass = dropWhile isTokenPass . dropWhileEnd isTokenPass
+
+    splitTopLevelCommas :: [Token] -> [[Token]]
+    splitTopLevelCommas = go 0 [] []
+      where
+        go :: Int -> [Token] -> [[Token]] -> [Token] -> [[Token]]
+        go _ cur acc [] = reverse (reverse cur : acc)
+        go depth cur acc (t:ts) = case t of
+            Lex.Symbol Lex.Comma _
+                | depth == 0 -> go depth [] (reverse cur : acc) ts
+                | otherwise -> go depth (t : cur) acc ts
+            _ ->
+                let depth'
+                        | isLBracketToken t = depth + 1
+                        | isRBracketToken t = max 0 (depth - 1)
+                        | otherwise = depth
+                in go depth' (t : cur) acc ts
+
+    parseLiteralExpr :: [Token] -> Maybe Expression
+    parseLiteralExpr toks = case toks of
+        [Lex.NumberConst s pos] ->
+            classifyNumber s (Lex.NumberConst s pos)
+        [Lex.CharConst c pos] ->
+            Just (CharConst c (Lex.CharConst c pos))
+        [Lex.StrConst s pos] ->
+            Just (StringConst s (Lex.StrConst s pos))
+        [Lex.Ident s pos]
+            | map toLower s == "true" -> Just (BoolConst True (Lex.Ident s pos))
+            | map toLower s == "false" -> Just (BoolConst False (Lex.Ident s pos))
+            | otherwise -> Nothing
+        [Lex.Symbol Lex.Plus pos, x] -> do
+            inner <- parseLiteralExpr [x]
+            Just (Unary UnaryPlus inner (Lex.Symbol Lex.Plus pos))
+        [Lex.Symbol Lex.Minus pos, x] -> do
+            inner <- parseLiteralExpr [x]
+            Just (Unary UnaryMinus inner (Lex.Symbol Lex.Minus pos))
+        (Lex.Symbol Lex.LParen _ : rest) ->
+            case reverse rest of
+                (Lex.Symbol Lex.RParen _ : innerRev) -> parseLiteralExpr (reverse innerRev)
+                _ -> Nothing
+        _ -> Nothing
 
 
 -- Convert a qualified name to an expression.
@@ -78,7 +175,7 @@ mkUntypedSugarFunction ::
     Block ->
     Statement
 mkUntypedSugarFunction funToks qname bareParams body =
-    InstanceMethodT retDecl (qnameToExpr qname) genParams typedParams body'
+    InstanceMethodT [] [] retDecl (qnameToExpr qname) genParams typedParams body'
   where
     returnsValue = untypedBodyReturnsValue body
 

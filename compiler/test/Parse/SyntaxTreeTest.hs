@@ -810,15 +810,15 @@ normalizeProgramForLoweringTests = testGroup "Parse.SyntaxTree.normalizeProgramF
         isGeneratedConcreteFun :: Statement -> Bool
         isGeneratedConcreteFun stmt = case stmt of
             Function _ (Variable name _) params _ -> name == "add" && length params == 2
-            StaticMethod _ (Variable name _) params _ -> name == "add" && length params == 2
-            InstanceMethod _ (Variable name _) params _ -> name == "add" && length params == 2
+            StaticMethod _ _ (Variable name _) params _ -> name == "add" && length params == 2
+            InstanceMethod _ _ (Variable name _) params _ -> name == "add" && length params == 2
             _ -> False
 
         isGeneratedPrivateFinal :: Statement -> Bool
         isGeneratedPrivateFinal stmt = case stmt of
             Function (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
-            StaticMethod (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
-            InstanceMethod (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            StaticMethod _ (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            InstanceMethod _ (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
             _ -> False
 
         hasPrivateFinal :: [Token] -> Bool

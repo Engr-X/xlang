@@ -2,8 +2,7 @@ module Lowing.JVM where
 
 import Data.Int (Int64)
 import IR.TAC (IRProgm, MainKind)
-import Parse.ParserBasic (Decl)
-import Parse.SyntaxTree (Class)
+import Parse.SyntaxTree (Class, Decl)
 import Semantic.NameEnv (QName)
 import Semantic.TypeEnv (FunSig)
 

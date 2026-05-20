@@ -12,7 +12,7 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Ord (comparing)
 import System.Info (os)
 import Parse.SyntaxTree (Declaration(..), Expression(..), Program, Statement(..), pattern Function, pattern FunctionT, declPath, getJavaName, getPackage, isImportDecl, normalizeClass)
-import Parse.ParserBasic (AccessModified(..))
+import Parse.SyntaxTree (AccessModified(..))
 import Semantic.NameEnv (ImportEnv(..), QName, defaultImportEnv, getPackageName, toHiddenQName)
 import Semantic.TypeEnv (FunSig(..), TypedImportEnv(..), emptyTypedImportEnv)
 import Util.Exception (ErrorKind)
@@ -735,7 +735,7 @@ checkPointerRulesForTarget SemanticTargetJvm path (_, stmts) =
                 ++ concatMap (\(gty, gtoks) -> classErrs (Just gty) gtoks) gens
                 ++ concatMap (\(pty, _, ptoks) -> classErrs (Just pty) ptoks) params
                 ++ blockPointerErrors (Just body)
-        NativeMethod (retC, retToks) nameExpr params _ ->
+        NativeMethod _ _ (retC, retToks) nameExpr params _ ->
             classErrs (Just retC) retToks
                 ++ exprPointerErrors nameExpr
                 ++ concatMap (\(pty, _, ptoks) -> classErrs (Just pty) ptoks) params
@@ -869,7 +869,7 @@ checkNativeLinkConflict path (_, stmts) =
         stmtErrs stmt = case stmt of
             Function (_, retToks) _ _ _ -> declErrs retToks
             FunctionT (_, retToks) _ _ _ _ -> declErrs retToks
-            NativeMethod (_, retToks) _ _ _ -> declErrs retToks
+            NativeMethod _ _ (_, retToks) _ _ _ -> declErrs retToks
             StmtGroup ss -> concatMap stmtErrs ss
             BlockStmt (AST.Multiple ss) -> concatMap stmtErrs ss
             If _ b1 b2 _ ->
@@ -997,10 +997,24 @@ accessOfStmt (DefField _ _ _ toks) = accessFromTokens toks
 accessOfStmt (DefConstField _ _ _ toks) = accessFromTokens toks
 accessOfStmt (DefVar _ _ _ toks) = accessFromTokens toks
 accessOfStmt (DefConstVar _ _ _ toks) = accessFromTokens toks
-accessOfStmt (Function (_, retToks) _ _ _) = accessFromTokens retToks
-accessOfStmt (FunctionT (_, retToks) _ _ _ _) = accessFromTokens retToks
-accessOfStmt (NativeMethod (_, retToks) _ _ _) = accessFromTokens retToks
+accessOfStmt (AST.InstanceMethod decls _ (_, retToks) _ _ _) = accessFromDeclsOrTokens decls retToks
+accessOfStmt (AST.StaticMethod decls _ (_, retToks) _ _ _) = accessFromDeclsOrTokens decls retToks
+accessOfStmt (AST.InstanceMethodT decls _ (_, retToks) _ _ _ _) = accessFromDeclsOrTokens decls retToks
+accessOfStmt (AST.StaticMethodT decls _ (_, retToks) _ _ _ _) = accessFromDeclsOrTokens decls retToks
+accessOfStmt (NativeMethod decls _ (_, retToks) _ _ _) = accessFromDeclsOrTokens decls retToks
 accessOfStmt _ = Public
+
+
+accessFromDecls :: [AST.Decl] -> AccessModified
+accessFromDecls decls = case decls of
+    ((acc, _):_) -> acc
+    _ -> Public
+
+
+accessFromDeclsOrTokens :: [AST.Decl] -> [Lex.Token] -> AccessModified
+accessFromDeclsOrTokens decls retToks = case decls of
+    ((acc, _):_) -> acc
+    _ -> accessFromTokens retToks
 
 
 applyVisibilityKey :: AccessModified -> QName -> QName
@@ -1048,7 +1062,7 @@ collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
                     let key = applyVisibilityKey access names
                     in [ (key, names, sig, pos) ]
                 _ -> []
-        one stmt@(NativeMethod (retT, retToks) nameExpr params _) =
+        one stmt@(NativeMethod _ _ (retT, retToks) nameExpr params _) =
             let sig = FunSig {
                     funParams = map (normalizeClass . fst3) params,
                     funReturn = normalizeClass retT

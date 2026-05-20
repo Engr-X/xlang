@@ -110,7 +110,7 @@ fun disjunct(src: pointer<bool>, length: int) -> bool
 }
 
 
-fun any(f: (item: pointer<*>) -> bool, src: pointer<*>, length: int, tsize: int) -> bool
+fun any(f: (pointer<*>, int) -> bool, src: pointer<*>, length: int, tsize: int) -> bool
 {
     for (
         var i = 0, ptr: pointer<byte> = src as pointer<byte>;
@@ -118,7 +118,7 @@ fun any(f: (item: pointer<*>) -> bool, src: pointer<*>, length: int, tsize: int)
         i++, ptr += tsize
     ):
     {
-        if f(ptr):
+        if f(ptr, i):
             return true
     }
 
@@ -126,7 +126,7 @@ fun any(f: (item: pointer<*>) -> bool, src: pointer<*>, length: int, tsize: int)
 }
 
 
-fun all(f: (item: pointer<*>) -> bool, src: pointer<*>, length: int, tsize: int) -> bool
+fun all(f: (pointer<*>, int) -> bool, src: pointer<*>, length: int, tsize: int) -> bool
 {
     for (
         var i = 0, ptr: pointer<byte> = src as pointer<byte>;
@@ -134,7 +134,7 @@ fun all(f: (item: pointer<*>) -> bool, src: pointer<*>, length: int, tsize: int)
         i++, ptr += tsize
     ):
     {
-        if !f(ptr):
+        if !f(ptr, i):
             return false
     }
 

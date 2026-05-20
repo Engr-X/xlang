@@ -31,7 +31,6 @@ import qualified IR.Lowing as IR
 import qualified IR.TAC as TAC
 import qualified Lex.Tokenizer as Tokenizer
 import qualified Parse.ParseProgm as Parse
-import qualified Parse.ParserBasic as PB
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.CheckProgram as SCP
 import qualified Semantic.LibLoader as LibLoader
@@ -403,8 +402,8 @@ classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs tFuns cFuns
         in [base, base ++ "_len"]
 
 
-isPublicDecl64 :: PB.Decl -> Bool
-isPublicDecl64 (acc, _) = acc == PB.Public
+isPublicDecl64 :: AST.Decl -> Bool
+isPublicDecl64 (acc, _) = acc == AST.Public
 
 
 classWrappedMainSymbols64 :: [String] -> TAC.IRClass -> [([String], [AST.Class])]

@@ -281,7 +281,7 @@ tools: native_std bytecode_tool
 	fi
 	cd "$(ICONTOOLKIT_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
 	cp -f "$(ICONTOOLKIT_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
-	@if [ "$(OS)" = "Windows_NT" ]; then \
+	@if [ "$(NATIVE_SHARED_EXT)" = "dll" ]; then \
 		if [ ! -f "$(ICONTOOLKIT_JAR)" ]; then \
 			echo "[ERROR] missing IconToolkit.jar: $(ICONTOOLKIT_JAR)"; \
 			exit 1; \
@@ -291,11 +291,50 @@ tools: native_std bytecode_tool
 		elif [ ! -f "$(EXE_OUT)" ]; then \
 			echo "[WARN] skip xlang.exe icon patch, EXE not found: $(EXE_OUT)"; \
 		else \
-			echo "[INFO] patching xlang.exe icon from $(ICON_SVG)"; \
-			if [ -n "$(RCEDIT_TOOL)" ]; then \
-				java -jar "$(ICONTOOLKIT_JAR)" --tool="$(RCEDIT_TOOL)" -s "$(ICON_SVG)" -t "$(EXE_OUT)"; \
+			JAVA_CMD=""; \
+			if [ -n "$$JAVA_HOME" ]; then \
+				JAVA_HOME_POSIX="$$JAVA_HOME"; \
+				if command -v cygpath >/dev/null 2>&1; then \
+					JAVA_HOME_POSIX="$$(cygpath -u "$$JAVA_HOME" 2>/dev/null || echo "$$JAVA_HOME")"; \
+				fi; \
+				if [ -x "$$JAVA_HOME_POSIX/bin/java" ]; then JAVA_CMD="$$JAVA_HOME_POSIX/bin/java"; fi; \
+				if [ -z "$$JAVA_CMD" ] && [ -x "$$JAVA_HOME_POSIX/bin/java.exe" ]; then JAVA_CMD="$$JAVA_HOME_POSIX/bin/java.exe"; fi; \
+			fi; \
+			if [ -z "$$JAVA_CMD" ]; then JAVA_CMD="$$(command -v java 2>/dev/null || true)"; fi; \
+			if [ -z "$$JAVA_CMD" ]; then \
+				echo "[WARN] skip xlang.exe icon patch, java not found (set JAVA_HOME or add java to PATH)"; \
 			else \
-				java -jar "$(ICONTOOLKIT_JAR)" -s "$(ICON_SVG)" -t "$(EXE_OUT)"; \
+				RCEDIT_CMD=""; \
+				if [ -n "$(RCEDIT_TOOL)" ]; then \
+					RCEDIT_CMD="$(RCEDIT_TOOL)"; \
+				else \
+					for c in rcedit-x64.exe rcedit-x86.exe rcedit.exe; do \
+						if [ -f "$(ROOT_DIR)/tools/$$c" ]; then \
+							RCEDIT_CMD="$(ROOT_DIR)/tools/$$c"; \
+							break; \
+						fi; \
+					done; \
+				fi; \
+				if [ -z "$$RCEDIT_CMD" ]; then \
+					for c in rcedit-x64.exe rcedit-x86.exe rcedit.exe; do \
+						FOUND_RCEDIT="$$(command -v "$$c" 2>/dev/null || true)"; \
+						if [ -n "$$FOUND_RCEDIT" ]; then \
+							cp -f "$$FOUND_RCEDIT" "$(ROOT_DIR)/tools/$$c" 2>/dev/null || true; \
+							if [ -f "$(ROOT_DIR)/tools/$$c" ]; then \
+								RCEDIT_CMD="$(ROOT_DIR)/tools/$$c"; \
+							else \
+								RCEDIT_CMD="$$FOUND_RCEDIT"; \
+							fi; \
+							break; \
+						fi; \
+					done; \
+				fi; \
+				if [ -z "$$RCEDIT_CMD" ]; then \
+					echo "[WARN] skip xlang.exe icon patch, rcedit not found (set RCEDIT_TOOL=/path/to/rcedit.exe)"; \
+				else \
+					echo "[INFO] patching xlang.exe icon from $(ICON_SVG)"; \
+					"$$JAVA_CMD" -jar "$(ICONTOOLKIT_JAR)" --tool="$$RCEDIT_CMD" -s "$(ICON_SVG)" -t "$(EXE_OUT)"; \
+				fi; \
 			fi; \
 		fi; \
 	fi
@@ -373,7 +412,7 @@ endif
 
 install: install_all
 
-install_all: install_bin install_tools install_java_lib install_native_lib
+install_all: install_tools install_bin install_java_lib install_native_lib
 
 install_bin: compile
 	mkdir -p "$(DESTDIR)$(BINDIR)"

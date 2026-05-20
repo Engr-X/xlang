@@ -11,8 +11,8 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Map.Strict (Map)
 import Data.Set (Set)
 import GHC.Generics (Generic)
-import Parse.SyntaxTree (Block, Class, Expression, Operator, Statement)
-import Parse.ParserBasic (Decl, prettyDecl)
+import Parse.SyntaxTree (Block, Class, Decl, Expression, Operator, Statement)
+import Parse.ParserBasic (prettyDecl)
 import Semantic.NameEnv (QName)
 import Semantic.TypeEnv (FullVarTable, FullFunctionTable, FunSig)
 import Util.Type (Position)
@@ -924,9 +924,9 @@ prettyTypeMap n atomTypes
 
 
 cfunLowing :: Statement -> CNativeFun
-cfunLowing (AST.NativeMethod (retT, _) (AST.Qualified name _) params targetName) =
+cfunLowing (AST.NativeMethod _ _ (retT, _) (AST.Qualified name _) params targetName) =
     CnativeFun [] (last name) (map (\(t, _, _) -> t) params, retT) targetName
-cfunLowing (AST.NativeMethod (retT, _) (AST.Variable name _) params targetName) =
+cfunLowing (AST.NativeMethod _ _ (retT, _) (AST.Variable name _) params targetName) =
     CnativeFun [] name (map (\(t, _, _) -> t) params, retT) targetName
 cfunLowing _ =
     error "cfunLowing: expected NativeMethod"

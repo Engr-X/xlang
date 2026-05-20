@@ -274,7 +274,7 @@ isFunctionTests = testGroup "Semantic.ContextCheck.isFunction" $ map (\(name, st
         stmtExpr = AST.Expr (AST.IntConst "1" tokNum)
         stmtCmd = AST.Command AST.Break tokCmd
         stmtBlock = AST.BlockStmt (AST.Multiple [])
-        stmtNative = AST.NativeMethod (AST.Int32T, []) (AST.Variable "f" tokF) [] "return 0;"
+        stmtNative = AST.NativeMethod [] (AST.Int32T, []) (AST.Variable "f" tokF) [] "return 0;"
 
 
 withCtrlTests :: TestTree
@@ -903,7 +903,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
         testCase "23" $ do
         let tokOuter = Lex.Ident "outer" pos1
             tokInner = Lex.Ident "inner" pos2
-            nestedNative = AST.NativeMethod (AST.Int32T, []) (AST.Variable "inner" tokInner) [] "return 0;"
+            nestedNative = AST.NativeMethod [] (AST.Int32T, []) (AST.Variable "inner" tokInner) [] "return 0;"
             outerFun = AST.Function (AST.Int32T, []) (AST.Variable "outer" tokOuter) [] (AST.Multiple [nestedNative])
             prog = ([], [outerFun])
         assertCheckProgm (checkProgm "stdin" prog []) (Just UE.nativeCFunctionScopeMsg)
@@ -1014,7 +1014,7 @@ nativeDependencyTests = testGroup "Semantic.ContextCheck.nativeDependency" [
         mkNativeFun line name bodyS =
             let p = makePosition line 1 1
                 nameTok = Lex.Ident name p
-            in AST.NativeMethod (AST.Int32T, []) (AST.Variable name nameTok) [] bodyS
+            in AST.NativeMethod [] (AST.Int32T, []) (AST.Variable name nameTok) [] bodyS
 
         assertErrContains :: String -> Either [UE.ErrorKind] CheckState -> Assertion
         assertErrContains needle res = case res of

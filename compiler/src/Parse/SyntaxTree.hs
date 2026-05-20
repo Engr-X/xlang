@@ -45,6 +45,21 @@ data Class =
     ErrorClass
     deriving (Eq, Show, Generic)
 
+
+-- | Access modifiers for declarations.
+data AccessModified = Private | Protected | Public
+    deriving (Eq, Ord, Show)
+
+
+-- | Declaration flags (used by variables/functions).
+data DeclFlag = Static | Final | Inline
+    deriving (Eq, Ord, Show)
+
+
+type DeclFlags = [DeclFlag]
+type Decl = (AccessModified, DeclFlags)
+type Annotation = (String, Token, [Expression])
+
 instance Ord Class where
     compare a b = compare (show a) (show b)
 
@@ -286,27 +301,27 @@ data Command = Pass | Continue | Break | Return (Maybe Expression)
 
 
 methodView :: Statement -> Maybe ((Class, [Token]), Expression, [(Class, String, [Token])], Block)
-methodView (InstanceMethod ret name params body) = Just (ret, name, params, body)
-methodView (StaticMethod ret name params body) = Just (ret, name, params, body)
+methodView (InstanceMethod _ _ ret name params body) = Just (ret, name, params, body)
+methodView (StaticMethod _ _ ret name params body) = Just (ret, name, params, body)
 methodView _ = Nothing
 
 
 methodTView :: Statement -> Maybe ((Class, [Token]), Expression, [(Class, [Token])], [(Class, String, [Token])], Block)
-methodTView (InstanceMethodT ret name gens params body) = Just (ret, name, gens, params, body)
-methodTView (StaticMethodT ret name gens params body) = Just (ret, name, gens, params, body)
+methodTView (InstanceMethodT _ _ ret name gens params body) = Just (ret, name, gens, params, body)
+methodTView (StaticMethodT _ _ ret name gens params body) = Just (ret, name, gens, params, body)
 methodTView _ = Nothing
 
 
 pattern Function :: (Class, [Token]) -> Expression -> [(Class, String, [Token])] -> Block -> Statement
 pattern Function ret name params body <- (methodView -> Just (ret, name, params, body))
     where
-        Function ret name params body = InstanceMethod ret name params body
+        Function ret name params body = InstanceMethod [] [] ret name params body
 
 
 pattern FunctionT :: (Class, [Token]) -> Expression -> [(Class, [Token])] -> [(Class, String, [Token])] -> Block -> Statement
 pattern FunctionT ret name gens params body <- (methodTView -> Just (ret, name, gens, params, body))
     where
-        FunctionT ret name gens params body = InstanceMethodT ret name gens params body
+        FunctionT ret name gens params body = InstanceMethodT [] [] ret name gens params body
 
 
 -- pretty toString method for command
@@ -650,18 +665,18 @@ data Statement =
 
     -- Constructor 
 
-    InstanceMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
+    InstanceMethod [Decl] [Annotation] (Class, [Token]) Expression [(Class, String, [Token])] Block |
 
-    StaticMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
+    StaticMethod [Decl] [Annotation] (Class, [Token]) Expression [(Class, String, [Token])] Block |
 
-    NativeMethod (Class, [Token]) Expression [(Class, String, [Token])] String |
+    NativeMethod [Decl] [Annotation] (Class, [Token]) Expression [(Class, String, [Token])] String |
 
     -- function: return_type + pos, name, params + position, body
-    InstanceMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
+    InstanceMethodT [Decl] [Annotation] (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
 
     -- template function:
     --          return_type + pos,  name, template params + position, params + position,    body
-    StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
+    StaticMethodT [Decl] [Annotation] (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
 
     --      struct kw, struct name \
     --              must be stringconst
@@ -823,7 +838,7 @@ prettyStmt n (Just (FunctionT (retC, _) functionName genParams params b)) =
         concat [space, prettyClass retC, " ", prettyExpr 0 (Just functionName),
             prettyGen, "(", intercalate ", " (map prettyOneParam params),")"],
         prettyBlock n b]
-prettyStmt n (Just (NativeMethod (retC, _) functionName params code)) =
+prettyStmt n (Just (NativeMethod _ _ (retC, _) functionName params code)) =
     let
         space = insertTab n
         prettyOneParam :: (Class, String, [Token]) -> String
@@ -895,7 +910,7 @@ stmtTokens (Function (_, retToks) name params b) = concat [
 stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
     retToks, exprTokens name, concatMap snd genParams,
     concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
-stmtTokens (NativeMethod (_, retToks) name params _) = concat [
+stmtTokens (NativeMethod _ _ (_, retToks) name params _) = concat [
     retToks, exprTokens name, concatMap (\(_, _, toks) -> toks) params]
 
 
@@ -939,7 +954,7 @@ flattenStatement (Just (FunctionT _ _ _ params b)) = paramExprs params ++ flatte
                 one :: (Class, String, [Token]) -> [Expression]
                 one (_, _, [])  = []
                 one (_, name, t:_)  = [Variable name t]
-flattenStatement (Just (NativeMethod _ _ params _)) = paramExprs params
+flattenStatement (Just (NativeMethod _ _ _ _ params _)) = paramExprs params
     where
         paramExprs :: [(Class, String, [Token])] -> [Expression]
         paramExprs = concatMap one
@@ -1137,10 +1152,10 @@ inlineProgramFunctions (decls, stmts) =
 
         functionRetTokens :: Statement -> [Token]
         functionRetTokens stmt = case stmt of
-            InstanceMethod (_, toks) _ _ _ -> toks
-            StaticMethod (_, toks) _ _ _ -> toks
-            InstanceMethodT (_, toks) _ _ _ _ -> toks
-            StaticMethodT (_, toks) _ _ _ _ -> toks
+            InstanceMethod _ _ (_, toks) _ _ _ -> toks
+            StaticMethod _ _ (_, toks) _ _ _ -> toks
+            InstanceMethodT _ _ (_, toks) _ _ _ _ -> toks
+            StaticMethodT _ _ (_, toks) _ _ _ _ -> toks
             _ -> []
 
         hasInlineToken :: [Token] -> Bool
@@ -1417,13 +1432,13 @@ collectTemplateDefsFromStmts = foldl step Map.empty
   where
     step :: Map String [TemplateDef] -> Statement -> Map String [TemplateDef]
     step acc stmt = case stmt of
-        StaticMethodT ret (Variable name tok) gens params body ->
+        StaticMethodT _ _ ret (Variable name tok) gens params body ->
             case mapM (templateParamNameFromClass . fst) gens of
                 Just tpNames ->
                     let def = TemplateDef True name tok ret tpNames params body
                     in Map.insertWith (++) name [def] acc
                 Nothing -> acc
-        InstanceMethodT ret (Variable name tok) gens params body ->
+        InstanceMethodT _ _ ret (Variable name tok) gens params body ->
             case mapM templateParamNameFromClass (map fst gens) of
                 Just tpNames ->
                     let def = TemplateDef False name tok ret tpNames params body
@@ -1478,11 +1493,11 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
           where
             step :: Map String [Int] -> Statement -> Map String [Int]
             step acc stmt = case stmt of
-                StaticMethod _ (Variable name _) params _ ->
+                StaticMethod _ _ _ (Variable name _) params _ ->
                     insertArity name (length params) acc
-                InstanceMethod _ (Variable name _) params _ ->
+                InstanceMethod _ _ _ (Variable name _) params _ ->
                     insertArity name (length params) acc
-                NativeMethod _ (Variable name _) params _ ->
+                NativeMethod _ _ _ (Variable name _) params _ ->
                     insertArity name (length params) acc
                 Function _ (Variable name _) params _ ->
                     insertArity name (length params) acc
@@ -2235,21 +2250,21 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
                 in (Function ret name params body', reqs, hints)
-            StaticMethod ret name params body ->
+            StaticMethod decls anns ret name params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (StaticMethod ret name params body', reqs, hints)
-            InstanceMethod ret name params body ->
+                in (StaticMethod decls anns ret name params body', reqs, hints)
+            InstanceMethod decls anns ret name params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (InstanceMethod ret name params body', reqs, hints)
+                in (InstanceMethod decls anns ret name params body', reqs, hints)
             NativeMethod {} -> (stmt, [], hints)
             FunctionT ret name gens params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
                     rebuilt = case stmt of
-                        StaticMethodT {} -> StaticMethodT ret name gens params body'
-                        InstanceMethodT {} -> InstanceMethodT ret name gens params body'
+                        StaticMethodT decls anns _ _ _ _ _ -> StaticMethodT decls anns ret name gens params body'
+                        InstanceMethodT decls anns _ _ _ _ _ -> InstanceMethodT decls anns ret name gens params body'
                         _ -> FunctionT ret name gens params body'
                 in (rebuilt, reqs, hints)
 
@@ -2469,8 +2484,8 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                 body' = substituteBlock subst (tdBody def)
                 ret' = (retTy, retToks')
             if tdIsStatic def
-                then Just (StaticMethod ret' (Variable name (tdNameTok def)) params' body')
-                else Just (InstanceMethod ret' (Variable name (tdNameTok def)) params' body')
+                then Just (StaticMethod [] [] ret' (Variable name (tdNameTok def)) params' body')
+                else Just (InstanceMethod [] [] ret' (Variable name (tdNameTok def)) params' body')
 
         selectTemplateDef :: Map String [TemplateDef] -> String -> [Class] -> Int -> Maybe TemplateDef
         selectTemplateDef defs0 name typeArgs arity = do
@@ -2630,20 +2645,26 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     (substituteBlock subst body)
-            StaticMethod (retT, retToks) name params body ->
+            StaticMethod decls anns (retT, retToks) name params body ->
                 StaticMethod
+                    decls
+                    anns
                     (substituteClass subst retT, retToks)
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     (substituteBlock subst body)
-            InstanceMethod (retT, retToks) name params body ->
+            InstanceMethod decls anns (retT, retToks) name params body ->
                 InstanceMethod
+                    decls
+                    anns
                     (substituteClass subst retT, retToks)
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     (substituteBlock subst body)
-            NativeMethod (retT, retToks) name params target ->
+            NativeMethod decls anns (retT, retToks) name params target ->
                 NativeMethod
+                    decls
+                    anns
                     (substituteClass subst retT, retToks)
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
@@ -2654,10 +2675,10 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                     gens' = map (\(t, toks) -> (substituteClass subst t, toks)) gens
                     params' = map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params
                 in case stmt of
-                    StaticMethodT {} ->
-                        StaticMethodT ret' name gens' params' body'
-                    InstanceMethodT {} ->
-                        InstanceMethodT ret' name gens' params' body'
+                    StaticMethodT decls anns _ _ _ _ _ ->
+                        StaticMethodT decls anns ret' name gens' params' body'
+                    InstanceMethodT decls anns _ _ _ _ _ ->
+                        InstanceMethodT decls anns ret' name gens' params' body'
                     _ ->
                         FunctionT
                             ret'
@@ -2709,8 +2730,8 @@ promoteTopLevelFunctions (decls, stmts) = (decls, map promote (concatMap hoistTo
         promote :: Statement -> Statement
         promote (DefField names mTy rhs toks) = DefVar names mTy rhs toks
         promote (DefConstField names mTy rhs toks) = DefConstVar names mTy rhs toks
-        promote (InstanceMethod ret name params body) = StaticMethod ret name params body
-        promote (InstanceMethodT ret name gens params body) = StaticMethodT ret name gens params body
+        promote (InstanceMethod decls anns ret name params body) = StaticMethod decls anns ret name params body
+        promote (InstanceMethodT decls anns ret name gens params body) = StaticMethodT decls anns ret name gens params body
         promote (StmtGroup ss) = StmtGroup (map promote ss)
         promote stmt = stmt
 
@@ -2979,65 +3000,73 @@ isHoistableFunctionDef = isJust . functionNameVar
 
 functionNameVar :: Statement -> Maybe (String, Token)
 functionNameVar stmt = case stmt of
-    InstanceMethod _ (Variable name tok) _ _ -> Just (name, tok)
-    StaticMethod _ (Variable name tok) _ _ -> Just (name, tok)
-    NativeMethod _ (Variable name tok) _ _ -> Just (name, tok)
-    InstanceMethodT _ (Variable name tok) _ _ _ -> Just (name, tok)
-    StaticMethodT _ (Variable name tok) _ _ _ -> Just (name, tok)
+    InstanceMethod _ _ _ (Variable name tok) _ _ -> Just (name, tok)
+    StaticMethod _ _ _ (Variable name tok) _ _ -> Just (name, tok)
+    NativeMethod _ _ _ (Variable name tok) _ _ -> Just (name, tok)
+    InstanceMethodT _ _ _ (Variable name tok) _ _ _ -> Just (name, tok)
+    StaticMethodT _ _ _ (Variable name tok) _ _ _ -> Just (name, tok)
     _ -> Nothing
 
 
 functionParams :: Statement -> Maybe [ParamDecl]
 functionParams stmt = case stmt of
-    InstanceMethod _ _ params _ -> Just params
-    StaticMethod _ _ params _ -> Just params
-    NativeMethod _ _ params _ -> Just params
-    InstanceMethodT _ _ _ params _ -> Just params
-    StaticMethodT _ _ _ params _ -> Just params
+    InstanceMethod _ _ _ _ params _ -> Just params
+    StaticMethod _ _ _ _ params _ -> Just params
+    NativeMethod _ _ _ _ params _ -> Just params
+    InstanceMethodT _ _ _ _ _ params _ -> Just params
+    StaticMethodT _ _ _ _ _ params _ -> Just params
     _ -> Nothing
 
 
 functionParamsAndBody :: Statement -> Maybe ([ParamDecl], Block)
 functionParamsAndBody stmt = case stmt of
-    InstanceMethod _ _ params body -> Just (params, body)
-    StaticMethod _ _ params body -> Just (params, body)
-    InstanceMethodT _ _ _ params body -> Just (params, body)
-    StaticMethodT _ _ _ params body -> Just (params, body)
+    InstanceMethod _ _ _ _ params body -> Just (params, body)
+    StaticMethod _ _ _ _ params body -> Just (params, body)
+    InstanceMethodT _ _ _ _ _ params body -> Just (params, body)
+    StaticMethodT _ _ _ _ _ params body -> Just (params, body)
     _ -> Nothing
 
 
 setFunctionBody :: Block -> Statement -> Statement
 setFunctionBody body stmt = case stmt of
-    InstanceMethod ret name params _ -> InstanceMethod ret name params body
-    StaticMethod ret name params _ -> StaticMethod ret name params body
-    InstanceMethodT ret name gens params _ -> InstanceMethodT ret name gens params body
-    StaticMethodT ret name gens params _ -> StaticMethodT ret name gens params body
+    InstanceMethod decls anns ret name params _ -> InstanceMethod decls anns ret name params body
+    StaticMethod decls anns ret name params _ -> StaticMethod decls anns ret name params body
+    InstanceMethodT decls anns ret name gens params _ -> InstanceMethodT decls anns ret name gens params body
+    StaticMethodT decls anns ret name gens params _ -> StaticMethodT decls anns ret name gens params body
     _ -> stmt
 
 
 renameGeneratedFunction :: String -> Token -> [ParamDecl] -> Statement -> Statement
 renameGeneratedFunction newName fallbackTok captures stmt = case stmt of
-    InstanceMethod (retC, retToks) (Variable _ nameTok) params body ->
+    InstanceMethod decls anns (retC, retToks) (Variable _ nameTok) params body ->
         InstanceMethod
+            decls
+            anns
             (retC, generatedRetTokens nameTok retToks)
             (Variable newName (renameIdentToken newName nameTok))
             (params ++ captures)
             body
-    StaticMethod (retC, retToks) (Variable _ nameTok) params body ->
+    StaticMethod decls anns (retC, retToks) (Variable _ nameTok) params body ->
         StaticMethod
+            decls
+            anns
             (retC, generatedRetTokens nameTok retToks)
             (Variable newName (renameIdentToken newName nameTok))
             (params ++ captures)
             body
-    InstanceMethodT (retC, retToks) (Variable _ nameTok) gens params body ->
+    InstanceMethodT decls anns (retC, retToks) (Variable _ nameTok) gens params body ->
         InstanceMethodT
+            decls
+            anns
             (retC, generatedRetTokens nameTok retToks)
             (Variable newName (renameIdentToken newName nameTok))
             gens
             (params ++ captures)
             body
-    StaticMethodT (retC, retToks) (Variable _ nameTok) gens params body ->
+    StaticMethodT decls anns (retC, retToks) (Variable _ nameTok) gens params body ->
         StaticMethodT
+            decls
+            anns
             (retC, generatedRetTokens nameTok retToks)
             (Variable newName (renameIdentToken newName nameTok))
             gens
@@ -3045,14 +3074,14 @@ renameGeneratedFunction newName fallbackTok captures stmt = case stmt of
             body
     _ ->
         case stmt of
-            InstanceMethod (retC, retToks) name params body ->
-                InstanceMethod (retC, generatedRetTokens fallbackTok retToks) name (params ++ captures) body
-            StaticMethod (retC, retToks) name params body ->
-                StaticMethod (retC, generatedRetTokens fallbackTok retToks) name (params ++ captures) body
-            InstanceMethodT (retC, retToks) name gens params body ->
-                InstanceMethodT (retC, generatedRetTokens fallbackTok retToks) name gens (params ++ captures) body
-            StaticMethodT (retC, retToks) name gens params body ->
-                StaticMethodT (retC, generatedRetTokens fallbackTok retToks) name gens (params ++ captures) body
+            InstanceMethod decls anns (retC, retToks) name params body ->
+                InstanceMethod decls anns (retC, generatedRetTokens fallbackTok retToks) name (params ++ captures) body
+            StaticMethod decls anns (retC, retToks) name params body ->
+                StaticMethod decls anns (retC, generatedRetTokens fallbackTok retToks) name (params ++ captures) body
+            InstanceMethodT decls anns (retC, retToks) name gens params body ->
+                InstanceMethodT decls anns (retC, generatedRetTokens fallbackTok retToks) name gens (params ++ captures) body
+            StaticMethodT decls anns (retC, retToks) name gens params body ->
+                StaticMethodT decls anns (retC, generatedRetTokens fallbackTok retToks) name gens (params ++ captures) body
             _ -> stmt
 
 
@@ -3282,7 +3311,7 @@ data CNativeFun = CNativeFun {
 
 cNativeFunFromStmt :: Statement -> Maybe CNativeFun
 cNativeFunFromStmt stmt = case stmt of
-    NativeMethod _ nameExpr params codeS ->
+    NativeMethod _ _ _ nameExpr params codeS ->
         mkNative nameExpr params codeS
     _ -> Nothing
     where

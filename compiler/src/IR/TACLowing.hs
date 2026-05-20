@@ -27,7 +27,6 @@ import Util.Exception (Warning(..))
 import Util.Type (Path, Position)
 
 import qualified Data.Map.Strict as Map
-import qualified Parse.ParserBasic as PB
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeEnv as TEnv
 import qualified IR.TAC as TAC
@@ -2365,13 +2364,13 @@ functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args f
 
     let access0 = accessFromDeclTokens declToks
         generated = '$' `elem` funName
-        access = if generated then PB.Private else access0
-        flags = if generated then [PB.Static, PB.Final] else [PB.Static]
+        access = if generated then AST.Private else access0
+        flags = if generated then [AST.Static, AST.Final] else [AST.Static]
         decl = (access, flags)
     let irFun = TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
     return (irFun, mkCLinkMirror declToks irFun)
 
-functionLowering (AST.NativeMethod (clazz, declToks) (AST.Variable funName _) args targetName) = do
+functionLowering (AST.NativeMethod _ _ (clazz, declToks) (AST.Variable funName _) args targetName) = do
     let paramN = length args
         _argsMap = Map.fromList [(i, TAC.Param i) | i <- [0 .. paramN - 1]]
         targetQname = parseNativeTargetQName targetName
@@ -2393,17 +2392,17 @@ functionLowering (AST.NativeMethod (clazz, declToks) (AST.Variable funName _) ar
 
     let access0 = accessFromDeclTokens declToks
         generated = '$' `elem` funName
-        access = if generated then PB.Private else access0
-        inlineFlags = [PB.Inline | hasInlineDeclToken declToks]
+        access = if generated then AST.Private else access0
+        inlineFlags = [AST.Inline | hasInlineDeclToken declToks]
         flags = if generated
-            then PB.Final : (PB.Static : inlineFlags)
-            else PB.Static : inlineFlags
+            then AST.Final : (AST.Static : inlineFlags)
+            else AST.Static : inlineFlags
         decl = (access, flags)
     let irFun = TAC.IRFunction decl funName funSig atomTypes (bodyBlocks, retBId) TAC.MemberClassWrapped
     return (irFun, mkCLinkMirror declToks irFun)
 
 functionLowering (AST.Function _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
-functionLowering (AST.NativeMethod _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
+functionLowering (AST.NativeMethod _ _ _ (AST.Qualified _ _) _ _ ) = error "this is not supported yet"
 functionLowering _ = error "this is not a function!!!"
 
 mkCLinkMirror :: [Token] -> IRFunction -> Maybe TAC.IRCFunction
@@ -2495,7 +2494,7 @@ parseNativeTargetQName raw0 =
 
 inlineNativeFromStmt :: [String] -> Statement -> Maybe ([String], [String])
 inlineNativeFromStmt pkg stmt = case stmt of
-    AST.NativeMethod (_, declToks) nameExpr _ targetName
+    AST.NativeMethod _ _ (_, declToks) nameExpr _ targetName
         | hasInlineDeclToken declToks ->
             let targetQn = parseNativeTargetQName targetName
             in case nameExpr of
@@ -2504,16 +2503,16 @@ inlineNativeFromStmt pkg stmt = case stmt of
                 _ -> Nothing
     _ -> Nothing
 
-accessFromDeclTokens :: [Token] -> PB.AccessModified
+accessFromDeclTokens :: [Token] -> AST.AccessModified
 accessFromDeclTokens toks = case toks of
     (Ident s _ : _) ->
         let k = map toLower s
         in if k == "private"
-            then PB.Private
+            then AST.Private
             else if k == "protected"
-                then PB.Protected
-                else PB.Public
-    _ -> PB.Public
+                then AST.Protected
+                else AST.Public
+    _ -> AST.Public
 
 
 -- | Lower non-function class statements into a synthetic class:
@@ -2546,7 +2545,7 @@ classStmtsLowing pkgSegs name stmts = do
         funcs = map (qualifyFunction classQName) funcs0
         cFuncs = map (qualifyCFunction classQName) cFuncs0
         mainKind = detectMainKind classQName funcs
-    let decl = (PB.Public, []) -- TODO: default class decl until parser carries modifiers.
+    let decl = (AST.Public, []) -- TODO: default class decl until parser carries modifiers.
     return $ TAC.IRClass decl name staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs tFuncs cFuncs mainKind
     where
         resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
@@ -2558,11 +2557,11 @@ classStmtsLowing pkgSegs name stmts = do
             case vinfo of
                 TEnv.VarLocal _ str vid -> return (str, vid)
                 _ -> error "collectAssignKey: this should be catched in Semantic"
-        staticFieldFor :: Map String [Position] -> (String, Int) -> TACM (PB.Decl, Class, String, TAC.IRMemberType)
+        staticFieldFor :: Map String [Position] -> (String, Int) -> TACM (AST.Decl, Class, String, TAC.IRMemberType)
         staticFieldFor consts (varName, vid) = do
             (clazz, _) <- peekVarStack (varName, vid)
-            let flags = if Map.member varName consts then [PB.Static, PB.Final] else [PB.Static]
-                declStatic = (PB.Public, flags) -- TODO: use parsed modifiers
+            let flags = if Map.member varName consts then [AST.Static, AST.Final] else [AST.Static]
+                declStatic = (AST.Public, flags) -- TODO: use parsed modifiers
             return (declStatic, clazz, varName, TAC.MemberClassWrapped)
         qualifyFunction :: [String] -> TAC.IRFunction -> TAC.IRFunction
         qualifyFunction cls (TAC.IRFunction decl fname sig atomTypes (body, retBid) memberType) =
@@ -2636,8 +2635,8 @@ templateFunctionLowering stmt = case stmt of
             paramNames = map (\(_, pname, _) -> pname) params
             access0 = accessFromDeclTokens declToks
             generated = '$' `elem` funName
-            access = if generated then PB.Private else access0
-            flags = if generated then [PB.Static, PB.Final] else [PB.Static]
+            access = if generated then AST.Private else access0
+            flags = if generated then [AST.Static, AST.Final] else [AST.Static]
             decl = (access, flags)
             tParams = map templateParamName gens
             bodyText = AST.prettyBlock 0 body
@@ -2741,6 +2740,7 @@ collectConstKey = foldl step Map.empty
                     (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
                     [] -> acc
             _ -> acc
+
 
 
 

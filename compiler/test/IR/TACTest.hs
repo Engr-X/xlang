@@ -1,7 +1,7 @@
 module IR.TACTest where
 
 import IR.TAC
-import Parse.ParserBasic (AccessModified(..))
+import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty

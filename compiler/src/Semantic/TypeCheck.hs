@@ -10,8 +10,7 @@ import Data.Char (toLower)
 import Data.List (find, foldl', intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
-import Parse.SyntaxTree (Block(..), Class(..), Command(..), Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, stmtTokens, prettyClass, prettyExpr, prettyOp, normalizeProgram, normalizeClass, blobConstSizeMaybe, blobSizeExprMaybe)
-import Parse.ParserBasic (AccessModified(..), DeclFlag(..), DeclFlags, Decl)
+import Parse.SyntaxTree (AccessModified(..), Block(..), Class(..), Command(..), Decl, DeclFlag(..), DeclFlags, Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, stmtTokens, prettyClass, prettyExpr, prettyOp, normalizeProgram, normalizeClass, blobConstSizeMaybe, blobSizeExprMaybe)
 import Semantic.NameEnv (CheckState(..), CtrlState(..), ImportEnv, QName, Scope(..), VarId, defineDeclaredVar, defineLocalVar, getPackageName, lookupVarId)
 import Semantic.ContextCheck (Ctx)
 import Semantic.OpInfer (augAssignOp, binaryOpCastTypeMaybe, iCast, inferBinaryOpMaybe, inferUnaryOp, isBasicType, isIntegerType, isPointerType, widenedArgs)
@@ -1584,7 +1583,7 @@ inferStmt path packages envs (Function (retT, _) _ params body) = do
     inferFunctionLikeStmt path packages envs retT params (Just body)
 
 
-inferStmt path packages envs (NativeMethod (retT, _) _ params _) = do
+inferStmt path packages envs (NativeMethod _ _ (retT, _) _ params _) = do
     inferFunctionLikeStmt path packages envs retT params Nothing
 
 
@@ -1711,7 +1710,7 @@ inferStmts path package envs stmts = do
         functionSigParts stmt = case stmt of
             Function (retT, _) name params _ -> Just (name, params, retT, Nothing)
             FunctionT (retT, _) name tParams params _ -> Just (name, params, retT, Just tParams)
-            NativeMethod (retT, _) name params _ -> Just (name, params, retT, Nothing)
+            NativeMethod _ _ (retT, _) name params _ -> Just (name, params, retT, Nothing)
             _ -> Nothing
 
         isFunctionStmt :: Statement -> Bool
@@ -1764,7 +1763,7 @@ inferStmts path package envs stmts = do
                 functionRetTokens st0 = case st0 of
                     Function (_, toks) _ _ _ -> toks
                     FunctionT (_, toks) _ _ _ _ -> toks
-                    NativeMethod (_, toks) _ _ _ -> toks
+                    NativeMethod _ _ (_, toks) _ _ _ -> toks
                     _ -> []
 
                 hasModifier :: String -> [Lex.Token] -> Bool

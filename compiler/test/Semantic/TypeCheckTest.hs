@@ -12,7 +12,7 @@ import Parse.ParseExpr (replLexparseExpr)
 import Parse.ParseStmt (replLexparseStmt)
 import Parse.ParseProgm (replLexparseProgm)
 import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), prettyClass)
-import Parse.ParserBasic (DeclFlag(..))
+import Parse.SyntaxTree (DeclFlag(..))
 import Semantic.TypeCheck
 import Semantic.NameEnv (CheckState(..), ImportEnv(..), QName, Scope(..), VarId, lookupVarId)
 import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable)
@@ -172,7 +172,8 @@ typedVarsEnv :: [(QName, Class)] -> TypedImportEnv
 typedVarsEnv vars = TIEnv {
     tFile = "stdin",
     tVars = Map.fromList $ map (\(q, c) -> (q, (c, [pos1], q))) vars,
-    tFuncs = Map.empty
+    tFuncs = Map.empty,
+    tTemplates = Map.empty
 }
 
 
@@ -842,7 +843,7 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
         stmtFunF0 = Function (Int32T, []) (Variable "f" tokF) [] (Multiple [])
         stmtFunF1 = Function (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] (Multiple [])
         stmtFunF2 = Function (Float32T, []) (Variable "f" tokF) [(Float32T, "x", [tokX])] (Multiple [])
-        stmtNativeF1 = NativeMethod (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] "return x;"
+        stmtNativeF1 = NativeMethod [] (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] "return x;"
         stmtTemplateF1 = FunctionT (Class ["T"] [], []) (Variable "f" tokF) [(Class ["T"] [], [tokT])] [(Class ["T"] [], "x", [tokX])] (Multiple [])
         stmtTemplateF1b = FunctionT (Class ["T"] [], []) (Variable "f" tokF) [(Class ["T"] [], [tokT])] [(Class ["T"] [], "y", [tokY])] (Multiple [])
 

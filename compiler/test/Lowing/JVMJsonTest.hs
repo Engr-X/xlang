@@ -3,7 +3,7 @@ module Lowing.JVMJsonTest where
 import Control.Exception (SomeException, evaluate, try)
 import Data.Aeson (encode)
 import Data.List (isInfixOf)
-import Parse.ParserBasic (AccessModified(..), DeclFlag(..))
+import Parse.SyntaxTree (AccessModified(..), DeclFlag(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty

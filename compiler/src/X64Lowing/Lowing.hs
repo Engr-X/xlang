@@ -33,7 +33,7 @@ import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified IR.TAC as IR
-import qualified Parse.ParserBasic as Parse
+import qualified Parse.SyntaxTree as Parse
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeEnv as TEnv
 import qualified Util.Basic as Basic
