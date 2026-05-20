@@ -360,14 +360,6 @@ shouldSkipSystemLibSymbolScan libPath =
                 then name
                 else take (length name - length ext) name
 
-
-hasClassInfoSymbols :: [String] -> Bool
-hasClassInfoSymbols = any isClassInfoSymbol
-  where
-    isClassInfoSymbol :: String -> Bool
-    isClassInfoSymbol s = "_info" `isSuffixOf` s || "_info_len" `isSuffixOf` s
-
-
 readEmbeddedClassInfoEnvelope :: Path -> IO (Maybe NativeEnvelope)
 readEmbeddedClassInfoEnvelope libPath = do
     bytesRes <- (Right <$> BL.readFile libPath) `catchIOError` (\_ -> pure (Left ()))

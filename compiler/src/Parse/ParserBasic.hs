@@ -457,9 +457,9 @@ parseBlobSizeLiteral raw =
                 then init raw
                 else raw
         (signN, body0) = case s0 of
-            ('+':xs) -> (1, xs)
-            ('-':xs) -> (-1, xs)
-            _ -> (1, s0)
+            ('+':xs) -> (1 :: Integer, xs)
+            ('-':xs) -> (-1 :: Integer, xs)
+            _ -> (1 :: Integer, s0)
         body = map toLower body0
         parsed :: Maybe Integer
         parsed
@@ -473,7 +473,7 @@ parseBlobSizeLiteral raw =
                     _ -> Nothing
     in case parsed of
         Just n ->
-            let signedN = toInteger signN * n
+            let signedN = signN * n
             in if signedN < toInteger (minBound :: Int) || signedN > toInteger (maxBound :: Int)
                 then 0
                 else fromInteger signedN

@@ -131,7 +131,8 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing, [])
                     || isTypeAngleCloseLineTail lineRev prevTok
                 okElse  = not (isElseLike cursor)
                 okNext  = not (banNext cursor) || startsParenDerefAssign cursor rest
-            in [mkNL cursor | okLine && okDepth && okPrev && okElse && okNext]
+                okDerefCont = not (isDerefBinaryContinuation prevTok cursor)
+            in [mkNL cursor | okLine && okDepth && okPrev && okElse && okNext && okDerefCont]
 
         -- Allow NL insertion before a parenthesized deref-assignment LHS:
         --   (expr).deref = ...
@@ -171,6 +172,23 @@ insertTokenPass  = dedupNL . go 0 (Nothing, Nothing, Nothing, [])
         isDerefName raw =
             let lower = map toLower raw
             in lower == "deref" || lower == "dref"
+
+        -- Keep binary continuation across lines for deref suffix:
+        --   (x as pointer<int>).deref
+        --   - (y as pointer<int>).deref
+        -- should stay one expression, not be split by an implicit NL.
+        isDerefBinaryContinuation :: Token -> Token -> Bool
+        isDerefBinaryContinuation prevTok cursor =
+            isDerefIdent prevTok && isPlusOrMinus cursor
+
+        isDerefIdent :: Token -> Bool
+        isDerefIdent (Lex.Ident raw _) = isDerefName raw
+        isDerefIdent _ = False
+
+        isPlusOrMinus :: Token -> Bool
+        isPlusOrMinus (Symbol Lex.Plus _) = True
+        isPlusOrMinus (Symbol Lex.Minus _) = True
+        isPlusOrMinus _ = False
 
         isAssignLike :: Token -> Bool
         isAssignLike (Symbol sym _) = sym `elem`

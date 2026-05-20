@@ -56,6 +56,9 @@ EXE_OUT_GRADLE := $(subst \,/,$(EXE_OUT))
 BYTECODEGEN_DIR := $(ROOT_DIR)/tools/BytecodeToolkit
 ICONTOOLKIT_DIR := $(ROOT_DIR)/tools/IconToolkit
 TOOLS_OUT_DIR := $(BUILD_DIR_ABS)/tools
+ICON_SVG := $(ROOT_DIR)/images/icon.svg
+ICONTOOLKIT_JAR := $(TOOLS_OUT_DIR)/IconToolkit.jar
+RCEDIT_TOOL ?=
 
 # Java std library project (Gradle)
 JAVA_LIB_DIR := $(ROOT_DIR)/libs/std/java
@@ -139,7 +142,7 @@ help:
 	@echo "  full            Alias of all_components"
 	@echo "  compile         Build xlang executable"
 	@echo "  update      Run cabal update in compiler/"
-	@echo "  tools       Build BytecodeToolkit + IconToolkit jars"
+	@echo "  tools       Build BytecodeToolkit + IconToolkit jars (Windows: patch xlang.exe icon from images/icon.svg)"
 	@echo "  java_lib    Build libs/std/java artifacts"
 	@echo "  native_lib  Build libs/std/native (depends on runtime libs; outputs to build/libs/native)"
 	@echo "  install         Install all components"
@@ -278,6 +281,24 @@ tools: native_std bytecode_tool
 	fi
 	cd "$(ICONTOOLKIT_DIR)" && GRADLE_USER_HOME="$(GRADLE_USER_HOME)" ./gradlew build -PxlangJobs=$(JOBS) $(GRADLE_ARGS)
 	cp -f "$(ICONTOOLKIT_DIR)"/build/libs/*.jar "$(TOOLS_OUT_DIR)/" 2>/dev/null || true
+	@if [ "$(OS)" = "Windows_NT" ]; then \
+		if [ ! -f "$(ICONTOOLKIT_JAR)" ]; then \
+			echo "[ERROR] missing IconToolkit.jar: $(ICONTOOLKIT_JAR)"; \
+			exit 1; \
+		fi; \
+		if [ ! -f "$(ICON_SVG)" ]; then \
+			echo "[WARN] skip xlang.exe icon patch, SVG not found: $(ICON_SVG)"; \
+		elif [ ! -f "$(EXE_OUT)" ]; then \
+			echo "[WARN] skip xlang.exe icon patch, EXE not found: $(EXE_OUT)"; \
+		else \
+			echo "[INFO] patching xlang.exe icon from $(ICON_SVG)"; \
+			if [ -n "$(RCEDIT_TOOL)" ]; then \
+				java -jar "$(ICONTOOLKIT_JAR)" --tool="$(RCEDIT_TOOL)" -s "$(ICON_SVG)" -t "$(EXE_OUT)"; \
+			else \
+				java -jar "$(ICONTOOLKIT_JAR)" -s "$(ICON_SVG)" -t "$(EXE_OUT)"; \
+			fi; \
+		fi; \
+	fi
 
 java_lib: compile bytecode_tool
 	mkdir -p "$(JAVA_LIB_OUT_DIR)" "$(JAVA_RUNTIME_OUT_DIR)"

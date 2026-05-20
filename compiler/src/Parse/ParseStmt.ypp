@@ -28,8 +28,6 @@ import qualified Util.Exception as UE
 
     KW_VAR              { t@(Lex.Ident "var" _) }
     KW_VAL              { t@(Lex.Ident "val" _) }
-    KW_CONST            { t@(Lex.Ident "const" _) }
-    KW_FINAL            { t@(Lex.Ident "final" _) }
     KW_MUT              { t@(Lex.Ident "mut" _) }
     KW_INLINE           { t@(Lex.Ident "inline" _) }
     KW_NATIVE           { t@(Lex.Ident "native" _) }
@@ -58,6 +56,8 @@ import qualified Util.Exception as UE
     KW_PASS             { t@(Lex.Ident "pass" _) }
 
     KW_FUNC             { t@(Lex.Ident "fun" _) }
+
+    KW_STRUCT           { t@(Lex.Ident "struct" _) }
 
 
     -- literals / identifiers

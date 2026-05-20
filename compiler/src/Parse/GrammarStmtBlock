@@ -142,11 +142,9 @@ ForStmt :: { Statement }
 -- this argument is reversed
 -- only the first one is current varName token
 TypedParams :: { [(Class, String, [Token])] }
-    : Clazz identity                            { [(fst $1, identText $2, $2 : snd $1)] }
-    | identity ':' Clazz                        { [(fst $3, identText $1, [$1, $2] ++ snd $3)] }
+    : identity ':' Clazz                        { [(fst $3, identText $1, [$1, $2] ++ snd $3)] }
     | KW_MUT identity ':' Clazz                 { [(fst $4, identText $2, [$1, $2, $3] ++ snd $4)] }
 
-    | TypedParams ',' Clazz identity            { (fst $3, identText $4, $4 : snd $3) : $1 }
     | TypedParams ',' identity ':' Clazz        { (fst $5, identText $3, [$3, $4] ++ snd $5) : $1 }
     | TypedParams ',' KW_MUT identity ':' Clazz { (fst $6, identText $4, [$3, $4, $5] ++ snd $6) : $1 }
     ;
@@ -264,11 +262,6 @@ VarDeclHead :: { (Bool, [Token]) }
         }
     ;
 
-ConstKw :: { Token }
-    : KW_CONST                      { $1 }
-    | KW_FINAL                      { $1 }
-    ;
-
 VarDeclItem :: { ([String], Maybe Class, Maybe Expression, [Token]) }
     : QName
         { (fst $1, Nothing, Nothing, snd $1) }
@@ -297,19 +290,6 @@ VarDeclStmt :: { Statement }
             _ -> StmtGroup decls }
     ;
 
-CDeclItem :: { ([String], Maybe Expression, [Token]) }
-    : QName
-        { (fst $1, Nothing, snd $1) }
-    | QName '=' Expr
-        { (fst $1, Just $3, snd $1 ++ [$2]) }
-    ;
-
-CDeclItems :: { [([String], Maybe Expression, [Token])] }
-    : CDeclItem                             { [$1] }
-    | CDeclItems ',' CDeclItem              { $1 ++ [$3] }
-    ;
-
-
 FunctionStmt :: { Statement }
     : NativeSpecifier NativeSepOpt NativeFunModifierSeqOpt KW_FUNC QName FunctionParams '->' Clazz Sep
         { NativeMethod (fst $8, fst $1 ++ $3 ++ snd $8) (qnameToExpr $5) $6 (snd $1) }
@@ -333,53 +313,6 @@ FunctionStmt :: { Statement }
         { InstanceMethodT (fst $7, $1 ++ snd $7) (qnameToExpr $3) $4 $5 (normalizeFunctionBodyByRet (fst $7) $8) }
     ;
 
-TypedLeadStmt :: { Statement }
-    : Clazz QName FunctionParams FunctionBlock
-        { InstanceMethod (fst $1, snd $1) (qnameToExpr $2) $3 (normalizeFunctionBodyByRet (fst $1) $4) }
-
-    | Clazz QName DeclGenericParamList FunctionParams FunctionBlock
-        { InstanceMethodT (fst $1, snd $1) (qnameToExpr $2) $3 $4 (normalizeFunctionBodyByRet (fst $1) $5) }
-
-    | AccessOpt Clazz QName FunctionParams FunctionBlock
-        { InstanceMethod (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 (normalizeFunctionBodyByRet (fst $2) $5) }
-
-    | AccessOpt Clazz QName DeclGenericParamList FunctionParams FunctionBlock
-        { InstanceMethodT (fst $2, $1 ++ snd $2) (qnameToExpr $3) $4 $5 (normalizeFunctionBodyByRet (fst $2) $6) }
-
-    -- C-like declarations: int a; / int a = 10, b = 20;
-    | Clazz CDeclItems Sep
-        { let
-              mkDecl (names, mExpr, itemTokens) = DefField names (Just $ fst $1) mExpr (snd $1 ++ itemTokens);
-              decls = map mkDecl $2
-          in case decls of
-              [one] -> one;
-              _ -> StmtGroup decls }
-
-    | ConstKw Clazz CDeclItems Sep
-        { let
-              mkDecl (names, mExpr, itemTokens) = DefConstField names (Just $ fst $2) mExpr ([$1] ++ snd $2 ++ itemTokens);
-              decls = map mkDecl $3
-          in case decls of
-              [one] -> one;
-              _ -> StmtGroup decls }
-
-    | AccessOpt Clazz CDeclItems Sep
-        { let
-              mkDecl (names, mExpr, itemTokens) = DefField names (Just $ fst $2) mExpr ($1 ++ snd $2 ++ itemTokens);
-              decls = map mkDecl $3
-          in case decls of
-              [one] -> one;
-              _ -> StmtGroup decls }
-
-    | AccessOpt ConstKw Clazz CDeclItems Sep
-        { let
-              mkDecl (names, mExpr, itemTokens) = DefConstField names (Just $ fst $3) mExpr ($1 ++ [$2] ++ snd $3 ++ itemTokens);
-              decls = map mkDecl $4
-          in case decls of
-              [one] -> one;
-              _ -> StmtGroup decls }
-    ;
-
 
 StmtNoExpr :: { Statement }
     : KW_PASS Sep               { Command Pass $1 }
@@ -389,7 +322,6 @@ StmtNoExpr :: { Statement }
     | KW_RETURN Expr Sep        { Command (Return (Just $2)) $1 }
     | VarDeclStmt                   { $1 }
 
-    | TypedLeadStmt                 { $1 }
     | ForStmt                       { $1 }
     | LoopStmt                      { $1 }
     | RepeatStmt                    { $1 }

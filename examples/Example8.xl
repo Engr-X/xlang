@@ -30,20 +30,20 @@ fun add(a: int, b: int) -> int
 fun maxOf(a: int, b: int) -> int:
     return a if a > b else b
 
-// 2) Classic style
+// 2) Additional function forms (same modern syntax)
 // 2) 经典风格
-int sub(int a, int b)
+fun sub(a: int, b: int) -> int
 {
     return a - b
 }
 
-int neg(int x): return -x
+fun neg(x: int) -> int: return -x
 
 // 3) Syntax sugar
 // 3) 语法糖
 fun square(a: int) -> int = a * a
 
-int cube(int a) = a * a * a
+fun cube(a: int) -> int = a * a * a
 
 fun main() -> void
 {

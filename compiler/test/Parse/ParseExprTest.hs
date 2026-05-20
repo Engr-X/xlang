@@ -767,6 +767,23 @@ pointerSuffixParseTests = testGroup "Parse.ParseExpr.pointerSuffix" [
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ,
 
+    testCase "unary minus binds after postfix deref" $
+        case replLexparseExpr "-(a as pointer<int>).deref" of
+            Right (Unary UnaryMinus
+                (Unary DeRef
+                    (Cast (Pointer Int32T, _) (Variable "a" _) _)
+                    _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "multiline deref subtraction keeps one expression" $
+        case replLexparseExpr "(a as pointer<int>).deref\n- (b as pointer<int>).deref" of
+            Right (Binary Sub
+                (Unary DeRef (Cast (Pointer Int32T, _) (Variable "a" _) _) _)
+                (Unary DeRef (Cast (Pointer Int32T, _) (Variable "b" _) _) _)
+                _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
     testCase "arr.get(i) parses as normal call target" $
         case replLexparseExpr "arr.get(i)" of
             Right (Call (Qualified ["arr", "get"] _) [Variable "i" _]) -> pure ()

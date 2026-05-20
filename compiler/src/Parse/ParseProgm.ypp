@@ -36,8 +36,6 @@ import qualified Util.FileHelper as FileHelper
 
     KW_VAR              { t@(Lex.Ident "var" _) }
     KW_VAL              { t@(Lex.Ident "val" _) }
-    KW_CONST            { t@(Lex.Ident "const" _) }
-    KW_FINAL            { t@(Lex.Ident "final" _) }
     KW_MUT              { t@(Lex.Ident "mut" _) }
     KW_INLINE           { t@(Lex.Ident "inline" _) }
 
@@ -66,6 +64,8 @@ import qualified Util.FileHelper as FileHelper
     KW_PASS             { t@(Lex.Ident "pass" _) }
 
     KW_FUNC             { t@(Lex.Ident "fun" _) }
+
+    KW_STRUCT           { t@(Lex.Ident "struct" _) }
 
 
     '++'                { t@(Lex.Symbol Lex.PlusPlus _) }

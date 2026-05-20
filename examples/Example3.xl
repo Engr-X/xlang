@@ -101,12 +101,12 @@ val VALUE_1: int = 1
 // val 1abc: int = 1
 // val final: int = 1
 
-// Java/C style declaration sugar is also supported.
+// Kotlin-style declaration syntax.
 // 也支持 Java/C 风格声明语法糖.
-final int answer = 42
-int counter = 0
-final double pi = 3.1415926
+val answer: int = 42
+var counter: int = 0
+val pi: double = 3.1415926
 
 // Multi-variable declaration examples (Beta-1.0.0)
 var ma: int = 1, mb: int = 2
-int mc = 3, md = 4
+var mc: int = 3, md: int = 4

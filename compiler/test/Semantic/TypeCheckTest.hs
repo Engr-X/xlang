@@ -705,7 +705,7 @@ inferStmtLoopTests = testGroup "Semantic.TypeCheck.inferStmtLoop" [
 inferStmtNativeTests :: TestTree
 inferStmtNativeTests = testGroup "Semantic.TypeCheck.inferStmtNative" [
     testCase "0 native function params are loaded into typing env" $ do
-        stmt <- parseStmtOrFail "@native(\"C\") fun add(int a, int b) -> int { return a + b; }"
+        stmt <- parseStmtOrFail "@native(\"C\") fun add(a: int, b: int) -> int { return a + b; }"
         let ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
             (_, ctx1) = runState (inferStmt "stdin" [] [] stmt) ctx0
             allTypes = map fst (Map.elems (tcVarTypes ctx1))

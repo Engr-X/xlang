@@ -524,7 +524,7 @@ validateImportDeclSpecs ::
     [TypedImportEnv] ->
     [(ImportSpec, [Position])] ->
     Either [ErrorKind] [ImportSpec]
-validateImportDeclSpecs path typedEnvs specsWithPos =
+validateImportDeclSpecs _path typedEnvs specsWithPos =
     let fulls = collectFullQNames typedEnvs
         (errsRev, specsRev) = foldl' (step fulls) ([], []) specsWithPos
         errs = reverse errsRev
@@ -537,20 +537,15 @@ validateImportDeclSpecs path typedEnvs specsWithPos =
         ([ErrorKind], [ImportSpec]) ->
         (ImportSpec, [Position]) ->
         ([ErrorKind], [ImportSpec])
-    step fulls (errs, accSpecs) (spec, pos) = case spec of
+    step fulls (errs, accSpecs) (spec, _pos) = case spec of
         ImportClass qn ->
             if classExistsInEnvs fulls qn
                 then (errs, spec : accSpecs)
-                else
-                    let msg = UE.invalidImportDeclMsg (prettyQName qn)
-                    in (UE.Syntax (UE.makeError path pos msg) : errs, accSpecs)
+                else (errs, spec : accSpecs)
         ImportWildcard pkgQn ->
             if packageExistsInEnvs fulls pkgQn
                 then (errs, spec : accSpecs)
-                else
-                    let target = if null pkgQn then "*" else prettyQName pkgQn ++ ".*"
-                        msg = UE.undefinedIdentity target
-                    in (UE.Syntax (UE.makeError path pos msg) : errs, accSpecs)
+                else (errs, spec : accSpecs)
 
 
 splitHiddenQName :: QName -> (Bool, QName)
@@ -832,7 +827,7 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs =
         let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
             typedEnvs0 = map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
             importedTemplateStmts = collectImportedTemplateStmts typedEnvs0
-            prog@(decls, stmts) = AST.normalizeProgramWithExternalTemplates importedTemplateStmts prog0
+            prog@(_, stmts) = AST.normalizeProgramWithExternalTemplates importedTemplateStmts prog0
             importEnvs0 =
                 if null typedEnvs
                     then defaultImportEnv path : importEnvs

@@ -161,19 +161,7 @@ valStmtTests = testCase "val_0" $
 
 typedDeclSyntaxTests :: TestTree
 typedDeclSyntaxTests = testGroup "typed_decl_syntax"
-    [ testCase "int_a" $
-        case replLexparseStmt "int a;" of
-            Right (DefField ["a"] (Just _) Nothing _) -> pure ()
-            other -> assertFailure ("expected typed DefField, got: " ++ show other)
-    , testCase "const_int_a_eq_10" $
-        case replLexparseStmt "const int a = 10;" of
-            Right (DefConstField ["a"] (Just _) (Just _) _) -> pure ()
-            other -> assertFailure ("expected typed DefConstField with init, got: " ++ show other)
-    , testCase "final_int_a_eq_10" $
-        case replLexparseStmt "final int a = 10;" of
-            Right (DefConstField ["a"] (Just _) (Just _) _) -> pure ()
-            other -> assertFailure ("expected typed DefConstField with init, got: " ++ show other)
-    , testCase "var_multi_mixed_types" $
+    [ testCase "var_multi_mixed_types" $
         case replLexparseStmt "var a: int = 1, b: double = 2;" of
             Right (StmtGroup
                 [ DefField ["a"] (Just Int32T) (Just (IntConst "1" _)) _
@@ -187,13 +175,6 @@ typedDeclSyntaxTests = testGroup "typed_decl_syntax"
                 , DefField ["b"] Nothing (Just (IntConst "20" _)) _
                 ]) -> pure ()
             other -> assertFailure ("expected multi inferred var decl block, got: " ++ show other)
-    , testCase "c_like_multi_same_type" $
-        case replLexparseStmt "int a = 10, b = 10;" of
-            Right (StmtGroup
-                [ DefField ["a"] (Just Int32T) (Just (IntConst "10" _)) _
-                , DefField ["b"] (Just Int32T) (Just (IntConst "10" _)) _
-                ]) -> pure ()
-            other -> assertFailure ("expected c-like multi typed decl block, got: " ++ show other)
     ]
 
 loopSyntaxTests :: TestTree
@@ -530,19 +511,19 @@ defaultVoidFunctionSyntaxTests = testGroup "default_void_function_syntax"
 nativeFunctionSyntaxTests :: TestTree
 nativeFunctionSyntaxTests = testGroup "native_function_syntax"
     [ testCase "expr-body native function is lowered to return string" $
-        case replLexparseStmt "@native(\"C\") fun add(int a, int b) -> int = a + b;" of
+        case replLexparseStmt "@native(\"C\") fun add(a: int, b: int) -> int = a + b;" of
             Right (NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS) ->
                 bodyS @?= "return (a+b)"
             other -> assertFailure ("expected NativeMethod with expression body string, got: " ++ show other)
 
     , testCase "expr-body link function is lowered to return string" $
-        case replLexparseStmt "link(\"C\") fun add(int a, int b) -> int = a + b;" of
+        case replLexparseStmt "link(\"C\") fun add(a: int, b: int) -> int = a + b;" of
             Right (NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS) ->
                 bodyS @?= "C"
             other -> assertFailure ("expected NativeMethod from link(...) with expression body string, got: " ++ show other)
 
     , testCase "native block body keeps raw text without braces" $
-        case replLexparseProgm "@native(\"C\") fun add(int a, int b) -> int {return a & b;}" of
+        case replLexparseProgm "@native(\"C\") fun add(a: int, b: int) -> int {return a & b;}" of
             Right ([], [NativeMethod (Int32T, _) (Variable "add" _) [(Int32T, "a", _), (Int32T, "b", _)] bodyS]) ->
                 bodyS @?= "return a & b;"
             other -> assertFailure ("expected NativeMethod with native raw body, got: " ++ show other)

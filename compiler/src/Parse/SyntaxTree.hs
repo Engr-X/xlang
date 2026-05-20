@@ -527,8 +527,7 @@ flattenExpr (Just fatherE@(Call callee args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just fatherE@(CallT callee _ args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
-flattenExpr (Just fatherE@(SizeOfExpr inner _)) =
-    concat [[fatherE], flattenExpr (Just inner)]
+flattenExpr (Just fatherE@(SizeOfExpr inner _)) = fatherE : flattenExpr (Just inner)
 flattenExpr (Just fatherE@(SizeOfType _ _)) = [fatherE]
 flattenExpr (Just fatherE@(IfExpr cond thenE elseE _)) =
     concat [[fatherE], flattenExpr (Just cond), flattenExpr (Just thenE), flattenExpr (Just elseE)]
@@ -649,6 +648,8 @@ data Statement =
 
     Switch Expression [SwitchCase] Token | -- (switch keyword)
 
+    -- Constructor 
+
     InstanceMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
 
     StaticMethod (Class, [Token]) Expression [(Class, String, [Token])] Block |
@@ -658,8 +659,13 @@ data Statement =
     -- function: return_type + pos, name, params + position, body
     InstanceMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
 
-    -- template function: return_type + pos, name, template params + position, params + position, body
-    StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block
+    -- template function:
+    --          return_type + pos,  name, template params + position, params + position,    body
+    StaticMethodT (Class, [Token]) Expression [(Class, [Token])] [(Class, String, [Token])] Block |
+
+    --      struct kw, struct name \
+    --              must be stringconst
+    Struct (Token, Expression) [Statement]
 
     deriving (Eq, Show)
 
@@ -1412,7 +1418,7 @@ collectTemplateDefsFromStmts = foldl step Map.empty
     step :: Map String [TemplateDef] -> Statement -> Map String [TemplateDef]
     step acc stmt = case stmt of
         StaticMethodT ret (Variable name tok) gens params body ->
-            case mapM templateParamNameFromClass (map fst gens) of
+            case mapM (templateParamNameFromClass . fst) gens of
                 Just tpNames ->
                     let def = TemplateDef True name tok ret tpNames params body
                     in Map.insertWith (++) name [def] acc
@@ -2241,15 +2247,11 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
             FunctionT ret name gens params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (FunctionT ret name gens params body', reqs, hints)
-            StaticMethodT ret name gens params body ->
-                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
-                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (StaticMethodT ret name gens params body', reqs, hints)
-            InstanceMethodT ret name gens params body ->
-                let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
-                    (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (InstanceMethodT ret name gens params body', reqs, hints)
+                    rebuilt = case stmt of
+                        StaticMethodT {} -> StaticMethodT ret name gens params body'
+                        InstanceMethodT {} -> InstanceMethodT ret name gens params body'
+                        _ -> FunctionT ret name gens params body'
+                in (rebuilt, reqs, hints)
 
         rewriteMaybeStmt ::
             Bool ->
@@ -2563,6 +2565,9 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
         substituteStmt :: Map String Class -> Statement -> Statement
         substituteStmt subst stmt = case stmt of
             Command (Return me) tok -> Command (Return (substituteMaybeExpr subst me)) tok
+            Command Pass tok -> Command Pass tok
+            Command Continue tok -> Command Continue tok
+            Command Break tok -> Command Break tok
             Expr e -> Expr (substituteExpr subst e)
             Exprs es -> Exprs (map (substituteExpr subst) es)
             DefField names mTy mRhs toks -> DefField names (fmap (substituteClass subst) mTy) (substituteMaybeExpr subst mRhs) toks
@@ -2644,26 +2649,22 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     target
             FunctionT (retT, retToks) name gens params body ->
-                FunctionT
-                    (substituteClass subst retT, retToks)
-                    name
-                    (map (\(t, toks) -> (substituteClass subst t, toks)) gens)
-                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
-                    (substituteBlock subst body)
-            StaticMethodT (retT, retToks) name gens params body ->
-                StaticMethodT
-                    (substituteClass subst retT, retToks)
-                    name
-                    (map (\(t, toks) -> (substituteClass subst t, toks)) gens)
-                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
-                    (substituteBlock subst body)
-            InstanceMethodT (retT, retToks) name gens params body ->
-                InstanceMethodT
-                    (substituteClass subst retT, retToks)
-                    name
-                    (map (\(t, toks) -> (substituteClass subst t, toks)) gens)
-                    (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
-                    (substituteBlock subst body)
+                let body' = substituteBlock subst body
+                    ret' = (substituteClass subst retT, retToks)
+                    gens' = map (\(t, toks) -> (substituteClass subst t, toks)) gens
+                    params' = map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params
+                in case stmt of
+                    StaticMethodT {} ->
+                        StaticMethodT ret' name gens' params' body'
+                    InstanceMethodT {} ->
+                        InstanceMethodT ret' name gens' params' body'
+                    _ ->
+                        FunctionT
+                            ret'
+                            name
+                            gens'
+                            params'
+                            body'
 
         substituteCase :: Map String Class -> SwitchCase -> SwitchCase
         substituteCase subst sc = case sc of
@@ -3385,7 +3386,7 @@ cNativeTopoSort funs =
         buildOutgoing out (k, deps) = foldl (addOne k) out deps
 
         addOne :: String -> Map String [String] -> String -> Map String [String]
-        addOne toKey out depKey = Map.insertWith (\new old -> old ++ new) depKey [toKey] out
+        addOne toKey out depKey = Map.insertWith (++) depKey [toKey] out
 
         kahn ::
             [String] ->

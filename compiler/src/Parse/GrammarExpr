@@ -153,16 +153,16 @@ Atom :: { Expression }
     | 'inv' Postfix %prec '!'   { Unary BitInv $2 $1 }
     | 'inv' error %prec '!'     { Error [$1] (expectedExpression 1 "inv") }
 
-    | '+' Atom %prec UPLUS      { Unary UnaryPlus $2 $1}
+    | '+' Postfix %prec UPLUS   { Unary UnaryPlus $2 $1}
     | '+' error %prec UPLUS     { Error [$1] (expectedExpression 1 "+")}
 
-    | '-' Atom %prec UMINUS     { Unary UnaryMinus $2 $1}
+    | '-' Postfix %prec UMINUS  { Unary UnaryMinus $2 $1}
     | '-' error %prec UMINUS    { Error [$1] (expectedExpression 1 "-") }
 
-    | '++' Atom %prec UPLUS     { Unary IncSelf $2 $1 }
+    | '++' Postfix %prec UPLUS  { Unary IncSelf $2 $1 }
     | '++' error %prec UPLUS    { Error [$1] (expectedExpression 1 "++") }
 
-    | '--' Atom %prec UMINUS    { Unary DecSelf $2 $1 }
+    | '--' Postfix %prec UMINUS { Unary DecSelf $2 $1 }
     | '--' error %prec UMINUS   { Error [$1] (expectedExpression 1 "--") }
 
     -- parenthesized expression

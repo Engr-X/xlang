@@ -471,6 +471,7 @@ pointerElemBytes ptrCls = case ptrCls of
         Int64T -> 8
         Float64T -> 8
         Pointer _ -> 8
+        FuncPtr _ _ -> 8
         Blob _ -> 8
         Class _ _ -> 8
         Float128T -> 16
@@ -490,6 +491,7 @@ sizeofClassBytesIR cls0 = case AST.normalizeClass cls0 of
     Float64T -> Just 8
     Float128T -> Just 16
     Pointer _ -> Just 8
+    FuncPtr _ _ -> Just 8
     Class _ _ -> Just 8
     Blob _ -> AST.blobConstSizeMaybe cls0
     Void -> Nothing

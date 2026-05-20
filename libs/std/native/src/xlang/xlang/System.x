@@ -46,7 +46,7 @@ native inline fun nowNs() -> long
 inline fun now() -> double = nowNs() as double * NS_PER_S
 
 
-fun memcopy(mut dest: pointer<*>, mut src: pointer<*>, int size) -> void
+fun memcopy(mut dest: pointer<*>, mut src: pointer<*>, size: int) -> void
 {
     if size <= 0: { return; }
 
@@ -99,5 +99,5 @@ fun memcopy(dest: pointer<*>, src: pointer<*>, length: int, tsize: int) -> void:
     memcopy(dest, src, length * tsize)
 
 
-fun memcopy(dest: pointer<*>, src: pointer<*>, srcPos: int, destPos: int, int size) -> void:
+fun memcopy(dest: pointer<*>, src: pointer<*>, srcPos: int, destPos: int, size: int) -> void:
     memcopy(dest as pointer<byte> + destPos, src as pointer<byte> + srcPos, size)
