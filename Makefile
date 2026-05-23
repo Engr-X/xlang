@@ -76,12 +76,13 @@ NATIVE_BASE_TARGET := libxlang-core
 NATIVE_STD_TARGET := libxlang-std
 NATIVE_BASE_STATIC_LIB := $(NATIVE_BASE_TARGET).a
 NATIVE_STD_STATIC_LIB := $(NATIVE_STD_TARGET).a
-RUNTIME_CORE_DIR := $(ROOT_DIR)/runtime/core
-RUNTIME_CORE_BUILD_DIR := $(RUNTIME_CORE_DIR)/build
-RUNTIME_GC_DIR := $(ROOT_DIR)/runtime/gc
-RUNTIME_GC_BUILD_DIR := $(RUNTIME_GC_DIR)/build
-RUNTIME_EXCEPTION_DIR := $(ROOT_DIR)/runtime/exception
-RUNTIME_EXCEPTION_BUILD_DIR := $(RUNTIME_EXCEPTION_DIR)/build
+RUNTIME_DIR := $(ROOT_DIR)/runtime
+RUNTIME_CORE_DIR := $(RUNTIME_DIR)
+RUNTIME_CORE_BUILD_DIR := $(RUNTIME_DIR)/build
+RUNTIME_GC_DIR := $(RUNTIME_DIR)/gc
+RUNTIME_GC_BUILD_DIR := $(RUNTIME_DIR)/build/gc
+RUNTIME_EXCEPTION_DIR := $(RUNTIME_DIR)/exception
+RUNTIME_EXCEPTION_BUILD_DIR := $(RUNTIME_DIR)/build/exception
 NATIVE_SYSLIB_OUT_DIR := $(BUILD_DIR_ABS)/native
 NATIVE_SYSLIB_NAMES := libkernel32.a libmsvcrt.a libmingw32.a libmingwex.a libwinpthread.a libgcc.a libgcc_eh.a
 UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
@@ -129,13 +130,13 @@ help:
 	@echo "Usage: ./configure [opts] && make -jN [target] && make install"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all/build       Build default pipeline (compiler -> move_native -> runtime core -> runtime gc/exception -> native std -> tools)"
+	@echo "  all/build       Build default pipeline (compiler -> move_native -> runtime(core) -> runtime gc/exception placeholders -> native std -> tools)"
 	@echo "  compiler        Build xlang compiler executable"
 	@echo "  move_native     Stage native syslibs into build/native (Windows; needs --gcc-lib)"
-	@echo "  runtime_core    Build runtime/core and stage runtime base libs"
-	@echo "  runtime_gc      Build runtime/gc (depends on runtime_core)"
-	@echo "  runtime_exception Build runtime/exception (depends on runtime_core)"
-	@echo "  runtime_ext     Build runtime gc + exception"
+	@echo "  runtime_core    Build runtime core (from runtime/) and stage runtime libs"
+	@echo "  runtime_gc      Placeholder target (not built yet)"
+	@echo "  runtime_exception Placeholder target (not built yet)"
+	@echo "  runtime_ext     Run runtime placeholders (gc/exception) after runtime_core"
 	@echo "  java_std        Build libs/std/java artifacts and move to build output"
 	@echo "  native_std      Build libs/std/native artifacts and move to build/libs/native"
 	@echo "  all_components  Alias of all"
@@ -178,59 +179,17 @@ runtime_core: move_native
 	$(MAKE) -C "$(RUNTIME_CORE_BUILD_DIR)" clean
 	$(MAKE) -C "$(RUNTIME_CORE_BUILD_DIR)"
 	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"
-	rm -f "$(NATIVE_LIB_OUT_DIR)/libxlang-base.a" "$(NATIVE_LIB_OUT_DIR)/libxlang-base.dll.a" 2>/dev/null || true
-	rm -f "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.dll" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.so" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.dylib" 2>/dev/null || true
+	rm -f "$(NATIVE_LIB_OUT_DIR)/libxlang-base.a" "$(NATIVE_LIB_OUT_DIR)/libxlang-base.dll.a" "$(NATIVE_LIB_OUT_DIR)/libxlang-core.a" "$(NATIVE_LIB_OUT_DIR)/libxlang-core.dll.a" 2>/dev/null || true
+	rm -f "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.dll" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.so" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-base.dylib" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-core.dll" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-core.so" "$(NATIVE_RUNTIME_OUT_DIR)/libxlang-core.dylib" 2>/dev/null || true
 	cp -f "$(RUNTIME_CORE_BUILD_DIR)/libs/$(NATIVE_BASE_TARGET).$(NATIVE_SHARED_EXT)" "$(NATIVE_RUNTIME_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(RUNTIME_CORE_BUILD_DIR)/libs/$(NATIVE_BASE_LINK_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 	cp -f "$(RUNTIME_CORE_BUILD_DIR)/libs/$(NATIVE_BASE_STATIC_LIB)" "$(NATIVE_LIB_OUT_DIR)/" 2>/dev/null || true
 
 runtime_gc: runtime_core
-	@set -e; \
-	module_dir="$(RUNTIME_GC_DIR)"; \
-	module_build="$(RUNTIME_GC_BUILD_DIR)"; \
-	if [ -f "$$module_dir/configure" ]; then \
-		mkdir -p "$$module_build"; \
-		cd "$$module_build" && sh ../configure --build-dir=.; \
-	fi; \
-	if [ -f "$$module_build/Makefile" ]; then \
-		$(MAKE) -C "$$module_build" clean; \
-		$(MAKE) -C "$$module_build"; \
-	elif [ -f "$$module_dir/Makefile" ]; then \
-		$(MAKE) -C "$$module_dir" clean; \
-		$(MAKE) -C "$$module_dir"; \
-	else \
-		echo "[INFO] runtime/gc has no Makefile/configure, skip build"; \
-	fi; \
-	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"; \
-	for from in "$$module_build/libs" "$$module_dir/libs"; do \
-		[ -d "$$from" ] || continue; \
-		for f in "$$from"/*.a "$$from"/*.dll.a; do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_LIB_OUT_DIR)/"; done; \
-		for f in "$$from"/*.$(NATIVE_SHARED_EXT); do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_RUNTIME_OUT_DIR)/"; done; \
-	done
+	@echo "[INFO] runtime/gc is not compiled yet, skip."
 
 runtime_exception: runtime_core
-	@set -e; \
-	module_dir="$(RUNTIME_EXCEPTION_DIR)"; \
-	module_build="$(RUNTIME_EXCEPTION_BUILD_DIR)"; \
-	if [ -f "$$module_dir/configure" ]; then \
-		mkdir -p "$$module_build"; \
-		cd "$$module_build" && sh ../configure --build-dir=.; \
-	fi; \
-	if [ -f "$$module_build/Makefile" ]; then \
-		$(MAKE) -C "$$module_build" clean; \
-		$(MAKE) -C "$$module_build"; \
-	elif [ -f "$$module_dir/Makefile" ]; then \
-		$(MAKE) -C "$$module_dir" clean; \
-		$(MAKE) -C "$$module_dir"; \
-	else \
-		echo "[INFO] runtime/exception has no Makefile/configure, skip build"; \
-	fi; \
-	mkdir -p "$(NATIVE_LIB_OUT_DIR)" "$(NATIVE_RUNTIME_OUT_DIR)"; \
-	for from in "$$module_build/libs" "$$module_dir/libs"; do \
-		[ -d "$$from" ] || continue; \
-		for f in "$$from"/*.a "$$from"/*.dll.a; do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_LIB_OUT_DIR)/"; done; \
-		for f in "$$from"/*.$(NATIVE_SHARED_EXT); do [ -f "$$f" ] && cp -f "$$f" "$(NATIVE_RUNTIME_OUT_DIR)/"; done; \
-	done
+	@echo "[INFO] runtime/exception is not compiled yet, skip."
 
 runtime_ext: runtime_gc runtime_exception
 

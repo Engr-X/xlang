@@ -3,7 +3,7 @@
 module Semantic.CheckProgram where
 
 import Control.Monad (foldM)
-import Data.Char (toLower, toUpper)
+import Data.Char (toLower, toUpper, isSpace)
 import Data.Graph (SCC(..), stronglyConnComp)
 import Data.List (foldl', intercalate, isPrefixOf, stripPrefix, maximumBy, sortOn, nub)
 import Data.Map.Strict (Map)
@@ -915,15 +915,24 @@ checkNativeLinkConflict path (_, stmts) =
             where
                 isLinkAnnTok t = case t of
                     Lex.Annotation name [Lex.StrConst s _] _ ->
-                        map toLower name == "link" && map toLower s == "c"
+                        map toLower name == "link" && isCLinkTarget s
                     _ -> False
 
                 isLinkKeywordC ts = case ts of
                     (_ : Lex.Ident name _ : _ : Lex.StrConst s _ : _)
-                        | map toLower name == "link" && map toLower s == "c" -> True
+                        | map toLower name == "link" && isCLinkTarget s -> True
                     (Lex.Ident name _ : _ : Lex.StrConst s _ : _)
-                        | map toLower name == "link" && map toLower s == "c" -> True
+                        | map toLower name == "link" && isCLinkTarget s -> True
                     _ -> False
+
+                isCLinkTarget :: String -> Bool
+                isCLinkTarget = (== "c") . map toLower . trimSpaces
+
+                trimSpaces :: String -> String
+                trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+                dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+                dropWhileEnd p = reverse . dropWhile p . reverse
 
 
 buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport

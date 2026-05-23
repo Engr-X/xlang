@@ -1083,10 +1083,12 @@ genIfCmp64 intJump floatJumps atom1 atom2 (thenBlock, elseBlock) = do
             case cmpClass of
                 cls | isIntLikeCmpClass64 cls ->
                     let cmpBits = if cls == AST.Int64T then X64.B64 else classBits64 cls
-                    in return $ pref ++ [
-                        X64.Cmp xAtom1 rhsReady cmpBits,
-                        intJump thenBlock,
-                        X64.Jump (Right elseBlock)]
+                    in do
+                        (prefCmp, lhsReady, rhsReady') <- normalizeIntCmpOperands64 cmpBits xAtom1 rhsReady
+                        return $ pref ++ prefCmp ++ [
+                            X64.Cmp lhsReady rhsReady' cmpBits,
+                            intJump thenBlock,
+                            X64.Jump (Right elseBlock)]
                 AST.Float32T ->
                     let (lhsF, rhsF) = normalizeFloatCmpOrder64 xAtom1 rhsReady
                     in return $ concat [pref, [X64.Ucomiss lhsF rhsF X64.B32], floatJumps thenBlock elseBlock]
@@ -1097,7 +1099,23 @@ genIfCmp64 intJump floatJumps atom1 atom2 (thenBlock, elseBlock) = do
                     error $ "genIfCmp64: unsupported compare type: " ++ show class1
 
 
+normalizeIntCmpOperands64 ::
+    X64.Bits ->
+    X64.Atom ->
+    X64.Atom ->
+    X64LowerM ([X64.Instruction], X64.Atom, X64.Atom)
+normalizeIntCmpOperands64 bits lhs rhs =
+    case lhs of
+        X64.Imm _ -> do
+            iTmp <- getTmpIRegM64
+            let lhsReg = X64.Reg iTmp bits
+            return ([X64.Mov lhsReg lhs bits], lhsReg, rhs)
+        _ -> return ([], lhs, rhs)
+
+
 genIfRel64 :: IRInstr -> X64LowerM [X64.Instruction]
+genIfRel64 instr
+    | Just bid <- foldConstBranch64 instr = return [X64.Jump (Right bid)]
 genIfRel64 (IR.Ifeq atom1 atom2 labels) = genIfCmp64 (X64.Je . Right) (\t f -> [X64.Jp (Right f), X64.Je (Right t), X64.Jump (Right f)]) atom1 atom2 labels
 genIfRel64 (IR.Ifne atom1 atom2 labels) = genIfCmp64 (X64.Jne . Right) (\t f -> [X64.Jp (Right t), X64.Jne (Right t), X64.Jump (Right f)]) atom1 atom2 labels
 genIfRel64 (IR.Iflt atom1 atom2 labels) = genIfCmp64 (X64.Jl . Right) (\t f -> [X64.Jp (Right f), X64.Jb (Right t), X64.Jump (Right f)]) atom1 atom2 labels
@@ -1105,6 +1123,100 @@ genIfRel64 (IR.Ifle atom1 atom2 labels) = genIfCmp64 (X64.Jle . Right) (\t f -> 
 genIfRel64 (IR.Ifgt atom1 atom2 labels) = genIfCmp64 (X64.Jg . Right) (\t f -> [X64.Jp (Right f), X64.Ja (Right t), X64.Jump (Right f)]) atom1 atom2 labels
 genIfRel64 (IR.Ifge atom1 atom2 labels) = genIfCmp64 (X64.Jge . Right) (\t f -> [X64.Jp (Right f), X64.Jae (Right t), X64.Jump (Right f)]) atom1 atom2 labels
 genIfRel64 _ = error "genIfRel64: expected relational if instruction"
+
+
+foldConstBranch64 :: IRInstr -> Maybe Int
+foldConstBranch64 instr = case instr of
+    IR.Ifeq a b (t, f) -> pick (evalEqConst64 a b) t f
+    IR.Ifne a b (t, f) -> pick (evalNeConst64 a b) t f
+    IR.Iflt a b (t, f) -> pick (evalLtConst64 a b) t f
+    IR.Ifle a b (t, f) -> pick (evalLeConst64 a b) t f
+    IR.Ifgt a b (t, f) -> pick (evalGtConst64 a b) t f
+    IR.Ifge a b (t, f) -> pick (evalGeConst64 a b) t f
+    _ -> Nothing
+  where
+    pick :: Maybe Bool -> Int -> Int -> Maybe Int
+    pick (Just True) t _ = Just t
+    pick (Just False) _ f = Just f
+    pick Nothing _ _ = Nothing
+
+
+evalEqConst64 :: IRAtom -> IRAtom -> Maybe Bool
+evalEqConst64 a b = case (a, b) of
+    (IR.BoolC x, IR.BoolC y) -> Just (x == y)
+    (IR.CharC x, IR.CharC y) -> Just (x == y)
+    (IR.Int8C x, IR.Int8C y) -> Just (x == y)
+    (IR.Int16C x, IR.Int16C y) -> Just (x == y)
+    (IR.Int32C x, IR.Int32C y) -> Just (x == y)
+    (IR.Int64C x, IR.Int64C y) -> Just (x == y)
+    (IR.Float32C x, IR.Float32C y) -> Just (x == y)
+    (IR.Float64C x, IR.Float64C y) -> Just (x == y)
+    (IR.Float128C x, IR.Float128C y) -> Just (x == y)
+    (IR.BoolC x, IR.Int8C y) | y == 0 || y == 1 -> Just (x == (y == 1))
+    (IR.BoolC x, IR.Int16C y) | y == 0 || y == 1 -> Just (x == (y == 1))
+    (IR.BoolC x, IR.Int32C y) | y == 0 || y == 1 -> Just (x == (y == 1))
+    (IR.BoolC x, IR.Int64C y) | y == 0 || y == 1 -> Just (x == (y == 1))
+    (IR.Int8C x, IR.BoolC y) | x == 0 || x == 1 -> Just ((x == 1) == y)
+    (IR.Int16C x, IR.BoolC y) | x == 0 || x == 1 -> Just ((x == 1) == y)
+    (IR.Int32C x, IR.BoolC y) | x == 0 || x == 1 -> Just ((x == 1) == y)
+    (IR.Int64C x, IR.BoolC y) | x == 0 || x == 1 -> Just ((x == 1) == y)
+    _ -> Nothing
+
+
+evalNeConst64 :: IRAtom -> IRAtom -> Maybe Bool
+evalNeConst64 a b = fmap not (evalEqConst64 a b)
+
+
+evalLtConst64 :: IRAtom -> IRAtom -> Maybe Bool
+evalLtConst64 a b = case (a, b) of
+    (IR.CharC x, IR.CharC y) -> Just (x < y)
+    (IR.Int8C x, IR.Int8C y) -> Just (x < y)
+    (IR.Int16C x, IR.Int16C y) -> Just (x < y)
+    (IR.Int32C x, IR.Int32C y) -> Just (x < y)
+    (IR.Int64C x, IR.Int64C y) -> Just (x < y)
+    (IR.Float32C x, IR.Float32C y) -> Just (x < y)
+    (IR.Float64C x, IR.Float64C y) -> Just (x < y)
+    (IR.Float128C x, IR.Float128C y) -> Just (x < y)
+    _ -> Nothing
+
+
+evalLeConst64 :: IRAtom -> IRAtom -> Maybe Bool
+evalLeConst64 a b = case (a, b) of
+    (IR.CharC x, IR.CharC y) -> Just (x <= y)
+    (IR.Int8C x, IR.Int8C y) -> Just (x <= y)
+    (IR.Int16C x, IR.Int16C y) -> Just (x <= y)
+    (IR.Int32C x, IR.Int32C y) -> Just (x <= y)
+    (IR.Int64C x, IR.Int64C y) -> Just (x <= y)
+    (IR.Float32C x, IR.Float32C y) -> Just (x <= y)
+    (IR.Float64C x, IR.Float64C y) -> Just (x <= y)
+    (IR.Float128C x, IR.Float128C y) -> Just (x <= y)
+    _ -> Nothing
+
+
+evalGtConst64 :: IRAtom -> IRAtom -> Maybe Bool
+evalGtConst64 a b = case (a, b) of
+    (IR.CharC x, IR.CharC y) -> Just (x > y)
+    (IR.Int8C x, IR.Int8C y) -> Just (x > y)
+    (IR.Int16C x, IR.Int16C y) -> Just (x > y)
+    (IR.Int32C x, IR.Int32C y) -> Just (x > y)
+    (IR.Int64C x, IR.Int64C y) -> Just (x > y)
+    (IR.Float32C x, IR.Float32C y) -> Just (x > y)
+    (IR.Float64C x, IR.Float64C y) -> Just (x > y)
+    (IR.Float128C x, IR.Float128C y) -> Just (x > y)
+    _ -> Nothing
+
+
+evalGeConst64 :: IRAtom -> IRAtom -> Maybe Bool
+evalGeConst64 a b = case (a, b) of
+    (IR.CharC x, IR.CharC y) -> Just (x >= y)
+    (IR.Int8C x, IR.Int8C y) -> Just (x >= y)
+    (IR.Int16C x, IR.Int16C y) -> Just (x >= y)
+    (IR.Int32C x, IR.Int32C y) -> Just (x >= y)
+    (IR.Int64C x, IR.Int64C y) -> Just (x >= y)
+    (IR.Float32C x, IR.Float32C y) -> Just (x >= y)
+    (IR.Float64C x, IR.Float64C y) -> Just (x >= y)
+    (IR.Float128C x, IR.Float128C y) -> Just (x >= y)
+    _ -> Nothing
 
 
 unaryIntBits64 :: Class -> Class -> AST.Operator -> X64LowerM X64.Bits
@@ -2470,17 +2582,18 @@ escapeTemplateBodyText64 = concatMap one
 --   , X64Label ...
 --   , X64Label ...
 --   ]
--- First block is inlined into function body, remaining blocks are emitted as labels.
+-- All blocks are emitted as labels.
+-- Function entry only emits prologue and jumps to the first IR block label.
 x64LowingFunc :: [String] -> IR.IRFunction -> X64LowerM ([X64.X64Segment], [ExternRef])
-x64LowingFunc ownerQName fun@(IR.IRFunction _ funName funSig _ (first : blocks, _) _) = do
+x64LowingFunc ownerQName fun@(IR.IRFunction _ funName funSig _ (first@(IR.IRBlock (firstBid, _)) : blocks, _) _) = do
     entryInstrs <- x64FuncEntry64 fun
-    (firstBlockInstrs, firstRefs) <- x64FirstBlock64 first
-    (segments, blockRefs) <- x64LowingBlocks64 blocks
-    let bodyInstrs = entryInstrs ++ firstBlockInstrs
+    let allBlocks = first : blocks
         funQname = ownerQName ++ [funName]
         funSigPair = (TEnv.funReturn funSig, TEnv.funParams funSig)
+    (segments, blockRefs) <- x64LowingBlocks64 allBlocks
+    let bodyInstrs = entryInstrs ++ [X64.Jump (Right firstBid)]
         funSeg = X64.X64Func funQname funSigPair bodyInstrs
-    return (funSeg : segments, blockRefs ++ firstRefs)
+    return (funSeg : segments, blockRefs)
 x64LowingFunc ownerQName (IR.IRFunction _ funName funSig _ ([], _) _) =
     let funQname = ownerQName ++ [funName]
         funSigPair = (TEnv.funReturn funSig, TEnv.funParams funSig)

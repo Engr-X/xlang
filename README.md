@@ -84,7 +84,7 @@ This builds native std libs:
 
 - `libxlang-std` (xlang std native objects packed as libs)
 
-Runtime core is built under `runtime/core` as:
+Runtime core is built under `runtime/` as:
 
 - `libxlang-core` (C-side core runtime library)
 

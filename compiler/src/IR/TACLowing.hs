@@ -2457,14 +2457,23 @@ hasLinkCDeclToken toks = hasLinkAnnotation toks || hasLinkKeywordC toks
         hasLinkKeywordC :: [Token] -> Bool
         hasLinkKeywordC ts = case ts of
             (_ : Ident name _ : _ : StrConst s _ : _)
-                | map toLower name == "link" && map toLower s == "c" -> True
+                | map toLower name == "link" && isCLinkTarget s -> True
             (Ident name _ : _ : StrConst s _ : _)
-                | map toLower name == "link" && map toLower s == "c" -> True
+                | map toLower name == "link" && isCLinkTarget s -> True
             _ -> False
 
         isCArg :: [Token] -> Bool
-        isCArg [StrConst s _] = map toLower s == "c"
+        isCArg [StrConst s _] = isCLinkTarget s
         isCArg _ = False
+
+        isCLinkTarget :: String -> Bool
+        isCLinkTarget = (== "c") . map toLower . trimSpaces
+
+        trimSpaces :: String -> String
+        trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+        dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+        dropWhileEnd p = reverse . dropWhile p . reverse
 
 
 parseNativeTargetQName :: String -> [String]

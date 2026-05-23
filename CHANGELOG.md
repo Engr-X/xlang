@@ -1,5 +1,16 @@
 # Revision history for xlang
 
+## Alpha-1.1.3 -- 2026-05-21
+
+### Runtime Architecture
+
+- Unified runtime build entry from split subprojects into a single project at `runtime/`.
+- Added consolidated source/header layout:
+  - `runtime/src/core`, `runtime/src/gc`, `runtime/src/exception`
+  - `runtime/include/core`, `runtime/include/gc`, `runtime/include/exception`
+- Runtime build currently compiles **core only**; `gc`/`exception` are placeholder targets for ongoing work.
+- Kept output artifacts unchanged (`libxlang-core` shared/static and copied locations in root build flow).
+
 ## Alpha-1.1.2 -- 2026-05-07
 
 ### Build & Runtime Layout

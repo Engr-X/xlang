@@ -836,8 +836,8 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
         collectStdNativeLibs dirs = do
             let preferredGroups
                     | os == "mingw32" && includeRuntime =
-                        [ ["libxlang-std.a", "libxlang-std.dll.a"]
-                        , ["libxlang-core.a", "libxlang-core.dll.a"]]
+                        [ ["libxlang-std.a"]
+                        , ["libxlang-core.a"]]
                     | os == "mingw32" =
                         [ ["libxlang-core.dll.a"]
                         , ["libxlang-std.dll.a"]]

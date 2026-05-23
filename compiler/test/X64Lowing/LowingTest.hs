@@ -2,13 +2,13 @@ module X64Lowing.LowingTest where
 
 import Control.Monad.State.Strict (evalState)
 import Data.Map.Strict (Map)
-import IR.TAC (IRAtom(..), IRFunction(..), IRInstr(..), IRMemberType(..))
+import IR.TAC (IRAtom(..), IRBlock(..), IRFunction(..), IRInstr(..), IRMemberType(..))
 import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty
 import Test.Tasty.HUnit
-import X64Lowing.Lowing (runX64LowerState64, x64StmtCode64)
+import X64Lowing.Lowing (runX64LowerState64, x64LowingFunc, x64StmtCode64)
 
 import qualified Data.Map.Strict as Map
 import qualified X64Lowing.ASM as X64
@@ -102,5 +102,62 @@ indirectCallRegTests = testGroup "X64Lowing.ICallPtr.reg" [
         _ -> False
 
 
+ifImmCompareTests :: TestTree
+ifImmCompareTests = testGroup "X64Lowing.IfImm" [
+    testCase "Ifeq with immediates does not emit cmp imm, imm" $ do
+        let ir = Ifeq (Int32C 1) (Int32C 1) (1, 2)
+            fun = mkFun Map.empty
+            st = runX64LowerState64 fun 32 X64.winCC64
+            instrs = evalState (x64StmtCode64 ir) st
+            hasImmImmCmp = any isImmImmCmp instrs
+        assertBool "cmp imm, imm is invalid on x64 and must not be emitted" (not hasImmImmCmp)
+  ]
+  where
+    isImmImmCmp :: X64.Instruction -> Bool
+    isImmImmCmp instr = case instr of
+        X64.Cmp (X64.Imm _) (X64.Imm _) _ -> True
+        _ -> False
+
+
+firstBlockLabelTests :: TestTree
+firstBlockLabelTests = testGroup "X64Lowing.FirstBlockLabel" [
+    testCase "branch target to first block keeps .L<first> materialized" $ do
+        let firstBid = 3
+            retBid = 1
+            fun =
+                IRFunction
+                    (Public, [])
+                    "main"
+                    (FunSig [] Void)
+                    Map.empty
+                    ([ IRBlock (firstBid, [Ifeq (Int32C 1) (Int32C 1) (firstBid, retBid)])
+                     , IRBlock (retBid, [VReturn])
+                     ], retBid)
+                    MemberClassWrapped
+            st = runX64LowerState64 fun 32 X64.winCC64
+            (segs, _) = evalState (x64LowingFunc ["MainX"] fun) st
+            hasFirstLabel = any isFirstLabel segs
+            hasEntryJump = any isEntryJump segs
+        assertBool "expected first block label to be emitted when it is a branch target" hasFirstLabel
+        assertBool "expected function entry to jump into first block label" hasEntryJump
+  ]
+  where
+    isFirstLabel :: X64.X64Segment -> Bool
+    isFirstLabel seg = case seg of
+        X64.X64Label bid _ -> bid == 3
+        _ -> False
+
+    isEntryJump :: X64.X64Segment -> Bool
+    isEntryJump seg = case seg of
+        X64.X64Func _ _ instrs -> any (\i -> i == X64.Jump (Right 3)) instrs
+        _ -> False
+
+
 tests :: TestTree
-tests = testGroup "X64Lowing.LowingTest" [newStackMemChkstkTests, refAssignTests, indirectCallRegTests]
+tests = testGroup "X64Lowing.LowingTest" [
+    newStackMemChkstkTests
+    , refAssignTests
+    , indirectCallRegTests
+    , ifImmCompareTests
+    , firstBlockLabelTests
+    ]

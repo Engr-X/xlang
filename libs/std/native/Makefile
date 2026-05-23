@@ -49,7 +49,7 @@ INSTALL ?= install
 INSTALL_DATA ?= $(INSTALL) -m 0644
 INSTALL_PROGRAM ?= $(INSTALL) -m 0755
 
-RUNTIME_CORE_DIR ?= $(REPO_ROOT)/runtime/core
+RUNTIME_CORE_DIR ?= $(REPO_ROOT)/runtime
 RUNTIME_CORE_BUILD_DIR ?= $(RUNTIME_CORE_DIR)/build
 RUNTIME_CORE_LIB_DIR ?= $(RUNTIME_CORE_BUILD_DIR)/libs
 
@@ -215,7 +215,7 @@ $(STD_SHARED_LIB): $(STD_OBJ_STAMP)
 	if [ -z "$$base_link" ]; then \
 		echo "runtime core library not found under $(RUNTIME_CORE_LIB_DIR)"; \
 		echo "expected one of: $(CORE_LINK_CANDIDATES)"; \
-		echo "build runtime/core first"; \
+		echo "build runtime first"; \
 		exit 1; \
 	fi; \
 	$(CC) $(SHARED_FLAGS) $(SHARED_SIZE_FLAGS) $(SHARED_VERSION_FLAGS) $(SHARED_EXPORT_FLAGS) $(TARGET_IMPLIB_FLAGS) $(LDFLAGS) $$objs "$$base_link" -o "$@"

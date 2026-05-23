@@ -2206,7 +2206,7 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                 let (e', reqE) = rewriteExpr defs0 hints e
                     (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
                     (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
-                in (If e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+                in (If e' b1' b2' toks, concat [reqE, reqB1, reqB2], hints)
             For (s1, e2, s3) b1 b2 toks ->
                 let (s1', reqS1, _) = rewriteMaybeStmt rewriteTemplateBodies defs0 hints s1
                     (e2', reqE2) = rewriteMaybeExpr defs0 hints e2
@@ -2221,27 +2221,27 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                 let (e', reqE) = rewriteExpr defs0 hints e
                     (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
                     (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
-                in (Repeat e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+                in (Repeat e' b1' b2' toks, concat [reqE, reqB1, reqB2], hints)
             While e b1 b2 toks ->
                 let (e', reqE) = rewriteExpr defs0 hints e
                     (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
                     (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
-                in (While e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+                in (While e' b1' b2' toks, concat [reqE, reqB1, reqB2], hints)
             Until e b1 b2 toks ->
                 let (e', reqE) = rewriteExpr defs0 hints e
                     (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
                     (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
-                in (Until e' b1' b2' toks, reqE ++ reqB1 ++ reqB2, hints)
+                in (Until e' b1' b2' toks, concat [reqE, reqB1, reqB2], hints)
             DoWhile b1 e b2 toks ->
                 let (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
                     (e', reqE) = rewriteExpr defs0 hints e
                     (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
-                in (DoWhile b1' e' b2' toks, reqB1 ++ reqE ++ reqB2, hints)
+                in (DoWhile b1' e' b2' toks, concat [reqB1, reqE, reqB2], hints)
             DoUntil b1 e b2 toks ->
                 let (b1', reqB1, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b1
                     (e', reqE) = rewriteExpr defs0 hints e
                     (b2', reqB2, _) = rewriteMaybeBlock rewriteTemplateBodies defs0 hints b2
-                in (DoUntil b1' e' b2' toks, reqB1 ++ reqE ++ reqB2, hints)
+                in (DoUntil b1' e' b2' toks, concat [reqB1, reqE, reqB2], hints)
             Switch e scs tok ->
                 let (e', reqE) = rewriteExpr defs0 hints e
                     (scs', reqS, _) = rewriteSwitchCases rewriteTemplateBodies defs0 hints scs
@@ -2250,21 +2250,21 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
                 in (Function ret name params body', reqs, hints)
-            StaticMethod decls anns ret name params body ->
+            StaticMethod decls' anns ret name params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (StaticMethod decls anns ret name params body', reqs, hints)
-            InstanceMethod decls anns ret name params body ->
+                in (StaticMethod decls' anns ret name params body', reqs, hints)
+            InstanceMethod decls' anns ret name params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
-                in (InstanceMethod decls anns ret name params body', reqs, hints)
+                in (InstanceMethod decls' anns ret name params body', reqs, hints)
             NativeMethod {} -> (stmt, [], hints)
             FunctionT ret name gens params body ->
                 let paramHints = Map.fromList [(n, normalizeClass t) | (t, n, _) <- params]
                     (body', reqs, _) = rewriteBlock rewriteTemplateBodies defs0 (Map.union paramHints hints) body
                     rebuilt = case stmt of
-                        StaticMethodT decls anns _ _ _ _ _ -> StaticMethodT decls anns ret name gens params body'
-                        InstanceMethodT decls anns _ _ _ _ _ -> InstanceMethodT decls anns ret name gens params body'
+                        StaticMethodT decls' anns _ _ _ _ _ -> StaticMethodT decls' anns ret name gens params body'
+                        InstanceMethodT decls' anns _ _ _ _ _ -> InstanceMethodT decls' anns ret name gens params body'
                         _ -> FunctionT ret name gens params body'
                 in (rebuilt, reqs, hints)
 
@@ -2432,12 +2432,12 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                             let typeTok = case concatMap snd tys of
                                     (t:_) -> t
                                     [] -> tok
-                                why = "template type argument count mismatch: "
-                                    ++ name
-                                    ++ " expects "
-                                    ++ formatExpectedTypeArgCounts expected
-                                    ++ " type argument(s), got "
-                                    ++ show (length typeArgs)
+                                why = concat ["template type argument count mismatch: ",
+                                    name,
+                                    " expects ",
+                                    formatExpectedTypeArgCounts expected,
+                                    " type argument(s), got ",
+                                    show (length typeArgs)]
                             in (Error [typeTok] why, reqBase)
                     _ ->
                         -- keep execution deterministic: once type args are parsed,
@@ -2645,25 +2645,25 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     (substituteBlock subst body)
-            StaticMethod decls anns (retT, retToks) name params body ->
+            StaticMethod decls' anns (retT, retToks) name params body ->
                 StaticMethod
-                    decls
+                    decls'
                     anns
                     (substituteClass subst retT, retToks)
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     (substituteBlock subst body)
-            InstanceMethod decls anns (retT, retToks) name params body ->
+            InstanceMethod decls' anns (retT, retToks) name params body ->
                 InstanceMethod
-                    decls
+                    decls'
                     anns
                     (substituteClass subst retT, retToks)
                     name
                     (map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params)
                     (substituteBlock subst body)
-            NativeMethod decls anns (retT, retToks) name params target ->
+            NativeMethod decls' anns (retT, retToks) name params target ->
                 NativeMethod
-                    decls
+                    decls'
                     anns
                     (substituteClass subst retT, retToks)
                     name
@@ -2675,10 +2675,10 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
                     gens' = map (\(t, toks) -> (substituteClass subst t, toks)) gens
                     params' = map (\(t, n, toks) -> (substituteClass subst t, n, toks)) params
                 in case stmt of
-                    StaticMethodT decls anns _ _ _ _ _ ->
-                        StaticMethodT decls anns ret' name gens' params' body'
-                    InstanceMethodT decls anns _ _ _ _ _ ->
-                        InstanceMethodT decls anns ret' name gens' params' body'
+                    StaticMethodT decls' anns _ _ _ _ _ ->
+                        StaticMethodT decls' anns ret' name gens' params' body'
+                    InstanceMethodT decls' anns _ _ _ _ _ ->
+                        InstanceMethodT decls' anns ret' name gens' params' body'
                     _ ->
                         FunctionT
                             ret'
@@ -2730,8 +2730,8 @@ promoteTopLevelFunctions (decls, stmts) = (decls, map promote (concatMap hoistTo
         promote :: Statement -> Statement
         promote (DefField names mTy rhs toks) = DefVar names mTy rhs toks
         promote (DefConstField names mTy rhs toks) = DefConstVar names mTy rhs toks
-        promote (InstanceMethod decls anns ret name params body) = StaticMethod decls anns ret name params body
-        promote (InstanceMethodT decls anns ret name gens params body) = StaticMethodT decls anns ret name gens params body
+        promote (InstanceMethod decls' anns ret name params body) = StaticMethod decls' anns ret name params body
+        promote (InstanceMethodT decls' anns ret name gens params body) = StaticMethodT decls' anns ret name gens params body
         promote (StmtGroup ss) = StmtGroup (map promote ss)
         promote stmt = stmt
 
