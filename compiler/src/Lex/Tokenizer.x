@@ -201,7 +201,20 @@ makePos (AlexPn _ line col) = UType.makePosition line col
 -- | Removes the surrounding quotes from a string literal.
 -- | Example: "\"hello\"" -> "hello"
 unwrapString :: String -> String 
-unwrapString = init . tail
+unwrapString s = case unwrapStringSafe s of
+    Nothing -> s
+    Just body -> unescapeStringBody body
+    where
+        unwrapStringSafe :: String -> Maybe String
+        unwrapStringSafe = unwrapQuoted '"'
+
+        unescapeStringBody :: String -> String
+        unescapeStringBody [] = []
+        unescapeStringBody ('\\':rest) =
+            case parseEscapePrefix rest of
+                Just (c, remS) -> c : unescapeStringBody remS
+                Nothing        -> '\\' : unescapeStringBody rest
+        unescapeStringBody (c:rest) = c : unescapeStringBody rest
 
 
 -- | Converts a string representing a character literal into the actual character.
@@ -213,49 +226,73 @@ unwrapChar s = case unwrapStringSafe s of
     Nothing -> Nothing
     Just body -> case body of
         [c]       -> Just c
-        '\\':rest -> parseEscape rest
+        '\\':rest -> do
+            (c, remS) <- parseEscapePrefix rest
+            if null remS then Just c else Nothing
         _         -> Nothing
     where
         -- safer unwrap: require surrounding single quotes
         unwrapStringSafe :: String -> Maybe String
-        unwrapStringSafe xs = case xs of
-            ('\'':mid) | not (null mid) && last mid == '\'' -> Just (init mid)
-            _                                               -> Nothing
+        unwrapStringSafe = unwrapQuoted '\''
 
-        readHexInt :: String -> Maybe Int
-        readHexInt str = case readHex str of
-            [(n, "")] -> Just n
-            _         -> Nothing
 
-        readOctInt :: String -> Maybe Int
-        readOctInt str = case readOct str of
-            [(n, "")] -> Just n
-            _         -> Nothing
+unwrapQuoted :: Char -> String -> Maybe String
+unwrapQuoted quote xs = case xs of
+    (q:mid) | q == quote && not (null mid) && last mid == quote -> Just (init mid)
+    _                                                            -> Nothing
 
-        inRangeChar :: Int -> Maybe Char
-        inRangeChar n
-            | n >= 0 && n <= fromEnum (maxBound :: Char) = Just (DC.chr n)
-            | otherwise                                 = Nothing
 
-        parseEscape :: String -> Maybe Char
-        parseEscape str = case str of
-            "0"  -> Just '\0'
-            "n"  -> Just '\n'
-            "t"  -> Just '\t'
-            "r"  -> Just '\r'
-            "b"  -> Just '\b'
-            "f"  -> Just '\f'
-            "v"  -> Just '\v'
-            "\\" -> Just '\\'
-            "'"  -> Just '\''
-            "\"" -> Just '\"'
-            ('x':hex) | not (null hex) -> readHexInt hex >>= inRangeChar
-            ('u':hex) | not (null hex) -> readHexInt hex >>= inRangeChar
-            ('U':hex) | not (null hex) -> readHexInt hex >>= inRangeChar
-            oct | not (null oct)
-                && all (\c -> c >= '0' && c <= '7') oct
-                && length oct <= 3     -> readOctInt oct >>= inRangeChar
-            _ -> Nothing
+readHexInt :: String -> Maybe Int
+readHexInt str = case readHex str of
+    [(n, "")] -> Just n
+    _         -> Nothing
+
+
+readOctInt :: String -> Maybe Int
+readOctInt str = case readOct str of
+    [(n, "")] -> Just n
+    _         -> Nothing
+
+
+inRangeChar :: Int -> Maybe Char
+inRangeChar n
+    | n >= 0 && n <= fromEnum (maxBound :: Char) = Just (DC.chr n)
+    | otherwise                                   = Nothing
+
+
+parseEscapePrefix :: String -> Maybe (Char, String)
+parseEscapePrefix [] = Nothing
+parseEscapePrefix (c:rest) = case c of
+    '0'  -> Just ('\0', rest)
+    'n'  -> Just ('\n', rest)
+    't'  -> Just ('\t', rest)
+    'r'  -> Just ('\r', rest)
+    'b'  -> Just ('\b', rest)
+    'f'  -> Just ('\f', rest)
+    'v'  -> Just ('\v', rest)
+    '\\' -> Just ('\\', rest)
+    '\'' -> Just ('\'', rest)
+    '"'  -> Just ('\"', rest)
+    'x'  -> parseHexEscape rest
+    'u'  -> parseHexEscape rest
+    'U'  -> parseHexEscape rest
+    _ | c >= '0' && c <= '7' ->
+        let octTail = takeWhile (\x -> x >= '0' && x <= '7') rest
+            octTailUsed = take 2 octTail
+            octDigits = c : octTailUsed
+            remS = drop (length octTailUsed) rest
+        in do
+            n <- readOctInt octDigits
+            ch <- inRangeChar n
+            Just (ch, remS)
+    _ -> Nothing
+    where
+        parseHexEscape rem0 =
+            let (hex, remS) = span DC.isHexDigit rem0
+            in if null hex then Nothing else do
+                n <- readHexInt hex
+                ch <- inRangeChar n
+                Just (ch, remS)
 
 
 -- skip 1 sapce

@@ -2,15 +2,24 @@ module X64Lowing.LowingTest where
 
 import Control.Monad.State.Strict (evalState)
 import Data.Map.Strict (Map)
-import IR.TAC (IRAtom(..), IRBlock(..), IRFunction(..), IRInstr(..), IRMemberType(..))
+import IR.TAC (IRAtom(..), IRBlock(..), IRCFunction(..), IRFunction(..), IRInstr(..), IRMemberType(..))
 import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
 import Test.Tasty
 import Test.Tasty.HUnit
-import X64Lowing.Lowing (runX64LowerState64, x64LowingFunc, x64StmtCode64)
+import X64Lowing.Lowing (
+    lowerCFun,
+    runX64LowerState64,
+    stStructQNameSet64,
+    stStructSizeMap64,
+    x64LowingFunc,
+    x64StmtCode64)
 
+import qualified Lex.Token as LT
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import qualified Parse.SyntaxTree as AST
 import qualified X64Lowing.ASM as X64
 
 
@@ -44,11 +53,40 @@ newStackMemChkstkTests = testGroup "X64Lowing.NewStackMem.chkstk" [
             instrs = evalState (x64StmtCode64 ir) st
             hasChkstk = any isChkstkCall instrs
         assertBool "did not expect ___chkstk_ms call for non-Windows calling convention" (not hasChkstk)
+    , testCase "constant blob NewStackMem uses fixed frame slot (no dynamic rsp growth)" $ do
+        let dst = Var ("b", 0, 0)
+            sz = Var ("sz", 0, 0)
+            ir = NewStackMem dst sz
+            blobTy = Blob (AST.IntConst "12" LT.dummyToken)
+            fun =
+                IRFunction
+                    (Public, [])
+                    "main"
+                    (FunSig [] Void)
+                    (Map.fromList [(dst, blobTy), (sz, Int64T)])
+                    ([IRBlock (0, [ir, VReturn])], 1)
+                    MemberClassWrapped
+            st = runX64LowerState64 fun 32 X64.winCC64
+            instrs = evalState (x64StmtCode64 ir) st
+            hasRspSubReg = any isRspSubReg instrs
+            hasLeaFrame = any isLeaFrame instrs
+        assertBool "expected fixed-frame lea for constant blob stack allocation" hasLeaFrame
+        assertBool "must not emit dynamic sub rsp,<reg> for fixed blob allocation" (not hasRspSubReg)
     ]
     where
         isChkstkCall :: X64.Instruction -> Bool
         isChkstkCall (X64.Call qn _) = qn == X64.mkRawQName64 "___chkstk_ms"
         isChkstkCall _ = False
+
+        isRspSubReg :: X64.Instruction -> Bool
+        isRspSubReg instr = case instr of
+            X64.Sub (X64.Reg r1 X64.B64) (X64.Reg _ X64.B64) X64.B64 -> r1 == X64.SP
+            _ -> False
+
+        isLeaFrame :: X64.Instruction -> Bool
+        isLeaFrame instr = case instr of
+            X64.Lea _ (X64.Mem (Just r) _ off) X64.B64 -> r == X64.B && off < 0
+            _ -> False
 
 
 refAssignTests :: TestTree
@@ -61,7 +99,22 @@ refAssignTests = testGroup "X64Lowing.IAssign.ref" [
             st = runX64LowerState64 fun 32 X64.winCC64
             instrs = evalState (x64StmtCode64 ir) st
         assertBool "expected ref assign lowered as mov/mov sequence" (length instrs == 2)
+  , testCase "allow deref assign for pointer-to-function-pointer on x64" $ do
+        let slot = Var ("slot", 0, 0)
+            fn = Var ("fn", 0, 0)
+            fpTy = FuncPtr Void [Int32T, Int32T, Char, Int8T]
+            ir = DerefAssign slot fn 8
+            fun = mkFun (Map.fromList [(slot, Pointer fpTy), (fn, fpTy)])
+            st = runX64LowerState64 fun 32 X64.winCC64
+            instrs = evalState (x64StmtCode64 ir) st
+            hasStore64 = any isStore64 instrs
+        assertBool "expected 8-byte store for function pointer deref assign" hasStore64
     ]
+  where
+    isStore64 :: X64.Instruction -> Bool
+    isStore64 instr = case instr of
+        X64.Mov (X64.Mem _ _ _) _ X64.B64 -> True
+        _ -> False
 
 indirectCallRegTests :: TestTree
 indirectCallRegTests = testGroup "X64Lowing.ICallPtr.reg" [
@@ -139,7 +192,7 @@ firstBlockLabelTests = testGroup "X64Lowing.FirstBlockLabel" [
             hasFirstLabel = any isFirstLabel segs
             hasEntryJump = any isEntryJump segs
         assertBool "expected first block label to be emitted when it is a branch target" hasFirstLabel
-        assertBool "expected function entry to jump into first block label" hasEntryJump
+        assertBool "function entry should fall through into first block label (no redundant jump)" (not hasEntryJump)
   ]
   where
     isFirstLabel :: X64.X64Segment -> Bool
@@ -153,6 +206,61 @@ firstBlockLabelTests = testGroup "X64Lowing.FirstBlockLabel" [
         _ -> False
 
 
+cLinkMirrorTests :: TestTree
+cLinkMirrorTests = testGroup "X64Lowing.CLinkMirror" [
+    testCase "link(c) mirror emits thin jmp wrapper only" $ do
+        let sig = FunSig [Int32T, Int32T] Int32T
+            cfun = IRCFunction (Public, []) "add" sig Map.empty ([], 0) MemberClassWrapped
+            st = runX64LowerState64 (mkFun Map.empty) 32 X64.winCC64
+            (segs, refs) = evalState (lowerCFun ["KernelX"] Map.empty cfun) st
+            expectedTarget = X64.mkRawQName64 (X64.mangleQNameWithSig True ["KernelX", "add"] [Int32T, Int32T, Int32T])
+        refs @=? []
+        case segs of
+            [X64.X64Segement sym [X64.Jump (Left dst)]] -> do
+                sym @=? X64.mkRawQName64 "add"
+                dst @=? expectedTarget
+            _ -> assertFailure ("unexpected c-link mirror segments: " ++ show segs)
+  ]
+
+structReturnCallTests :: TestTree
+structReturnCallTests = testGroup "X64Lowing.StructReturnCall" [
+    testCase "struct-return call reserves stack result area before call" $ do
+        let dst = Var ("dst", 0, 0)
+            arg0 = Var ("x", 0, 0)
+            sTy = Pointer (AST.Class ["S"] [])
+            ir = ICallStatic dst ["Demo", "mk"] [arg0]
+            fun = mkFun (Map.fromList [(dst, sTy), (arg0, Int32T)])
+            st0 = runX64LowerState64 fun 32 X64.winCC64
+            st =
+                st0 {
+                    stStructQNameSet64 = Set.fromList [["Demo", "S"]],
+                    stStructSizeMap64 = Map.fromList [(["Demo", "S"], 24)]
+                }
+            instrs = evalState (x64StmtCode64 ir) st
+            hasStructReserve = any isSubRsp64 instrs
+            hasHiddenRetPtr = any isLeaR11FromRspPlus32 instrs
+            hasShadowRestore = any isAddRsp32 instrs
+        assertBool "expected stack reserve (shadow + aligned struct return area) before call" hasStructReserve
+        assertBool "expected hidden struct return pointer setup (lea r11, [rsp+32])" hasHiddenRetPtr
+        assertBool "expected shadow-space restore after call" hasShadowRestore
+  ]
+  where
+    isSubRsp64 :: X64.Instruction -> Bool
+    isSubRsp64 instr = case instr of
+        X64.Sub (X64.Reg X64.SP X64.B64) (X64.Imm 64) X64.B64 -> True
+        _ -> False
+
+    isLeaR11FromRspPlus32 :: X64.Instruction -> Bool
+    isLeaR11FromRspPlus32 instr = case instr of
+        X64.Lea (X64.Reg X64.R11 X64.B64) (X64.Mem (Just X64.SP) Nothing 32) X64.B64 -> True
+        _ -> False
+
+    isAddRsp32 :: X64.Instruction -> Bool
+    isAddRsp32 instr = case instr of
+        X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm 32) X64.B64 -> True
+        _ -> False
+
+
 tests :: TestTree
 tests = testGroup "X64Lowing.LowingTest" [
     newStackMemChkstkTests
@@ -160,4 +268,6 @@ tests = testGroup "X64Lowing.LowingTest" [
     , indirectCallRegTests
     , ifImmCompareTests
     , firstBlockLabelTests
+    , cLinkMirrorTests
+    , structReturnCallTests
     ]

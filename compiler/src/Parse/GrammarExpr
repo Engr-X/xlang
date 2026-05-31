@@ -1,7 +1,11 @@
 -- this qname is reversed (value/name path)
+QNameIdent :: { Token }
+    : identity              { $1 }
+    ;
+
 QName :: { ([String], [Token]) }
-    : identity              { ([identText $1], [$1]) }
-    | QName '.' identity    { let (xs, ts) = $1 in (identText $3 : xs, $3 : ts) }
+    : QNameIdent            { ([identText $1], [$1]) }
+    | QName '.' QNameIdent  { let (xs, ts) = $1 in (identText $3 : xs, $3 : ts) }
     ;
 
 -- this Clazzs is reversed
@@ -178,6 +182,8 @@ Postfix :: { Expression }
     -- calls (highest precedence, before cast/postfix ops)
     | QName ArgumentsOpt                        { Call (qnameToExpr $1) $2 }
     | QName GenericParamList ArgumentsOpt       { CallT (qnameToExpr $1) $2 $3 }
+    | KW_NEW QName ArgumentsOpt                 { Call (Unary AddrOf (qnameToExpr $2) $1) $3 }
+    | KW_NEW QName GenericParamList ArgumentsOpt{ CallT (Unary AddrOf (qnameToExpr $2) $1) $3 $4 }
 
     | Postfix '++'              { Unary SelfInc $1 $2 }
     | Postfix '--'              { Unary SelfDec $1 $2 }

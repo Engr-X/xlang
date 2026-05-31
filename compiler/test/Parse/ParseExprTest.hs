@@ -362,6 +362,7 @@ tests = testGroup "Parse.ParseExpr" [
     bitImplyParseTests,
     iffParseTests,
     genericCallSyntaxTests,
+    newConstructorParseTests,
     blockExprParseTests,
     ifAssignSugarParseTests,
     sizeofParseTests,
@@ -489,6 +490,24 @@ genericCallSyntaxTests = testGroup "Parse.ParseExpr.generic_call_syntax" [
     testCase "2" $
         case replLexparseExpr "add<>(m, 1)" of
             Right (CallT (Variable "add" _) [] [Variable "m" _, IntConst "1" _]) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+
+
+newConstructorParseTests :: TestTree
+newConstructorParseTests = testGroup "Parse.ParseExpr.new_constructor" [
+    testCase "new Struct(args) parses into heap-constructor marker" $
+        case replLexparseExpr "new Display(1, 2)" of
+            Right (Call
+                (Unary AddrOf (Variable "Display" _) _)
+                [IntConst "1" _, IntConst "2" _]) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "new qualified Struct() parses into heap-constructor marker" $
+        case replLexparseExpr "new kernel.io.Display()" of
+            Right (Call
+                (Unary AddrOf (Qualified ["kernel", "io", "Display"] _) _)
+                []) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 

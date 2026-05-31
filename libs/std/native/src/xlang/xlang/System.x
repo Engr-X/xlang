@@ -101,3 +101,11 @@ fun memcopy(dest: pointer<*>, src: pointer<*>, length: int, tsize: int) -> void:
 
 fun memcopy(dest: pointer<*>, src: pointer<*>, srcPos: int, destPos: int, size: int) -> void:
     memcopy(dest as pointer<byte> + destPos, src as pointer<byte> + srcPos, size)
+
+
+@native("xlang_malloc")
+native inline fun allocMemory(size: int) -> pointer<*>
+
+
+@native("xlang_mfree")
+native inline fun freeMemory(pre: pointer<*>) -> void

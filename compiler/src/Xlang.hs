@@ -38,6 +38,7 @@ data Options = Options {
     optMainEntry :: Maybe [String],
     optTargetJvm :: Maybe Int,
     optTargetX64 :: Bool,
+    optPlatform :: Maybe CX64.TargetPlatform,
     optInputs :: [FilePath],
     optLibs :: [FilePath],
     optX64Compiler :: Maybe CX64.X64CompilerChoice,
@@ -58,6 +59,7 @@ defaultOptions = Options {
     optMainEntry = Nothing,
     optTargetJvm = Nothing,
     optTargetX64 = False,
+    optPlatform = Nothing,
     optInputs = [],
     optLibs = [],
     optX64Compiler = Nothing,
@@ -425,6 +427,17 @@ parseArgs = go defaultOptions
                 optHelp = True,
                 optError = Just "invalid value for --compiler; expected nasm or as"}
 
+        parsePlatformValue :: String -> Options -> [String] -> Options
+        parsePlatformValue raw opts xs = case map toLower (stripWrappingQuotes raw) of
+            "win" -> go opts {optPlatform = Just CX64.TargetPlatformWindows} xs
+            "windows" -> go opts {optPlatform = Just CX64.TargetPlatformWindows} xs
+            "linux" -> go opts {optPlatform = Just CX64.TargetPlatformLinux} xs
+            "mac" -> go opts {optPlatform = Just CX64.TargetPlatformMac} xs
+            "darwin" -> go opts {optPlatform = Just CX64.TargetPlatformMac} xs
+            _ -> opts {
+                optHelp = True,
+                optError = Just "invalid value for --platform; expected win(windows), linux or mac"}
+
         go :: Options -> [String] -> Options
         go opts [] = opts
 
@@ -458,12 +471,16 @@ parseArgs = go defaultOptions
                 go opts {optRoot = normalizePathArg rootDir} xs
             | Just rootDir <- stripPrefix "root=" arg =
                 go opts {optRoot = normalizePathArg rootDir} xs
+            | Just platformRaw <- stripPrefix "--platform=" arg =
+                parsePlatformValue platformRaw opts xs
         go opts ("--root" : rootDir : xs) = go opts {optRoot = normalizePathArg rootDir} xs
         go opts ("-r" : rootDir : xs) = go opts {optRoot = normalizePathArg rootDir} xs
         go opts ("root" : rootDir : xs) = go opts {optRoot = normalizePathArg rootDir} xs
+        go opts ("--platform" : platformRaw : xs) = parsePlatformValue platformRaw opts xs
         go opts ["--root"] = opts {optHelp = True, optError = Just "missing value for --root"}
         go opts ["-r"] = opts {optHelp = True, optError = Just "missing value for -r"}
         go opts ["root"] = opts {optHelp = True, optError = Just "missing value for root"}
+        go opts ["--platform"] = opts {optHelp = True, optError = Just "missing value for --platform"}
 
         go opts ("-j" : n : xs) = parseJobsValue n opts xs
         go opts ("--jobs" : n : xs) = parseJobsValue n opts xs
@@ -539,6 +556,9 @@ printHelp = putStrLn $ unlines [
     "                    x64-only assembler choice (default: nasm)",
     "   --compiler <nasm|as>",
     "                    same as above",
+    "   --platform=<win|windows|linux|mac>",
+    "                    x64-only target platform override (affects calling convention, asm flavor, object format)",
+    "                    use this to generate linux/mac style output on Windows host",
     "   --target x64     compatibility alias for x64 target",
     "   -download=<n>, --download=<n>",
     "                    download jdk metadata db to <xlang.exe dir>/libs/java/jdk<target>-stdlib.db",
@@ -687,6 +707,10 @@ main = do
                                         then do
                                             putStrLn "--main is only valid when -d points to a .jar output"
                                             printHelp
+                                    else if isJust (optPlatform opts)
+                                        then do
+                                            putStrLn "--platform is only valid with --target=x64"
+                                            printHelp
                                         else if CJ.isJarOutput outPath
                                         then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths runtimeLibPaths outPath includeRuntime (optDebug opts) mMainClassOverride
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
@@ -703,9 +727,13 @@ main = do
                                         then do
                                             putStrLn "--main is only valid with -d <output>.jar"
                                             printHelp
+                                    else if isJust (optPlatform opts)
+                                        then do
+                                            putStrLn "--platform is only valid with --target=x64"
+                                            printHelp
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
                             (Just TargetX64, _, mOut) ->
-                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOut mMainClassOverride (optX64Compiler opts) includeRuntime (optDebug opts))
+                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOut mMainClassOverride (optPlatform opts) (optX64Compiler opts) includeRuntime (optDebug opts))
                             _ -> do
                                 putStrLn "missing target; use --target-jvm<number> or --target=x64"
                                 printHelp

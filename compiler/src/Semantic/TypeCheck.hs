@@ -6,7 +6,7 @@ module Semantic.TypeCheck where
 import Control.Monad (when, unless, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
-import Data.Char (toLower)
+import Data.Char (toLower, isUpper)
 import Data.List (find, foldl', intercalate)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
@@ -23,6 +23,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Lex.Token as Lex
 import qualified Util.Exception as UE
+import qualified Util.Type as UT
 
 
 -- | Class member typing definition (maintained by caller).
@@ -104,17 +105,37 @@ defaultDecl = declFromFlags defaultDeclFlags
 
 
 normalizeTypeAlias :: Class -> Class
-normalizeTypeAlias cls = case cls of
-    Class ["String"] [] -> Class ["String"] []
-    Class ["java", "lang", "String"] [] -> Class ["String"] []
-    Class ["xlang", "String"] [] -> Class ["String"] []
-    Class ["Any"] [] -> Class ["Any"] []
-    Class ["xlang", "Any"] [] -> Class ["Any"] []
-    Class ["java", "lang", "Object"] [] -> Class ["Any"] []
-    Pointer inner -> Pointer (normalizeTypeAlias inner)
-    FuncPtr ret args -> FuncPtr (normalizeTypeAlias ret) (map normalizeTypeAlias args)
-    Class qn args -> Class qn (map normalizeTypeAlias args)
-    other -> other
+normalizeTypeAlias = go True
+  where
+    go :: Bool -> Class -> Class
+    go top cls = case cls of
+        Class ["String"] [] -> Class ["String"] []
+        Class ["java", "lang", "String"] [] -> Class ["String"] []
+        Class ["xlang", "String"] [] -> Class ["String"] []
+        Class ["Any"] [] -> Class ["Any"] []
+        Class ["xlang", "Any"] [] -> Class ["Any"] []
+        Class ["java", "lang", "Object"] [] -> Class ["Any"] []
+        Pointer inner -> Pointer (go False inner)
+        FuncPtr ret args -> FuncPtr (go True ret) (map (go True) args)
+        Class qn args ->
+            let clsN = Class qn (map (go True) args)
+            in if top && shouldAutoRefUserClass clsN
+                then Pointer clsN
+                else clsN
+        other -> other
+
+    shouldAutoRefUserClass :: Class -> Bool
+    shouldAutoRefUserClass c = case c of
+        Class ["String"] [] -> False
+        Class ["Any"] [] -> False
+        Class qn [] -> not (isTemplateTypeName (last qn))
+        _ -> False
+
+    -- Template type names are generated as Excel-like uppercase tokens
+    -- (A, B, ... Z, AA, AB, ...). Keep them as plain type vars.
+    isTemplateTypeName :: String -> Bool
+    isTemplateTypeName [] = False
+    isTemplateTypeName s = all isUpper s
 
 
 checkBlobTypeConstraints :: Path -> [Position] -> Class -> TypeM ()
@@ -308,7 +329,10 @@ recordVarUseLocal pos name vid = do
     c <- get
     let flags = Map.findWithDefault [] vid (tcVarFlags c)
         decl = declFromFlags flags
-    recordVarUse [pos] (VarLocal decl name vid)
+        cls = case Map.lookup vid (tcVarTypes c) of
+            Just (t, _) -> t
+            Nothing -> ErrorClass
+    recordVarUse [pos] (VarLocal decl name vid cls)
 
 -- | Check type compatibility and emit implicit-cast warnings when allowed.
 checkTypeCompat :: Path -> [Position] -> Class -> Class -> TypeM ()
@@ -317,20 +341,33 @@ checkTypeCompat path pos expected actual = do
         actualN = normalizeTypeAlias actual
         expectedCast = pointerAsInt64 expectedN
         actualCast = pointerAsInt64 actualN
-    if actualN == ErrorClass || expectedN == ErrorClass || expectedN == actualN then
+    if actualN == ErrorClass || expectedN == ErrorClass then
         pure ()
-    else if expectedN == Bool || expectedN == Void || actualN == Void then
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
-    else if isPointerType expectedN || isPointerType actualN then
-        if isBasicType expectedCast && isBasicType actualCast
-            then mapM_ addWarn (iCast path pos actualCast expectedCast)
-            else addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
-    else if isBasicType expectedN && isBasicType actualN then
-        mapM_ addWarn (iCast path pos actualN expectedN)
-    else if isBasicType expectedN /= isBasicType actualN then
-        addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actualN) (prettyClass expectedN))
     else
-        addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
+        case (expectedN, actualN) of
+            (Blob _, Blob _) ->
+                case (blobConstSizeMaybe expectedN, blobConstSizeMaybe actualN) of
+                    (Just expectedSize, Just actualSize) ->
+                        if actualSize <= expectedSize
+                            then pure ()
+                            else addErr $ UE.Syntax $ UE.makeError path pos "space is not enouch"
+                    _ ->
+                        pure ()
+            _ ->
+                if expectedN == actualN then
+                    pure ()
+                else if expectedN == Bool || expectedN == Void || actualN == Void then
+                    addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
+                else if isPointerType expectedN || isPointerType actualN then
+                    if isBasicType expectedCast && isBasicType actualCast
+                        then mapM_ addWarn (iCast path pos actualCast expectedCast)
+                        else addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
+                else if isBasicType expectedN && isBasicType actualN then
+                    mapM_ addWarn (iCast path pos actualN expectedN)
+                else if isBasicType expectedN /= isBasicType actualN then
+                    addErr $ UE.Syntax $ UE.makeError path pos (staticCastError (prettyClass actualN) (prettyClass expectedN))
+                else
+                    addErr $ UE.Syntax $ UE.makeError path pos (UE.typeMismatchMsg (prettyClass expectedN) (prettyClass actualN))
   where
     pointerAsInt64 :: Class -> Class
     pointerAsInt64 (Pointer _) = Int64T
@@ -552,9 +589,12 @@ inferExpr path packages envs (Variable str tok) = do
     c <- get
     let pos = Lex.tokenPos tok
     let TypeCtx {tcVarTypes = vts} = c
+    let hasLocalThis = case lookupVarId "this" (CC.st (tcCtx c)) of
+            Just _ -> True
+            Nothing -> False
 
     -- ?????this ?????????????????
-    if str == "this" then inferThis path pos
+    if str == "this" && not hasLocalThis then inferThis path pos
     else do
         let lookupByVid vid = fmap fst (Map.lookup vid vts)
         let lookupByName = do
@@ -567,13 +607,13 @@ inferExpr path packages envs (Variable str tok) = do
         case mVidAtPos >>= lookupByVid of
             Just t -> do
                 for_ mVidAtPos (recordVarUseLocal pos str)
-                pure t
+                pure (normalizeTypeAlias t)
             Nothing -> do
                 -- ????????? TypeCheck ???????????????????? VarId ?????????????
                 case lookupByName of
                     Just (vid, t) -> do
                         recordVarUseLocal pos str vid
-                        pure t
+                        pure (normalizeTypeAlias t)
                     Nothing -> do
                         let qn = packages ++ [str]
 
@@ -582,7 +622,7 @@ inferExpr path packages envs (Variable str tok) = do
                             -- ????????????????????
                             Just (t, _, full) -> do
                                 recordVarUse [pos] (VarImported defaultDeclFlags t qn full)
-                                pure t
+                                pure (normalizeTypeAlias t)
 
                             -- ????????ContextCheck ????????
                             Nothing -> do
@@ -627,7 +667,13 @@ inferExpr path packages envs (Qualified names toks) = do
             let TypeCtx { tcVarTypes = vts } = c
             case names of
                 -- ??? `this` -> ????????????????
-                ["this"] -> inferThis path posHead
+                ["this"] ->
+                    let hasLocalThis = case lookupVarId "this" (CC.st (tcCtx c)) of
+                            Just _ -> True
+                            Nothing -> False
+                    in if hasLocalThis
+                        then inferExpr path packages envs (Variable "this" (head toks))
+                        else inferThis path posHead
 
                 -- `this.field`????????> ?????????????
                 -- TODO
@@ -637,7 +683,7 @@ inferExpr path packages envs (Qualified names toks) = do
                 _ -> case getImportedVarType names envs of
                     Just (t, full) -> do
                         recordVarUse posAll (VarImported defaultDeclFlags t names full)
-                        pure t
+                        pure (normalizeTypeAlias t)
 
                     -- 2) ??????????????????????????
                     Nothing -> do
@@ -694,7 +740,7 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
 
     handledFuncPtrCast <- resolveFuncPtrCastTarget toTN innerE
     if handledFuncPtrCast
-        then pure toT
+        then pure toTN
         else do
     -- recursively infer inner expression
             fromT <- inferExpr path packages envs innerE
@@ -721,7 +767,7 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
             pure ()
 
             -- result type of cast is always target type
-            pure toT
+            pure toTN
   where
     resolveFuncPtrCastTarget :: Class -> Expression -> TypeM Bool
     resolveFuncPtrCastTarget targetTy expr0 = case normalizeTypeAlias targetTy of
@@ -996,7 +1042,7 @@ inferExpr path packages envs e@(Call callee args) = do
         shouldTreatAsPointerIntrinsic ctx pkg envs0 baseName baseTok =
             let pos = Lex.tokenPos baseTok
                 hasLocal = case getVarId pos (tcCtx ctx) of
-                    Just _ -> True
+                    Just vid -> Map.member vid (tcVarTypes ctx)
                     Nothing -> False
                 hasImported = case getImportedVarType (pkg ++ [baseName]) envs0 of
                     Just _ -> True
@@ -1054,7 +1100,7 @@ inferExpr path packages envs e@(Call callee args) = do
             [(Class, [Position])] ->
             TypeM (Maybe Class)
         inferFunctionPointerCall ctx callPos0 calleeExpr argInfos = do
-            if not (isValueCallee ctx calleeExpr)
+            if hasSyntheticCalleeToken calleeExpr || isNamedFunctionCallee ctx calleeExpr
                 then pure Nothing
                 else do
                     calleeTy <- inferExpr path packages envs calleeExpr
@@ -1075,26 +1121,36 @@ inferExpr path packages envs e@(Call callee args) = do
                                 "invalid function name: callee is not callable (" ++ prettyClass calleeTy ++ ")"
                             pure (Just ErrorClass)
 
-        isValueCallee :: TypeCtx -> Expression -> Bool
-        isValueCallee ctx expr0 = case expr0 of
-            Variable name tok ->
-                let p = Lex.tokenPos tok
-                    hasLocal = case getVarId p (tcCtx ctx) of
-                        Just _ -> True
-                        Nothing -> case lookupVarId name (CC.st (tcCtx ctx)) of
-                            Just _ -> True
-                            Nothing -> False
-                    hasImported = case getImportedVarType (packages ++ [name]) envs of
-                        Just _ -> True
-                        Nothing -> False
+        hasSyntheticCalleeToken :: Expression -> Bool
+        hasSyntheticCalleeToken expr0 =
+            any isSyntheticPos (map Lex.tokenPos (exprTokens expr0))
+          where
+            isSyntheticPos p = UT.line p < 0 || UT.column p < 0
+
+        isNamedFunctionCallee :: TypeCtx -> Expression -> Bool
+        isNamedFunctionCallee ctx expr0 = case expr0 of
+            Variable name _ ->
+                let qLocal = [name]
+                    qImport = packages ++ [name]
+                    hasLocal = not (null (lookupFun qLocal (tcFunScopes ctx)))
+                    hasImported =
+                        any
+                            (\tenv -> case Map.lookup qImport (tFuncs tenv) of
+                                Just (sigs, _, _) -> not (null sigs)
+                                Nothing -> False)
+                            envs
                 in hasLocal || hasImported
             Qualified names toks -> case parsePointerSuffixQualified names toks of
-                Just _ -> True
-                Nothing -> case names of
-                    ("this":_) -> True
-                    _ -> case getImportedVarType names envs of
-                        Just _ -> True
-                        Nothing -> False
+                Just _ -> False
+                Nothing ->
+                    let hasLocal = not (null (lookupFun names (tcFunScopes ctx)))
+                        hasImported =
+                            any
+                                (\tenv -> case Map.lookup names (tFuncs tenv) of
+                                    Just (sigs, _, _) -> not (null sigs)
+                                    Nothing -> False)
+                                envs
+                    in hasLocal || hasImported
             _ -> False
 
         lowerRegularCall :: TypeCtx -> [Position] -> [FunTable] -> Expression -> [(Class, [Position])] -> TypeM Class
@@ -1266,7 +1322,7 @@ inferLiteral _ e = case e of
     LongDoubleConst _ _ -> pure Float128T
     CharConst _ _ -> pure Char
     BoolConst _ _ -> pure Bool
-    StringConst _ _ -> pure (Class ["String"] [])
+    StringConst s tok -> pure (Blob (IntConst (show (length s + 1)) tok))
     _ -> error "inferLiteral: non-literal expression"
 
 
@@ -1316,9 +1372,19 @@ checkIncDecTarget path innerE = case innerE of
                     else pure True
             Nothing ->
                 pure True
-    Qualified _ toks -> do
-        addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
-        pure False
+    Qualified names toks ->
+        case parsePointerSuffixQualified names toks of
+            Just (_, _, ops) ->
+                if isAssignablePtrLhsOps ops
+                    then pure True
+                    else do
+                        addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+                        pure False
+            Nothing -> do
+                addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos toks) UE.assignErrorMsg
+                pure False
+    Unary DeRef _ _ ->
+        pure True
     _ -> do
         addErr $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens innerE))
             (UE.cannotAssignMsg (prettyExpr 0 (Just innerE)))
@@ -1407,14 +1473,16 @@ inferFunctionLikeStmt ::
     TypeM ()
 inferFunctionLikeStmt path packages envs retT params mBody = do
     c <- get
-    checkBlobTypeConstraints path [] retT
-    mapM_ (\(pt, _, toks) -> checkBlobTypeConstraints path (map Lex.tokenPos toks) pt) params
+    let retTN = normalizeTypeAlias retT
+        paramsN = map (\(pt, pn, ptoks) -> (normalizeTypeAlias pt, pn, ptoks)) params
+    checkBlobTypeConstraints path [] retTN
+    mapM_ (\(pt, _, toks) -> checkBlobTypeConstraints path (map Lex.tokenPos toks) pt) paramsN
     let cctx = tcCtx c
         cState = CC.st cctx
         depth0 = depth cState
         ret0 = tcCurrentReturn c
         (varCounter', paramVars, paramTypes, paramFlags) =
-            foldl addParam (varCounter cState, Map.empty, Map.empty, Map.empty) params
+            foldl addParam (varCounter cState, Map.empty, Map.empty, Map.empty) paramsN
 
         newScope = Scope { scopeId = scopeCounter cState, sVars = paramVars, sFuncs = Map.empty }
         cState' = cState {
@@ -1435,7 +1503,7 @@ inferFunctionLikeStmt path packages envs retT params mBody = do
         tcVarTypes = varTypes',
         tcVarFlags = varFlags',
         tcFunScopes = funScopes',
-        tcCurrentReturn = Just retT
+        tcCurrentReturn = Just retTN
     }
 
     mapM_ (\(name, (vid, pos)) -> recordVarUseLocal pos name vid) (Map.toList paramVars)
@@ -1708,10 +1776,20 @@ inferStmts path package envs stmts = do
 
         functionSigParts :: Statement -> Maybe (Expression, [(Class, String, [Lex.Token])], Class, Maybe [(Class, [Lex.Token])])
         functionSigParts stmt = case stmt of
-            Function (retT, _) name params _ -> Just (name, params, retT, Nothing)
-            FunctionT (retT, _) name tParams params _ -> Just (name, params, retT, Just tParams)
-            NativeMethod _ _ (retT, _) name params _ -> Just (name, params, retT, Nothing)
+            Function (retT, _) name params _ ->
+                let (paramsN, retTN) = normalizeSigParts params retT
+                in Just (name, paramsN, retTN, Nothing)
+            FunctionT (retT, _) name tParams params _ ->
+                let (paramsN, retTN) = normalizeSigParts params retT
+                in Just (name, paramsN, retTN, Just tParams)
+            NativeMethod _ _ (retT, _) name params _ ->
+                let (paramsN, retTN) = normalizeSigParts params retT
+                in Just (name, paramsN, retTN, Nothing)
             _ -> Nothing
+
+        normalizeSigParts :: [(Class, String, [Lex.Token])] -> Class -> ([(Class, String, [Lex.Token])], Class)
+        normalizeSigParts params retT =
+            (map (\(t, n, toks) -> (normalizeTypeAlias t, n, toks)) params, normalizeTypeAlias retT)
 
         isFunctionStmt :: Statement -> Bool
         isFunctionStmt stmt = case functionSigParts stmt of

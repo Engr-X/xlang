@@ -37,6 +37,7 @@ import qualified Util.FileHelper as FileHelper
     KW_VAR              { t@(Lex.Ident "var" _) }
     KW_VAL              { t@(Lex.Ident "val" _) }
     KW_MUT              { t@(Lex.Ident "mut" _) }
+    KW_STATIC           { t@(Lex.Ident "static" _) }
     KW_INLINE           { t@(Lex.Ident "inline" _) }
 
     KW_PACKAGE          { t@(Lex.Ident "package" _) }
@@ -45,6 +46,7 @@ import qualified Util.FileHelper as FileHelper
     KW_NATIVE           { t@(Lex.Ident "native" _) }
     KW_POINTER          { t@(Lex.Ident "pointer" _) }
     KW_BLOB             { t@(Lex.Ident "blob" _) }
+    KW_NEW              { t@(Lex.Ident "new" _) }
 
     KW_AS               { t@(Lex.Ident "as" _) }
     KW_SIZEOF           { t@(Lex.Ident "sizeof" _) }
@@ -62,6 +64,7 @@ import qualified Util.FileHelper as FileHelper
     KW_CONTINUE         { t@(Lex.Ident "continue" _) }
     KW_RETURN           { t@(Lex.Ident "return" _) }
     KW_PASS             { t@(Lex.Ident "pass" _) }
+    KW_INIT             { t@(Lex.Ident "__init__" _) }
 
     KW_FUNC             { t@(Lex.Ident "fun" _) }
 

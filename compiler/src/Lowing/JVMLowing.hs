@@ -156,7 +156,7 @@ ensureJvmCFunction (IR.IRCFunction _ name sig atomT (blocks, _) _) =
         `seq` ensureAll blocks ensureJvmBlock
 
 ensureJvmIRClass :: IR.IRClass -> ()
-ensureJvmIRClass (IR.IRClass _ name attrs (IR.StaticInit (sBody, _)) atomT funs _ cFuns _) =
+ensureJvmIRClass (IR.IRClass _ name _ attrs (IR.StaticInit (sBody, _)) atomT funs _ cFuns _) =
     ensureAll attrs
         (\(_, cls, fieldName, _) -> ensureJvmClass ("class " ++ name ++ " field " ++ fieldName) cls)
         `seq` ensureAll (Map.toList atomT)
@@ -610,7 +610,7 @@ buildParamSlots params = foldl step (Map.empty, 0) (zip [0..] params)
 
 -- | Lower an IR class into JVM class (constructors not supported yet).
 jvmClassLowing :: QName -> IR.IRClass -> JVM.JClass
-jvmClassLowing pkg irClass@(IR.IRClass decl name attrs sInit atomT funs _ _ mainKind) =
+jvmClassLowing pkg irClass@(IR.IRClass decl name _ attrs sInit atomT funs _ _ mainKind) =
     ensureJvmIRClass irClass `seq`
     let qname = if null pkg then [name] else pkg ++ [name]
         -- Keep source-level "no explicit parent" semantics.

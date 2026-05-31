@@ -480,7 +480,19 @@ splitShiftInGenericsTests = testGroup "Lex.TokenPass.splitShiftInGenerics" $
         -- English comment: outside generic context, keep shift.
         mkSym BitRShift 1 13 2,
 
-        mkNum "1" 1 16 1])]
+        mkNum "1" 1 16 1]),
+
+    ("4", "val p: pointer<pointer<int>>", [
+        mkId "val" 1 1 3,
+        mkId "p" 1 5 1,
+        mkSym Colon 1 6 1,
+        mkId "pointer" 1 8 7,
+        mkSym LessThan 1 15 1,
+        mkId "pointer" 1 16 7,
+        mkSym LessThan 1 23 1,
+        mkId "int" 1 24 3,
+        mkSym GreaterThan 1 27 1,
+        mkSym GreaterThan 1 28 1])]
 
 
 tests :: TestTree

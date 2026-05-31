@@ -35,14 +35,6 @@ ElseBlock :: { (Maybe Block, Token) }
     : KW_ELSE BlockLike                 { (Just $2, $1) }
     ;
 
-
--- loop
-LoopStmt :: { Statement }
-    : KW_LOOP ';'                         %prec IFX { Loop Nothing $1 }
-    | KW_LOOP BlockLike                             { Loop (Just $2) $1 }
-    ;
-
-
 -- repeat
 RepeatStmt :: { Statement }
     : KW_REPEAT Atom ';'                   %prec IFX { Repeat $2 Nothing Nothing ($1, Nothing) }
@@ -141,17 +133,21 @@ ForStmt :: { Statement }
 
 -- this argument is reversed
 -- only the first one is current varName token
-TypedParams :: { [(Class, String, [Token])] }
-    : identity ':' Clazz                        { [(fst $3, identText $1, [$1, $2] ++ snd $3)] }
-    | KW_MUT identity ':' Clazz                 { [(fst $4, identText $2, [$1, $2, $3] ++ snd $4)] }
+ParamIdent :: { Token }
+    : identity                          { $1 }
+    ;
 
-    | TypedParams ',' identity ':' Clazz        { (fst $5, identText $3, [$3, $4] ++ snd $5) : $1 }
-    | TypedParams ',' KW_MUT identity ':' Clazz { (fst $6, identText $4, [$3, $4, $5] ++ snd $6) : $1 }
+TypedParams :: { [(Class, String, [Token])] }
+    : ParamIdent ':' Clazz                      { [(fst $3, identText $1, [$1, $2] ++ snd $3)] }
+    | KW_MUT ParamIdent ':' Clazz               { [(fst $4, identText $2, [$1, $2, $3] ++ snd $4)] }
+
+    | TypedParams ',' ParamIdent ':' Clazz      { (fst $5, identText $3, [$3, $4] ++ snd $5) : $1 }
+    | TypedParams ',' KW_MUT ParamIdent ':' Clazz { (fst $6, identText $4, [$3, $4, $5] ++ snd $6) : $1 }
     ;
 
 UntypedParam :: { (String, [Token]) }
-    : identity                    { (identText $1, [$1]) }
-    | KW_MUT identity             { (identText $2, [$1, $2]) }
+    : ParamIdent                  { (identText $1, [$1]) }
+    | KW_MUT ParamIdent           { (identText $2, [$1, $2]) }
     ;
 
 UntypedParams :: { [(String, [Token])] }
@@ -192,21 +188,11 @@ CFunctionBlock :: { String }
     ;
 
 
-AccessOpt :: { [Token] }
-    : KW_PRIVATE                    { [$1] }
-    | KW_PROTECTED                  { [$1] }
-    | KW_PUBLIC                     { [$1] }
-    ;
-
-AccessOptOpt :: { [Token] }
-    : {- empty -}                   { [] }
-    | AccessOpt                     { $1 }
-    ;
-
 FunModifier :: { Token }
     : KW_PRIVATE                    { $1 }
     | KW_PROTECTED                  { $1 }
     | KW_PUBLIC                     { $1 }
+    | KW_STATIC                     { $1 }
     | KW_INLINE                     { $1 }
     | annotation                    { $1 }
     ;
@@ -227,6 +213,7 @@ NativeFunModifier :: { Token }
     : KW_PRIVATE                    { $1 }
     | KW_PROTECTED                  { $1 }
     | KW_PUBLIC                     { $1 }
+    | KW_STATIC                     { $1 }
     | KW_INLINE                     { $1 }
     | KW_NATIVE                     { $1 }
     | annotation                    { $1 }
@@ -255,7 +242,7 @@ VarKind :: { (Bool, Token) }
     ;
 
 VarDeclHead :: { (Bool, [Token]) }
-    : AccessOptOpt VarKind
+    : FunModifierSeqOpt VarKind
         {
             let (isConst, kwTok) = $2
             in (isConst, $1 ++ [kwTok])
@@ -300,6 +287,12 @@ FunctionStmt :: { Statement }
     | FunModifierSeqOpt KW_FUNC QName UntypedFunctionParams FunctionBlock
         { mkUntypedSugarFunction ($1 ++ [$2]) $3 $4 $5 }
 
+    | FunModifierSeqOpt KW_FUNC KW_INIT FunctionParams FunctionBlock
+        {
+            let nameExpr = Variable "__init__" $3
+            in InstanceMethod (methodDeclsFromTokens ($1 ++ [$2, $3])) (methodAnnotationsFromTokens $1) (Void, $1 ++ [$2, $3]) nameExpr $4 $5
+        }
+
     | FunModifierSeqOpt KW_FUNC QName FunctionParams FunctionBlock
         { InstanceMethod (methodDeclsFromTokens ($1 ++ [$2])) (methodAnnotationsFromTokens $1) (Void, $1 ++ [$2]) (qnameToExpr $3) $4 $5 }
 
@@ -314,22 +307,51 @@ FunctionStmt :: { Statement }
     ;
 
 
+StructMember :: { Statement }
+    : VarDeclStmt                    { $1 }
+    | FunctionStmt                   { $1 }
+    ;
+
+StructMemberSeq :: { [Statement] }
+    : StructMember                   { [$1] }
+    | StructMemberSeq StructMember   { $2 : $1 }
+    ;
+
+StructMemberSeqOpt :: { [Statement] }
+    : {- empty -}                    { [] }
+    | StructMemberSeq                { reverse $1 }
+    ;
+
+StructBody :: { [Statement] }
+    : '{' StructMemberSeqOpt '}'     { $2 }
+    | '{' Sep '}'                    { [] }
+    ;
+
+StructStmt :: { Statement }
+    : FunModifierSeqOpt KW_STRUCT QName StructBody
+        { Struct (methodDeclsFromTokens ($1 ++ [$2])) (methodAnnotationsFromTokens $1) ($2, qnameToExpr $3) $4 }
+    | FunModifierSeqOpt KW_STRUCT QName Sep StructBody
+        { Struct (methodDeclsFromTokens ($1 ++ [$2])) (methodAnnotationsFromTokens $1) ($2, qnameToExpr $3) $5 }
+    ;
+
+
 StmtNoExpr :: { Statement }
     : KW_PASS Sep               { Command Pass $1 }
     | KW_CONTINUE Sep           { Command Continue $1 }
     | KW_BREAK Sep              { Command Break $1 }
     | KW_RETURN Sep             { Command (Return Nothing) $1 }
     | KW_RETURN Expr Sep        { Command (Return (Just $2)) $1 }
+    | KW_LOOP Sep               { Expr $ Error [$1] "invalid syntax: keyword `loop` has been removed; use `while (true)`" }
     | VarDeclStmt                   { $1 }
 
     | ForStmt                       { $1 }
-    | LoopStmt                      { $1 }
     | RepeatStmt                    { $1 }
     | WhileStmt                     { $1 }
     | UntilStmt                     { $1 }
     | DoWhileStmt                   { $1 }
     | DoUntilStmt                   { $1 }
     | FunctionStmt                  { $1 }
+    | StructStmt                    { $1 }
     ;
 
 

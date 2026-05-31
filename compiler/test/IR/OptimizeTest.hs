@@ -1,7 +1,7 @@
 module IR.OptimizeTest where
 
 import IR.Optimize
-import IR.TAC (IRAtom(..), IRBlock(..), IRClass(..), IRFunction(..), IRInstr(..), IRMemberType(..), IRProgm(..), MainKind(..), StaticInit(..))
+import IR.TAC (IRAtom(..), IRBlock(..), IRClass(..), IRClassType(..), IRFunction(..), IRInstr(..), IRMemberType(..), IRProgm(..), MainKind(..), StaticInit(..))
 import Parse.SyntaxTree (AccessModified(..))
 import Parse.SyntaxTree (Class(..))
 import Semantic.TypeEnv (FunSig(..))
@@ -29,7 +29,7 @@ mkFun instrs =
 
 mkClass :: [IRInstr] -> [IRFunction] -> IRClass
 mkClass staticInstrs funs =
-    IRClass (Public, []) "C" [] (StaticInit ([IRBlock (0, staticInstrs)], 0)) Map.empty funs [] [] NoMain
+    IRClass (Public, []) "C" IRClassTypeClass [] (StaticInit ([IRBlock (0, staticInstrs)], 0)) Map.empty funs [] [] NoMain
 
 
 stripPhiStmtTests :: TestTree

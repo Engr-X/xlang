@@ -23,6 +23,7 @@ import qualified Semantic.TypeEnv as TEnv
 import qualified Parse.SyntaxTree as AST
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Lex.Token as Lex
 
 
 -- Expand an expression into: (prefix statements, residual expression).
@@ -279,6 +280,12 @@ addStaticVars keys = TACM $ modify $ \st ->
 isStaticVar :: VarKey -> TACM Bool
 isStaticVar key = do
     Set.member key . tacStaticVars <$> get
+
+
+findStaticVarKeysByName :: String -> TACM [VarKey]
+findStaticVarKeysByName name = do
+    st <- get
+    pure [k | k@(n, _) <- Set.toList (tacStaticVars st), n == name]
 
 
 
@@ -579,7 +586,7 @@ getVarKey _ = error "getVarKey: not a Var atom"
 getAtomType :: IRAtom -> TACM Class
 getAtomType (BoolC _) = return AST.Bool
 getAtomType (CharC _) = return AST.Char
-getAtomType (StringC _) = return (AST.Class ["String"] [])
+getAtomType (StringC s) = return (AST.Blob (AST.IntConst (show (length s + 1)) Lex.dummyToken))
 getAtomType (Int8C _) = return AST.Int8T
 getAtomType (Int16C _) = return AST.Int16T
 getAtomType (Int32C _) = return AST.Int32T
@@ -881,11 +888,28 @@ prettyMainKind kind = case kind of
     MainVoidArgs qn -> "void main(String[]) @ " ++ intercalate "." qn
 
 
+data IRClassType
+    = IRClassTypeClass
+    | IRClassTypeStruct
+    | IRClassTypeInterface
+    | IRClassTypeAbstractClass
+    deriving (Eq, Show)
+
+
+prettyIRClassType :: IRClassType -> String
+prettyIRClassType classType = case classType of
+    IRClassTypeClass -> "class"
+    IRClassTypeStruct -> "struct"
+    IRClassTypeInterface -> "interface"
+    IRClassTypeAbstractClass -> "abstract class"
+
+
 -- | Class definition: name, static init, methods.
 data IRClass
     = IRClass
         Decl          -- ^ property
         String        -- ^ class name
+        IRClassType   -- ^ class kind
         [Attribute]
         StaticInit    -- ^ static initializer
         (Map IRAtom Class) -- ^ atom -> type map (static init)
@@ -896,11 +920,11 @@ data IRClass
     deriving (Eq, Show)
 
 prettyIRClass :: Int -> IRClass -> String
-prettyIRClass n (IRClass decl name attrs sInit atomTypes funs tFuns cFuns mainKind) =
+prettyIRClass n (IRClass decl name classType attrs sInit atomTypes funs tFuns cFuns mainKind) =
     let indent = insertTab n
         declS = prettyDecl decl
         declPrefix = if null declS then "" else declS ++ " "
-        header = concat [indent, declPrefix, "class ", name, ":\n"]
+        header = concat [indent, declPrefix, prettyIRClassType classType, " ", name, ":\n"]
         mainS = indent ++ "    main: " ++ prettyMainKind mainKind ++ "\n"
         attrsS = concatMap (\a -> prettyAttribute (n + 1) a ++ "\n") attrs
         staticS = prettyStaticInit (n + 1) sInit
@@ -960,10 +984,11 @@ flattenIRProgm :: IRProgm -> IRProgm
 flattenIRProgm (IRProgm pkg classes) = IRProgm pkg (map flattenIRClass classes)
 
 flattenIRClass :: IRClass -> IRClass
-flattenIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+flattenIRClass (IRClass decl name classType fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
     IRClass
         decl
         name
+        classType
         fields
         (StaticInit (flattenBlocks blocks, retBid))
         atomTypes
@@ -991,10 +1016,11 @@ pruneIRProgm :: IRProgm -> IRProgm
 pruneIRProgm (IRProgm pkg classes) = IRProgm pkg (map pruneIRClass classes)
 
 pruneIRClass :: IRClass -> IRClass
-pruneIRClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+pruneIRClass (IRClass decl name classType fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
     IRClass
         decl
         name
+        classType
         fields
         (StaticInit (pruneBlocks blocks, retBid))
         atomTypes
@@ -1029,10 +1055,11 @@ rmEBInProg :: IRProgm -> IRProgm
 rmEBInProg (IRProgm pkg classes) = IRProgm pkg (map rmEBInClass classes)
 
 rmEBInClass :: IRClass -> IRClass
-rmEBInClass (IRClass decl name fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+rmEBInClass (IRClass decl name classType fields (StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
     IRClass
         decl
         name
+        classType
         fields
         (StaticInit (rmEBInBlocks blocks, retBid))
         atomTypes

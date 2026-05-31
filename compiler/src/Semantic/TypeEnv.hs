@@ -73,7 +73,7 @@ data TypedImportEnv = TIEnv {
 
 -- | Full variable usage table (local or imported).
 data FullVarTable
-    = VarLocal Decl String VarId
+    = VarLocal Decl String VarId Class
     | VarImported DeclFlags Class QName QName
     deriving (Eq, Show)
     

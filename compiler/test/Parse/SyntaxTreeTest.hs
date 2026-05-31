@@ -6,7 +6,7 @@ import Parse.SyntaxTree
 import Util.Type
 import Util.Basic
 import Data.Char (toLower)
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, find)
 import Lex.Token (Token, Symbol)
 
 import qualified Lex.Token as Lex
@@ -810,15 +810,15 @@ normalizeProgramForLoweringTests = testGroup "Parse.SyntaxTree.normalizeProgramF
         isGeneratedConcreteFun :: Statement -> Bool
         isGeneratedConcreteFun stmt = case stmt of
             Function _ (Variable name _) params _ -> name == "add" && length params == 2
-            StaticMethod _ _ (Variable name _) params _ -> name == "add" && length params == 2
-            InstanceMethod _ _ (Variable name _) params _ -> name == "add" && length params == 2
+            StaticMethod _ _ _ (Variable name _) params _ -> name == "add" && length params == 2
+            InstanceMethod _ _ _ (Variable name _) params _ -> name == "add" && length params == 2
             _ -> False
 
         isGeneratedPrivateFinal :: Statement -> Bool
         isGeneratedPrivateFinal stmt = case stmt of
             Function (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
-            StaticMethod _ (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
-            InstanceMethod _ (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            StaticMethod _ _ (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
+            InstanceMethod _ _ (_, toks) (Variable name _) params _ -> name == "add" && length params == 2 && hasPrivateFinal toks
             _ -> False
 
         hasPrivateFinal :: [Token] -> Bool
@@ -833,6 +833,290 @@ normalizeProgramForLoweringTests = testGroup "Parse.SyntaxTree.normalizeProgramF
         isCallTExpr expr = case expr of
             CallT {} -> True
             _ -> False
+
+
+normalizeStructProgramTests :: TestTree
+normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram" [
+    testCase "rewrite struct static/member access and bare method call sugar" $ do
+        let tokStruct = mkIdD "struct"
+            tokPeople = mkIdD "people"
+            tokPublic = mkIdD "public"
+            tokStatic = mkIdD "static"
+            tokVal = mkIdD "val"
+            tokAge = mkIdD "age"
+            tokConst = mkIdD "CONST"
+            tokInit = mkIdD "__init__"
+            tokDo = mkIdD "dosomething"
+            tokThis = mkIdD "this"
+            tokAssign = mkSymD Lex.Assign
+            tokPlus = mkSymD Lex.Plus
+            tokRet = mkIdD "return"
+            tokMain = mkIdD "main"
+            tokA = mkIdD "a"
+            tok1 = mkNumD "1"
+            tok10 = mkNumD "10"
+
+            structStmt =
+                Struct [] [] (tokStruct, Variable "people" tokPeople)
+                    [ DefField ["age"] (Just Int32T) Nothing [tokPublic, tokVal, tokAge]
+                    , DefConstField ["CONST"] (Just Int32T) (Just (IntConst "10" tok10)) [tokPublic, tokStatic, tokVal, tokConst]
+                    , InstanceMethod [] [] (Void, [tokInit]) (Variable "__init__" tokInit)
+                        [(Int32T, "age", [tokAge])]
+                        (Multiple
+                            [ Expr (Binary Assign
+                                (Qualified ["this", "age"] [tokThis, tokAge])
+                                (Variable "age" tokAge)
+                                tokAssign)
+                            ])
+                    , InstanceMethod [] [] (Int32T, [tokDo]) (Variable "dosomething" tokDo)
+                        []
+                        (Multiple
+                            [ Command (Return (Just
+                                (Binary Add
+                                    (Qualified ["this", "age"] [tokThis, tokAge])
+                                    (Variable "CONST" tokConst)
+                                    tokPlus))) tokRet
+                            ])
+                    ]
+
+            mainStmt =
+                Function (Void, [tokMain]) (Variable "main" tokMain) []
+                    (Multiple
+                        [ DefConstField ["a"] (Just (Class ["people"] []))
+                            (Just (Call (Variable "people" tokPeople) [IntConst "1" tok1]))
+                            [tokA]
+                        , Expr (Call (Variable "dosomething" tokDo) [Variable "a" tokA])
+                        , Expr (Variable "CONST" tokConst)
+                        , Expr (Qualified ["a", "CONST"] [tokA, tokConst])
+                        ])
+
+            (_, outStmts) = normalizeProgram ([], [structStmt, mainStmt])
+
+            idxOf predFn xs = fst <$> find (\(_, x) -> predFn x) (zip [0 :: Int ..] xs)
+            idxConst = idxOf (\s -> case s of
+                DefConstVar ["people$CONST"] _ _ _ -> True
+                _ -> False) outStmts
+            idxMain = idxOf (\s -> case s of
+                Function _ (Variable "main" _) _ _ -> True
+                _ -> False) outStmts
+
+            mainBody = case [b | Function _ (Variable "main" _) _ b <- outStmts] of
+                (b:_) -> b
+                _ -> Multiple []
+            flatMainExprs = flattenBlock (Just mainBody)
+            hasRewrittenBareCall =
+                any (\e -> case e of
+                    Call (Variable "people$dosomething" _) _ -> True
+                    _ -> False) flatMainExprs
+            hasRewrittenStaticField =
+                any (\e -> case e of
+                    Variable "people$CONST" _ -> True
+                    _ -> False) flatMainExprs
+            rewrittenStaticFieldCount =
+                length [() | Variable "people$CONST" _ <- flatMainExprs]
+            methodBodyExprs = concat
+                ([ flattenReturnExprs b
+                 | InstanceMethod _ _ _ (Variable "people$dosomething" _) _ b <- outStmts
+                 ] ++
+                 [ flattenReturnExprs b
+                 | StaticMethod _ _ _ (Variable "people$dosomething" _) _ b <- outStmts
+                 ])
+            hasRewrittenBareStaticInMethod =
+                any (\e -> case e of
+                    Variable "people$CONST" _ -> True
+                    _ -> False) methodBodyExprs
+
+        assertBool "generated static field should appear before main" $
+            case (idxConst, idxMain) of
+                (Just a, Just b) -> a < b
+                _ -> False
+        assertBool "bare method call should rewrite to struct global method call" hasRewrittenBareCall
+        assertBool "instance static-field access should rewrite to struct static field symbol" hasRewrittenStaticField
+        assertBool "unqualified static-field access in non-struct scope should rewrite when unique" (rewrittenStaticFieldCount >= 2)
+        assertBool "unqualified static-field access in method should rewrite to struct static symbol" hasRewrittenBareStaticInMethod
+    ,
+    testCase "rewrite bare static method call inside struct static method" $ do
+        let tokStruct = mkIdD "struct"
+            tokScreen = mkIdD "Screen"
+            tokSetChar = mkIdD "setChar"
+            tokClear = mkIdD "clear"
+            tokRet = mkIdD "return"
+            tokSpace = Lex.CharConst ' ' (makePosition 0 0 0)
+            declStatic = [(Public, [Static])]
+
+            setCharMethod =
+                InstanceMethod declStatic [] (Void, [tokSetChar]) (Variable "setChar" tokSetChar)
+                    [(Char, "c", [mkIdD "c"])]
+                    (Multiple [])
+
+            clearMethod =
+                InstanceMethod declStatic [] (Void, [tokClear]) (Variable "clear" tokClear)
+                    []
+                    (Multiple
+                        [ Expr (Call (Variable "setChar" tokSetChar) [CharConst ' ' tokSpace])
+                        , Command (Return Nothing) tokRet
+                        ])
+
+            structStmt =
+                Struct [] [] (tokStruct, Variable "Screen" tokScreen) [setCharMethod, clearMethod]
+
+            (_, outStmts) = normalizeProgram ([], [structStmt])
+
+            staticClearBodies =
+                [ b
+                | StaticMethod _ _ _ (Variable "Screen$clear" _) _ b <- outStmts
+                ] ++
+                [ b
+                | InstanceMethod _ _ _ (Variable "Screen$clear" _) _ b <- outStmts
+                ]
+
+            hasRewrittenCall =
+                any (\b -> any isScreenSetCharCall (flattenBlock (Just b))) staticClearBodies
+
+        assertBool "bare static call should rewrite to Screen$setChar" hasRewrittenCall
+    ,
+    testCase "rewrite Struct.STATIC_INSTANCE.instanceMethod(...) call sugar" $ do
+        let tokStruct = mkIdD "struct"
+            tokDisplay = mkIdD "Display"
+            tokStatic = mkIdD "static"
+            tokVal = mkIdD "val"
+            tokInstance = mkIdD "INSTANCE"
+            tokPrint = mkIdD "print"
+            tokMain = mkIdD "main"
+            tokOne = mkNumD "1"
+
+            instanceField =
+                DefConstField ["INSTANCE"] (Just (Class ["Display"] []))
+                    (Just (Call (Variable "Display" tokDisplay) []))
+                    [tokStatic, tokVal, tokInstance]
+
+            printMethod =
+                InstanceMethod [] [] (Void, [tokPrint]) (Variable "print" tokPrint)
+                    [(Int32T, "x", [mkIdD "x"])]
+                    (Multiple [])
+
+            structStmt =
+                Struct [] [] (tokStruct, Variable "Display" tokDisplay)
+                    [instanceField, printMethod]
+
+            mainStmt =
+                Function (Void, [tokMain]) (Variable "main" tokMain) []
+                    (Multiple
+                        [ Expr (Call (Qualified ["Display", "INSTANCE", "print"] [tokDisplay, tokInstance, tokPrint]) [IntConst "1" tokOne])
+                        ])
+
+            (_, outStmts) = normalizeProgram ([], [structStmt, mainStmt])
+            mainBody = case [b | Function _ (Variable "main" _) _ b <- outStmts] of
+                (b:_) -> b
+                _ -> Multiple []
+            flatMainExprs = flattenBlock (Just mainBody)
+            hasRewrittenCall =
+                any (\e -> case e of
+                    Call (Variable "Display$print" _) (Variable "Display$INSTANCE" _ : _) -> True
+                    CallT (Variable "Display$print" _) _ (Variable "Display$INSTANCE" _ : _) -> True
+                    _ -> False) flatMainExprs
+
+        assertBool "Display.INSTANCE.print(...) should rewrite to Display$print(Display$INSTANCE, ...)" hasRewrittenCall
+    ,
+    testCase "rewrite new Struct(...) into heap alloc + __init__ call" $ do
+        let tokStruct = mkIdD "struct"
+            tokDisplay = mkIdD "Display"
+            tokInit = mkIdD "__init__"
+            tokMain = mkIdD "main"
+            tokA = mkIdD "a"
+            tokNew = mkIdD "new"
+            tok1 = mkNumD "1"
+
+            structStmt =
+                Struct [] [] (tokStruct, Variable "Display" tokDisplay)
+                    [ InstanceMethod [] [] (Void, [tokInit]) (Variable "__init__" tokInit)
+                        [(Int32T, "x", [mkIdD "x"])]
+                        (Multiple [])
+                    ]
+
+            mainStmt =
+                Function (Void, [tokMain]) (Variable "main" tokMain) []
+                    (Multiple
+                        [ DefConstField ["a"] (Just (Class ["Display"] []))
+                            (Just (Call (Unary AddrOf (Variable "Display" tokDisplay) tokNew) [IntConst "1" tok1]))
+                            [tokA]
+                        ])
+
+            (_, outStmts) = normalizeProgram ([], [structStmt, mainStmt])
+            mainBody = case [b | Function _ (Variable "main" _) _ b <- outStmts] of
+                (b:_) -> b
+                _ -> Multiple []
+            flatMainExprs = flattenBlock (Just mainBody)
+
+            hasAllocCall =
+                any (\e -> case e of
+                    Call (Qualified ["xlang", "System", "allocMemory"] _) [IntConst _ _] -> True
+                    _ -> False) flatMainExprs
+
+            hasInitCall =
+                any (\e -> case e of
+                    Call (Variable "Display$__init__" _) (_ : _) -> True
+                    CallT (Variable "Display$__init__" _) _ (_ : _) -> True
+                    _ -> False) flatMainExprs
+
+        assertBool "new Display(...) should call xlang.System.allocMemory(...)" hasAllocCall
+        assertBool "new Display(...) should call Display$__init__(this,...)" hasInitCall
+    ,
+    testCase "struct layout keeps 8-byte alignment and blob size contribution" $ do
+        let tokStruct = mkIdD "struct"
+            tokTest = mkIdD "test"
+            tokVal = mkIdD "val"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokC = mkIdD "c"
+            tokD = mkIdD "d"
+            tok998 = mkNumD "998"
+            st =
+                Struct [] [] (tokStruct, Variable "test" tokTest)
+                    [ DefField ["a"] (Just Int32T) Nothing [tokVal, tokA]
+                    , DefField ["b"] (Just (Blob (IntConst "998" tok998))) Nothing [tokVal, tokB]
+                    , DefField ["c"] (Just (Pointer Char)) Nothing [tokVal, tokC]
+                    , DefField ["d"] (Just Float64T) Nothing [tokVal, tokD]
+                    ]
+            meta = buildStructMeta st
+            off name = sfOffset <$> Map.lookup name (smFields meta)
+
+        smName meta @=? "test"
+        off "a" @=? Just 0
+        off "b" @=? Just 8
+        off "c" @=? Just 1008
+        off "d" @=? Just 1016
+        smSize meta @=? 1024
+    ]
+  where
+    flattenReturnExprs :: Block -> [Expression]
+    flattenReturnExprs (Multiple ss) = concatMap fromStmt ss
+
+    fromStmt :: Statement -> [Expression]
+    fromStmt st = case st of
+        Command (Return (Just e)) _ -> flattenExpr (Just e)
+        BlockStmt b -> flattenReturnExprs b
+        StmtGroup ss -> concatMap fromStmt ss
+        If _ b1 b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        For (_, _, _) b1 b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        While _ b1 b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        Until _ b1 b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        DoWhile b1 _ b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        DoUntil b1 _ b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        Repeat _ b1 b2 _ -> maybe [] flattenReturnExprs b1 ++ maybe [] flattenReturnExprs b2
+        Switch _ scs _ -> concatMap fromCase scs
+        _ -> []
+
+    fromCase :: SwitchCase -> [Expression]
+    fromCase sc = case sc of
+        Case _ mb _ -> maybe [] flattenReturnExprs mb
+        Default b _ -> flattenReturnExprs b
+
+    isScreenSetCharCall :: Expression -> Bool
+    isScreenSetCharCall expr = case expr of
+        Call (Variable "Screen$setChar" _) _ -> True
+        CallT (Variable "Screen$setChar" _) _ _ -> True
+        _ -> False
 
 
 prettyExprTests :: TestTree
@@ -1022,5 +1306,5 @@ tests = testGroup "Parse.SyntaxTree" [
      
     isPackageDeclTests, isImportDeclTests, isClassDeclarTests,
     isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests,
-    collectInputProgramTests, collectInputProgramsTests, promoteTopLevelFunctionsTests, normalizeProgramForLoweringTests]
+    collectInputProgramTests, collectInputProgramsTests, promoteTopLevelFunctionsTests, normalizeProgramForLoweringTests, normalizeStructProgramTests]
     

@@ -10,7 +10,7 @@ import Data.Foldable (for_)
 import Control.Monad.State.Strict (State, get, put, modify, runState)
 import Lex.Token (Token, tokenPos)
 import Util.Type (Path, Position)
-import Util.Exception (ErrorKind, undefinedIdentity, invalidFunctionName, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg, nestedMainFunctionMsg, nativeCFunctionScopeMsg)
+import Util.Exception (ErrorKind, undefinedIdentity, continueCtrlErrorMsg, breakCtrlErrorMsg, returnCtrlErrorMsg, illegalStatementMsg, cannotAssignMsg, loopCondAssignMsg, invalidExprStmtMsg, nestedFunctionModifierMsg, nestedMainFunctionMsg, nativeCFunctionScopeMsg)
 import Parse.SyntaxTree (Expression, Statement, Block, SwitchCase, Program, exprTokens, stmtTokens)
 
 import qualified Data.Map.Strict as Map
@@ -267,9 +267,13 @@ checkExpr p packages envs expr = case expr of
     AST.Variable name tok -> do
         c <- get
         let cState = st c
+        let hasLocalThis = isVarDefine "this" cState || case lookupVarId "this" cState of
+                Just _ -> True
+                Nothing -> False
         if name == "this"
             then
-                when (null (classScope cState)) $ addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+                when (null (classScope cState) && not hasLocalThis) $
+                    addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
             else
                 if isVarDefine name cState || isVarImport (packages ++ [name]) envs
                     then do
@@ -301,7 +305,12 @@ checkExpr p packages envs expr = case expr of
                 case names of
                     -- this.a / this.a.b ... => check 'a' exists in nearest class scope only.
                     ("this":field:_) -> case classScope cState of
-                        [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                        [] ->
+                            let hasLocalThis = isVarDefine "this" cState || case lookupVarId "this" cState of
+                                    Just _ -> True
+                                    Nothing -> False
+                            in unless hasLocalThis $
+                                addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                         (clsTop:_) -> if Map.member field (sVars clsTop) then pure ()
                             else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
@@ -466,7 +475,12 @@ checkExpr p packages envs expr = case expr of
                             case names of
                                 -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
                                 ("this":field:_) -> case classScope cState of
-                                    [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                                    [] ->
+                                        let hasLocalThis = isVarDefine "this" cState || case lookupVarId "this" cState of
+                                                Just _ -> True
+                                                Nothing -> False
+                                        in unless hasLocalThis $
+                                            addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                                     (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
                                         else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
@@ -481,7 +495,12 @@ checkExpr p packages envs expr = case expr of
                             case names of
                                 -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
                                 ("this":field:_) -> case classScope cState of
-                                    [] -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
+                                    [] ->
+                                        let hasLocalThis = isVarDefine "this" cState || case lookupVarId "this" cState of
+                                                Just _ -> True
+                                                Nothing -> False
+                                        in unless hasLocalThis $
+                                            addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
                                     (clsTop:_) -> if Map.member [field] (sFuncs clsTop) then pure ()
                                         else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
@@ -493,7 +512,7 @@ checkExpr p packages envs expr = case expr of
                                             Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
                                             Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
 
-                other -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos $ exprTokens other) invalidFunctionName
+                other -> checkExpr p packages envs other
 
             mapM_ (checkExpr p packages envs) args
 
@@ -538,13 +557,24 @@ checkDefDecl p package envs isFieldDecl isConstDecl names mDeclType mRhs toks = 
             (nameTok:_) -> do
                 c <- get
                 let cState = st c
-                case defineDeclaredVar p name nameTok cState of
-                    Left err -> addErr err
-                    Right cState' -> case lookupVarId name cState' of
+                let alreadyPredefined = case scope cState of
+                        (sc:_) -> case Map.lookup name (sVars sc) of
+                            Just (_, defPos) -> defPos == tokenPos nameTok
+                            Nothing -> False
+                        [] -> False
+                if alreadyPredefined
+                    then case lookupVarId name cState of
                         Just (vid, _) -> do
                             let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
-                            put $ c { st = cState', varUses = uses' }
-                        Nothing -> put $ c { st = cState' }
+                            put $ c { varUses = uses' }
+                        Nothing -> pure ()
+                    else case defineDeclaredVar p name nameTok cState of
+                        Left err -> addErr err
+                        Right cState' -> case lookupVarId name cState' of
+                            Just (vid, _) -> do
+                                let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
+                                put $ c { st = cState', varUses = uses' }
+                            Nothing -> put $ c { st = cState' }
             [] ->
                 let errPos = maybe (map tokenPos toks) (map tokenPos . exprTokens) mRhs
                 in addErr $ UE.Syntax $ UE.makeError p errPos UE.internalErrorMsg
@@ -893,6 +923,7 @@ checkStmts path package envs' stmts = do
         nativeErrs = checkNativeDependencyShape path stmts'
     mapM_ addErr nativeErrs
     mapM_ defineOne funDefs
+    predefineTopLevelDecls stmts'
     mapM_ (checkStmt path package envs') stmts'
     where
         defineOne :: Statement -> CheckM ()
@@ -902,6 +933,31 @@ checkStmts path package envs' stmts = do
             case defineFunc path stmt cState of
                 Left err -> addErr err
                 Right cState' -> put $ c { st = cState' }
+
+        predefineTopLevelDecls :: [Statement] -> CheckM ()
+        predefineTopLevelDecls ss = do
+            c <- get
+            let cState = st c
+            when (null (ctrlStack cState)) $
+                mapM_ predefineOne ss
+
+        predefineOne :: Statement -> CheckM ()
+        predefineOne stmt = case declLikeParts stmt of
+            Just (isFieldDecl, _, names, _, _, toks)
+                | not isFieldDecl ->
+                    case (names, reverse toks) of
+                        ([name], nameTok:_) -> do
+                            c <- get
+                            let cState = st c
+                            case defineDeclaredVar path name nameTok cState of
+                                Left err -> addErr err
+                                Right cState' -> case lookupVarId name cState' of
+                                    Just (vid, _) -> do
+                                        let uses' = Map.insert (tokenPos nameTok) vid (varUses c)
+                                        put $ c { st = cState', varUses = uses' }
+                                    Nothing -> put $ c { st = cState' }
+                        _ -> pure ()
+            _ -> pure ()
 
         flattenStmtGroups :: [Statement] -> [Statement]
         flattenStmtGroups = concatMap go

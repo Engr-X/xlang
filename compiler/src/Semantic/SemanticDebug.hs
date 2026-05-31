@@ -102,12 +102,12 @@ renderVarEntries ctx entries =
 
 renderVarEntry :: TC.TypeCtx -> ([Position], FullVarTable) -> String
 renderVarEntry ctx (pos, entry) = case entry of
-    VarLocal decl name vid ->
+    VarLocal decl name vid cls0 ->
         let declS = renderDecl decl
             declPart = if null declS then "" else " " ++ declS
             tyS = case Map.lookup vid (TC.tcVarTypes ctx) of
                 Just (cls, _) -> prettyClass cls
-                Nothing -> "<unknown>"
+                Nothing -> prettyClass cls0
         in concat [name, "@", show vid, "(local", declPart, ": ", show pos, "): ", tyS]
     VarImported flags cls usedQname fullQname ->
         let flagS = renderFlags flags

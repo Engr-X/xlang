@@ -29,7 +29,9 @@ CORE_C_SOURCES := \
 	core/xlang/runtime/io/console.c \
 	core/xlang/runtime/memory/sysmem.c \
 	core/xlang/runtime/math.c \
-	core/xlang/runtime/system.c
+	core/xlang/runtime/system.c \
+	gc/xlang/runtime/memory/memlist.c \
+	gc/xlang/runtime/memory/memory.c
 
 OBJ := $(addprefix $(OBJ_DIR)/,$(CORE_C_SOURCES:.c=.o))
 

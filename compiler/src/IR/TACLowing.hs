@@ -7,7 +7,7 @@ module IR.TACLowing where
 import Data.Bits ((.&.))
 import Control.Monad (unless)
 import Control.Monad.State.Strict (evalState)
-import Data.List (partition, foldl', nub)
+import Data.List (partition, foldl', nub, isPrefixOf, sortOn)
 import Data.Char (toUpper, toLower, isSpace)
 import Text.Read (readMaybe)
 import Data.Maybe (listToMaybe, fromMaybe, catMaybes, mapMaybe)
@@ -31,6 +31,7 @@ import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeEnv as TEnv
 import qualified IR.TAC as TAC
 import qualified Util.Exception as UE
+import qualified Lex.Token as Lex
 
 
 -- | Local lowering stream node.
@@ -52,6 +53,43 @@ data PtrSuffixOp
     = PtrRef
     | PtrDeref
     deriving (Eq, Show)
+
+
+-- Keep TAC function signatures aligned with semantic type aliases.
+-- In particular, user class types at top-level positions are auto-referenced.
+normalizeTypeAliasLocal :: Class -> Class
+normalizeTypeAliasLocal = go True
+  where
+    go :: Bool -> Class -> Class
+    go top cls = case cls of
+        Class ["String"] [] -> Class ["String"] []
+        Class ["java", "lang", "String"] [] -> Class ["String"] []
+        Class ["xlang", "String"] [] -> Class ["String"] []
+        Class ["Any"] [] -> Class ["Any"] []
+        Class ["xlang", "Any"] [] -> Class ["Any"] []
+        Class ["java", "lang", "Object"] [] -> Class ["Any"] []
+        Pointer inner -> Pointer (go False inner)
+        FuncPtr ret args -> FuncPtr (go True ret) (map (go True) args)
+        Class qn args ->
+            let clsN = Class qn (map (go True) args)
+            in if top && shouldAutoRefUserClass clsN
+                then Pointer clsN
+                else clsN
+        other -> other
+
+    shouldAutoRefUserClass :: Class -> Bool
+    shouldAutoRefUserClass c = case c of
+        Class ["String"] [] -> False
+        Class ["Any"] [] -> False
+        Class qn [] -> not (isTemplateTypeName (last qn))
+        _ -> False
+
+    isTemplateTypeName :: String -> Bool
+    isTemplateTypeName [] = False
+    isTemplateTypeName s = all toUpperAscii s
+
+    toUpperAscii :: Char -> Bool
+    toUpperAscii ch = ch >= 'A' && ch <= 'Z'
 
 
 parsePointerSuffixQualified :: [String] -> [Token] -> Maybe (String, Token, [PtrSuffixOp])
@@ -304,23 +342,31 @@ atomLowing (AST.Variable rawName tok) = do
     case mVarInfo of
         Just vinfo -> case vinfo of
             -- ????????? VarId + ??????
-            TEnv.VarLocal _ realName vid -> do
+            TEnv.VarLocal _ realName vid clsHint -> do
                 key <- resolveLiveVarKey rawName (realName, vid)
-                isStatic <- isStaticVar key
-                if isStatic
+                stacks <- getVarStacks
+                if Map.member key stacks
                     then do
-                        (clazz, _) <- peekVarStack key
-                        nAtom <- newSubCVar clazz
-                        return ([IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
-                    else do
-                        let (resolvedName, resolvedVid) = key
-                        (_, ver) <- peekVarStack key
-                        let atom = TAC.Var (resolvedName, resolvedVid, ver)
+                        isStatic <- isStaticVar key
+                        if isStatic
+                            then do
+                                (clazz, _) <- peekVarStack key
+                                nAtom <- newSubCVar clazz
+                                return ([IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
+                            else do
+                                let (resolvedName, resolvedVid) = key
+                                (_, ver) <- peekVarStack key
+                                let atom = TAC.Var (resolvedName, resolvedVid, ver)
 
-                        mFun <- TAC.getCurrentFunMaybe
-                        case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
-                            Just idx -> return ([], TAC.Param idx)
-                            Nothing -> return ([], atom)
+                                mFun <- TAC.getCurrentFunMaybe
+                                case mFun >>= (\(_, _, argMap) -> lookupParamIndex atom argMap) of
+                                    Just idx -> return ([], TAC.Param idx)
+                                    Nothing -> return ([], atom)
+                    else do
+                        -- Cross-owner static reference (e.g. struct static init reading
+                        -- a top-level static declared in another lowered class).
+                        nAtom <- newSubCVar clsHint
+                        return ([IRInstr (TAC.IGetStatic nAtom [realName])], nAtom)
 
             -- ??????
             TEnv.VarImported _ clazz _ fullQname -> do
@@ -404,6 +450,7 @@ pointerStoreSize cls = case cls of
     Int64T -> Just 8
     Float64T -> Just 8
     Pointer _ -> Just 8
+    FuncPtr _ _ -> Just 8
     Class {} -> Just 8
     _ -> Nothing
 
@@ -441,6 +488,29 @@ castIfNeeded from atom to
     | otherwise = do
         castAtom <- newSubCVar to
         return ([IRInstr (TAC.ICast castAtom (from, to) atom)], castAtom)
+
+
+stringLiteralValue :: Expression -> Maybe String
+stringLiteralValue expr = case expr of
+    AST.StringConst s _ -> Just s
+    AST.Cast _ inner _ -> stringLiteralValue inner
+    _ -> Nothing
+
+
+emitBlobStringWriteInstrs :: IRAtom -> String -> TACM [IRNode]
+emitBlobStringWriteInstrs lhsAtom str = do
+    lhsClass <- getAtomType lhsAtom
+    let voidPtrClass = Pointer Void
+        srcLit = TAC.StringC str
+        copyBytes = length str + 1
+    (dstCastRev, dstPtr) <- castIfNeeded lhsClass lhsAtom voidPtrClass
+    srcClass <- getAtomType srcLit
+    (srcCastRev, srcPtr) <- castIfNeeded srcClass srcLit voidPtrClass
+    callDst <- newSubCVar Void
+    pure $
+        reverse dstCastRev
+            ++ reverse srcCastRev
+            ++ [IRInstr (TAC.ICallStaticDirect callDst ["xlang", "System", "memcopy"] [dstPtr, srcPtr, TAC.Int32C copyBytes])]
 
 
 isPointerLikeClass :: Class -> Bool
@@ -560,6 +630,44 @@ incDecStepForClassM cls
         pure ([IRInstr (TAC.ICast castAtom (Int64T, cls) stepImm)], castAtom)
     | otherwise = oneAtomForClassM cls
 
+lowerIncDecDeref :: AST.Operator -> Expression -> TACM ([IRNode], IRAtom)
+lowerIncDecDeref arithOp inner = do
+    (baseInstrs0, baseAtom0) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
+    baseClass0 <- getAtomType baseAtom0
+
+    (ptrCastInstrs, ptrAtom, targetClass) <- case baseClass0 of
+        Pointer Void ->
+            error "cannot increment/decrement through pointer<void>"
+        Pointer innerClass ->
+            pure ([], baseAtom0, innerClass)
+        Blob _ ->
+            error "cannot increment/decrement through blob[N], cast it to pointer<T> first"
+        cls | isIntegerAddressClass cls -> do
+            let ptrClass = Pointer Int64T
+            (castInstrs, castAtom) <- castIfNeeded cls baseAtom0 ptrClass
+            pure (castInstrs, castAtom, Int64T)
+        _ ->
+            error $ "inc/dec deref expects pointer or integer address type, got " ++ show baseClass0
+
+    storeSize <- case pointerStoreSize targetClass of
+        Just n -> pure n
+        Nothing -> error $ "inc/dec deref does not support class " ++ show targetClass
+
+    oldAtom <- newSubCVar targetClass
+    (stepInstrsRev, stepAtom) <- incDecStepForClassM targetClass
+    nextAtom <- newSubCVar targetClass
+
+    let baseForward = reverse baseInstrs0
+        ptrCastForward = reverse ptrCastInstrs
+        stepForward = reverse stepInstrsRev
+        derefInstr = IRInstr (TAC.Deref oldAtom ptrAtom)
+        calcInstr = IRInstr (TAC.IBinary nextAtom arithOp oldAtom stepAtom)
+        writeInstr = IRInstr (TAC.DerefAssign ptrAtom nextAtom storeSize)
+        seqForward1 = appendAfterCond baseForward ptrCastForward
+        seqForward2 = appendAfterCond seqForward1 stepForward
+        seqForward3 = appendAfterCond seqForward2 [derefInstr, calcInstr, writeInstr]
+    pure (reverse seqForward3, oldAtom)
+
 zeroAtomForClass :: Class -> IRAtom
 zeroAtomForClass cls = case cls of
     Int8T -> TAC.Int8C 0
@@ -582,6 +690,14 @@ exprLowing (AST.Cast (toClass, _) inner _) = do
     return (castInstrs ++ instrs, castAtom)
 
 -- ++a
+exprLowing (AST.Unary AST.IncSelf (AST.Unary AST.DeRef inner _) _) = do
+    (instrs, oldAtom) <- lowerIncDecDeref AST.Add inner
+    oldClass <- getAtomType oldAtom
+    (stepInstrsRev, stepAtom) <- incDecStepForClassM oldClass
+    nextAtom <- newSubCVar oldClass
+    let seqForward = appendAfterCond (reverse instrs) (reverse stepInstrsRev ++ [IRInstr (TAC.IBinary nextAtom AST.Add oldAtom stepAtom)])
+    pure (reverse seqForward, nextAtom)
+
 exprLowing (AST.Unary AST.IncSelf inner _) = do
     (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
@@ -599,6 +715,14 @@ exprLowing (AST.Unary AST.IncSelf inner _) = do
         _ -> error "IncSelf expects Var/Param atom"
 
 -- --a
+exprLowing (AST.Unary AST.DecSelf (AST.Unary AST.DeRef inner _) _) = do
+    (instrs, oldAtom) <- lowerIncDecDeref AST.Sub inner
+    oldClass <- getAtomType oldAtom
+    (stepInstrsRev, stepAtom) <- incDecStepForClassM oldClass
+    nextAtom <- newSubCVar oldClass
+    let seqForward = appendAfterCond (reverse instrs) (reverse stepInstrsRev ++ [IRInstr (TAC.IBinary nextAtom AST.Sub oldAtom stepAtom)])
+    pure (reverse seqForward, nextAtom)
+
 exprLowing (AST.Unary AST.DecSelf inner _) = do
     (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
@@ -616,6 +740,9 @@ exprLowing (AST.Unary AST.DecSelf inner _) = do
         _ -> error "DecSelf expects Var/Param atom"
 
 -- a++
+exprLowing (AST.Unary AST.SelfInc (AST.Unary AST.DeRef inner _) _) = do
+    lowerIncDecDeref AST.Add inner
+
 exprLowing (AST.Unary AST.SelfInc inner _) = do
     (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
@@ -637,6 +764,9 @@ exprLowing (AST.Unary AST.SelfInc inner _) = do
         _ -> error "SelfInc expects Var/Param atom"
 
 -- a--
+exprLowing (AST.Unary AST.SelfDec (AST.Unary AST.DeRef inner _) _) = do
+    lowerIncDecDeref AST.Sub inner
+
 exprLowing (AST.Unary AST.SelfDec inner _) = do
     (instr, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
@@ -696,10 +826,8 @@ exprLowing (AST.Unary op inner _) = do
 
 exprLowing (AST.Binary AST.Assign (AST.Variable lhsName tok) e2 _) = do
     let pos = tokenPos tok
-    vinfo <- getVar [pos]
-    case vinfo of
-        TEnv.VarLocal _ realName vid -> do
-            key <- resolveLiveVarKey lhsName (realName, vid)
+    let lowerLocalAssign :: String -> VarKey -> TACM ([IRNode], IRAtom)
+        lowerLocalAssign realName key = do
             isStatic <- isStaticVar key
 
             oldCur <- TAC.getCurrentVar
@@ -710,26 +838,77 @@ exprLowing (AST.Binary AST.Assign (AST.Variable lhsName tok) e2 _) = do
             --   x = x - eta * 2.0 * x
             -- into effectively using updated x-temps on RHS.
             TAC.setCurrentVar oldCur
-            (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-            clazz <- getAtomType rhsAtom
-            lhsAtom <- newSubVar clazz key
+            (instrs, rhsAtom0) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+            rhsClass0 <- getAtomType rhsAtom0
+
+            stacks <- getVarStacks
+            let mTop = listToMaybe =<< Map.lookup key stacks
+                declaredClass = maybe rhsClass0 fst mTop
+                lhsClass = case declaredClass of
+                    Blob _ -> declaredClass
+                    _ -> rhsClass0
+                mPrevAtom = fmap (\(_, ver) -> TAC.Var (fst key, snd key, ver)) mTop
+            (rhsCastInstrs, rhsAtom) <- castIfNeeded rhsClass0 rhsAtom0 lhsClass
+
+            lhsAtom <- newSubVar lhsClass key
 
             TAC.setCurrentVar oldCur
 
-            let rhsForward = reverse instrs
-                assignTail = IRInstr (TAC.IAssign lhsAtom rhsAtom)
-                writeTail =
-                    if isStatic
-                        then [assignTail, IRInstr (TAC.IPutStatic [realName] lhsAtom)]
-                        else [assignTail]
-                seqForward = appendAfterCond rhsForward writeTail
+            seqForward <-
+                if case lhsClass of Blob _ -> True; _ -> False
+                    then case stringLiteralValue e2 of
+                        Just s -> do
+                            writeBlobInstrs <- emitBlobStringWriteInstrs lhsAtom s
+                            let rhsForward = reverse instrs
+                                ptrCarry = maybe [] (\oldAtom -> [IRInstr (TAC.IAssign lhsAtom oldAtom)]) mPrevAtom
+                                writeTail = if isStatic
+                                    then ptrCarry ++ writeBlobInstrs ++ [IRInstr (TAC.IPutStatic [realName] lhsAtom)]
+                                    else ptrCarry ++ writeBlobInstrs
+                            pure (appendAfterCond rhsForward writeTail)
+                        Nothing -> do
+                            let rhsForward = reverse (rhsCastInstrs ++ instrs)
+                                assignTail = IRInstr (TAC.IAssign lhsAtom rhsAtom)
+                                writeTail =
+                                    if isStatic
+                                        then [assignTail, IRInstr (TAC.IPutStatic [realName] lhsAtom)]
+                                        else [assignTail]
+                            pure (appendAfterCond rhsForward writeTail)
+                    else do
+                        let rhsForward = reverse (rhsCastInstrs ++ instrs)
+                            assignTail = IRInstr (TAC.IAssign lhsAtom rhsAtom)
+                            writeTail =
+                                if isStatic
+                                    then [assignTail, IRInstr (TAC.IPutStatic [realName] lhsAtom)]
+                                    else [assignTail]
+                        pure (appendAfterCond rhsForward writeTail)
             return (reverse seqForward, lhsAtom)
 
-        TEnv.VarImported _ _ _ fullQname -> do
-            (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
-            let rhsForward = reverse instrs
-                seqForward = appendAfterCond rhsForward [IRInstr (TAC.IPutStatic fullQname rhsAtom)]
-            return (reverse seqForward, rhsAtom)
+    let fallbackStaticByName :: TACM ([IRNode], IRAtom)
+        fallbackStaticByName = do
+            staticKeys <- TAC.findStaticVarKeysByName lhsName
+            case staticKeys of
+                [key@(realName, _)] ->
+                    lowerLocalAssign realName key
+                _ ->
+                    error ("getVar: no var info at " ++ show [pos])
+
+    mVarInfo <- lookupVarMaybe [pos]
+    case mVarInfo of
+        Just vinfo -> case vinfo of
+            TEnv.VarLocal _ realName vid _ -> do
+                key <- resolveLiveVarKey lhsName (realName, vid)
+                let mappedName = fst key
+                if realName == lhsName || mappedName == lhsName
+                    then lowerLocalAssign realName key
+                    else fallbackStaticByName
+
+            TEnv.VarImported _ _ _ fullQname -> do
+                (instrs, rhsAtom) <- if AST.isAtom e2 then atomLowing e2 else exprLowing e2
+                let rhsForward = reverse instrs
+                    seqForward = appendAfterCond rhsForward [IRInstr (TAC.IPutStatic fullQname rhsAtom)]
+                return (reverse seqForward, rhsAtom)
+        Nothing ->
+            fallbackStaticByName
 
 exprLowing (AST.Binary AST.Assign (AST.Unary AST.DeRef inner _) e2 _) = do
     (baseInstrs0, baseAtom0) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
@@ -772,22 +951,8 @@ exprLowing (AST.Binary AST.Assign (AST.Unary AST.DeRef inner _) e2 _) = do
         rhsForward = reverse (rhsCastInstrs ++ rhsInstrs0)
         seqForward1 = appendAfterCond baseForward rhsForward
         seqForward2 = appendAfterCond seqForward1 ptrCastForward
-    case inner of
-        AST.Binary AST.Add _ _ idxTok
-            | isIndexAssignToken idxTok -> do
-                oldAtom <- newSubCVar targetClass
-                let seqForward3 = appendAfterCond seqForward2 [
-                        IRInstr (TAC.Deref oldAtom ptrAtom),
-                        IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
-                return (reverse seqForward3, oldAtom)
-        _ -> do
-            let seqForward3 = appendAfterCond seqForward2 [IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
-            return (reverse seqForward3, rhsAtom)
-  where
-    isIndexAssignToken :: Token -> Bool
-    isIndexAssignToken tok = case tok of
-        Symbol LBracket _ -> True
-        _ -> False
+    let seqForward3 = appendAfterCond seqForward2 [IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
+    return (reverse seqForward3, rhsAtom)
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -1043,7 +1208,7 @@ exprLowing (AST.SizeOfExpr inner _) = do
         AST.Variable name tok -> do
             mInfo <- lookupVarMaybe [tokenPos tok]
             case mInfo of
-                Just (TEnv.VarLocal _ realName vid) -> do
+                Just (TEnv.VarLocal _ realName vid _) -> do
                     key <- resolveVarKey (realName, vid)
                     (ty, _) <- peekVarStack key
                     pure ty
@@ -1064,7 +1229,7 @@ exprLowing (AST.SizeOfExpr inner _) = do
                 Nothing -> do
                     mInfo <- lookupVarMaybe (map tokenPos toks)
                     case mInfo of
-                        Just (TEnv.VarLocal _ realName vid) -> do
+                        Just (TEnv.VarLocal _ realName vid _) -> do
                             key <- resolveVarKey (realName, vid)
                             (ty, _) <- peekVarStack key
                             pure ty
@@ -1320,8 +1485,11 @@ shortCircuitLogical op e1 e2 = do
 
 type VarKey = (String, Int)
 
+defaultPlainOwnerKey :: String
+defaultPlainOwnerKey = "$$default_owner$$"
+
 resolveLiveVarKey :: String -> VarKey -> TACM VarKey
-resolveLiveVarKey rawName key@(realName, vid) = do
+resolveLiveVarKey rawName key@(realName, _) = do
     key0 <- resolveVarKey key
     stacks <- getVarStacks
     if Map.member key0 stacks
@@ -1329,14 +1497,11 @@ resolveLiveVarKey rawName key@(realName, vid) = do
         else do
             let byRawName = nub [k | k@(n, _) <- Map.keys stacks, n == rawName]
                 byRealName = nub [k | k@(n, _) <- Map.keys stacks, n == realName]
-                byVarId = nub [k | k@(_, v) <- Map.keys stacks, v == vid]
             case byRawName of
                 [k] -> pure k
                 _ -> case byRealName of
                     [k] -> pure k
-                    _ -> case byVarId of
-                        [k] -> pure k
-                        _ -> pure key0
+                    _ -> pure key0
 
 paramifyAtom :: IRAtom -> TACM IRAtom
 paramifyAtom atom@(TAC.Var {}) = do
@@ -1438,9 +1603,14 @@ collectAssignKeysBlock (AST.Multiple ss) = do
         collectAssignKeysStmt (AST.Command {}) = return []
 
         collectAssignKeysDef :: [String] -> Maybe Expression -> [Token] -> TACM [VarKey]
-        collectAssignKeysDef names mRhs toks = case (names, mRhs, reverse toks) of
-            ([name], Just rhs, nameTok : _) ->
-                collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+        collectAssignKeysDef names mRhs toks = case (names, mRhs) of
+            ([name], Just rhs) -> do
+                mNameTok <- resolveDeclAnchorToken name toks
+                case mNameTok of
+                    Just nameTok ->
+                        collectAssignKeysExpr (AST.Binary AST.Assign (AST.Variable name nameTok) rhs nameTok)
+                    Nothing ->
+                        collectAssignKeysExpr rhs
             _ ->
                 maybe (return []) collectAssignKeysExpr mRhs
 
@@ -1493,7 +1663,7 @@ collectAssignKeysBlock (AST.Multiple ss) = do
             AST.Variable lhsName tok -> do
                 vinfo <- getVar [tokenPos tok]
                 case vinfo of
-                    TEnv.VarLocal _ realName vid -> do
+                    TEnv.VarLocal _ realName vid _ -> do
                         key <- resolveLiveVarKey lhsName (realName, vid)
                         return [key]
                     _ -> return []
@@ -1524,14 +1694,29 @@ appendAfterCond condStmts tailStmts = case reverse condStmts of
                 base ++ extra
 
 
+resolveDeclAnchorToken :: String -> [Token] -> TACM (Maybe Token)
+resolveDeclAnchorToken name toks = go candidates
+  where
+    nameFirst = [tok | tok@(Ident s _) <- toks, s == name]
+    candidates = nameFirst ++ reverse toks
+
+    go :: [Token] -> TACM (Maybe Token)
+    go [] = pure Nothing
+    go (tok:rest) = do
+        mVar <- lookupVarMaybe [tokenPos tok]
+        case mVar of
+            Just (TEnv.VarLocal _ realName _ _) | realName == name -> pure (Just tok)
+            _ -> go rest
+
+
 emitDefaultDeclInit :: Maybe Class -> Token -> TACM [IRNode]
 emitDefaultDeclInit mTy nameTok = do
     vinfo <- getVar [tokenPos nameTok]
     case vinfo of
-        TEnv.VarLocal _ realName vid -> do
+        TEnv.VarLocal _ realName vid _ -> do
             key <- resolveVarKey (realName, vid)
             let
-                declT = fromMaybe Int32T mTy
+                declT = normalizeTypeAliasLocal (fromMaybe Int32T mTy)
             lhsAtom <- newSubVar declT key
             isStatic <- isStaticVar key
             blobAllocInstrs <- lowerBlobAllocInstrs lhsAtom declT
@@ -1814,51 +1999,81 @@ stmtsLowing ((AST.DefConstField names mDeclType mRhs toks):stmts) =
     stmtsLowing (AST.DefConstVar names mDeclType mRhs toks:stmts)
 
 stmtsLowing ((AST.DefVar names mDeclType mRhs toks):stmts) = do
+    let mDeclTypeN = fmap normalizeTypeAliasLocal mDeclType
     let lowerAssignDecl name nameTok rhs = do
             let assignTok = case toks of
                     (_:tokEq:_) -> tokEq
                     _ -> nameTok
-                rhsTyped = case mDeclType of
-                    Just declT -> AST.Cast (declT, []) rhs assignTok
-                    Nothing -> rhs
+                rhsTyped = maybe rhs
+                    (\declT -> if isBlobDecl declT then rhs else AST.Cast (declT, []) rhs assignTok)
+                    mDeclTypeN
                 assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhsTyped assignTok
             (assignRev, lhsAtom) <- exprLowing assignExpr
-            allocInstrs <- maybe (pure []) (lowerBlobAllocInstrs lhsAtom) mDeclType
+            allocInstrs <- maybe (pure []) (lowerBlobAllocInstrs lhsAtom) mDeclTypeN
             return (allocInstrs ++ reverse assignRev)
+        isBlobDecl :: Class -> Bool
+        isBlobDecl cls = case cls of
+            Blob _ -> True
+            _ -> False
         exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
-    current <- case (names, mRhs, reverse toks) of
-        ([name], Just rhs, nameTok:_) ->
-            lowerAssignDecl name nameTok rhs
-        ([_], Nothing, nameTok:_) ->
-            emitDefaultDeclInit mDeclType nameTok
-        (_, Just rhs, _) ->
+    current <- case (names, mRhs) of
+        ([name], Just rhs) -> do
+            mNameTok <- resolveDeclAnchorToken name toks
+            case mNameTok of
+                Just nameTok -> lowerAssignDecl name nameTok rhs
+                Nothing -> do
+                    let fallbackTok = case reverse toks of
+                            (t:_) -> t
+                            [] -> Lex.dummyToken
+                    lowerAssignDecl name fallbackTok rhs
+        ([name], Nothing) -> do
+            mNameTok <- resolveDeclAnchorToken name toks
+            case mNameTok of
+                Just nameTok -> emitDefaultDeclInit mDeclTypeN nameTok
+                Nothing -> return []
+        (_, Just rhs) ->
             exprLowing' rhs
-        (_, Nothing, _) ->
+        (_, Nothing) ->
             return []
     rest <- stmtsLowing stmts
     return $ appendAfterCond current rest
 
 stmtsLowing ((AST.DefConstVar names mDeclType mRhs toks):stmts) = do
+    let mDeclTypeN = fmap normalizeTypeAliasLocal mDeclType
     let lowerAssignDecl name nameTok rhs = do
             let assignTok = case toks of
                     (_:tokEq:_) -> tokEq
                     _ -> nameTok
-                rhsTyped = case mDeclType of
-                    Just declT -> AST.Cast (declT, []) rhs assignTok
-                    Nothing -> rhs
+                rhsTyped = maybe rhs
+                    (\declT -> if isBlobDecl declT then rhs else AST.Cast (declT, []) rhs assignTok)
+                    mDeclTypeN
                 assignExpr = AST.Binary AST.Assign (AST.Variable name nameTok) rhsTyped assignTok
             (assignRev, lhsAtom) <- exprLowing assignExpr
-            allocInstrs <- maybe (pure []) (lowerBlobAllocInstrs lhsAtom) mDeclType
+            allocInstrs <- maybe (pure []) (lowerBlobAllocInstrs lhsAtom) mDeclTypeN
             return (allocInstrs ++ reverse assignRev)
+        isBlobDecl :: Class -> Bool
+        isBlobDecl cls = case cls of
+            Blob _ -> True
+            _ -> False
         exprLowing' ex = exprLowing ex >>= \(instrs, _) -> return (reverse instrs)
-    current <- case (names, mRhs, reverse toks) of
-        ([name], Just rhs, nameTok:_) ->
-            lowerAssignDecl name nameTok rhs
-        ([_], Nothing, nameTok:_) ->
-            emitDefaultDeclInit mDeclType nameTok
-        (_, Just rhs, _) ->
+    current <- case (names, mRhs) of
+        ([name], Just rhs) -> do
+            mNameTok <- resolveDeclAnchorToken name toks
+            case mNameTok of
+                Just nameTok -> lowerAssignDecl name nameTok rhs
+                Nothing -> do
+                    let fallbackTok = case reverse toks of
+                            (t:_) -> t
+                            [] -> Lex.dummyToken
+                    lowerAssignDecl name fallbackTok rhs
+        ([name], Nothing) -> do
+            mNameTok <- resolveDeclAnchorToken name toks
+            case mNameTok of
+                Just nameTok -> emitDefaultDeclInit mDeclTypeN nameTok
+                Nothing -> return []
+        (_, Just rhs) ->
             exprLowing' rhs
-        (_, Nothing, _) ->
+        (_, Nothing) ->
             return []
     rest <- stmtsLowing stmts
     return $ appendAfterCond current rest
@@ -2346,15 +2561,17 @@ collectAtomTypesStatic stmts = do
 
 functionLowering :: Statement -> TACM (IRFunction, Maybe TAC.IRCFunction)
 functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args functB) = do
-    atoms <- loadFunctionArgs args
+    let argsN = map (\(a, n, ts) -> (normalizeTypeAliasLocal a, n, ts)) args
+        clazzN = normalizeTypeAliasLocal clazz
+    atoms <- loadFunctionArgs argsN
     let _argsMap = genArgMap atoms
     let funSig = TEnv.FunSig {
-        TEnv.funParams = map (\(a, _, _) -> a) args,
-        TEnv.funReturn = clazz
+        TEnv.funParams = map (\(a, _, _) -> a) argsN,
+        TEnv.funReturn = clazzN
     }
 
     retBId <- incBlockId
-    let retInstr = if clazz == Void then TAC.VReturn else TAC.Return
+    let retInstr = if clazzN == Void then TAC.VReturn else TAC.Return
     let retBlock = IRBlockStmt (retBId, [IRInstr retInstr])
 
     funStmts <- TAC.withFun (funSig, retBId, _argsMap) $ blockLowing functB
@@ -2371,19 +2588,21 @@ functionLowering (AST.Function (clazz, declToks) (AST.Variable funName _) args f
     return (irFun, mkCLinkMirror declToks irFun)
 
 functionLowering (AST.NativeMethod _ _ (clazz, declToks) (AST.Variable funName _) args targetName) = do
+    let argsN = map (\(a, n, ts) -> (normalizeTypeAliasLocal a, n, ts)) args
+        clazzN = normalizeTypeAliasLocal clazz
     let paramN = length args
         _argsMap = Map.fromList [(i, TAC.Param i) | i <- [0 .. paramN - 1]]
         targetQname = parseNativeTargetQName targetName
         funSig = TEnv.FunSig {
-            TEnv.funParams = map (\(a, _, _) -> a) args,
-            TEnv.funReturn = clazz
+            TEnv.funParams = map (\(a, _, _) -> a) argsN,
+            TEnv.funReturn = clazzN
         }
 
     retBId <- incBlockId
-    callDst <- newSubCVar clazz
-    let retInstr = if clazz == Void then TAC.VReturn else TAC.Return
+    callDst <- newSubCVar clazzN
+    let retInstr = if clazzN == Void then TAC.VReturn else TAC.Return
         retBlock = IRBlockStmt (retBId, [IRInstr retInstr])
-        setRetStmts = [IRInstr (TAC.SetRet callDst) | clazz /= Void]
+        setRetStmts = [IRInstr (TAC.SetRet callDst) | clazzN /= Void]
         nativeBody = [IRInstr (TAC.ICallStaticDirect callDst targetQname [TAC.Param i | i <- [0 .. paramN - 1]])] ++ setRetStmts ++ [IRInstr (TAC.Jump retBId)]
         stmtsWithRet = nativeBody ++ [retBlock]
 
@@ -2424,7 +2643,7 @@ loadFunctionArgs = mapM loadOne
             vinfo <- getVar [pos]
             case vinfo of
                 TEnv.VarImported {} -> error "args cannot be imported"
-                TEnv.VarLocal _ str vid -> do
+                TEnv.VarLocal _ str vid _ -> do
                     key <- resolveLiveVarKey argName (str, vid)
                     newSubVar argClazz key
 
@@ -2526,8 +2745,8 @@ accessFromDeclTokens toks = case toks of
 
 -- | Lower non-function class statements into a synthetic class:
 --   non-function statements become static-init, functions become methods.
-classStmtsLowing :: [String] -> String -> [Statement] -> TACM IRClass
-classStmtsLowing pkgSegs name stmts = do
+classStmtsLowing :: TAC.IRClassType -> [String] -> String -> Map String String -> [Statement] -> TACM IRClass
+classStmtsLowing classType pkgSegs name ownerOverrides stmts = do
     let (funcDef, rest0) = partition AST.isFunction stmts
     let (templateDef, rest1) = partition AST.isFunctionT rest0
     let inlineNativeMap = Map.fromList (mapMaybe (inlineNativeFromStmt pkgSegs) funcDef)
@@ -2555,17 +2774,21 @@ classStmtsLowing pkgSegs name stmts = do
         cFuncs = map (qualifyCFunction classQName) cFuncs0
         mainKind = detectMainKind classQName funcs
     let decl = (AST.Public, []) -- TODO: default class decl until parser carries modifiers.
-    return $ TAC.IRClass decl name staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs tFuncs cFuncs mainKind
+    return $ TAC.IRClass decl name classType staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs tFuncs cFuncs mainKind
     where
         resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
-        resolveStaticKey (_, poss) = do
-            pos <- case poss of
-                (p:_) -> return p
+        resolveStaticKey (nameHint, poss) = do
+            let go [] = error ("collectAssignKey: cannot resolve static key for " ++ show nameHint)
+                go (p:ps) = do
+                    mv <- lookupVarMaybe [p]
+                    case mv of
+                        Just (TEnv.VarLocal _ str vid _)
+                            | str == nameHint -> pure (str, vid)
+                            | otherwise -> go ps
+                        _ -> go ps
+            case poss of
                 [] -> error "collectAssignKey: empty position list"
-            vinfo <- getVar [pos]
-            case vinfo of
-                TEnv.VarLocal _ str vid -> return (str, vid)
-                _ -> error "collectAssignKey: this should be catched in Semantic"
+                _ -> go poss
         staticFieldFor :: Map String [Position] -> (String, Int) -> TACM (AST.Decl, Class, String, TAC.IRMemberType)
         staticFieldFor consts (varName, vid) = do
             (clazz, _) <- peekVarStack (varName, vid)
@@ -2599,12 +2822,63 @@ classStmtsLowing pkgSegs name stmts = do
 
         qualifyQName :: [String] -> [String] -> [String]
         qualifyQName cls qn
-            | length qn == 1 = cls ++ qn
-            | isPkgOnly = cls ++ [last qn]
+            | classType == TAC.IRClassTypeStruct
+            , length qn == 2
+            , head qn == currentClassName
+            , not (belongsToCurrentStruct (last qn)) =
+                case defaultOwnerForStruct of
+                    Just ownerCls -> pkg ++ [ownerCls, last qn]
+                    Nothing -> qn
+            | length qn == 1 =
+                let sym = head qn
+                in case preferPlainOwnerForStruct sym of
+                    Just ownerCls -> pkg ++ [ownerCls] ++ qn
+                    Nothing ->
+                        case pickOwner sym of
+                            Just ownerCls -> pkg ++ [ownerCls] ++ qn
+                            Nothing ->
+                                case defaultOwnerForStruct of
+                                    Just ownerCls -> pkg ++ [ownerCls] ++ qn
+                                    Nothing -> cls ++ qn
+            | isPkgOnly =
+                case pickOwner (last qn) of
+                    Just ownerCls -> pkg ++ [ownerCls, last qn]
+                    Nothing ->
+                        case defaultOwnerForStruct of
+                            Just ownerCls -> pkg ++ [ownerCls, last qn]
+                            Nothing -> cls ++ [last qn]
             | otherwise = qn
             where
                 pkg = take (length cls - 1) cls
                 isPkgOnly = length qn == length cls && take (length cls - 1) qn == pkg
+                defaultOwnerForStruct :: Maybe String
+                defaultOwnerForStruct =
+                    if classType == TAC.IRClassTypeStruct
+                        then Map.lookup defaultPlainOwnerKey ownerOverrides
+                        else Nothing
+                currentClassName :: String
+                currentClassName =
+                    case reverse cls of
+                        (x:_) -> x
+                        [] -> ""
+                belongsToCurrentStruct :: String -> Bool
+                belongsToCurrentStruct sym =
+                    sym == (currentClassName ++ "$$size")
+                        || (currentClassName ++ "$") `isPrefixOf` sym
+                preferPlainOwnerForStruct :: String -> Maybe String
+                preferPlainOwnerForStruct sym =
+                    if classType == TAC.IRClassTypeStruct && not (belongsToCurrentStruct sym)
+                        then Map.lookup defaultPlainOwnerKey ownerOverrides
+                        else Nothing
+                pickOwner :: String -> Maybe String
+                pickOwner sym =
+                    case Map.lookup sym ownerOverrides of
+                        Just ownerCls -> Just ownerCls
+                        Nothing ->
+                            case break (== '$') sym of
+                                (ownerCls, '$' : _)
+                                    | not (null ownerCls) -> Just ownerCls
+                                _ -> Nothing
 
 
 detectMainKind :: QName -> [IRFunction] -> TAC.MainKind
@@ -2662,22 +2936,115 @@ classLowing :: Statement -> TACM IRClass
 classLowing _ = error "the class is not implement"
 
 
+structNamePrefixes :: [Statement] -> [String]
+structNamePrefixes stmts =
+    let names = mapMaybe pick stmts
+        uniq = nub names
+    in sortOn (\s -> negate (length s)) uniq
+  where
+    pick :: Statement -> Maybe String
+    pick stmt = case stmt of
+        AST.DefConstVar [name] _ _ _ -> stripSize name
+        AST.DefVar [name] _ _ _ -> stripSize name
+        _ -> Nothing
+
+    stripSize :: String -> Maybe String
+    stripSize name
+        | "$$size" `isSuffixOfS` name = Just (take (length name - length "$$size") name)
+        | otherwise = Nothing
+
+    isSuffixOfS :: String -> String -> Bool
+    isSuffixOfS suffix txt = reverse suffix `isPrefixOf` reverse txt
+
+
+structOwnerOfSymbol :: [String] -> String -> Maybe String
+structOwnerOfSymbol structNames symbol =
+    listToMaybe [s | s <- structNames, belongs s]
+  where
+    belongs :: String -> Bool
+    belongs s = symbol == (s ++ "$$size") || (s ++ "$") `isPrefixOf` symbol
+
+
+stmtStructOwner :: [String] -> Statement -> Maybe String
+stmtStructOwner structNames stmt =
+    case AST.functionNameVar stmt of
+        Just (fname, _) -> structOwnerOfSymbol structNames fname
+        Nothing -> case stmt of
+            AST.DefField [name] _ _ _ -> structOwnerOfSymbol structNames name
+            AST.DefConstField [name] _ _ _ -> structOwnerOfSymbol structNames name
+            AST.DefVar [name] _ _ _ -> structOwnerOfSymbol structNames name
+            AST.DefConstVar [name] _ _ _ -> structOwnerOfSymbol structNames name
+            _ -> Nothing
+
+
+splitStructStmts :: [String] -> [Statement] -> (Map String [Statement], [Statement])
+splitStructStmts structNames = foldl' step (Map.empty, [])
+  where
+    step :: (Map String [Statement], [Statement]) -> Statement -> (Map String [Statement], [Statement])
+    step (grouped, others) stmt = case stmtStructOwner structNames stmt of
+        Just sname -> (Map.insertWith (++) sname [stmt] grouped, others)
+        Nothing -> (grouped, others ++ [stmt])
+
+
+structOwnerOverrideMap :: Map String [Statement] -> Map String String
+structOwnerOverrideMap grouped =
+    Map.fromList (concatMap one (Map.toList grouped))
+  where
+    one :: (String, [Statement]) -> [(String, String)]
+    one (sname, stmts) = mapMaybe (entry sname) stmts
+
+    entry :: String -> Statement -> Maybe (String, String)
+    entry sname stmt = case AST.functionNameVar stmt of
+        Just (fname, _) -> Just (fname, sname)
+        Nothing -> case stmt of
+            AST.DefField [name] _ _ _ -> Just (name, sname)
+            AST.DefConstField [name] _ _ _ -> Just (name, sname)
+            AST.DefVar [name] _ _ _ -> Just (name, sname)
+            AST.DefConstVar [name] _ _ _ -> Just (name, sname)
+            _ -> Nothing
+
+
+plainOwnerOverrideMap :: String -> [Statement] -> Map String String
+plainOwnerOverrideMap ownerCls stmts =
+    Map.fromList (mapMaybe one stmts)
+  where
+    one :: Statement -> Maybe (String, String)
+    one stmt = case AST.functionNameVar stmt of
+        Just (fname, _) -> Just (fname, ownerCls)
+        Nothing -> case stmt of
+            AST.DefField [name] _ _ _ -> Just (name, ownerCls)
+            AST.DefConstField [name] _ _ _ -> Just (name, ownerCls)
+            AST.DefVar [name] _ _ _ -> Just (name, ownerCls)
+            AST.DefConstVar [name] _ _ _ -> Just (name, ownerCls)
+            _ -> Nothing
+
+
 -- | Lower a whole program into IR:
 --   extract class declarations, and wrap remaining stmts into a synthetic class.
 progmLowing :: Path -> Program -> IRProgm
 progmLowing path (decls, stmts) =
     let (decls', stmts') = AST.normalizeProgramForLowering (decls, stmts)
         (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
+        structNames = structNamePrefixes otherStmts
+        (structStmtGroups, plainStmts) = splitStructStmts structNames otherStmts
         pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d
             [] -> []
         mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls', stmts'))
+        ownerOverrides =
+            let structOwnersRaw = structOwnerOverrideMap structStmtGroups
+                structOwners = Map.filterWithKey isStructOwnedSymbol structOwnersRaw
+                plainOwners = plainOwnerOverrideMap mainClassName plainStmts
+            in Map.insert defaultPlainOwnerKey mainClassName (Map.union structOwners plainOwners)
         action = do
             classIRs <- mapM classLowing classStmts
-            extraIRs <- if null otherStmts
+            structIRs <- mapM
+                (\(sname, sstmts) -> classStmtsLowing TAC.IRClassTypeStruct pkgSegs sname ownerOverrides (reverse sstmts))
+                (Map.toList structStmtGroups)
+            extraIRs <- if null plainStmts
                 then return []
-                else (:[]) <$> classStmtsLowing pkgSegs mainClassName otherStmts
-            return $ TAC.IRProgm pkgSegs (classIRs ++ extraIRs)
+                else (:[]) <$> classStmtsLowing TAC.IRClassTypeClass pkgSegs mainClassName ownerOverrides plainStmts
+            return $ TAC.IRProgm pkgSegs (classIRs ++ structIRs ++ extraIRs)
     in
         let st0 = TAC.mkTACState Map.empty Map.empty -- TODO: pass semantic var/fun uses
         in evalState (TAC.runTACM action) st0
@@ -2691,6 +3058,9 @@ progmLowing path (decls, stmts) =
                     [] -> "Main"
                     (c:cs) -> toUpper c : cs
             in cap ++ "X"
+        isStructOwnedSymbol :: String -> String -> Bool
+        isStructOwnedSymbol sym ownerCls =
+            sym == (ownerCls ++ "$$size") || (ownerCls ++ "$") `isPrefixOf` sym
         -- | Extract file name from a path (no path module dependency).
         takeFileName :: FilePath -> FilePath
         takeFileName p =
@@ -2714,25 +3084,20 @@ collectAssignKey = foldl step Map.empty
             AST.Expr (AST.Binary _ (AST.Variable name tok) _ _) ->
                 insertOnce name (tokenPos tok) acc
             AST.DefField [name] _ _ toks ->
-                case reverse toks of
-                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
-                    [] -> acc
+                insertMany name (map tokenPos toks) acc
             AST.DefConstField [name] _ _ toks ->
-                case reverse toks of
-                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
-                    [] -> acc
+                insertMany name (map tokenPos toks) acc
             AST.DefVar [name] _ _ toks ->
-                case reverse toks of
-                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
-                    [] -> acc
+                insertMany name (map tokenPos toks) acc
             AST.DefConstVar [name] _ _ toks ->
-                case reverse toks of
-                    (nameTok:_) -> insertOnce name (tokenPos nameTok) acc
-                    [] -> acc
+                insertMany name (map tokenPos toks) acc
             _ -> acc
 
         insertOnce :: String -> Position -> Map String [Position] -> Map String [Position]
         insertOnce name pos = Map.insertWith (++) name [pos]
+
+        insertMany :: String -> [Position] -> Map String [Position] -> Map String [Position]
+        insertMany name poss = Map.insertWith (++) name poss
 
 
 collectConstKey :: [Statement] -> Map String [Position]
@@ -2741,13 +3106,9 @@ collectConstKey = foldl step Map.empty
         step :: Map String [Position] -> Statement -> Map String [Position]
         step acc stmt = case stmt of
             AST.DefConstField [name] _ _ toks ->
-                case reverse toks of
-                    (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
-                    [] -> acc
+                Map.insertWith (++) name (map tokenPos toks) acc
             AST.DefConstVar [name] _ _ toks ->
-                case reverse toks of
-                    (nameTok:_) -> Map.insertWith (++) name [tokenPos nameTok] acc
-                    [] -> acc
+                Map.insertWith (++) name (map tokenPos toks) acc
             _ -> acc
 
 

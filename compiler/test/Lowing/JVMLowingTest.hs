@@ -246,7 +246,7 @@ jvmProgramLoweringTests = testGroup "Lowing.JVMLowing.jvmProgramLowering" $ map 
 
     ("1", do
         let fun = IR.IRFunction (Public, []) "main" (FunSig [] Void) Map.empty ([IR.IRBlock (0, [IR.VReturn])], 0) IR.MemberClass
-            cls = IR.IRClass (Public, []) "MainX" [] (IR.StaticInit ([], 0)) Map.empty [fun] [] [] IR.NoMain
+            cls = IR.IRClass (Public, []) "MainX" IR.IRClassTypeClass [] (IR.StaticInit ([], 0)) Map.empty [fun] [] [] IR.NoMain
             out = JL.jvmProgmLowing (IR.IRProgm [] [cls])
         case out of
             [JVM.JClass _ qn _ _ _ _ _ methods _] -> do
@@ -256,8 +256,8 @@ jvmProgramLoweringTests = testGroup "Lowing.JVMLowing.jvmProgramLowering" $ map 
 
     ("2", do
         let fun = IR.IRFunction (Public, []) "main" (FunSig [] Void) Map.empty ([IR.IRBlock (0, [IR.VReturn])], 0) IR.MemberClass
-            c1 = IR.IRClass (Public, []) "A" [] (IR.StaticInit ([], 0)) Map.empty [fun] [] [] IR.NoMain
-            c2 = IR.IRClass (Public, []) "B" [] (IR.StaticInit ([], 0)) Map.empty [fun] [] [] IR.NoMain
+            c1 = IR.IRClass (Public, []) "A" IR.IRClassTypeClass [] (IR.StaticInit ([], 0)) Map.empty [fun] [] [] IR.NoMain
+            c2 = IR.IRClass (Public, []) "B" IR.IRClassTypeClass [] (IR.StaticInit ([], 0)) Map.empty [fun] [] [] IR.NoMain
             out = JL.jvmProgmsLowing [IR.IRProgm [] [c1], IR.IRProgm [] [c2]]
         length out @?= 2),
 
@@ -265,6 +265,7 @@ jvmProgramLoweringTests = testGroup "Lowing.JVMLowing.jvmProgramLowering" $ map 
         let badClass = IR.IRClass
                 (Public, [])
                 "Bad"
+                IR.IRClassTypeClass
                 [((Public, []), Float128T, "x", IR.MemberClass)]
                 (IR.StaticInit ([], 0))
                 Map.empty

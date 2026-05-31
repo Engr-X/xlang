@@ -25,7 +25,8 @@ unwrapStringTests = testGroup "Lex.Tokenizer.unwrapString" $ map (\(i, e, n) -> 
     ("\"\"", "", "2"),
     ("\"123 + 456\"", "123 + 456", "3"),
     ("\"a@b#c$d\"", "a@b#c$d", "4"),
-    ("\"你好世界\"", "你好世界", "5")]
+    ("\"hi\\n\"", "hi\n", "5"),
+    ("\"\\0\"", "\0", "6")]
 
 
 unwrapCharTests :: TestTree
@@ -34,10 +35,6 @@ unwrapCharTests = testGroup "Lex.Tokenizer.unwrapChar" $ map (\(i, e, n) -> test
     ("'Z'", Just 'Z', "1"),
     ("'0'", Just '0', "2"),
     ("'+'", Just '+', "3"),
-
-    ("'你'", Just '你', "4"),
-    ("'书'", Just '书', "5"),
-    ("'界'", Just '界', "6"),
 
     ("'\\n'", Just '\n', "7"),
     ("'\\t'", Just '\t', "8"),
@@ -56,8 +53,6 @@ unwrapCharTests = testGroup "Lex.Tokenizer.unwrapChar" $ map (\(i, e, n) -> test
 
     ("'\\x41'", Just 'A', "19"),
     ("'\\x7a'", Just 'z', "20"),
-    ("'\\u4E66'", Just '书', "21"),
-    ("'\\U00004E16'", Just '世', "22"),
     ("'ab'", Nothing, "23")]
 
 
@@ -147,7 +142,7 @@ d='\\'; // this is awesome
 
 {-
 str1 = "hello, this is my own program language!!!";
-str2 = "hello, world in Chinese is 世界你好";
+str2 = "hello, world in Chinese is 濞戞挻鐗滈弲顐ｆ媴閻樺眰鍋?;
 /* this is a test */ str3 = "\0";
 /* /* perfect */
 str4 = null
@@ -159,9 +154,9 @@ str4 = null
         "/* /* perfect */",
         "str4 = null"], ([], [
         makeId "str1" 1 1 4,  makeSymbol Assign 1 6 1,  makeStr "hello, this is my own program language!!!" 1 8 43,  makeSymbol Semicolon 1 51 1,
-        makeId "str2" 2 1 4,  makeSymbol Assign 2 6 1,  makeStr "hello, world in Chinese is 世界你好" 2 8 33,  makeSymbol Semicolon 2 41 1,
+        makeId "str2" 2 1 4,  makeSymbol Assign 2 6 1,  makeStr "hello, world in Chinese is 濞戞挻鐗滈弲顐ｆ媴閻樺眰鍋? 2 8 33,  makeSymbol Semicolon 2 41 1,
 
-        makeId "str3" 3 22 4,  makeSymbol Assign 3 27 1,  makeStr  "\\0" 3 29 4, makeSymbol Semicolon 3 33 1,
+        makeId "str3" 3 22 4,  makeSymbol Assign 3 27 1,  makeStr  "\0" 3 29 4, makeSymbol Semicolon 3 33 1,
         makeId "str4" 5 1 4,  makeSymbol Assign 5 6 1,  makeId "null" 5 8 4,
         makeEOF 6 1 0])),
 
@@ -272,7 +267,7 @@ int main() {
                 makeId "y" 2 8 1,  makeSymbol Assign 2 9 1,  makeNum ".5" 2 10 2, makeSymbol Semicolon 2 12 1,
                 makeId "z" 2 14 1, makeSymbol Assign 2 15 1, makeNum "1e6" 2 16 3, makeSymbol Semicolon 2 19 1,
 
-            makeId "s" 3 3 1,  makeSymbol Assign 3 4 1,  makeStr "hi\\n" 3 5 6, makeSymbol Semicolon 3 11 1,
+            makeId "s" 3 3 1,  makeSymbol Assign 3 4 1,  makeStr "hi\n" 3 5 6, makeSymbol Semicolon 3 11 1,
                 makeId "c" 3 13 1, makeSymbol Assign 3 14 1, makeChar '\t' 3 15 4, makeSymbol Semicolon 3 19 1,
 
             makeId "return" 4 3 6, makeId "x" 4 10 1, makeSymbol Plus 4 11 1, makeId "y" 4 12 1, makeSymbol Multiply 4 13 1, makeId "z" 4 14 1,

@@ -352,12 +352,17 @@ checkPackageWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs ch
                 depPkgs = Map.findWithDefault [] pkg depMap
                 depImportEnvs = mapMaybe (fmap cpImportEnv . (`Map.lookup` checked)) depPkgs ++ extImportEnvs
                 depTypedEnvs = mapMaybe (fmap cpTypedEnv . (`Map.lookup` checked)) depPkgs ++ extTypedEnvs
+                depStructStmts =
+                    let depMods = concatMap (\q -> Map.findWithDefault [] q pkgMap) depPkgs
+                    in collectTopLevelStructStmts depMods
+                pkgStructStmts = collectTopLevelStructStmts mods
+                externalStructStmts = nub (pkgStructStmts ++ depStructStmts)
                 seedPath = maybe "<pkg>" miPath (safeHead mods)
                 seedImport = IEnv { file = seedPath, iVars = Map.empty, iFuncs = Map.empty }
                 seedTyped = emptyTypedImportEnv seedPath
 
             (pkgImport, pkgTyped, ctxMap) <-
-                checkPackageFixpoint target depImportEnvs depTypedEnvs mods seedImport seedTyped Map.empty
+                checkPackageFixpoint target depImportEnvs depTypedEnvs mods seedImport seedTyped Map.empty externalStructStmts
 
             let cp = CheckedPackage {
                     cpImportEnv = pkgImport,
@@ -375,8 +380,9 @@ checkPackageFixpoint ::
     ImportEnv ->
     TypedImportEnv ->
     Map Path TC.TypeCtx ->
+    [Statement] ->
     Either [ErrorKind] (ImportEnv, TypedImportEnv, Map Path TC.TypeCtx)
-checkPackageFixpoint target depImportEnvs depTypedEnvs mods0 importAcc0 typedAcc0 ctxAcc0 =
+checkPackageFixpoint target depImportEnvs depTypedEnvs mods0 importAcc0 typedAcc0 ctxAcc0 externalStructStmts =
     go mods0 (importAcc0, typedAcc0, ctxAcc0)
     where
         go ::
@@ -401,7 +407,7 @@ checkPackageFixpoint target depImportEnvs depTypedEnvs mods0 importAcc0 typedAcc
         step (accImport, accTyped, accCtx, failed, progressed) mi =
             let importEnvs = depImportEnvs ++ [accImport]
                 typedEnvs = depTypedEnvs ++ [accTyped]
-            in case checkOneProgramForTarget target (miPath mi) (miProg mi) importEnvs typedEnvs of
+            in case checkOneProgramForTarget target (miPath mi) (miProg mi) importEnvs typedEnvs externalStructStmts of
                 Left errs -> (accImport, accTyped, accCtx, (mi, errs) : failed, progressed)
                 Right ctx ->
                     let me = buildExport mi ctx
@@ -573,8 +579,25 @@ aliasTargetsForSpec currentPkg isTopLevel full = case splitFullQName full of
     Just (_, cls, member) ->
         let shortClass = [cls, member]
             samePkgTopLevel = ([currentPkg ++ [member] | isTopLevel])
-        in dedupQNames (full : shortClass : samePkgTopLevel)
+            memberAliases =
+                case splitStructMemberName member of
+                    Just (owner, m) ->
+                        [ [m]
+                        , [owner, m]
+                        , currentPkg ++ [m]
+                        , currentPkg ++ [owner, m]
+                        ]
+                    Nothing ->
+                        []
+        in dedupQNames (full : shortClass : samePkgTopLevel ++ memberAliases)
   where
+    splitStructMemberName :: String -> Maybe (String, String)
+    splitStructMemberName s =
+        let (owner, rest) = break (== '$') s
+        in case rest of
+            ('$' : m) | not (null owner) && not (null m) -> Just (owner, m)
+            _ -> Nothing
+
     dedupQNames :: [QName] -> [QName]
     dedupQNames = HashSet.toList . HashSet.fromList
 
@@ -815,11 +838,11 @@ checkPointerRulesForTarget SemanticTargetJvm path (_, stmts) =
 
 checkOneProgram :: Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
 checkOneProgram path prog0 importEnvs typedEnvs =
-    checkOneProgramForTarget SemanticTargetNative path prog0 importEnvs typedEnvs
+    checkOneProgramForTarget SemanticTargetNative path prog0 importEnvs typedEnvs []
 
 
-checkOneProgramForTarget :: SemanticTarget -> Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> Either [ErrorKind] TC.TypeCtx
-checkOneProgramForTarget target path prog0 importEnvs typedEnvs =
+checkOneProgramForTarget :: SemanticTarget -> Path -> Program -> [ImportEnv] -> [TypedImportEnv] -> [Statement] -> Either [ErrorKind] TC.TypeCtx
+checkOneProgramForTarget target path prog0 importEnvs typedEnvs externalStructStmts =
     let decls0 = fst prog0
     in do
         packageName <- getPackageName path decls0
@@ -827,7 +850,7 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs =
         let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
             typedEnvs0 = map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
             importedTemplateStmts = collectImportedTemplateStmts typedEnvs0
-            prog@(_, stmts) = AST.normalizeProgramWithExternalTemplates importedTemplateStmts prog0
+            prog@(_, stmts) = AST.normalizeProgramWithExternalTemplatesAndStructs importedTemplateStmts externalStructStmts prog0
             importEnvs0 =
                 if null typedEnvs
                     then defaultImportEnv path : importEnvs
@@ -858,6 +881,17 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs =
 
         dedupStmts :: [Statement] -> [Statement]
         dedupStmts = nub
+
+
+collectTopLevelStructStmts :: [ModuleInfo] -> [Statement]
+collectTopLevelStructStmts mods =
+    [ st
+    | mi <- mods
+    , st <- AST.flattenStmtGroups (snd (miProg mi))
+    , case st of
+        Struct {} -> True
+        _ -> False
+    ]
 
 
 checkNativeLinkConflict :: Path -> Program -> Either [ErrorKind] ()
@@ -939,8 +973,8 @@ buildExport :: ModuleInfo -> TC.TypeCtx -> ModuleExport
 buildExport mi ctx =
     let path = miPath mi
         pkg = miPkg mi
-        prog@(_, stmts) = miProg mi
-        wrapperClass = fromMaybe (fileClassName path) (getJavaName prog)
+        progNorm@(_, stmts) = AST.normalizeProgramWithExternalTemplates [] (miProg mi)
+        wrapperClass = fromMaybe (fileClassName path) (getJavaName progNorm)
 
         funDecls = collectFunctionsWithClass wrapperClass pkg stmts
         templateDecls = collectTemplatesWithClass wrapperClass pkg stmts
@@ -1041,8 +1075,8 @@ collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
         one :: Statement -> [(QName, QName, FunSig, [Position])]
         one stmt@(Function (retT, retToks) nameExpr params _) =
             let sig = FunSig {
-                    funParams = map (normalizeClass . fst3) params,
-                    funReturn = normalizeClass retT
+                    funParams = map (TC.normalizeTypeAlias . normalizeClass . fst3) params,
+                    funReturn = TC.normalizeTypeAlias (normalizeClass retT)
                 }
                 pos = choosePos nameExpr retToks
                 access = accessOfStmt stmt
@@ -1057,8 +1091,8 @@ collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
                 _ -> []
         one stmt@(FunctionT (retT, retToks) nameExpr _ params _) =
             let sig = FunSig {
-                    funParams = map (normalizeClass . fst3) params,
-                    funReturn = normalizeClass retT
+                    funParams = map (TC.normalizeTypeAlias . normalizeClass . fst3) params,
+                    funReturn = TC.normalizeTypeAlias (normalizeClass retT)
                 }
                 pos = choosePos nameExpr retToks
                 access = accessOfStmt stmt
@@ -1073,8 +1107,8 @@ collectFunctionsWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
                 _ -> []
         one stmt@(NativeMethod _ _ (retT, retToks) nameExpr params _) =
             let sig = FunSig {
-                    funParams = map (normalizeClass . fst3) params,
-                    funReturn = normalizeClass retT
+                    funParams = map (TC.normalizeTypeAlias . normalizeClass . fst3) params,
+                    funReturn = TC.normalizeTypeAlias (normalizeClass retT)
                 }
                 pos = choosePos nameExpr retToks
                 access = accessOfStmt stmt
@@ -1124,19 +1158,25 @@ collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one (flattenTopStm
 
         one :: Statement -> Maybe (AccessModified, String, AST.Class, [Position])
         one (Expr (Binary AST.Assign (Variable name tok) _ _)) = resolveByToken Public name tok
-        one stmt@(DefField [name] _ _ toks) = case reverse toks of
-            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
-            [] -> Nothing
-        one stmt@(DefConstField [name] _ _ toks) = case reverse toks of
-            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
-            [] -> Nothing
-        one stmt@(DefVar [name] _ _ toks) = case reverse toks of
-            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
-            [] -> Nothing
-        one stmt@(DefConstVar [name] _ _ toks) = case reverse toks of
-            (nameTok:_) -> resolveByToken (accessOfStmt stmt) name nameTok
-            [] -> Nothing
+        one stmt@(DefField [name] mTy _ toks) =
+            resolveByDeclOrToken (accessOfStmt stmt) name mTy toks
+        one stmt@(DefConstField [name] mTy _ toks) =
+            resolveByDeclOrToken (accessOfStmt stmt) name mTy toks
+        one stmt@(DefVar [name] mTy _ toks) =
+            resolveByDeclOrToken (accessOfStmt stmt) name mTy toks
+        one stmt@(DefConstVar [name] mTy _ toks) =
+            resolveByDeclOrToken (accessOfStmt stmt) name mTy toks
         one _ = Nothing
+
+        resolveByDeclOrToken :: AccessModified -> String -> Maybe AST.Class -> [Lex.Token] -> Maybe (AccessModified, String, AST.Class, [Position])
+        resolveByDeclOrToken access name mTy toks =
+            let poss = map Lex.tokenPos toks
+                declared = fmap (TC.normalizeTypeAlias . AST.normalizeClass) mTy
+            in case declared of
+                Just cls -> Just (access, name, cls, poss)
+                Nothing -> case nameTokenFromTokens name toks of
+                    Just nameTok -> resolveByToken access name nameTok
+                    Nothing -> Nothing
 
         resolveByToken :: AccessModified -> String -> Lex.Token -> Maybe (AccessModified, String, AST.Class, [Position])
         resolveByToken access name tok =
@@ -1148,6 +1188,14 @@ collectTopLevelVarsWithClass fileCls pkg stmts ctx = mapMaybe one (flattenTopStm
             in case mCls of
                 Just cls -> Just (access, name, cls, [pos])
                 Nothing -> Nothing
+
+        nameTokenFromTokens :: String -> [Lex.Token] -> Maybe Lex.Token
+        nameTokenFromTokens name = go
+          where
+            go [] = Nothing
+            go (t:ts) = case t of
+                Lex.Ident s _ | s == name -> Just t
+                _ -> go ts
 
         expandAlias :: (AccessModified, String, AST.Class, [Position]) -> [(QName, QName, AST.Class, [Position])]
         expandAlias (access, name, cls, pos) =
@@ -1170,15 +1218,39 @@ symbolAliases path = symbolAliasesWithClass (fileClassName path)
 
 symbolAliasesWithClass :: String -> QName -> String -> (QName, [QName])
 symbolAliasesWithClass fileCls pkg name =
-    let fullQn = pkg ++ [fileCls, name]
+    let mStructMember = splitStructMemberName name
+        ownerCls = case mStructMember of
+            Just (owner, _) -> owner
+            Nothing -> fileCls
+        fullQn = pkg ++ [ownerCls, name]
         qPkg = pkg ++ [name]
         qPkgFile = fullQn
         qBare = [name]
-        qFile = [fileCls, name]
-    in (fullQn, dedup [qPkg, qPkgFile, qBare, qFile])
+        qFile = [ownerCls, name]
+        memberAliases =
+            case mStructMember of
+                Just (owner, member) ->
+                    [ [member]
+                    , [owner, member]
+                    , pkg ++ [member]
+                    , pkg ++ [owner, member]
+                    ]
+                Nothing ->
+                    []
+    in
+        ( fullQn
+        , dedup ([qPkg, qPkgFile, qBare, qFile] ++ memberAliases)
+        )
     where
         dedup :: [QName] -> [QName]
         dedup = HashSet.toList . HashSet.fromList
+
+        splitStructMemberName :: String -> Maybe (String, String)
+        splitStructMemberName s =
+            let (owner, rest) = break (== '$') s
+            in case rest of
+                ('$' : member) | not (null owner) && not (null member) -> Just (owner, member)
+                _ -> Nothing
 
 
 fileClassName :: Path -> String

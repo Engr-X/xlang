@@ -414,10 +414,11 @@ inferLiteralTests = testGroup "Semantic.TypeCheck.inferLiteral" $ map (uncurry t
         t @?= Bool
         assertTcErrs Nothing ctx1),
     ("4", do
-        let expr = StringConst "100" (Lex.StrConst "100" pos1)
+        let tok = Lex.StrConst "100" pos1
+            expr = StringConst "100" tok
             ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
             (t, ctx1) = runState (inferLiteral "stdin" expr) ctx0
-        t @?= Class ["String"] []
+        t @?= Blob (IntConst "4" tok)
         assertTcErrs Nothing ctx1)]
 
 
@@ -519,7 +520,24 @@ checkTypeCompatTests = testGroup "Semantic.TypeCheck.checkTypeCompat" $ map (\(n
         ("1", Int64T, Int32T, Nothing, Just 0),
         ("2", Int32T, Void, Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void)), Nothing),
         ("3", Class ["Foo"] [], Int32T, Just (UE.staticCastError (prettyClass Int32T) (prettyClass (Class ["Foo"] []))), Nothing),
-        ("4", Bool, Int32T, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing)]
+        ("4", Bool, Int32T, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing),
+        ("5", Pointer (Class ["people"] []), Class ["people"] [], Nothing, Just 0),
+        ("6", Pointer (Pointer (Class ["people"] [])), Class ["people"] [], Nothing, Just 0),
+        ("7", Blob (IntConst "8" Lex.dummyToken), Blob (IntConst "6" Lex.dummyToken), Nothing, Just 0),
+        ("8", Blob (IntConst "4" Lex.dummyToken), Blob (IntConst "6" Lex.dummyToken), Just "space is not enouch", Nothing)]
+
+
+normalizeTypeAliasSugarTests :: TestTree
+normalizeTypeAliasSugarTests = testGroup "Semantic.TypeCheck.normalizeTypeAliasSugar" [
+    testCase "people => pointer<people>" $
+        normalizeTypeAlias (Class ["people"] []) @?= Pointer (Class ["people"] []),
+    testCase "pointer<people> stays one-dimensional" $
+        normalizeTypeAlias (Pointer (Class ["people"] [])) @?= Pointer (Class ["people"] []),
+    testCase "pointer<pointer<people>> stays two-dimensional" $
+        normalizeTypeAlias (Pointer (Pointer (Class ["people"] []))) @?= Pointer (Pointer (Class ["people"] [])),
+    testCase "String is not auto-pointerized" $
+        normalizeTypeAlias (Class ["String"] []) @?= Class ["String"] []
+    ]
 
 
 inferExprTests :: TestTree
@@ -570,6 +588,29 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
                     Nothing -> pure ()
                     Just n -> assertWarnCount n ctx1
                 extra ctx1
+
+
+inferExprCallableExprTests :: TestTree
+inferExprCallableExprTests = testGroup "Semantic.TypeCheck.inferExprCallableExpr" [
+    testCase "call through deref expression callee" $ do
+        let st0 = stWithVars ["pp"]
+            vts = mkVarTable st0 [("pp", Pointer (FuncPtr Int32T [Int32T, Int32T]))]
+            pos3 = makePosition 1 3 1
+            tokP = Lex.Ident "pp" pos1
+            tokD = Lex.Symbol Lex.Dot pos1
+            tokNum1 = Lex.NumberConst "1" pos2
+            tokNum2 = Lex.NumberConst "2" pos3
+            callee = Unary AST.DeRef (Variable "pp" tokP) tokD
+            expr = Call callee [IntConst "1" tokNum1, IntConst "2" tokNum2]
+            vid = case lookupVarId "pp" st0 of
+                Just (v, _) -> v
+                Nothing -> error "missing var id for pp"
+            uses = Map.fromList [(pos1, vid)]
+            ctx0 = mkTypeCtx st0 uses vts [Map.empty]
+            (t, ctx1) = runState (inferExpr "stdin" [] [] expr) ctx0
+        t @?= Int32T
+        assertTcErrs Nothing ctx1
+    ]
 
 
 inferExprIncDecTests :: TestTree
@@ -843,7 +884,7 @@ inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
         stmtFunF0 = Function (Int32T, []) (Variable "f" tokF) [] (Multiple [])
         stmtFunF1 = Function (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] (Multiple [])
         stmtFunF2 = Function (Float32T, []) (Variable "f" tokF) [(Float32T, "x", [tokX])] (Multiple [])
-        stmtNativeF1 = NativeMethod [] (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] "return x;"
+        stmtNativeF1 = NativeMethod [] [] (Int32T, []) (Variable "f" tokF) [(Int32T, "x", [tokX])] "return x;"
         stmtTemplateF1 = FunctionT (Class ["T"] [], []) (Variable "f" tokF) [(Class ["T"] [], [tokT])] [(Class ["T"] [], "x", [tokX])] (Multiple [])
         stmtTemplateF1b = FunctionT (Class ["T"] [], []) (Variable "f" tokF) [(Class ["T"] [], [tokT])] [(Class ["T"] [], "y", [tokY])] (Multiple [])
 
@@ -1224,7 +1265,8 @@ tests = testGroup "Semantic.TypeCheck" [
     inferThisTests, inferThisFieldTests, inferLiteralTests,
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
-    inferExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, inferStmtNativeTests, conditionBoolTests,
+    normalizeTypeAliasSugarTests,
+    inferExprTests, inferExprCallableExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, inferStmtNativeTests, conditionBoolTests,
     repeatCountTypeTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 

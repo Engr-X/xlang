@@ -3,7 +3,8 @@
 module CompileX64 (
     compileX64,
     compileX64WithAssembler,
-    X64CompilerChoice(..)
+    X64CompilerChoice(..),
+    TargetPlatform(..)
 ) where
 
 import Control.Concurrent.Async (forConcurrently)
@@ -11,7 +12,7 @@ import Control.Concurrent.QSem (newQSem, signalQSem, waitQSem)
 import Control.Exception (bracket_, evaluate)
 import Control.Monad (filterM, unless, when)
 import Control.Monad.State.Strict (evalState)
-import Data.Char (toLower)
+import Data.Char (toLower, isSpace)
 import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, isSuffixOf, nub, sort, sortOn)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
@@ -27,6 +28,7 @@ import Text.Printf (printf)
 import qualified CompileJava as CJ
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified IR.Lowing as IR
 import qualified IR.TAC as TAC
 import qualified Lex.Tokenizer as Tokenizer
@@ -134,7 +136,7 @@ writePerClassIRFiles classesRoot irs = mapM_ writeOne (collectArtifacts irs)
         map (artifactFromClass pkgSegs) classes
 
     artifactFromClass :: [String] -> TAC.IRClass -> (FilePath, String)
-    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _ _ _) =
+    artifactFromClass pkgSegs cls@(TAC.IRClass _ className _ _ _ _ _ _ _ _) =
         let pkgDir = foldl' (</>) classesRoot pkgSegs
             irPath = pkgDir </> className <.> "ir"
             pkgPrefix = case pkgSegs of
@@ -199,8 +201,33 @@ data X64CompilerChoice
     deriving (Eq, Show)
 
 
+data TargetPlatform
+    = TargetPlatformWindows
+    | TargetPlatformLinux
+    | TargetPlatformMac
+    deriving (Eq, Show)
+
+
 xlangBuildVersion :: String
 xlangBuildVersion = "alpha-1.1.0"
+
+
+hostTargetPlatform :: TargetPlatform
+hostTargetPlatform = case os of
+    "mingw32" -> TargetPlatformWindows
+    "darwin" -> TargetPlatformMac
+    _ -> TargetPlatformLinux
+
+
+platformOsTag :: TargetPlatform -> String
+platformOsTag p = case p of
+    TargetPlatformWindows -> "mingw32"
+    TargetPlatformMac -> "darwin"
+    TargetPlatformLinux -> "linux"
+
+
+resolveTargetPlatform :: Maybe TargetPlatform -> TargetPlatform
+resolveTargetPlatform = maybe hostTargetPlatform id
 
 
 x64AsmBackendTag :: X64.CallConv64 -> String
@@ -210,28 +237,28 @@ x64AsmBackendTag cc = case X64.ccCompiler cc of
     X64.GAS_ATT -> "as-att"
 
 
-x64IdentPayload :: X64.CallConv64 -> String
-x64IdentPayload cc =
+x64IdentPayload :: String -> X64.CallConv64 -> String
+x64IdentPayload targetOs cc =
     concat [
         "xlang (",
-        intercalate "/" ["x64", x64AsmBackendTag cc, os],
+        intercalate "/" ["x64", x64AsmBackendTag cc, targetOs],
         ") ",
         xlangBuildVersion]
 
 
-x64IdentDirective :: X64.CallConv64 -> String
-x64IdentDirective cc = case X64.ccCompiler cc of
-    X64.NASM -> concat ["; .ident \"", x64IdentPayload cc, "\"\n"]
-    _ -> concat [".ident \"", x64IdentPayload cc, "\"\n"]
+x64IdentDirective :: String -> X64.CallConv64 -> String
+x64IdentDirective targetOs cc = case X64.ccCompiler cc of
+    X64.NASM -> concat ["; .ident \"", x64IdentPayload targetOs cc, "\"\n"]
+    _ -> concat [".ident \"", x64IdentPayload targetOs cc, "\"\n"]
 
 
-withX64IdentFooter :: X64.CallConv64 -> String -> String
-withX64IdentFooter cc asmText =
+withX64IdentFooter :: String -> X64.CallConv64 -> String -> String
+withX64IdentFooter targetOs cc asmText =
     let base =
             if null asmText
                 then ""
                 else if last asmText == '\n' then asmText else asmText ++ "\n"
-    in base ++ "\n" ++ x64IdentDirective cc
+    in base ++ "\n" ++ x64IdentDirective targetOs cc
 
 compileX64 ::
     Int ->
@@ -241,6 +268,7 @@ compileX64 ::
     [FilePath] ->
     Maybe FilePath ->
     Maybe [String] ->
+    Maybe TargetPlatform ->
     Maybe X64CompilerChoice ->
     Bool ->
     Bool ->
@@ -257,11 +285,12 @@ compileX64WithAssembler ::
     [FilePath] ->
     Maybe FilePath ->
     Maybe [String] ->
+    Maybe TargetPlatform ->
     Maybe X64CompilerChoice ->
     Bool ->
     Bool ->
     IO (Maybe [TAC.IRProgm])
-compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mCompilerChoice includeRuntime debugOut = do
+compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mTargetPlatform mCompilerChoice includeRuntime debugOut = do
     sourceRes <- mapConcurrentlyLimit jobs
         (\path -> do
             fileRes <- FH.readFile path
@@ -291,7 +320,9 @@ compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths 
                         Right (irPairs, warns, pipelineTimingRaw) -> do
                             mapM_ print warns
                             printPerFileProgress irPairs
-                            let ccUsed = selectCallConv64 mCompilerChoice
+                            let targetPlatform = resolveTargetPlatform mTargetPlatform
+                                targetOs = platformOsTag targetPlatform
+                                ccUsed = selectCallConv64 targetPlatform mCompilerChoice
                             lowered <- mapM
                                 (\one@(path, _) -> do
                                     (u, t) <- timedIO $ do
@@ -304,7 +335,7 @@ compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths 
                                 baseUnits = concat [u | (_, u, _) <- lowered]
                                 outMode = resolveOutputMode rootPath mOutput
 
-                            case addExeEntryUnit64 ccUsed outMode mMainClassOverride irPairs baseUnits of
+                            case addExeEntryUnit64 targetOs ccUsed outMode mMainClassOverride irPairs baseUnits of
                                 Left errMsg -> do
                                     putStrLn ("[ERROR] " ++ errMsg)
                                     pure Nothing
@@ -314,10 +345,11 @@ compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths 
                                             putStrLn ("[ERROR] " ++ errMsg)
                                             pure Nothing
                                         Right () -> do
+                                            let emitUnits = coalesceUnitsForOutput outMode units
                                             (objPaths, emitTimeNs) <- timedIO $
-                                                mapConcurrentlyLimit jobs (emitOne runAssembler debugOut outMode ccUsed rootPath) units
+                                                mapConcurrentlyLimit jobs (emitOne runAssembler debugOut outMode targetOs ccUsed rootPath) emitUnits
                                             linkTimeNs <- if runAssembler
-                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode objPaths libPaths includeRuntime)
+                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode targetOs objPaths libPaths includeRuntime)
                                                 else pure 0
                                             when debugOut $ do
                                                 writePerClassIRFiles (debugIrRootFromOutputMode rootPath outMode) irs
@@ -357,11 +389,15 @@ printPerFileProgress irPairs = do
 
 
 lowerOneFile :: X64.CallConv64 -> (FilePath, TAC.IRProgm) -> [ClassAsmUnit]
-lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) = map (lowerOneClass srcPath pkgSegs) classes
+lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) =
+    map (lowerOneClass structQSet structSizeMap srcPath pkgSegs) classes
   where
-    lowerOneClass :: FilePath -> [String] -> TAC.IRClass -> ClassAsmUnit
-    lowerOneClass path pkg cls@(TAC.IRClass _ className _ _ _ _ _ _ _) =
-        let st0 = X64L.initClassState64 ccUsed cls
+    structQSet = X64L.collectStructQNameSet64 pkgSegs classes
+    structSizeMap = X64L.collectStructSizeMap64 pkgSegs classes
+
+    lowerOneClass :: Set.Set [String] -> Map.Map [String] Int -> FilePath -> [String] -> TAC.IRClass -> ClassAsmUnit
+    lowerOneClass qset szMap path pkg cls@(TAC.IRClass _ className _ _ _ _ _ _ _ _) =
+        let st0 = X64L.initClassState64 ccUsed qset szMap cls
             (x64Class, refs) = evalState (X64L.x64LowingClass pkg cls) st0
             (staticData, segs) = x64Class
             ownerQName = pkg ++ [className]
@@ -374,20 +410,20 @@ lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) = map (lowerOneClass 
 
 
 classGlobalDecls64 :: [String] -> TAC.IRClass -> [X64.X64Decl]
-classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs tFuns cFuns _) =
+classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className classType _ _ _ funs tFuns cFuns _) =
     let ownerQName = pkgSegs ++ [className]
         clinitGlobal = X64.Global (ownerQName ++ [X64.staticInitName]) [AST.Void]
         classInfoGlobal = X64.GlobalClassInfo ownerQName
         pubFunSymbols = [
             (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig])
-            | TAC.IRFunction decl funName sig _ _ _ <- funs, isPublicDecl64 decl]
+            | TAC.IRFunction decl funName sig _ _ _ <- funs, shouldExportDecl decl]
         pubCFunSymbols = [
             (X64.mkRawQName64 (takeWhile (/= '(') funName), TEnv.funParams sig ++ [TEnv.funReturn sig])
-            | TAC.IRCFunction decl funName sig _ _ _ <- cFuns, isPublicDecl64 decl]
+            | TAC.IRCFunction decl funName sig _ _ _ <- cFuns, shouldExportDecl decl]
         pubTemplateSymbols = [
             (X64.mkRawQName64 symName, [])
             | tf@(TAC.IRTemplateFunction decl _ _ _ _ _ _) <- tFuns
-            , isPublicDecl64 decl
+            , shouldExportDecl decl
             , symName <- templateSymbolNames ownerQName tf
             ]
         wrappedMainSymbols = classWrappedMainSymbols64 pkgSegs irCls
@@ -395,6 +431,11 @@ classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className _ _ _ funs tFuns cFuns
         funGlobals = map (uncurry X64.Global) funSymbols
     in classInfoGlobal : clinitGlobal : funGlobals
   where
+    shouldExportDecl :: AST.Decl -> Bool
+    shouldExportDecl decl
+        | classType == TAC.IRClassTypeStruct = True
+        | otherwise = isPublicDecl64 decl
+
     templateSymbolNames :: [String] -> TAC.IRTemplateFunction -> [String]
     templateSymbolNames clsQName (TAC.IRTemplateFunction _ funName sig _ _ _ _) =
         let fullSig = TEnv.funParams sig ++ [TEnv.funReturn sig]
@@ -407,7 +448,7 @@ isPublicDecl64 (acc, _) = acc == AST.Public
 
 
 classWrappedMainSymbols64 :: [String] -> TAC.IRClass -> [([String], [AST.Class])]
-classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ funs _ _ _) = [
+classWrappedMainSymbols64 pkgSegs (TAC.IRClass _ className _ _ _ _ funs _ _ _) = [
     (pkgSegs ++ [className, "main"], [retT]) |
     TAC.IRFunction _ "main" sig _ _ memberType <- funs,
     memberType == TAC.MemberClassWrapped,
@@ -422,28 +463,29 @@ classExternDecls64 ownerQName refs =
 
 
 addExeEntryUnit64 ::
+    String ->
     X64.CallConv64 ->
     OutputMode ->
     Maybe [String] ->
     [(FilePath, TAC.IRProgm)] ->
     [ClassAsmUnit] ->
     Either String [ClassAsmUnit]
-addExeEntryUnit64 cc outMode mMainClassOverride irPairs units = case outMode of
+addExeEntryUnit64 targetOs cc outMode mMainClassOverride irPairs units = case outMode of
     OutputLinked _ LinkExe _ ->
-        case mkExeEntryUnit64 cc mMainClassOverride irPairs of
+        case mkExeEntryUnit64 targetOs cc mMainClassOverride irPairs of
             Left errMsg -> Left errMsg
             Right entryUnit -> Right (entryUnit : units)
     _ -> Right units
 
 
-mkExeEntryUnit64 :: X64.CallConv64 -> Maybe [String] -> [(FilePath, TAC.IRProgm)] -> Either String ClassAsmUnit
-mkExeEntryUnit64 cc mMainClassOverride irPairs = do
+mkExeEntryUnit64 :: String -> X64.CallConv64 -> Maybe [String] -> [(FilePath, TAC.IRProgm)] -> Either String ClassAsmUnit
+mkExeEntryUnit64 targetOs cc mMainClassOverride irPairs = do
     (entryQn, entrySig) <- pickExeEntry64 mMainClassOverride irPairs
     let targetSym = X64.mangleQNameWithSig True entryQn entrySig
         forceZeroExit = case reverse entrySig of
             (retT : _) -> retT == AST.Void
             [] -> False
-        asmText = mkExeEntryAsm64 cc targetSym forceZeroExit
+        asmText = mkExeEntryAsm64 targetOs cc targetSym forceZeroExit
     Right ClassAsmUnit {
         unitSourcePath = "main.x64",
         unitOwnerQName = ["main"],
@@ -525,11 +567,13 @@ pickExeEntry64 mMainClassOverride irPairs =
     gatherOne (_, TAC.IRProgm pkgSegs classes) = concatMap (classWrappedMainSymbols64 pkgSegs) classes
 
 
-mkExeEntryAsm64 :: X64.CallConv64 -> String -> Bool -> String
-mkExeEntryAsm64 cc targetSym forceZeroExit =
-    let needWinEntryAlign = os == "mingw32"
-        needPosixEntryExit = os == "linux" || os == "darwin"
-        posixExitNo = if os == "darwin" then "0x2000001" else "60"
+mkExeEntryAsm64 :: String -> X64.CallConv64 -> String -> Bool -> String
+mkExeEntryAsm64 targetOs cc targetSym forceZeroExit =
+    let minitSym = "xlang_minit"
+        mexitSym = "xlang_mexit"
+        needWinEntryAlign = targetOs == "mingw32"
+        needPosixEntryExit = targetOs == "linux" || targetOs == "darwin"
+        posixExitNo = if targetOs == "darwin" then "0x2000001" else "60"
         winPrologueNasm =
             [ "    push rbp"
             , "    mov rbp, rsp"
@@ -548,6 +592,19 @@ mkExeEntryAsm64 cc targetSym forceZeroExit =
             , "    mov eax, " ++ posixExitNo
             , "    syscall"
             ]
+        mexitCallNasm
+            | needPosixEntryExit =
+                [ "    sub rsp, 16"
+                , "    mov DWORD [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD [rsp]"
+                , "    add rsp, 16"
+                ]
+            | otherwise =
+                [ "    mov DWORD [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD [rsp]"
+                ]
         winPrologueIntel =
             [ "    push rbp"
             , "    mov rbp, rsp"
@@ -566,6 +623,19 @@ mkExeEntryAsm64 cc targetSym forceZeroExit =
             , "    mov eax, " ++ posixExitNo
             , "    syscall"
             ]
+        mexitCallIntel
+            | needPosixEntryExit =
+                [ "    sub rsp, 16"
+                , "    mov DWORD PTR [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD PTR [rsp]"
+                , "    add rsp, 16"
+                ]
+            | otherwise =
+                [ "    mov DWORD PTR [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD PTR [rsp]"
+                ]
         winPrologueAtt =
             [ "    pushq %rbp"
             , "    movq %rsp, %rbp"
@@ -584,16 +654,33 @@ mkExeEntryAsm64 cc targetSym forceZeroExit =
             , "    movq $" ++ posixExitNo ++ ", %rax"
             , "    syscall"
             ]
+        mexitCallAtt
+            | needPosixEntryExit =
+                [ "    subq $16, %rsp"
+                , "    movl %eax, (%rsp)"
+                , "    call " ++ mexitSym
+                , "    movl (%rsp), %eax"
+                , "    addq $16, %rsp"
+                ]
+            | otherwise =
+                [ "    movl %eax, (%rsp)"
+                , "    call " ++ mexitSym
+                , "    movl (%rsp), %eax"
+                ]
     in case X64.ccCompiler cc of
         X64.NASM -> unlines $
             [ "global main"
             , "extern " ++ targetSym
+            , "extern " ++ minitSym
+            , "extern " ++ mexitSym
             , "section .text"
             , "main:"
             ]
             ++ [ln | needWinEntryAlign, ln <- winPrologueNasm]
             ++ [ln | needPosixEntryExit, ln <- posixPrologueNasm]
+            ++ [ "    call " ++ minitSym ]
             ++ [ "    call " ++ targetSym ]
+            ++ mexitCallNasm
             ++ [ "    xor eax, eax" | forceZeroExit ]
             ++ [ln | needWinEntryAlign, ln <- winEpilogueNasm]
             ++ [ln | needPosixEntryExit, ln <- posixExitNasm]
@@ -603,12 +690,16 @@ mkExeEntryAsm64 cc targetSym forceZeroExit =
             , ""
             , ".global main"
             , ".extern " ++ targetSym
+            , ".extern " ++ minitSym
+            , ".extern " ++ mexitSym
             , ".text"
             , "main:"
             ]
             ++ [ln | needWinEntryAlign, ln <- winPrologueIntel]
             ++ [ln | needPosixEntryExit, ln <- posixPrologueIntel]
+            ++ [ "    call " ++ minitSym ]
             ++ [ "    call " ++ targetSym ]
+            ++ mexitCallIntel
             ++ [ "    xor eax, eax" | forceZeroExit ]
             ++ [ln | needWinEntryAlign, ln <- winEpilogueIntel]
             ++ [ln | needPosixEntryExit, ln <- posixExitIntel]
@@ -618,23 +709,27 @@ mkExeEntryAsm64 cc targetSym forceZeroExit =
             , ""
             , ".global main"
             , ".extern " ++ targetSym
+            , ".extern " ++ minitSym
+            , ".extern " ++ mexitSym
             , ".text"
             , "main:"
             ]
             ++ [ln | needWinEntryAlign, ln <- winPrologueAtt]
             ++ [ln | needPosixEntryExit, ln <- posixPrologueAtt]
+            ++ [ "    call " ++ minitSym ]
             ++ [ "    call " ++ targetSym ]
+            ++ mexitCallAtt
             ++ [ "    xorl %eax, %eax" | forceZeroExit ]
             ++ [ln | needWinEntryAlign, ln <- winEpilogueAtt]
             ++ [ln | needPosixEntryExit, ln <- posixExitAtt]
             ++ [ "    ret" | not needPosixEntryExit ]
 
 
-selectCallConv64 :: Maybe X64CompilerChoice -> X64.CallConv64
-selectCallConv64 mCompilerChoice =
-    let base = case os of
-            "mingw32" -> X64.winCC64
-            "darwin" -> X64.macCC64
+selectCallConv64 :: TargetPlatform -> Maybe X64CompilerChoice -> X64.CallConv64
+selectCallConv64 targetPlatform mCompilerChoice =
+    let base = case targetPlatform of
+            TargetPlatformWindows -> X64.winCC64
+            TargetPlatformMac -> X64.macCC64
             _ -> X64.linuxCC64
     in case mCompilerChoice of
         Nothing -> base
@@ -664,25 +759,77 @@ resolveOutputMode rootPath mOutput = case mOutput of
 
 validateOutputMode :: OutputMode -> [ClassAsmUnit] -> Either String ()
 validateOutputMode (OutputSingleObject _) units
-    | length units /= 1 =
-        Left ("single .o output requires exactly one lowered class, but got " ++ show (length units))
+    | null units =
+        Left "single .o output requires at least one lowered class, but got 0"
 validateOutputMode _ _ = Right ()
 
 
-emitOne :: Bool -> Bool -> OutputMode -> X64.CallConv64 -> FilePath -> ClassAsmUnit -> IO FilePath
-emitOne runAssembler debugOut outMode cc rootPath unit = do
+coalesceUnitsForOutput :: OutputMode -> [ClassAsmUnit] -> [ClassAsmUnit]
+coalesceUnitsForOutput outMode units = case outMode of
+    OutputSingleObject _ -> case units of
+        [] -> []
+        [u] -> [u]
+        many ->
+            let srcHint = intercalate "+" (map (takeBaseName . unitSourcePath) many)
+                ownerHint = concatMap unitOwnerQName many
+                mergedText = coalesceAsmText many
+            in [ClassAsmUnit {
+                unitSourcePath = srcHint,
+                unitOwnerQName = if null ownerHint then ["merged"] else ownerHint,
+                unitAsmText = mergedText
+            }]
+    _ -> units
+  where
+    coalesceAsmText :: [ClassAsmUnit] -> String
+    coalesceAsmText us =
+        let allLines = concatMap (lines . unitAsmText) us
+            globals = foldl' collectGlobal HashSet.empty allLines
+            kept = filter (not . isShadowedExtern globals) allLines
+        in unlines kept
+
+    collectGlobal :: HashSet.HashSet String -> String -> HashSet.HashSet String
+    collectGlobal acc ln = case parseDeclSymbol "global" ln of
+        Just sym | not (null sym) -> HashSet.insert sym acc
+        _ -> case parseDeclSymbol ".global" ln of
+            Just sym | not (null sym) -> HashSet.insert sym acc
+            _ -> acc
+
+    isShadowedExtern :: HashSet.HashSet String -> String -> Bool
+    isShadowedExtern globals ln = case parseDeclSymbol "extern" ln of
+        Just sym -> HashSet.member sym globals
+        Nothing -> case parseDeclSymbol ".extern" ln of
+            Just sym -> HashSet.member sym globals
+            Nothing -> False
+
+    parseDeclSymbol :: String -> String -> Maybe String
+    parseDeclSymbol kw rawLine =
+        let t = trim rawLine
+            prefix = kw ++ " "
+        in if prefix `isPrefixOf` t
+            then
+                let rest = drop (length prefix) t
+                    sym = takeWhile (not . isSpace) rest
+                in if null sym then Nothing else Just sym
+            else Nothing
+
+    trim :: String -> String
+    trim = dropWhileEnd isSpace . dropWhile isSpace
+
+
+emitOne :: Bool -> Bool -> OutputMode -> String -> X64.CallConv64 -> FilePath -> ClassAsmUnit -> IO FilePath
+emitOne runAssembler debugOut outMode targetOs cc rootPath unit = do
     let asmPath = unitAsmPath outMode unit
         objPath = unitObjPath outMode unit
-        asmText = withX64IdentFooter cc (unitAsmText unit)
+        asmText = withX64IdentFooter targetOs cc (unitAsmText unit)
     createDirectoryIfMissing True (takeDirectory objPath)
     if debugOut
         then do
             createDirectoryIfMissing True (takeDirectory asmPath)
             writeFile asmPath asmText
-            when runAssembler (assembleOne rootPath cc asmPath objPath)
+            when runAssembler (assembleOne rootPath targetOs cc asmPath objPath)
             pure objPath
         else do
-            when runAssembler $ withTempAsmFile asmText (\tmpAsm -> assembleOne rootPath cc tmpAsm objPath)
+            when runAssembler $ withTempAsmFile asmText (\tmpAsm -> assembleOne rootPath targetOs cc tmpAsm objPath)
             pure objPath
 
 
@@ -698,25 +845,25 @@ withTempAsmFile asmText action = do
     pure out
 
 
-nasmObjectFormat :: String
-nasmObjectFormat = case os of
+nasmObjectFormatFor :: String -> String
+nasmObjectFormatFor targetOs = case targetOs of
     "mingw32" -> "win64"
     "darwin" -> "macho64"
     _ -> "elf64"
 
 
-assembleOne :: FilePath -> X64.CallConv64 -> FilePath -> FilePath -> IO ()
-assembleOne rootPath cc asmPath objPath = case X64.ccCompiler cc of
+assembleOne :: FilePath -> String -> X64.CallConv64 -> FilePath -> FilePath -> IO ()
+assembleOne rootPath targetOs cc asmPath objPath = case X64.ccCompiler cc of
     X64.NASM -> do
         nasmCmd <- resolveToolPath64 rootPath "nasm"
-        callProcess nasmCmd ["-f", nasmObjectFormat, asmPath, "-o", objPath]
+        callProcess nasmCmd ["-f", nasmObjectFormatFor targetOs, asmPath, "-o", objPath]
     _ -> do
         asCmd <- resolveToolPath64 rootPath "as"
         callProcess asCmd [asmPath, "-o", objPath]
 
 
-linkIfNeeded :: Bool -> FilePath -> OutputMode -> [FilePath] -> [FilePath] -> Bool -> IO ()
-linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = case outMode of
+linkIfNeeded :: Bool -> FilePath -> OutputMode -> String -> [FilePath] -> [FilePath] -> Bool -> IO ()
+linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRuntime = case outMode of
     OutputLinked outPath linkKind objRoot -> do
         createDirectoryIfMissing True (takeDirectory outPath)
         case linkKind of
@@ -737,19 +884,19 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
         let libsUsedRaw = sanitizeDeprecatedBaseLibRefs $
                 if includeRuntime then filterOutDynamicLibRefs libs else libs
             libsUsedPre =
-                if os == "mingw32" && not includeRuntime
+                if targetOs == "mingw32" && not includeRuntime
                     then preferWindowsImportLibs libsUsedRaw
                     else libsUsedRaw
             libsUsed =
-                if os == "mingw32"
+                if targetOs == "mingw32"
                     then stripMingwToolchainRuntimeLibRefs libsUsedPre
                     else libsUsedPre
             sysLibsUsed =
-                if os == "mingw32"
+                if targetOs == "mingw32"
                     then stripMingwToolchainRuntimeLibRefs sysLibs
                     else sysLibs
             linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibsUsed)
-        case os of
+        case targetOs of
             "mingw32" -> do
                 let implib = replaceExtension target ".dll.a"
                     ldArgs = ["--dll", "-o", target]
@@ -765,26 +912,26 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
 
     linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
     linkExeWithLd target objs libs = do
-        sysLibs <- if os == "mingw32" && not includeRuntime
+        sysLibs <- if targetOs == "mingw32" && not includeRuntime
             then pure []
             else collectNativeStaticLibs
         mingwTail <- mingwRuntimeTail
         let libsUsedRaw = sanitizeDeprecatedBaseLibRefs $
                 if includeRuntime then filterOutDynamicLibRefs libs else libs
             libsUsedPre =
-                if os == "mingw32" && not includeRuntime
+                if targetOs == "mingw32" && not includeRuntime
                     then preferWindowsImportLibs libsUsedRaw
                     else libsUsedRaw
             libsUsed =
-                if os == "mingw32"
+                if targetOs == "mingw32"
                     then stripMingwToolchainRuntimeLibRefs libsUsedPre
                     else libsUsedPre
             sysLibsUsed =
-                if os == "mingw32"
+                if targetOs == "mingw32"
                     then stripMingwToolchainRuntimeLibRefs sysLibs
                     else sysLibs
             linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibsUsed)
-        case os of
+        case targetOs of
             "mingw32" -> do
                 let ldArgs = ["-e", "main", "-o", target]
                         ++ objs ++ linkLibs ++ mingwTail
@@ -830,15 +977,15 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
                 else do
                     names <- listDirectory dir
                     let libs = [dir </> n | n <- sort names, map toLower (takeExtension n) == ".a"]
-                    pure (if os == "mingw32" then stripMingwToolchainRuntimeLibRefs libs else libs)
+                    pure (if targetOs == "mingw32" then stripMingwToolchainRuntimeLibRefs libs else libs)
 
         collectStdNativeLibs :: [FilePath] -> IO [FilePath]
         collectStdNativeLibs dirs = do
             let preferredGroups
-                    | os == "mingw32" && includeRuntime =
+                    | targetOs == "mingw32" && includeRuntime =
                         [ ["libxlang-std.a"]
                         , ["libxlang-core.a"]]
-                    | os == "mingw32" =
+                    | targetOs == "mingw32" =
                         [ ["libxlang-core.dll.a"]
                         , ["libxlang-std.dll.a"]]
                     | otherwise =
@@ -858,7 +1005,7 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
 
     mingwRuntimeTail :: IO [FilePath]
     mingwRuntimeTail
-        | os /= "mingw32" = pure []
+        | targetOs /= "mingw32" = pure []
         | otherwise = do
             resolved <- mapM (findMingwImportLib . fst) requiredLibs
             let pairs = zip resolved (map snd requiredLibs)
@@ -998,8 +1145,8 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
 
     mergeLinkLibs :: [FilePath] -> [FilePath] -> [FilePath]
     mergeLinkLibs libs sysLibs
-        | os == "mingw32" && includeRuntime = dedupByStem (libs ++ sysLibs)
-        | os == "mingw32" && not includeRuntime = preferWindowsImportLibs (libs ++ sysLibs)
+        | targetOs == "mingw32" && includeRuntime = dedupByStem (libs ++ sysLibs)
+        | targetOs == "mingw32" && not includeRuntime = preferWindowsImportLibs (libs ++ sysLibs)
         | otherwise = dedupCaseInsensitive (libs ++ sysLibs)
       where
         dedupCaseInsensitive :: [FilePath] -> [FilePath]
@@ -1031,7 +1178,7 @@ linkIfNeeded debugOut rootPath outMode objPaths linkLibPaths includeRuntime = ca
 
     wrapLibGroup :: [FilePath] -> [FilePath]
     wrapLibGroup libs
-        | os == "mingw32" = ["--start-group"] ++ libs ++ ["--end-group"]
+        | targetOs == "mingw32" = ["--start-group"] ++ libs ++ ["--end-group"]
         | otherwise = libs
 
     callProcessCandidates :: FilePath -> [(FilePath, [String])] -> IO ()

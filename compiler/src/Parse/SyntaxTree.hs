@@ -13,6 +13,7 @@ import Data.Set (Set)
 import Data.Hashable (Hashable(..))
 import GHC.Generics (Generic)
 import Lex.Token (Token, tokenPos)
+import Util.Type (makePosition)
 
 import qualified Data.Map.Strict as Map
 import qualified Data.HashSet as HashSet
@@ -680,7 +681,7 @@ data Statement =
 
     --      struct kw, struct name \
     --              must be stringconst
-    Struct (Token, Expression) [Statement]
+    Struct [Decl] [Annotation] (Token, Expression) [Statement]
 
     deriving (Eq, Show)
 
@@ -912,6 +913,8 @@ stmtTokens (FunctionT (_, retToks) name genParams params b) = concat [
     concatMap (\(_, _, toks) -> toks) params, blockTokens (Just b)]
 stmtTokens (NativeMethod _ _ (_, retToks) name params _) = concat [
     retToks, exprTokens name, concatMap (\(_, _, toks) -> toks) params]
+stmtTokens (Struct _ _ (_, nameExpr) members) =
+    exprTokens nameExpr ++ concatMap stmtTokens members
 
 
 -- | Flatten all expressions contained in a statement.
@@ -962,6 +965,8 @@ flattenStatement (Just (NativeMethod _ _ _ _ params _)) = paramExprs params
                 one :: (Class, String, [Token]) -> [Expression]
                 one (_, _, [])  = []
                 one (_, name, t:_)  = [Variable name t]
+flattenStatement (Just (Struct _ _ _ members)) =
+    concatMap (flattenStatement . Just) members
 
 
 -- | The declaration of a program, especially import and module
@@ -1575,7 +1580,7 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
             LongDoubleConst {} -> Just Float128T
             CharConst {} -> Just Char
             BoolConst {} -> Just Bool
-            StringConst {} -> Just (Class ["String"] [])
+            StringConst s tok -> Just (Blob (IntConst (show (length s + 1)) tok))
             Variable n _ -> Map.lookup n hints
             Cast (ty, _) _ _ -> Just (normalizeClass ty)
             Unary AddrOf e _ -> Pointer <$> inferExprTypeHint hints e
@@ -2697,9 +2702,991 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
 --   1) hoist/promote top-level forms,
 --   2) inline marked functions,
 --   3) instantiate template calls into generated concrete functions.
+normalizeProgramWithExternalTemplatesAndStructs :: [Statement] -> [Statement] -> Program -> Program
+normalizeProgramWithExternalTemplatesAndStructs externalTemplates externalStructStmts =
+    instantiateTemplateCallsProgramWithExternal externalTemplates
+        . inlineProgramFunctions
+        . promoteTopLevelFunctions
+        . desugarStructProgramWithExternalStructs externalStructStmts
+
+
 normalizeProgramWithExternalTemplates :: [Statement] -> Program -> Program
 normalizeProgramWithExternalTemplates externalTemplates =
-    instantiateTemplateCallsProgramWithExternal externalTemplates . inlineProgramFunctions . promoteTopLevelFunctions
+    normalizeProgramWithExternalTemplatesAndStructs externalTemplates []
+
+
+data StructFieldMeta = StructFieldMeta {
+    sfType :: Class,
+    sfOffset :: Int
+} deriving (Eq, Show)
+
+data StructMeta = StructMeta {
+    smName :: String,
+    smFields :: Map String StructFieldMeta,
+    smStaticFields :: Set String,
+    smStaticFieldTypes :: Map String Class,
+    smInstanceMethods :: Set String,
+    smStaticMethods :: Set String,
+    smHasInit :: Bool,
+    smSize :: Int
+} deriving (Eq, Show)
+
+type StructMetaMap = Map String StructMeta
+type StructEnv = Map String (Maybe String)
+
+
+desugarStructProgram :: Program -> Program
+desugarStructProgram = desugarStructProgramWithExternalStructs []
+
+
+desugarStructProgramWithExternalStructs :: [Statement] -> Program -> Program
+desugarStructProgramWithExternalStructs externalStructStmts (decls, stmts0) =
+    let tops = flattenStmtGroups stmts0
+        externalTops = flattenStmtGroups externalStructStmts
+        structs = [s | s@Struct {} <- (externalTops ++ tops)]
+        metas = Map.fromList (map toPair structs)
+        expandTop st = case st of
+            Struct {} -> expandStructStmt metas st
+            _ -> [st]
+        -- Keep original top-level order: expand each struct in place.
+        -- This preserves same-file declaration visibility (e.g. private vals
+        -- declared before a struct and referenced by struct static initializers).
+        allStmts0 = concatMap expandTop tops
+        (_, _, allStmts) = rewriteStmtList metas Nothing Map.empty 0 allStmts0
+    in (decls, allStmts)
+  where
+    toPair st =
+        let meta = buildStructMeta st
+        in (smName meta, meta)
+
+
+isStructStmt :: Statement -> Bool
+isStructStmt Struct {} = True
+isStructStmt _ = False
+
+
+structNameFromExpr :: Expression -> String
+structNameFromExpr ex = case ex of
+    Variable n _ -> n
+    Qualified names _ -> case reverse names of
+        (n:_) -> n
+        [] -> ""
+    _ -> ""
+
+
+buildStructMeta :: Statement -> StructMeta
+buildStructMeta (Struct _ _ (_, nameExpr) members) =
+    let sname = structNameFromExpr nameExpr
+        (fieldMap, staticFields, staticFieldTypes, instMethods, stMethods, hasInit0, endOff) =
+            foldl' step (Map.empty, Set.empty, Map.empty, Set.empty, Set.empty, False, 0) members
+        finalSize = align8 endOff
+    in StructMeta sname fieldMap staticFields staticFieldTypes instMethods stMethods hasInit0 finalSize
+  where
+    step (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff) m = case m of
+        DefField names mTy _ toks ->
+            addField False names mTy toks (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff)
+        DefConstField names mTy _ toks ->
+            addField True names mTy toks (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff)
+        DefVar names mTy _ toks ->
+            addField False names mTy toks (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff)
+        DefConstVar names mTy _ toks ->
+            addField True names mTy toks (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff)
+        _ ->
+            case functionNameVar m of
+                Just (mName, _) ->
+                    let isStaticM = isStaticMember m
+                        isInit = map toLower mName == "__init__"
+                        iMethods' = if isStaticM then iMethods else Set.insert mName iMethods
+                        stMethods' = if isStaticM then Set.insert mName stMethods else stMethods
+                    in (fMap, sFields, sFieldTypes, iMethods', stMethods', hasInit0 || isInit, curOff)
+                Nothing ->
+                    (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff)
+
+    addField _ names mTy toks (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff) =
+        case names of
+            [fname]
+                | hasStaticToken toks ->
+                    let fTy = fromMaybe Int64T mTy
+                        sFieldTypes' = Map.insert fname fTy sFieldTypes
+                    in (fMap, Set.insert fname sFields, sFieldTypes', iMethods, stMethods, hasInit0, curOff)
+                | otherwise ->
+                    let fTy = fromMaybe Int64T mTy
+                        off = align8 curOff
+                        sz = classStorageSizeBytes fTy
+                        fMap' = Map.insert fname (StructFieldMeta fTy off) fMap
+                    in (fMap', sFields, sFieldTypes, iMethods, stMethods, hasInit0, off + sz)
+            _ ->
+                (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff)
+buildStructMeta _ = error "buildStructMeta: non-struct statement"
+
+
+align8 :: Int -> Int
+align8 n =
+    let r = n `mod` 8
+    in if r == 0 then n else n + (8 - r)
+
+
+classStorageSizeBytes :: Class -> Int
+classStorageSizeBytes cls = case normalizeClass cls of
+    Int8T -> 1
+    Bool -> 1
+    Char -> 1
+    Int16T -> 2
+    Int32T -> 4
+    Float32T -> 4
+    Int64T -> 8
+    Float64T -> 8
+    Float128T -> 16
+    Pointer _ -> 8
+    FuncPtr {} -> 8
+    Class _ _ -> 8
+    Blob e -> fromMaybe 0 (blobConstSizeMaybe (Blob e))
+    Void -> 0
+    ErrorClass -> 8
+
+
+hasStaticToken :: [Token] -> Bool
+hasStaticToken = any (\t -> case t of
+    Lex.Ident s _ -> map toLower s == "static"
+    _ -> False)
+
+
+isStaticMember :: Statement -> Bool
+isStaticMember st = case st of
+    InstanceMethod decls _ _ _ _ _ -> any (\(_, fs) -> Static `elem` fs) decls
+    StaticMethod {} -> True
+    InstanceMethodT decls _ _ _ _ _ _ -> any (\(_, fs) -> Static `elem` fs) decls
+    StaticMethodT {} -> True
+    NativeMethod decls _ _ _ _ _ -> any (\(_, fs) -> Static `elem` fs) decls
+    _ -> False
+
+
+structGlobalName :: String -> String -> String
+structGlobalName sname member = sname ++ "$" ++ member
+
+
+mkGeneratedIdentToken :: Int -> String -> Token
+mkGeneratedIdentToken seed name = Lex.Ident name (makePosition (-1) (-100000 - seed) (length name))
+
+
+expandStructStmt :: StructMetaMap -> Statement -> [Statement]
+expandStructStmt metas st@(Struct _ _ (_, nameExpr) members) =
+    let sname = structNameFromExpr nameExpr
+        meta = Map.findWithDefault (buildStructMeta st) sname metas
+        sizeTok = case stmtTokens st of
+            (t:_) -> t
+            [] -> Lex.dummyToken
+        sizeDecl =
+            DefConstVar
+                [structGlobalName sname "$size"]
+                (Just Int32T)
+                (Just (IntConst (show (smSize meta)) sizeTok))
+                [sizeTok]
+    in sizeDecl : concatMap (expandMember sname) members
+  where
+    expandMember :: String -> Statement -> [Statement]
+    expandMember sname member = case member of
+        DefField names mTy me toks ->
+            emitStaticField sname False names mTy me toks
+        DefConstField names mTy me toks ->
+            emitStaticField sname True names mTy me toks
+        DefVar names mTy me toks ->
+            emitStaticField sname False names mTy me toks
+        DefConstVar names mTy me toks ->
+            emitStaticField sname True names mTy me toks
+
+        InstanceMethod decls anns ret name params body ->
+            [emitMethod sname decls anns ret name params body]
+        StaticMethod decls anns ret name params body ->
+            [emitMethod sname decls anns ret name params body]
+        InstanceMethodT decls anns ret name gens params body ->
+            [emitMethodT sname decls anns ret name gens params body]
+        StaticMethodT decls anns ret name gens params body ->
+            [emitMethodT sname decls anns ret name gens params body]
+        NativeMethod decls anns ret name params code ->
+            [emitNativeMethod sname decls anns ret name params code]
+        _ -> []
+
+    emitStaticField sname isConst names mTy me toks =
+        case names of
+            [n]
+                | hasStaticToken toks ->
+                    let g = structGlobalName sname n
+                    in [if isConst then DefConstVar [g] mTy me toks else DefVar [g] mTy me toks]
+                | otherwise -> []
+            _ -> []
+
+    emitMethod sname decls anns ret name params body =
+        let (mname, mTok) = case name of
+                Variable n t -> (n, t)
+                Qualified ns ts -> (case reverse ns of (x:_) -> x; [] -> "", case ts of (t:_) -> t; [] -> Lex.dummyToken)
+                _ -> ("", Lex.dummyToken)
+            gName = structGlobalName sname mname
+            nameExpr = Variable gName (renameIdentToken gName mTok)
+            thisParam = (Pointer (Class [sname] []), "this", [mTok])
+            isStaticM = isStaticMember (InstanceMethod decls anns ret name params body)
+            params' = if isStaticM then params else thisParam : params
+            ret' = if map toLower mname == "__init__" then (Void, snd ret) else ret
+        in InstanceMethod decls anns ret' nameExpr params' body
+
+    emitMethodT sname decls anns ret name gens params body =
+        let (mname, mTok) = case name of
+                Variable n t -> (n, t)
+                Qualified ns ts -> (case reverse ns of (x:_) -> x; [] -> "", case ts of (t:_) -> t; [] -> Lex.dummyToken)
+                _ -> ("", Lex.dummyToken)
+            gName = structGlobalName sname mname
+            nameExpr = Variable gName (renameIdentToken gName mTok)
+            thisParam = (Pointer (Class [sname] []), "this", [mTok])
+            isStaticM = isStaticMember (InstanceMethodT decls anns ret name gens params body)
+            params' = if isStaticM then params else thisParam : params
+            ret' = if map toLower mname == "__init__" then (Void, snd ret) else ret
+        in InstanceMethodT decls anns ret' nameExpr gens params' body
+
+    emitNativeMethod sname decls anns ret name params code =
+        let (mname, mTok) = case name of
+                Variable n t -> (n, t)
+                Qualified ns ts -> (case reverse ns of (x:_) -> x; [] -> "", case ts of (t:_) -> t; [] -> Lex.dummyToken)
+                _ -> ("", Lex.dummyToken)
+            gName = structGlobalName sname mname
+            nameExpr = Variable gName (renameIdentToken gName mTok)
+            thisParam = (Pointer (Class [sname] []), "this", [mTok])
+            isStaticM = any (\(_, fs) -> Static `elem` fs) decls
+            params' = if isStaticM then params else thisParam : params
+            ret' = if map toLower mname == "__init__" then (Void, snd ret) else ret
+        in NativeMethod decls anns ret' nameExpr params' code
+expandStructStmt _ _ = []
+
+
+rewriteStmtList ::
+    StructMetaMap ->
+    Maybe String ->
+    StructEnv ->
+    Int ->
+    [Statement] ->
+    (Int, StructEnv, [Statement])
+rewriteStmtList _ _ env n [] = (n, env, [])
+rewriteStmtList metas mThis env n (s:ss) =
+    let (n1, env1, s') = rewriteStmt metas mThis env n s
+        (n2, env2, rest) = rewriteStmtList metas mThis env1 n1 ss
+    in (n2, env2, s' : rest)
+
+
+rewriteStmt ::
+    StructMetaMap ->
+    Maybe String ->
+    StructEnv ->
+    Int ->
+    Statement ->
+    (Int, StructEnv, Statement)
+rewriteStmt metas mThis env n st = case st of
+    Command (Return me) tok ->
+        let (n1, me') = rewriteMaybeExpr metas mThis env n me
+        in (n1, env, Command (Return me') tok)
+    Command _ _ -> (n, env, st)
+    Expr e ->
+        let (n1, e') = rewriteExpr metas mThis env n e
+        in (n1, env, Expr e')
+    Exprs es ->
+        let (n1, es') = rewriteExprList metas mThis env n es
+        in (n1, env, Exprs es')
+
+    DefField names mTy me toks ->
+        let (n1, me') = rewriteMaybeExpr metas mThis env n me
+            env' = updateStructEnvFromDecl metas env names mTy me
+        in (n1, env', DefField names mTy me' toks)
+    DefConstField names mTy me toks ->
+        let (n1, me') = rewriteMaybeExpr metas mThis env n me
+            env' = updateStructEnvFromDecl metas env names mTy me
+        in (n1, env', DefConstField names mTy me' toks)
+    DefVar names mTy me toks ->
+        let (n1, me') = rewriteMaybeExpr metas mThis env n me
+            env' = updateStructEnvFromDecl metas env names mTy me'
+        in (n1, env', DefVar names mTy me' toks)
+    DefConstVar names mTy me toks ->
+        let (n1, me') = rewriteMaybeExpr metas mThis env n me
+            env' = updateStructEnvFromDecl metas env names mTy me'
+        in (n1, env', DefConstVar names mTy me' toks)
+
+    StmtGroup ss ->
+        let (n1, _, ss') = rewriteStmtList metas mThis env n ss
+        in (n1, env, StmtGroup ss')
+    BlockStmt b ->
+        let (n1, b') = rewriteBlock metas mThis env n b
+        in (n1, env, BlockStmt b')
+    If cond b1 b2 toks ->
+        let (n1, cond') = rewriteExpr metas mThis env n cond
+            (n2, b1') = rewriteMaybeBlock metas mThis env n1 b1
+            (n3, b2') = rewriteMaybeBlock metas mThis env n2 b2
+        in (n3, env, If cond' b1' b2' toks)
+    For (s1, e2, s3) b1 b2 toks ->
+        let (n1, s1') = rewriteMaybeStmt metas mThis env n s1
+            (n2, e2') = rewriteMaybeExpr metas mThis env n1 e2
+            (n3, s3') = rewriteMaybeStmt metas mThis env n2 s3
+            (n4, b1') = rewriteMaybeBlock metas mThis env n3 b1
+            (n5, b2') = rewriteMaybeBlock metas mThis env n4 b2
+        in (n5, env, For (s1', e2', s3') b1' b2' toks)
+    Loop mb tok ->
+        let (n1, mb') = rewriteMaybeBlock metas mThis env n mb
+        in (n1, env, Loop mb' tok)
+    Repeat e b1 b2 toks ->
+        let (n1, e') = rewriteExpr metas mThis env n e
+            (n2, b1') = rewriteMaybeBlock metas mThis env n1 b1
+            (n3, b2') = rewriteMaybeBlock metas mThis env n2 b2
+        in (n3, env, Repeat e' b1' b2' toks)
+    While e b1 b2 toks ->
+        let (n1, e') = rewriteExpr metas mThis env n e
+            (n2, b1') = rewriteMaybeBlock metas mThis env n1 b1
+            (n3, b2') = rewriteMaybeBlock metas mThis env n2 b2
+        in (n3, env, While e' b1' b2' toks)
+    Until e b1 b2 toks ->
+        let (n1, e') = rewriteExpr metas mThis env n e
+            (n2, b1') = rewriteMaybeBlock metas mThis env n1 b1
+            (n3, b2') = rewriteMaybeBlock metas mThis env n2 b2
+        in (n3, env, Until e' b1' b2' toks)
+    DoWhile b1 e b2 toks ->
+        let (n1, b1') = rewriteMaybeBlock metas mThis env n b1
+            (n2, e') = rewriteExpr metas mThis env n1 e
+            (n3, b2') = rewriteMaybeBlock metas mThis env n2 b2
+        in (n3, env, DoWhile b1' e' b2' toks)
+    DoUntil b1 e b2 toks ->
+        let (n1, b1') = rewriteMaybeBlock metas mThis env n b1
+            (n2, e') = rewriteExpr metas mThis env n1 e
+            (n3, b2') = rewriteMaybeBlock metas mThis env n2 b2
+        in (n3, env, DoUntil b1' e' b2' toks)
+    Switch e scs tok ->
+        let (n1, e') = rewriteExpr metas mThis env n e
+            (n2, scs') = rewriteCases metas mThis env n1 scs
+        in (n2, env, Switch e' scs' tok)
+
+    InstanceMethod decls anns ret name params body ->
+        let mThis' = structNameByMethodGlobal metas name
+            env0 = seedEnvFromParams metas params
+            env1 = maybe env0 (\s -> Map.insert "this" (Just s) env0) mThis'
+            (n1, body') = rewriteBlock metas mThis' env1 n body
+        in (n1, env, InstanceMethod decls anns ret name params body')
+    StaticMethod decls anns ret name params body ->
+        let mThis' = structNameByMethodGlobal metas name
+            env0 = seedEnvFromParams metas params
+            (n1, body') = rewriteBlock metas mThis' env0 n body
+        in (n1, env, StaticMethod decls anns ret name params body')
+    InstanceMethodT decls anns ret name gens params body ->
+        let mThis' = structNameByMethodGlobal metas name
+            env0 = seedEnvFromParams metas params
+            env1 = maybe env0 (\s -> Map.insert "this" (Just s) env0) mThis'
+            (n1, body') = rewriteBlock metas mThis' env1 n body
+        in (n1, env, InstanceMethodT decls anns ret name gens params body')
+    StaticMethodT decls anns ret name gens params body ->
+        let mThis' = structNameByMethodGlobal metas name
+            env0 = seedEnvFromParams metas params
+            (n1, body') = rewriteBlock metas mThis' env0 n body
+        in (n1, env, StaticMethodT decls anns ret name gens params body')
+    NativeMethod _ _ _ _ _ _ ->
+        (n, env, st)
+    Struct {} ->
+        (n, env, st)
+
+
+seedEnvFromParams :: StructMetaMap -> [(Class, String, [Token])] -> StructEnv
+seedEnvFromParams metas =
+    foldl' step Map.empty
+  where
+    step acc (ty, n, _) = Map.insert n (structNameFromType metas ty) acc
+
+
+structNameByMethodGlobal :: StructMetaMap -> Expression -> Maybe String
+structNameByMethodGlobal metas nameExpr = case nameExpr of
+    Variable n _ ->
+        let m = reverse (splitByDollar n)
+        in case m of
+            (_meth : sname : _) | Map.member sname metas -> Just sname
+            _ -> Nothing
+    _ -> Nothing
+  where
+    splitByDollar :: String -> [String]
+    splitByDollar s = case break (== '$') s of
+        (a, []) -> [a]
+        (a, _ : rest) -> a : splitByDollar rest
+
+
+updateStructEnvFromDecl :: StructMetaMap -> StructEnv -> [String] -> Maybe Class -> Maybe Expression -> StructEnv
+updateStructEnvFromDecl metas env names mTy mRhs = case names of
+    [n] ->
+        case mTy >>= structNameFromType metas of
+            Just s -> Map.insert n (Just s) env
+            Nothing ->
+                case mRhs >>= rhsStructName metas env of
+                    Just s -> Map.insert n (Just s) env
+                    Nothing -> Map.insert n Nothing env
+    _ -> env
+
+
+rhsStructName :: StructMetaMap -> StructEnv -> Expression -> Maybe String
+rhsStructName metas env ex =
+    case ctorStructName metas ex of
+        Just s -> Just s
+        Nothing ->
+            case structNameFromValueExpr metas Nothing env ex of
+                Just s -> Just s
+                Nothing -> staticFieldStructName metas env ex
+
+
+staticFieldStructName :: StructMetaMap -> StructEnv -> Expression -> Maybe String
+staticFieldStructName metas env ex =
+    case ex of
+        Qualified [base, field] _ -> do
+            sOwner <- resolveBaseStruct metas Nothing env base
+            sm <- Map.lookup sOwner metas
+            if Set.member field (smStaticFields sm)
+                then case Map.lookup field (smStaticFieldTypes sm) >>= structNameFromType metas of
+                    Just s -> Just s
+                    Nothing ->
+                        if map toLower field == "instance"
+                            then Just sOwner
+                            else Nothing
+                else Nothing
+        Variable g _ ->
+            case splitStaticGlobal g of
+                Just (sOwner, field) -> do
+                    sm <- Map.lookup sOwner metas
+                    if Set.member field (smStaticFields sm)
+                        then case Map.lookup field (smStaticFieldTypes sm) >>= structNameFromType metas of
+                            Just s -> Just s
+                            Nothing ->
+                                if map toLower field == "instance"
+                                    then Just sOwner
+                                    else Nothing
+                        else Nothing
+                Nothing -> Nothing
+        _ -> Nothing
+  where
+    splitStaticGlobal :: String -> Maybe (String, String)
+    splitStaticGlobal g = do
+        let revParts = reverse (splitByDollar g)
+        case revParts of
+            (field : sOwner : _rest) ->
+                if Map.member sOwner metas
+                    then Just (sOwner, field)
+                    else Nothing
+            _ -> Nothing
+
+    splitByDollar :: String -> [String]
+    splitByDollar s = case break (== '$') s of
+        (a, []) -> [a]
+        (a, _ : rest) -> a : splitByDollar rest
+
+
+ctorStructName :: StructMetaMap -> Expression -> Maybe String
+ctorStructName metas ex = case ex of
+    Call (Variable s _) _ | Map.member s metas -> Just s
+    _ -> Nothing
+
+
+structNameFromType :: StructMetaMap -> Class -> Maybe String
+structNameFromType metas ty = case normalizeClass ty of
+    Class [n] [] | Map.member n metas -> Just n
+    Pointer (Class [n] []) | Map.member n metas -> Just n
+    Class ["pointer"] [Class [n] []] | Map.member n metas -> Just n
+    _ -> Nothing
+
+
+rewriteMaybeExpr :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Maybe Expression -> (Int, Maybe Expression)
+rewriteMaybeExpr _ _ _ n Nothing = (n, Nothing)
+rewriteMaybeExpr metas mThis env n (Just e) =
+    let (n1, e1) = rewriteExpr metas mThis env n e
+    in (n1, Just e1)
+
+
+rewriteExprList :: StructMetaMap -> Maybe String -> StructEnv -> Int -> [Expression] -> (Int, [Expression])
+rewriteExprList _ _ _ n [] = (n, [])
+rewriteExprList metas mThis env n (e:es) =
+    let (n1, e1) = rewriteExpr metas mThis env n e
+        (n2, rest) = rewriteExprList metas mThis env n1 es
+    in (n2, e1 : rest)
+
+
+rewriteExpr :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Expression -> (Int, Expression)
+rewriteExpr metas mThis env n ex = case ex of
+    Error {} -> (n, ex)
+    IntConst {} -> (n, ex)
+    LongConst {} -> (n, ex)
+    FloatConst {} -> (n, ex)
+    DoubleConst {} -> (n, ex)
+    LongDoubleConst {} -> (n, ex)
+    CharConst {} -> (n, ex)
+    StringConst {} -> (n, ex)
+    BoolConst {} -> (n, ex)
+    Variable name tok ->
+        if Map.member name env
+            then (n, ex)
+            else
+                case mThis of
+                    Just s ->
+                        case Map.lookup s metas of
+                            Just sm
+                                | Set.member name (smStaticFields sm) ->
+                                    let g = structGlobalName s name
+                                    in (n, Variable g (renameIdentToken g tok))
+                            _ -> rewriteGlobalStatic
+                    Nothing ->
+                        rewriteGlobalStatic
+      where
+        rewriteGlobalStatic = case resolveUniqueStaticGlobal metas name of
+            Just g -> (n, Variable g (renameIdentToken g tok))
+            Nothing -> (n, ex)
+    Qualified names toks ->
+        (n, rewriteQualifiedRef metas mThis env names toks)
+    Cast ty e tok ->
+        let (n1, e1) = rewriteExpr metas mThis env n e
+        in (n1, Cast ty e1 tok)
+    Unary op e tok ->
+        let (n1, e1) = rewriteExpr metas mThis env n e
+        in (n1, Unary op e1 tok)
+    Binary op e1 e2 tok ->
+        let (n1, a1) = rewriteExpr metas mThis env n e1
+            (n2, a2) = rewriteExpr metas mThis env n1 e2
+        in (n2, Binary op a1 a2 tok)
+    SizeOfExpr e tok ->
+        let (n1, e1) = rewriteExpr metas mThis env n e
+        in (n1, SizeOfExpr e1 tok)
+    SizeOfType (cls, ts) tok ->
+        case structNameFromType metas cls of
+            Just s ->
+                let sz = maybe 8 smSize (Map.lookup s metas)
+                in (n, IntConst (show sz) tok)
+            Nothing -> (n, SizeOfType (cls, ts) tok)
+    IfExpr c t f toks ->
+        let (n1, c1) = rewriteExpr metas mThis env n c
+            (n2, t1) = rewriteExpr metas mThis env n1 t
+            (n3, f1) = rewriteExpr metas mThis env n2 f
+        in (n3, IfExpr c1 t1 f1 toks)
+    BlockExpr b ->
+        let (n1, b1) = rewriteBlock metas mThis env n b
+        in (n1, BlockExpr b1)
+    Call callee args ->
+        rewriteCall metas mThis env n callee Nothing args
+    CallT callee tys args ->
+        rewriteCall metas mThis env n callee (Just tys) args
+
+
+rewriteCall ::
+    StructMetaMap ->
+    Maybe String ->
+    StructEnv ->
+    Int ->
+    Expression ->
+    Maybe [(Class, [Token])] ->
+    [Expression] ->
+    (Int, Expression)
+rewriteCall metas mThis env n callee mTys args =
+    let (n1, args1) = rewriteExprList metas mThis env n args
+    in case callee of
+        Unary AddrOf ctorTarget _ ->
+            case resolveCtorTarget ctorTarget of
+                Just (sname, sTok)
+                    | Map.member sname metas ->
+                        let (n2, heapCtorExpr) = mkStructHeapCtorExpr metas sname sTok n1 args1
+                        in (n2, heapCtorExpr)
+                _ ->
+                    let (n2, callee1) = rewriteExpr metas mThis env n1 callee
+                    in (n2, case mTys of
+                        Nothing -> Call callee1 args1
+                        Just tys -> CallT callee1 tys args1)
+        Variable s tok ->
+            case mThis of
+                Just s0 ->
+                    case Map.lookup s0 metas of
+                        Just sm
+                            | Set.member s (smStaticMethods sm) ->
+                                let nm = structGlobalName s0 s
+                                    callExpr = case mTys of
+                                        Nothing -> Call (Variable nm (mkGeneratedIdentToken n1 nm)) args1
+                                        Just tys -> CallT (Variable nm (mkGeneratedIdentToken n1 nm)) tys args1
+                                in (n1 + 1, callExpr)
+                            | Set.member s (smInstanceMethods sm)
+                            , Map.lookup "this" env == Just (Just s0) ->
+                                let nm = structGlobalName s0 s
+                                    thisExpr = Variable "this" tok
+                                    callExpr = case mTys of
+                                        Nothing -> Call (Variable nm (mkGeneratedIdentToken n1 nm)) (thisExpr : args1)
+                                        Just tys -> CallT (Variable nm (mkGeneratedIdentToken n1 nm)) tys (thisExpr : args1)
+                                in (n1 + 1, callExpr)
+                            | otherwise ->
+                                byFirstArgOrCtor
+                        Nothing ->
+                            byFirstArgOrCtor
+                Nothing ->
+                    byFirstArgOrCtor
+          where
+            byFirstArgOrCtor =
+                case args1 of
+                    (arg0 : _rest) ->
+                        case structNameFromValueExpr metas mThis env arg0 of
+                            Just s0 ->
+                                case Map.lookup s0 metas of
+                                    Just sm
+                                        | Set.member s (smInstanceMethods sm) ->
+                                            let nm = structGlobalName s0 s
+                                                callExpr = case mTys of
+                                                    Nothing -> Call (Variable nm (mkGeneratedIdentToken n1 nm)) args1
+                                                    Just tys -> CallT (Variable nm (mkGeneratedIdentToken n1 nm)) tys args1
+                                            in (n1 + 1, callExpr)
+                                    _ -> ctorOrFallback s tok
+                            Nothing -> ctorOrFallback s tok
+                    _ -> ctorOrFallback s tok
+
+            ctorOrFallback nm nmTok
+                | Map.member nm metas =
+                    let (n2, ctorExpr) = mkStructCtorExpr metas nm nmTok n1 args1
+                    in (n2, ctorExpr)
+                | otherwise =
+                    let (n2, callee1) = rewriteExpr metas mThis env n1 callee
+                    in (n2, case mTys of
+                        Nothing -> Call callee1 args1
+                        Just tys -> CallT callee1 tys args1)
+        Qualified [base, field, m] toks ->
+            let mkCall nm extra seed = case mTys of
+                    Nothing -> Call (Variable nm (mkGeneratedIdentToken seed nm)) (extra ++ args1)
+                    Just tys -> CallT (Variable nm (mkGeneratedIdentToken seed nm)) tys (extra ++ args1)
+                baseTok = case toks of
+                    (t:_) -> t
+                    [] -> Lex.dummyToken
+                fieldTok = case toks of
+                    (_:t:_) -> t
+                    _ -> baseTok
+                fallbackCall =
+                    let (n2, callee1) = rewriteExpr metas mThis env n1 callee
+                    in (n2, case mTys of
+                        Nothing -> Call callee1 args1
+                        Just tys -> CallT callee1 tys args1)
+                ownerStruct =
+                    case resolveBaseStruct metas mThis env base of
+                        Just s -> Just s
+                        Nothing ->
+                            if Map.member base metas
+                                then Just base
+                                else Nothing
+            in case ownerStruct of
+                Just sOwner ->
+                    case Map.lookup sOwner metas of
+                        Just smOwner
+                            | Set.member field (smStaticFields smOwner) ->
+                                let recvExpr =
+                                        let g = structGlobalName sOwner field
+                                        in Variable g (renameIdentToken g fieldTok)
+                                    mRecvStruct =
+                                        case Map.lookup field (smFields smOwner) of
+                                            Just fMeta -> structNameFromType metas (sfType fMeta)
+                                            Nothing -> Nothing
+                                in if Set.member m (smInstanceMethods smOwner)
+                                    then (n1 + 1, mkCall (structGlobalName sOwner m) [recvExpr] n1)
+                                    else case mRecvStruct of
+                                        Just sRecv ->
+                                            case Map.lookup sRecv metas of
+                                                Just smRecv
+                                                    | Set.member m (smInstanceMethods smRecv) ->
+                                                        (n1 + 1, mkCall (structGlobalName sRecv m) [recvExpr] n1)
+                                                    | Set.member m (smStaticMethods smRecv) ->
+                                                        (n1 + 1, mkCall (structGlobalName sRecv m) [] n1)
+                                                    | otherwise ->
+                                                        fallbackCall
+                                                Nothing ->
+                                                    fallbackCall
+                                        Nothing ->
+                                            fallbackCall
+                            | otherwise ->
+                                fallbackCall
+                        Nothing ->
+                            fallbackCall
+                Nothing ->
+                    fallbackCall
+        Qualified [base, m] toks ->
+            let mkCall nm extra seed = case mTys of
+                    Nothing -> Call (Variable nm (mkGeneratedIdentToken seed nm)) (extra ++ args1)
+                    Just tys -> CallT (Variable nm (mkGeneratedIdentToken seed nm)) tys (extra ++ args1)
+                baseTok = case toks of
+                    (t:_) -> t
+                    [] -> Lex.dummyToken
+            in case resolveBaseStruct metas mThis env base of
+                Just s ->
+                    case Map.lookup s metas of
+                        Just sm
+                            | Set.member m (smStaticMethods sm) ->
+                                (n1 + 1, mkCall (structGlobalName s m) [] n1)
+                            | Set.member m (smInstanceMethods sm) ->
+                                (n1 + 1, mkCall (structGlobalName s m) [Variable base baseTok] n1)
+                            | otherwise ->
+                                fallbackCall
+                        Nothing -> fallbackCall
+                Nothing ->
+                    case Map.lookup base metas of
+                        Just sm
+                            | Set.member m (smStaticMethods sm) ->
+                                (n1 + 1, mkCall (structGlobalName base m) [] n1)
+                            | otherwise ->
+                                fallbackCall
+                        Nothing ->
+                            fallbackCall
+          where
+            fallbackCall =
+                let (n2, callee1) = rewriteExpr metas mThis env n1 callee
+                in (n2, case mTys of
+                    Nothing -> Call callee1 args1
+                    Just tys -> CallT callee1 tys args1)
+        _ ->
+            let (n2, callee1) = rewriteExpr metas mThis env n1 callee
+            in (n2, case mTys of
+                Nothing -> Call callee1 args1
+                Just tys -> CallT callee1 tys args1)
+  where
+    resolveCtorTarget :: Expression -> Maybe (String, Token)
+    resolveCtorTarget target = case target of
+        Variable raw tok ->
+            resolveByRaw raw tok
+        Qualified names toks ->
+            case reverse names of
+                (raw : _) ->
+                    let tok = case reverse toks of
+                            (t : _) -> t
+                            [] -> Lex.dummyToken
+                    in resolveByRaw raw tok
+                [] -> Nothing
+        _ -> Nothing
+
+    resolveByRaw :: String -> Token -> Maybe (String, Token)
+    resolveByRaw raw tok
+        | Map.member raw metas = Just (raw, tok)
+        | otherwise = (\s -> (s, tok)) <$> resolveUniqueStructBySimpleName metas raw
+
+
+resolveBaseStruct :: StructMetaMap -> Maybe String -> StructEnv -> String -> Maybe String
+resolveBaseStruct _ mThis _ "this" = mThis
+resolveBaseStruct metas _ env base =
+    case Map.lookup base env of
+        Just mb -> mb
+        Nothing ->
+            if Map.member base metas
+                then Just base
+                else resolveUniqueStructBySimpleName metas base
+
+
+resolveUniqueStructBySimpleName :: StructMetaMap -> String -> Maybe String
+resolveUniqueStructBySimpleName metas want =
+    let matches = [s | s <- Map.keys metas, structSimpleName s == want]
+    in case matches of
+        [s] -> Just s
+        _ -> Nothing
+  where
+    structSimpleName :: String -> String
+    structSimpleName s = case reverse (splitByDollar s) of
+        (x:_) -> x
+        [] -> s
+
+    splitByDollar :: String -> [String]
+    splitByDollar s = case break (== '$') s of
+        (a, []) -> [a]
+        (a, _ : rest) -> a : splitByDollar rest
+
+
+resolveUniqueStaticGlobal :: StructMetaMap -> String -> Maybe String
+resolveUniqueStaticGlobal metas fieldName =
+    let owners = [
+            sname |
+            (sname, sm) <- Map.toList metas,
+            Set.member fieldName (smStaticFields sm)]
+    in case owners of
+        [sname] -> Just (structGlobalName sname fieldName)
+        _ -> Nothing
+
+
+rewriteQualifiedRef :: StructMetaMap -> Maybe String -> StructEnv -> [String] -> [Token] -> Expression
+rewriteQualifiedRef metas mThis env names toks =
+    case names of
+        [base, field, suffix] ->
+            let suffixL = map toLower suffix
+            in if suffixL `elem` ["ref", "deref", "dref"]
+                then case resolveFieldBase base field of
+                    Just (s, baseExpr, fMeta, tok0) ->
+                        let addr = structFieldAddrExpr s baseExpr fMeta tok0
+                        in case suffixL of
+                            "ref" -> addr
+                            _ -> Unary DeRef addr tok0
+                    Nothing -> Qualified names toks
+                else fromMaybe (Qualified names toks) (rewriteFieldChain names)
+        _ ->
+            case names of
+                [base, field] -> rewriteTwo base field
+                _ -> fromMaybe (Qualified names toks) (rewriteFieldChain names)
+  where
+    rewriteFieldChain :: [String] -> Maybe Expression
+    rewriteFieldChain (base : fields@(_ : _)) = do
+        s0 <- resolveBaseStruct metas mThis env base
+        let baseExpr = Variable base tok0
+        go s0 baseExpr fields
+      where
+        go :: String -> Expression -> [String] -> Maybe Expression
+        go _ expr [] = Just expr
+        go s expr (field : rest) = do
+            sm <- Map.lookup s metas
+            fMeta <- Map.lookup field (smFields sm)
+            let expr1 = Unary DeRef (structFieldAddrExpr s expr fMeta tok0) tok0
+            case rest of
+                [] -> Just expr1
+                _ -> do
+                    sNext <- structNameFromType metas (sfType fMeta)
+                    go sNext expr1 rest
+
+    rewriteFieldChain _ = Nothing
+
+    rewriteTwo :: String -> String -> Expression
+    rewriteTwo base field =
+        case resolveBaseStruct metas mThis env base of
+            Just s ->
+                case Map.lookup s metas of
+                    Just sm
+                        | Set.member field (smStaticFields sm) ->
+                            let tok0 = case toks of
+                                    (t:_) -> t
+                                    [] -> Lex.dummyToken
+                            in Variable (structGlobalName s field) tok0
+                        | otherwise ->
+                            case resolveFieldBase base field of
+                                Just (_s, baseExpr, fMeta, tok0) ->
+                                    Unary DeRef (structFieldAddrExpr s baseExpr fMeta tok0) tok0
+                                Nothing -> Qualified names toks
+                    Nothing -> Qualified names toks
+            Nothing ->
+                case Map.lookup base metas of
+                    Just sm
+                        | Set.member field (smStaticFields sm) ->
+                            let tok0 = case toks of
+                                    (t:_) -> t
+                                    [] -> Lex.dummyToken
+                            in Variable (structGlobalName base field) tok0
+                    _ -> Qualified names toks
+
+    resolveFieldBase :: String -> String -> Maybe (String, Expression, StructFieldMeta, Token)
+    resolveFieldBase base field = do
+        s <- resolveBaseStruct metas mThis env base
+        sm <- Map.lookup s metas
+        fMeta <- Map.lookup field (smFields sm)
+        let baseExpr = Variable base tok0
+        pure (s, baseExpr, fMeta, tok0)
+
+    tok0 :: Token
+    tok0 = case toks of
+        (t:_) -> t
+        [] -> Lex.dummyToken
+
+
+structFieldAddrExpr :: String -> Expression -> StructFieldMeta -> Token -> Expression
+structFieldAddrExpr _ baseExpr fMeta tok =
+    let bytePtrTy = (Pointer Int8T, [tok])
+        fieldPtrTy = (Pointer (sfType fMeta), [tok])
+        baseByte = Cast bytePtrTy baseExpr tok
+        offE = IntConst (show (sfOffset fMeta)) tok
+        addrByte = Binary Add baseByte offE tok
+    in Cast fieldPtrTy addrByte tok
+
+
+mkStructCtorExpr ::
+    StructMetaMap ->
+    String ->
+    Token ->
+    Int ->
+    [Expression] ->
+    (Int, Expression)
+mkStructCtorExpr metas sname tok n args =
+    let sm = Map.findWithDefault (StructMeta sname Map.empty Set.empty Map.empty Set.empty Set.empty False 8) sname metas
+        tmpName = "$" ++ sname ++ "$tmp$" ++ show n
+        tmpTok = mkGeneratedIdentToken n tmpName
+        blobTy = Blob (IntConst (show (smSize sm)) tok)
+        tmpDecl = DefConstField [tmpName] (Just blobTy) Nothing [tmpTok]
+        ptrTy = (Pointer (Class [sname] []), [tok])
+        tmpVar = Variable tmpName tmpTok
+        thisPtr = Cast ptrTy tmpVar tok
+        initCall =
+            if smHasInit sm
+                then
+                    let initName = structGlobalName sname "__init__"
+                    in [Expr (Call (Variable initName (mkGeneratedIdentToken (n + 1) initName)) (thisPtr : args))]
+                else []
+        retExpr = Cast ptrTy tmpVar tok
+        body = Multiple (tmpDecl : initCall ++ [Expr retExpr])
+    in (n + 2, BlockExpr body)
+
+
+mkStructHeapCtorExpr ::
+    StructMetaMap ->
+    String ->
+    Token ->
+    Int ->
+    [Expression] ->
+    (Int, Expression)
+mkStructHeapCtorExpr metas sname tok n args =
+    let sm = Map.findWithDefault (StructMeta sname Map.empty Set.empty Map.empty Set.empty Set.empty False 8) sname metas
+        tmpName = "$" ++ sname ++ "$heap$" ++ show n
+        tmpTok = mkGeneratedIdentToken n tmpName
+        ptrClass = Pointer (Class [sname] [])
+        ptrTy = (ptrClass, [tok])
+        allocCallee = Qualified ["xlang", "System", "allocMemory"] [tok, tok, tok]
+        allocCall = Call allocCallee [IntConst (show (smSize sm)) tok]
+        tmpDecl = DefConstField [tmpName] (Just ptrClass) (Just (Cast ptrTy allocCall tok)) [tmpTok]
+        thisPtr = Variable tmpName tmpTok
+        initCall =
+            if smHasInit sm
+                then
+                    let initName = structGlobalName sname "__init__"
+                    in [Expr (Call (Variable initName (mkGeneratedIdentToken (n + 1) initName)) (thisPtr : args))]
+                else []
+        retExpr = Cast ptrTy thisPtr tok
+        body = Multiple (tmpDecl : initCall ++ [Expr retExpr])
+    in (n + 2, BlockExpr body)
+
+
+structNameFromValueExpr :: StructMetaMap -> Maybe String -> StructEnv -> Expression -> Maybe String
+structNameFromValueExpr metas mThis env ex = case ex of
+    Variable name _ -> resolveBaseStruct metas mThis env name
+    Cast (ty, _) _ _ -> structNameFromType metas ty
+    _ -> Nothing
+
+
+rewriteMaybeBlock :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Maybe Block -> (Int, Maybe Block)
+rewriteMaybeBlock _ _ _ n Nothing = (n, Nothing)
+rewriteMaybeBlock metas mThis env n (Just b) =
+    let (n1, b1) = rewriteBlock metas mThis env n b
+    in (n1, Just b1)
+
+
+rewriteMaybeStmt :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Maybe Statement -> (Int, Maybe Statement)
+rewriteMaybeStmt _ _ _ n Nothing = (n, Nothing)
+rewriteMaybeStmt metas mThis env n (Just s) =
+    let (n1, _, s1) = rewriteStmt metas mThis env n s
+    in (n1, Just s1)
+
+
+rewriteBlock :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Block -> (Int, Block)
+rewriteBlock metas mThis env n (Multiple ss) =
+    let (n1, _, ss1) = rewriteStmtList metas mThis env n ss
+    in (n1, Multiple ss1)
+
+
+rewriteCases :: StructMetaMap -> Maybe String -> StructEnv -> Int -> [SwitchCase] -> (Int, [SwitchCase])
+rewriteCases _ _ _ n [] = (n, [])
+rewriteCases metas mThis env n (c:cs) =
+    let (n1, c1) = rewriteCase metas mThis env n c
+        (n2, cs1) = rewriteCases metas mThis env n1 cs
+    in (n2, c1 : cs1)
+
+
+rewriteCase :: StructMetaMap -> Maybe String -> StructEnv -> Int -> SwitchCase -> (Int, SwitchCase)
+rewriteCase metas mThis env n one = case one of
+    Case e mb tok ->
+        let (n1, e1) = rewriteExpr metas mThis env n e
+            (n2, mb1) = rewriteMaybeBlock metas mThis env n1 mb
+        in (n2, Case e1 mb1 tok)
+    Default b tok ->
+        let (n1, b1) = rewriteBlock metas mThis env n b
+        in (n1, Default b1 tok)
 
 
 normalizeProgram :: Program -> Program

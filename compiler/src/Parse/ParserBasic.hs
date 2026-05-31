@@ -61,6 +61,7 @@ methodDeclFromTokens toks = (access, flags)
 
     toFlag :: String -> [DeclFlag]
     toFlag s = case map toLower s of
+        "static" -> [Static]
         "inline" -> [Inline]
         "final" -> [Final]
         _ -> []

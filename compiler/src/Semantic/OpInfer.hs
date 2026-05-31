@@ -6,6 +6,7 @@ import Control.Applicative (liftA3)
 import Data.List (elemIndex, intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (mapMaybe)
+import Data.Char (isLower)
 import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
 import Semantic.TypeEnv (FunSig(..))
 import Util.Exception (ErrorKind, Warning(..))
@@ -52,17 +53,33 @@ numericRangeRank = Map.fromList [
 
 
 normalizeTypeAlias :: Class -> Class
-normalizeTypeAlias cls = case cls of
-    Class ["String"] [] -> Class ["String"] []
-    Class ["java", "lang", "String"] [] -> Class ["String"] []
-    Class ["xlang", "String"] [] -> Class ["String"] []
-    Class ["Any"] [] -> Class ["Any"] []
-    Class ["xlang", "Any"] [] -> Class ["Any"] []
-    Class ["java", "lang", "Object"] [] -> Class ["Any"] []
-    Pointer inner -> Pointer (normalizeTypeAlias inner)
-    FuncPtr ret args -> FuncPtr (normalizeTypeAlias ret) (map normalizeTypeAlias args)
-    Class qn args -> Class qn (map normalizeTypeAlias args)
-    other -> other
+normalizeTypeAlias = go True
+  where
+    go :: Bool -> Class -> Class
+    go top cls = case cls of
+        Class ["String"] [] -> Class ["String"] []
+        Class ["java", "lang", "String"] [] -> Class ["String"] []
+        Class ["xlang", "String"] [] -> Class ["String"] []
+        Class ["Any"] [] -> Class ["Any"] []
+        Class ["xlang", "Any"] [] -> Class ["Any"] []
+        Class ["java", "lang", "Object"] [] -> Class ["Any"] []
+        Pointer inner -> Pointer (go False inner)
+        FuncPtr ret args -> FuncPtr (go True ret) (map (go True) args)
+        Class qn args ->
+            let clsN = Class qn (map (go True) args)
+            in if top && shouldAutoRefUserClass clsN
+                then Pointer clsN
+                else clsN
+        other -> other
+
+    shouldAutoRefUserClass :: Class -> Bool
+    shouldAutoRefUserClass c = case c of
+        Class ["String"] [] -> False
+        Class ["Any"] [] -> False
+        Class [name] [] -> case name of
+            (ch:_) -> isLower ch
+            [] -> False
+        _ -> False
 
 
 widenedClass :: Class -> [Class]
@@ -76,8 +93,8 @@ widenedClass Float32T = [Float32T, Float64T, Float128T]
 widenedClass Float64T = [Float64T, Float128T]
 widenedClass Float128T = [Float128T]
 widenedClass Void = [Void]
-widenedClass (Pointer inner) =
-    let normalized = Pointer (normalizeTypeAlias inner)
+widenedClass p@(Pointer _) =
+    let normalized = normalizeTypeAlias p
         fallback = Pointer Void
     in if normalized == fallback
         then [fallback]
@@ -366,7 +383,9 @@ inferBinaryOpMaybe op t1 t2 =
         Nothing ->
             let n1 = pointerAsInt64 t1
                 n2 = pointerAsInt64 t2
-            in Map.lookup (op, n1, n2) binOpInfer
+            in case Map.lookup (op, n1, n2) binOpInfer of
+                Just res -> Just res
+                Nothing -> modMixedResult op n1 n2
   where
     pointerArithResult :: Operator -> Class -> Class -> Maybe Class
     pointerArithResult Add a b
@@ -383,6 +402,12 @@ inferBinaryOpMaybe op t1 t2 =
     pointerAsInt64 (Blob _) = Int64T
     pointerAsInt64 cls = cls
 
+    modMixedResult :: Operator -> Class -> Class -> Maybe Class
+    modMixedResult Mod a b
+        | (isIntegerType a && isFloatType b) || (isFloatType a && isIntegerType b) = Just Int64T
+        | otherwise = Nothing
+    modMixedResult _ _ _ = Nothing
+
 
 -- | Operand promotion type for a binary operator.
 --   For comparisons, operands should be promoted to a common numeric type,
@@ -396,7 +421,7 @@ binaryOpCastType op t1 t2
 
 binaryOpCastTypeMaybe :: Operator -> Class -> Class -> Maybe Class
 binaryOpCastTypeMaybe op t1 t2 = do
-    _ <- inferBinaryOpMaybe op t1 t2
+    resT <- inferBinaryOpMaybe op t1 t2
     case pointerArithCastType op t1 t2 of
         Just castT -> pure castT
         Nothing ->
@@ -405,7 +430,9 @@ binaryOpCastTypeMaybe op t1 t2 = do
             in pure $
                 if isCompareOp op
                     then promoteBasicType n1 n2
-                    else inferBinaryOp op n1 n2
+                    else if isModMixedNumeric op n1 n2
+                        then resT
+                        else inferBinaryOp op n1 n2
   where
     pointerArithCastType :: Operator -> Class -> Class -> Maybe Class
     pointerArithCastType Add a b
@@ -421,5 +448,10 @@ binaryOpCastTypeMaybe op t1 t2 = do
     pointerAsInt64 (Pointer _) = Int64T
     pointerAsInt64 (Blob _) = Int64T
     pointerAsInt64 cls = cls
+
+    isModMixedNumeric :: Operator -> Class -> Class -> Bool
+    isModMixedNumeric Mod a b =
+        (isIntegerType a && isFloatType b) || (isFloatType a && isIntegerType b)
+    isModMixedNumeric _ _ _ = False
 
 

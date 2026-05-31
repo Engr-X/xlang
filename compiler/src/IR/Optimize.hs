@@ -12,10 +12,11 @@ stripPhiProgm (IRProgm pkg classes) = IRProgm pkg (map stripPhiClass classes)
 
 
 stripPhiClass :: IRClass -> IRClass
-stripPhiClass (IRClass decl name fields (TAC.StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
+stripPhiClass (IRClass decl name classType fields (TAC.StaticInit (blocks, retBid)) atomTypes funs tFuns cFuns mainKind) =
     IRClass
         decl
         name
+        classType
         fields
         (TAC.StaticInit (map stripPhiBlock blocks, retBid))
         atomTypes

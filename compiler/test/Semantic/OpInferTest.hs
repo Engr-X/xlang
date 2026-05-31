@@ -97,7 +97,18 @@ iCastTests = testGroup "Semantic.OpInfer.iCast" [
     ]
 
 
+normalizeTypeAliasSugarTests :: TestTree
+normalizeTypeAliasSugarTests = testGroup "Semantic.OpInfer.normalizeTypeAliasSugar" [
+    testCase "people => pointer<people>" $
+        normalizeTypeAlias (Class ["people"] []) @?= Pointer (Class ["people"] []),
+    testCase "pointer<people> stays one-dimensional" $
+        normalizeTypeAlias (Pointer (Class ["people"] [])) @?= Pointer (Class ["people"] []),
+    testCase "pointer<pointer<people>> stays two-dimensional" $
+        normalizeTypeAlias (Pointer (Pointer (Class ["people"] []))) @?= Pointer (Pointer (Class ["people"] []))
+    ]
+
+
 tests :: TestTree
-tests = testGroup "Semantic.OpInfer" [isBasicTypeTests, promoteBasicTypeTests, binOpInferTests, inferBinaryOpTests, inferUnaryOpTests, augAssignOpTests, iCastTests]
+tests = testGroup "Semantic.OpInfer" [isBasicTypeTests, promoteBasicTypeTests, binOpInferTests, inferBinaryOpTests, inferUnaryOpTests, augAssignOpTests, iCastTests, normalizeTypeAliasSugarTests]
 
 

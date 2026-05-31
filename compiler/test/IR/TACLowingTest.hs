@@ -557,7 +557,86 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
                 pure (lowered, ty)) st0
         outTy @?= Int32T
         assertBool "index assign should read old value" (any isDerefInstr nodes)
-        assertBool "index assign should still write" (any isDerefAssignInstr nodes)
+        assertBool "index assign should still write" (any isDerefAssignInstr nodes),
+
+    testCase "blob assignment from string lowers to System.memcopy call" $ do
+        let posA = makePosition 13 1 1
+            posEq = makePosition 13 3 1
+            posS = makePosition 13 5 4
+            tokA = LT.Ident "a" posA
+            tokEq = LT.Symbol LT.Assign posEq
+            tokS = LT.StrConst "Hi" posS
+            expr = AST.Binary AST.Assign (AST.Variable "a" tokA) (AST.StringConst "Hi" tokS) tokEq
+            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0)]
+            stacks = Map.fromList [(("a", 0), [(Blob (AST.IntConst "16" LT.dummyToken), 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Blob (AST.IntConst "16" LT.dummyToken)
+        assertBool "should call xlang.System.memcopy directly" (any isMemcopyCall nodes)
+        assertBool "should not lower as byte-by-byte deref writes anymore" (not (any isBlobByteWrite nodes))
+    ]
+  where
+    isDerefInstr :: IRNode -> Bool
+    isDerefInstr node = case node of
+        IRInstr (TAC.Deref _ _) -> True
+        _ -> False
+
+    isDerefAssignInstr :: IRNode -> Bool
+    isDerefAssignInstr node = case node of
+        IRInstr (TAC.DerefAssign _ _ _) -> True
+        _ -> False
+
+    isBlobByteWrite :: IRNode -> Bool
+    isBlobByteWrite node = case node of
+        IRInstr (TAC.DerefAssign _ (TAC.Int8C _) 1) -> True
+        _ -> False
+
+    isMemcopyCall :: IRNode -> Bool
+    isMemcopyCall node = case node of
+        IRInstr (TAC.ICallStaticDirect _ ["xlang", "System", "memcopy"] [_, _, TAC.Int32C 3]) -> True
+        _ -> False
+
+incDecDerefLoweringTests :: TestTree
+incDecDerefLoweringTests = testGroup "IR.TACLowing.incDecDeref" [
+    testCase "(*p)++ lowers to Deref + DerefAssign and returns element type" $ do
+        let posP = makePosition 40 1 1
+            tokP = LT.Ident "p" posP
+            tokStar = LT.Symbol LT.Multiply (makePosition 40 2 1)
+            tokInc = LT.Symbol LT.PlusPlus (makePosition 40 3 2)
+            expr = AST.Unary AST.SelfInc (AST.Unary AST.DeRef (AST.Variable "p" tokP) tokStar) tokInc
+            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0)]
+            stacks = Map.fromList [(("p", 0), [(Pointer Int32T, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Int32T
+        assertBool "postfix deref ++ should emit read" (any isDerefInstr nodes)
+        assertBool "postfix deref ++ should emit write-back" (any isDerefAssignInstr nodes),
+
+    testCase "++(*p) lowers to Deref + DerefAssign and returns element type" $ do
+        let posP = makePosition 41 1 1
+            tokP = LT.Ident "p" posP
+            tokStar = LT.Symbol LT.Multiply (makePosition 41 3 1)
+            tokInc = LT.Symbol LT.PlusPlus (makePosition 41 1 2)
+            expr = AST.Unary AST.IncSelf (AST.Unary AST.DeRef (AST.Variable "p" tokP) tokStar) tokInc
+            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0)]
+            stacks = Map.fromList [(("p", 0), [(Pointer Int32T, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Int32T
+        assertBool "prefix deref ++ should emit read" (any isDerefInstr nodes)
+        assertBool "prefix deref ++ should emit write-back" (any isDerefAssignInstr nodes)
     ]
   where
     isDerefInstr :: IRNode -> Bool
@@ -604,7 +683,30 @@ functionPointerLoweringTests = testGroup "IR.TACLowing.functionPointer" [
                 ty <- TAC.getAtomType outAtom
                 pure (lowered, ty)) st0
         outTy @?= Int32T
-        assertBool "function-pointer call should emit TAC.ICallPtr" (any isICallPtr nodes)
+        assertBool "function-pointer call should emit TAC.ICallPtr" (any isICallPtr nodes),
+
+    testCase "assigning through pointer-to-function-pointer lowers to DerefAssign store-size 8" $ do
+        let posSlot = makePosition 32 1 4
+            posAdd = makePosition 32 10 3
+            tokSlot = LT.Ident "slot" posSlot
+            tokAdd = LT.Ident "add" posAdd
+            tokDeref = LT.Symbol LT.Multiply (makePosition 32 5 1)
+            tokAssign = LT.Symbol LT.Assign (makePosition 32 8 1)
+            lhs = AST.Unary AST.DeRef (AST.Variable "slot" tokSlot) tokDeref
+            rhs = AST.Variable "add" tokAdd
+            expr = AST.Binary AST.Assign lhs rhs tokAssign
+            fpTy = FuncPtr Int32T [Int32T, Int32T]
+            vUses = Map.fromList [([posSlot], TEnv.VarLocal (Public, []) "slot" 0)]
+            fUses = Map.fromList [([posAdd], TEnv.FunLocal (Public, []) ["add"] (FunSig [Int32T, Int32T] Int32T))]
+            stacks = Map.fromList [(("slot", 0), [(Pointer fpTy, 0)])]
+            st0 = TAC.mkTACState vUses fUses
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= fpTy
+        assertBool "pointer assignment should emit TAC.DerefAssign with 8-byte store" (any isDerefAssignStore8 nodes)
     ]
   where
     isGetFuncAddr :: IRNode -> Bool
@@ -615,6 +717,11 @@ functionPointerLoweringTests = testGroup "IR.TACLowing.functionPointer" [
     isICallPtr :: IRNode -> Bool
     isICallPtr node = case node of
         IRInstr (TAC.ICallPtr _ _ _) -> True
+        _ -> False
+
+    isDerefAssignStore8 :: IRNode -> Bool
+    isDerefAssignStore8 node = case node of
+        IRInstr (TAC.DerefAssign _ _ 8) -> True
         _ -> False
 
 
@@ -656,6 +763,28 @@ sizeofLoweringTests = testGroup "IR.TACLowing.sizeof" [
         outAtom @?= TAC.Int32C 8
     ]
 
+
+structClassSplitTests :: TestTree
+structClassSplitTests = testGroup "IR.TACLowing.structClassSplit" [
+    testCase "detect struct owner names from generated $$size symbols" $ do
+        let stmts =
+                [ AST.DefConstVar ["people$$size"] (Just Int32T) (Just (AST.IntConst "32" LT.dummyToken)) [LT.dummyToken]
+                , AST.DefConstVar ["node$$size"] (Just Int32T) (Just (AST.IntConst "16" LT.dummyToken)) [LT.dummyToken]
+                , AST.DefConstVar ["x"] (Just Int32T) (Just (AST.IntConst "1" LT.dummyToken)) [LT.dummyToken]
+                ]
+            names = structNamePrefixes stmts
+        names @?= ["people", "node"],
+
+    testCase "split struct-owned generated members into dedicated buckets" $ do
+        let peopleSize = AST.DefConstVar ["people$$size"] (Just Int32T) (Just (AST.IntConst "32" LT.dummyToken)) [LT.dummyToken]
+            peopleInit = AST.Function (Void, [LT.dummyToken]) (AST.Variable "people$__init__" LT.dummyToken) [] (AST.Multiple [])
+            mainFun = AST.Function (Void, [LT.dummyToken]) (AST.Variable "main" LT.dummyToken) [] (AST.Multiple [])
+            stmts = [peopleSize, peopleInit, mainFun]
+            (grouped, plain) = splitStructStmts (structNamePrefixes stmts) stmts
+        length (Map.findWithDefault [] "people" grouped) @?= 2
+        plain @?= [mainFun]
+    ]
+
 tests :: TestTree
 tests = testGroup "IR.TACLowing" [
     stripIntSuffixTests,
@@ -676,7 +805,9 @@ tests = testGroup "IR.TACLowing" [
     sizeofLoweringTests,
     pointerSuffixLoweringTests,
     pointerIntrinsicLoweringTests,
-    functionPointerLoweringTests
+    incDecDerefLoweringTests,
+    functionPointerLoweringTests,
+    structClassSplitTests
     ]
 
 

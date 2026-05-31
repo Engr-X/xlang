@@ -17,7 +17,7 @@ import Control.Exception (evaluate)
 import Control.Monad.State.Strict (runState)
 import Data.Char (toUpper)
 import Data.Either (lefts, rights)
-import Data.List (nub, partition)
+import Data.List (nub, partition, isPrefixOf)
 import Data.Maybe (fromMaybe)
 import Data.Map.Strict (Map)
 import Data.Word (Word64)
@@ -48,6 +48,18 @@ collectExternalTemplateStmts envs =
   where
     oneEnv :: TypedImportEnv -> [AST.Statement]
     oneEnv env = concat [defs | (defs, _, _) <- Map.elems (tTemplates env)]
+
+
+collectProgramStructStmts :: [(Path, Program)] -> [AST.Statement]
+collectProgramStructStmts progms =
+    nub
+        [ st
+        | (_, (_, stmts)) <- progms
+        , st <- AST.flattenStmtGroups stmts
+        , case st of
+            AST.Struct {} -> True
+            _ -> False
+        ]
 
 
 data FrontendStageTiming = FrontendStageTiming {
@@ -104,13 +116,14 @@ codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
         parseErrs = concat (lefts parsed)
         progms = rights parsed
         externalTemplateStmts = collectExternalTemplateStmts depTypedEnvs
+        externalStructStmts = collectProgramStructStmts progms
     in if not (null parseErrs)
         then Left parseErrs
         else case checkProgmWithDepsForTarget target root depImportEnvs depTypedEnvs progms of
             Left errs -> Left errs
             Right ctxs ->
                 let ctxMap = Map.fromList ctxs
-                    lowered = map (lowerOne externalTemplateStmts ctxMap) progms
+                    lowered = map (lowerOne externalTemplateStmts externalStructStmts ctxMap) progms
                     lowerErrs = concat (lefts lowered)
                     loweredOk = rights lowered
                 in if not (null lowerErrs)
@@ -134,16 +147,17 @@ codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
 
         lowerOne ::
             [Statement] ->
+            [Statement] ->
             Map Path TC.TypeCtx ->
             (Path, Program) ->
             Either [ErrorKind] ((Path, TAC.IRProgm), [Warning])
         -- | Lower one already-checked program with its per-file type context.
-        lowerOne extTemplates ctxMap (path, progRaw) =
+        lowerOne extTemplates extStructs ctxMap (path, progRaw) =
             case Map.lookup path ctxMap of
                 Nothing ->
                     Left [UE.Syntax (UE.makeError path [] UE.internalErrorMsg)]
                 Just ctx ->
-                    let prog = AST.normalizeProgramWithExternalTemplates extTemplates progRaw
+                    let prog = AST.normalizeProgramWithExternalTemplatesAndStructs extTemplates extStructs progRaw
                         (ir, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns = tcWarnings ctx ++ tacWarns
                     in Right ((path, ir), warns)
@@ -173,6 +187,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
         parseErrs = concat (lefts parsed)
         progms = rights parsed
         externalTemplateStmts = collectExternalTemplateStmts depTypedEnvs
+        externalStructStmts = collectProgramStructStmts progms
     if not (null parseErrs)
         then pure (Left parseErrs)
         else do
@@ -189,7 +204,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                 Left errs -> pure (Left errs)
                 Right ctxs -> do
                     let ctxMap = Map.fromList ctxs
-                    loweredWithTime <- mapM (lowerOneTimed externalTemplateStmts ctxMap) progms
+                    loweredWithTime <- mapM (lowerOneTimed externalTemplateStmts externalStructStmts ctxMap) progms
                     let irTimings = map fst loweredWithTime
                         lowered = map snd loweredWithTime
                         lowerErrs = concat (lefts lowered)
@@ -241,10 +256,11 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
 
     lowerOneTimed ::
         [Statement] ->
+        [Statement] ->
         Map Path TC.TypeCtx ->
         (Path, Program) ->
         IO (IrLoweringStageTiming, Either [ErrorKind] ((Path, TAC.IRProgm), [Warning]))
-    lowerOneTimed extTemplates ctxMap (path, progRaw) =
+    lowerOneTimed extTemplates extStructs ctxMap (path, progRaw) =
         case Map.lookup path ctxMap of
             Nothing ->
                 pure
@@ -253,7 +269,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                     )
             Just ctx -> do
                 ((ir, warns), irNs) <- timedIO $ do
-                    let prog = AST.normalizeProgramWithExternalTemplates extTemplates progRaw
+                    let prog = AST.normalizeProgramWithExternalTemplatesAndStructs extTemplates extStructs progRaw
                         (ir0, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns0 = tcWarnings ctx ++ tacWarns
                     _ <- evaluate (length warns0)
@@ -294,16 +310,26 @@ lowerWithUses ::
 lowerWithUses path (decls, stmts) vUses fUses =
     let (decls', stmts') = AST.normalizeProgramForLowering (decls, stmts)
         (classStmts, otherStmts) = partition AST.isClassDeclar stmts'
+        structNames = Low.structNamePrefixes otherStmts
+        (structStmtGroups, plainStmts) = Low.splitStructStmts structNames otherStmts
         pkgSegs = case filter AST.isPackageDecl decls' of
             (d:_) -> AST.declPath d
             [] -> []
         mainClassName = fromMaybe (toMainClassName path) (AST.getJavaName (decls', stmts'))
+        ownerOverrides =
+            let structOwnersRaw = Low.structOwnerOverrideMap structStmtGroups
+                structOwners = Map.filterWithKey isStructOwnedSymbol structOwnersRaw
+                plainOwners = Low.plainOwnerOverrideMap mainClassName plainStmts
+            in Map.insert Low.defaultPlainOwnerKey mainClassName (Map.union structOwners plainOwners)
         action = do
             classIRs <- mapM Low.classLowing classStmts
-            extraIRs <- if null otherStmts
+            structIRs <- mapM
+                (\(sname, sstmts) -> Low.classStmtsLowing TAC.IRClassTypeStruct pkgSegs sname ownerOverrides (reverse sstmts))
+                (Map.toList structStmtGroups)
+            extraIRs <- if null plainStmts
                 then pure []
-                else (:[]) <$> Low.classStmtsLowing pkgSegs mainClassName otherStmts
-            pure $ TAC.IRProgm pkgSegs (classIRs ++ extraIRs)
+                else (:[]) <$> Low.classStmtsLowing TAC.IRClassTypeClass pkgSegs mainClassName ownerOverrides plainStmts
+            pure $ TAC.IRProgm pkgSegs (classIRs ++ structIRs ++ extraIRs)
         st0 = TAC.mkTACState vUses fUses
         (ir0, st1) = runState (TAC.runTACM action) st0
         ir = Opt.formateIR ir0
@@ -319,6 +345,10 @@ lowerWithUses path (decls, stmts) vUses fUses =
                     [] -> "Main"
                     (c:cs) -> toUpper c : cs
             in cap ++ "X"
+
+        isStructOwnedSymbol :: String -> String -> Bool
+        isStructOwnedSymbol sym ownerCls =
+            sym == (ownerCls ++ "$$size") || (ownerCls ++ "$") `isPrefixOf` sym
 
         -- | Cross-platform file-name extraction without depending on System.FilePath.
         takeFileName :: FilePath -> FilePath

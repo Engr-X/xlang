@@ -101,6 +101,9 @@ mainTypeKey = Key.fromString "main_type"
 mainQNameKey :: Key
 mainQNameKey = Key.fromString "main_qname"
 
+classTypeKey :: Key
+classTypeKey = Key.fromString "class_type"
+
 jvmTargetKey :: Key
 jvmTargetKey = Key.fromString "jvm_target"
 
@@ -457,11 +460,20 @@ irCMethodMetaToJSON (IR.IRCFunction decl fname sig _ _ memberType) = object [
     paramTypesKey .= map typeToCompactText (funParams sig)]
 
 
+classTypeText :: IR.IRClassType -> String
+classTypeText classType = case classType of
+    IR.IRClassTypeClass -> "class"
+    IR.IRClassTypeStruct -> "struct"
+    IR.IRClassTypeInterface -> "interface"
+    IR.IRClassTypeAbstractClass -> "abstract_class"
+
+
 irClassMetaToJSON :: Int -> QName -> IR.IRClass -> Value
-irClassMetaToJSON jvmTarget pkgSegs (IR.IRClass decl className attrs _ _ funs _ cFuns mainKind) =
+irClassMetaToJSON jvmTarget pkgSegs (IR.IRClass decl className classType attrs _ _ funs _ cFuns mainKind) =
     object $ [
         jvmTargetKey .= jvmTarget,
         classKey .= (pkgSegs ++ [className]),
+        classTypeKey .= classTypeText classType,
         accessKey .= declToAccessMask decl,
         signatureKey .= ([] :: [String]),
         superClassKey .= ([] :: [String]),

@@ -377,6 +377,8 @@ splitShiftInGenerics = go 0
         go depth (t1:t2:ts)
             -- Enter or nest generic: '::' '<'
             | isDoubleColon t1 && isLessThan t2 = t1 : t2 : go (depth + 1) ts
+            -- Enter generic for pointer<...> type syntax (supports nested pointer<pointer<T>>).
+            | isPointerIdent t1 && isLessThan t2 = t1 : t2 : go (depth + 1) ts
 
                 -- Inside generic: split '>>' into '>' '>'
             | depth > 0 && isBitRShift t1 =
@@ -398,6 +400,9 @@ splitShiftInGenerics = go 0
 
         isDoubleColon (Symbol Lex.DoubleColon _) = True
         isDoubleColon _ = False
+
+        isPointerIdent (Lex.Ident s _) = map toLower s == "pointer"
+        isPointerIdent _ = False
 
         isLessThan (Symbol Lex.LessThan _) = True
         isLessThan _ = False

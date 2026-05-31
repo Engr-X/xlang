@@ -436,7 +436,14 @@ symbolAliasesTests = mkGroup "Semantic.CheckProgram.symbolAliases" [
 
     ("3", do
         let (fullQn, _) = symbolAliases "" ["p"] "v"
-        fullQn @?= ["p", "MainX", "v"])
+        fullQn @?= ["p", "MainX", "v"]),
+
+    ("4", do
+        let (fullQn, aliases) = symbolAliasesWithClass "ScreenX" ["p"] "Screen$LINE_HEIGHT"
+            aliasSet = HashSet.fromList aliases
+        fullQn @?= ["p", "Screen", "Screen$LINE_HEIGHT"]
+        assertBool "must expose bare member alias" (HashSet.member ["LINE_HEIGHT"] aliasSet)
+        assertBool "must expose owner member alias" (HashSet.member ["Screen", "LINE_HEIGHT"] aliasSet))
     ]
 
 
@@ -661,7 +668,7 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
     ("0", do
         let i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [] i0 t0 Map.empty) $ \(i, t, ctxs) -> do
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [] i0 t0 Map.empty []) $ \(i, t, ctxs) -> do
             i @?= i0
             t @?= t0
             assertBool "expected empty ctx map" (Map.null ctxs)),
@@ -670,14 +677,14 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
         let mi = mkModuleInfo "m1.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [mi] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [mi] i0 t0 Map.empty []) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 1),
 
     ("2", do
         let miBad = mkModuleInfo "m1.x" ["p"] [] [mkFunNoReturn "f" 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertLeftWith (checkPackageFixpoint SemanticTargetNative [] [] [miBad] i0 t0 Map.empty) $ \errs ->
+        assertLeftWith (checkPackageFixpoint SemanticTargetNative [] [] [miBad] i0 t0 Map.empty []) $ \errs ->
             assertBool "must fail" (not (null errs))),
 
     ("3", do
@@ -685,7 +692,7 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
             miDef = mkModuleInfo "def.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty []) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 2)
     ,
 
@@ -694,7 +701,15 @@ checkPackageFixpointTests = mkGroup "Semantic.CheckProgram.checkPackageFixpoint"
             miDef = mkModuleInfo "def2.x" ["p"] [] [assignStmt "a" (intExpr 1 1) 1]
             i0 = IEnv "seed.x" Map.empty Map.empty
             t0 = emptyTypedImportEnv "seed.x"
-        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty) $ \(_, _, ctxs) ->
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty []) $ \(_, _, ctxs) ->
+            Map.size ctxs @?= 2),
+
+    ("5", do
+        let miNeed = mkModuleInfo "need3.x" ["p"] [] [assignStmt "b" (varExpr "LINE_HEIGHT" 2) 2]
+            miDef = mkModuleInfo "def3.x" ["p"] [] [assignStmt "Screen$LINE_HEIGHT" (intExpr 25 1) 1]
+            i0 = IEnv "seed.x" Map.empty Map.empty
+            t0 = emptyTypedImportEnv "seed.x"
+        assertRightWith (checkPackageFixpoint SemanticTargetNative [] [] [miNeed, miDef] i0 t0 Map.empty []) $ \(_, _, ctxs) ->
             Map.size ctxs @?= 2)
     ]
 
