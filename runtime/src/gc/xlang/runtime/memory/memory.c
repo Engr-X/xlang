@@ -122,10 +122,7 @@ void* xlang_realloc(const void* const ptr, const x_i64 size)
         return xlang_malloc(size);
 
     if (size <= 0)
-    {
-        xlang_mfree(ptr);
         return NULL;
-    }
 
     const size_t index = memlist_find(&list, ptr);
 
@@ -137,7 +134,7 @@ void* xlang_realloc(const void* const ptr, const x_i64 size)
     if (result == NULL)
         return NULL;
 
-    list.list[index] = result;
+    list.list[index] = (void*)(result);
 
     return (void*)(result);
 }

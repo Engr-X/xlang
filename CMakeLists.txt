@@ -44,3 +44,5 @@ endif()
 
 # step1: build xlang-runtime-lib
 add_subdirectory(runtime)
+
+add_subdirectory(src)

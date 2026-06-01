@@ -63,7 +63,7 @@
  * @param x                     the input angle, in radians
  * @return                      the sine of x
  */
-extern inline x_f64 xlang_sin(x_f64 x);
+extern x_f64 xlang_sin(x_f64 x);
 
 
 /**
@@ -75,7 +75,7 @@ extern inline x_f64 xlang_sin(x_f64 x);
  * @param x                     the input angle, in radians
  * @return                      the cosine of x
  */
-extern inline x_f64 xlang_cos(x_f64 x);
+extern x_f64 xlang_cos(x_f64 x);
 
 
 /**
@@ -87,7 +87,7 @@ extern inline x_f64 xlang_cos(x_f64 x);
  * @param x                     the input angle, in radians
  * @return                      the tangent of x
  */
-extern inline x_f64 xlang_tan(x_f64 x);
+extern x_f64 xlang_tan(x_f64 x);
 
 
 /**
@@ -101,7 +101,7 @@ extern inline x_f64 xlang_tan(x_f64 x);
  * @param x                     the input value
  * @return                      the arc sine of x, in radians
  */
-extern inline x_f64 xlang_asin(x_f64 x);
+extern x_f64 xlang_asin(x_f64 x);
 
 
 /**
@@ -115,7 +115,7 @@ extern inline x_f64 xlang_asin(x_f64 x);
  * @param x                     the input value
  * @return                      the arc cosine of x, in radians
  */
-extern inline x_f64 xlang_acos(x_f64 x);
+extern x_f64 xlang_acos(x_f64 x);
 
 
 /**
@@ -127,7 +127,7 @@ extern inline x_f64 xlang_acos(x_f64 x);
  * @param x                     the input value
  * @return                      the arc tangent of x, in radians
  */
-extern inline x_f64 xlang_atan(x_f64 x);
+extern x_f64 xlang_atan(x_f64 x);
 
 
 /**
@@ -139,7 +139,7 @@ extern inline x_f64 xlang_atan(x_f64 x);
  * @param x                     the exponent
  * @return                      e raised to the power of x
  */
-extern inline x_f64 xlang_exp(x_f64 x);
+extern x_f64 xlang_exp(x_f64 x);
 
 
 /**
@@ -153,7 +153,7 @@ extern inline x_f64 xlang_exp(x_f64 x);
  * @param x                     the input value
  * @return                      the natural logarithm of x
  */
-extern inline x_f64 xlang_ln(x_f64 x);
+extern x_f64 xlang_ln(x_f64 x);
 
 
 /**
@@ -167,7 +167,7 @@ extern inline x_f64 xlang_ln(x_f64 x);
  * @param x                     the input value
  * @return                      the base-10 logarithm of x
  */
-extern inline x_f64 xlang_log10(x_f64 x);
+extern x_f64 xlang_log10(x_f64 x);
 
 
 /**
@@ -180,7 +180,7 @@ extern inline x_f64 xlang_log10(x_f64 x);
  * @param x                     the input value
  * @return                      the square root of x
  */
-extern inline x_f64 xlang_sqrt(x_f64 x);
+extern x_f64 xlang_sqrt(x_f64 x);
 
 
 /**
@@ -192,7 +192,7 @@ extern inline x_f64 xlang_sqrt(x_f64 x);
  * @param x                     the input value
  * @return                      the cube root of x
  */
-extern inline x_f64 xlang_cbrt(x_f64 x);
+extern x_f64 xlang_cbrt(x_f64 x);
 
 
 /**
@@ -209,6 +209,6 @@ extern inline x_f64 xlang_cbrt(x_f64 x);
  * @param y                     the divisor
  * @return                      the IEEE-style floating-point remainder of x divided by y
  */
-extern inline x_f64 xlang_IEEEremainder(x_f64 x, x_f64 y);
+extern x_f64 xlang_IEEEremainder(x_f64 x, x_f64 y);
 
 #endif

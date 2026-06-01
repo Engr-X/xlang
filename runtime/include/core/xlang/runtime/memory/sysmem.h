@@ -67,7 +67,7 @@
  * @param size                  the number of bytes to allocate
  * @return                      a pointer to the allocated memory block, or null if allocation fails
  */
-extern inline void* xlang_sys_alloc(const x_i64 size);
+extern void* xlang_sys_alloc(const x_i64 size);
 
 
 /**
@@ -90,7 +90,7 @@ extern inline void* xlang_sys_alloc(const x_i64 size);
  * @param size                  the requested new size in bytes
  * @return                      a pointer to the resized memory block, or null if reallocation fails
  */
-extern inline void* xlang_sys_realloc(const void* const memory, const x_i64 size);
+extern void* xlang_sys_realloc(const void* const memory, const x_i64 size);
 
 
 /**
@@ -109,6 +109,6 @@ extern inline void* xlang_sys_realloc(const void* const memory, const x_i64 size
  *
  * @param ptr                   the memory block to release
  */
-extern inline void xlang_sys_free(const void* const ptr);
+extern void xlang_sys_free(const void* const ptr);
 
 #endif

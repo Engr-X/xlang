@@ -62,7 +62,7 @@
  *
  * @param value                 the boolean value to print
  */
-extern inline void xlang_put_bool(const bool value);
+extern void xlang_put_bool(const bool value);
 
 
 /**
@@ -74,7 +74,7 @@ extern inline void xlang_put_bool(const bool value);
  *
  * @param value                 the character value to print
  */
-extern inline void xlang_put_char(const char value);
+extern void xlang_put_char(const char value);
 
 
 /**
@@ -85,7 +85,7 @@ extern inline void xlang_put_char(const char value);
  *
  * @param value                 the 8-bit signed integer value to print
  */
-extern inline void xlang_put_i8(const x_i8 value);
+extern void xlang_put_i8(const x_i8 value);
 
 
 /**
@@ -96,7 +96,7 @@ extern inline void xlang_put_i8(const x_i8 value);
  *
  * @param value                 the 16-bit signed integer value to print
  */
-extern inline void xlang_put_i16(const x_i16 value);
+extern void xlang_put_i16(const x_i16 value);
 
 
 /**
@@ -107,7 +107,7 @@ extern inline void xlang_put_i16(const x_i16 value);
  *
  * @param value                 the 32-bit signed integer value to print
  */
-extern inline void xlang_put_i32(const x_i32 value);
+extern void xlang_put_i32(const x_i32 value);
 
 
 /**
@@ -118,7 +118,7 @@ extern inline void xlang_put_i32(const x_i32 value);
  *
  * @param value                 the 64-bit signed integer value to print
  */
-extern inline void xlang_put_i64(const x_i64 value);
+extern void xlang_put_i64(const x_i64 value);
 
 
 /**
@@ -130,7 +130,7 @@ extern inline void xlang_put_i64(const x_i64 value);
  *
  * @param value                 the 32-bit floating-point value to print
  */
-extern inline void xlang_put_f32(const x_f32 value);
+extern void xlang_put_f32(const x_f32 value);
 
 
 /**
@@ -142,7 +142,7 @@ extern inline void xlang_put_f32(const x_f32 value);
  *
  * @param value                 the 64-bit floating-point value to print
  */
-extern inline void xlang_put_f64(const x_f64 value);
+extern void xlang_put_f64(const x_f64 value);
 
 
 /**
@@ -154,7 +154,7 @@ extern inline void xlang_put_f64(const x_f64 value);
  *
  * @param value                 the pointer value to print
  */
-extern inline void xlang_put_p(const void* value);
+extern void xlang_put_p(const void* value);
 
 
 /**
@@ -168,7 +168,7 @@ extern inline void xlang_put_p(const void* value);
  *
  * @param value                 the null-terminated string to print
  */
-extern inline void xlang_put_str(const char* const value);
+extern void xlang_put_str(const char* const value);
 
 
 /**
@@ -179,7 +179,7 @@ extern inline void xlang_put_str(const char* const value);
  *
  * @param value                 the boolean value to print
  */
-extern inline void xlang_putln_bool(const bool value);
+extern void xlang_putln_bool(const bool value);
 
 
 /**
@@ -190,7 +190,7 @@ extern inline void xlang_putln_bool(const bool value);
  *
  * @param value                 the character value to print
  */
-extern inline void xlang_putln_char(const char value);
+extern void xlang_putln_char(const char value);
 
 
 /**
@@ -201,7 +201,7 @@ extern inline void xlang_putln_char(const char value);
  *
  * @param value                 the 8-bit signed integer value to print
  */
-extern inline void xlang_putln_i8(const x_i8 value);
+extern void xlang_putln_i8(const x_i8 value);
 
 
 /**
@@ -212,7 +212,7 @@ extern inline void xlang_putln_i8(const x_i8 value);
  *
  * @param value                 the 16-bit signed integer value to print
  */
-extern inline void xlang_putln_i16(const x_i16 value);
+extern void xlang_putln_i16(const x_i16 value);
 
 
 /**
@@ -223,7 +223,7 @@ extern inline void xlang_putln_i16(const x_i16 value);
  *
  * @param value                 the 32-bit signed integer value to print
  */
-extern inline void xlang_putln_i32(const x_i32 value);
+extern void xlang_putln_i32(const x_i32 value);
 
 
 /**
@@ -234,7 +234,7 @@ extern inline void xlang_putln_i32(const x_i32 value);
  *
  * @param value                 the 64-bit signed integer value to print
  */
-extern inline void xlang_putln_i64(const x_i64 value);
+extern void xlang_putln_i64(const x_i64 value);
 
 
 /**
@@ -245,7 +245,7 @@ extern inline void xlang_putln_i64(const x_i64 value);
  *
  * @param valuethe              32-bit floating-point value to print
  */
-extern inline void xlang_putln_f32(const x_f32 value);
+extern void xlang_putln_f32(const x_f32 value);
 
 
 /**
@@ -256,7 +256,7 @@ extern inline void xlang_putln_f32(const x_f32 value);
  *
  * @param value                 the 64-bit floating-point value to print
  */
-extern inline void xlang_putln_f64(const x_f64 value);
+extern void xlang_putln_f64(const x_f64 value);
 
 
 /**
@@ -267,7 +267,7 @@ extern inline void xlang_putln_f64(const x_f64 value);
  *
  * @param value                 the pointer value to print
  */
-extern inline void xlang_putln_p(const void* value);
+extern void xlang_putln_p(const void* value);
 
 
 /**
@@ -281,6 +281,6 @@ extern inline void xlang_putln_p(const void* value);
  *
  * @param value                 the null-terminated string to print
  */
-extern inline void xlang_putln_str(const char* const value);
+extern void xlang_putln_str(const char* const value);
 
 #endif
