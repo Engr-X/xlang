@@ -13,26 +13,30 @@ endif()
 
 
 # Source root for package path resolution.
-set(XLANG_SRC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/main")
+set(XLANG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/main")
 
 # Keep generated object files in build tree with the same relative layout.
 set(XLANG_OBJ_ROOT "${CMAKE_BINARY_DIR}/objs")
 
 # collect all xlang source files
-file(GLOB_RECURSE XLANG_SRCS_ABS
+file(GLOB_RECURSE XLANG_SOURCES
     CONFIGURE_DEPENDS
-    "${XLANG_SRC_ROOT}/*.x"
-    "${XLANG_SRC_ROOT}/*.xl"
-    "${XLANG_SRC_ROOT}/*.xlang"
+    "${XLANG_SOURCE_DIR}/*.x"
+    "${XLANG_SOURCE_DIR}/*.xl"
+    "${XLANG_SOURCE_DIR}/*.xlang"
 )
+
+# filter xlang/compiler/codegen
+list(FILTER XLANG_SOURCES EXCLUDE REGEX ".*[\\\\/]xlang[\\\\/]compiler[\\\\/]codegen[\\\\/].*")
+
 
 # 2. build source list for xlang -c and object list for CMake dependency graph
 set(XLANG_SRCS)
 set(XLANG_OBJS)
 set(XLANG_OBJ_DIRS)
 
-foreach(src_abs ${XLANG_SRCS_ABS})
-    file(RELATIVE_PATH src_rel "${XLANG_SRC_ROOT}" "${src_abs}")
+foreach(src_abs ${XLANG_SOURCES})
+    file(RELATIVE_PATH src_rel "${XLANG_SOURCE_DIR}" "${src_abs}")
     string(REPLACE "\\" "/" src_rel "${src_rel}")
     list(APPEND XLANG_SRCS "${src_rel}")
 
@@ -59,13 +63,13 @@ if (XLANG_SRCS)
         COMMAND ${CMAKE_COMMAND} -E make_directory ${XLANG_OBJ_DIRS}
         COMMAND ${XLANG}
             --target=x64
-            --root=${XLANG_SRC_ROOT}
+            --root=${XLANG_SOURCE_DIR}
             -c ${XLANG_SRCS}
             -d ${XLANG_OBJ_ROOT}
 
-        DEPENDS ${XLANG_SRCS_ABS}
+        DEPENDS ${XLANG_SOURCES}
 
-        WORKING_DIRECTORY ${XLANG_SRC_ROOT}
+        WORKING_DIRECTORY ${XLANG_SOURCE_DIR}
 
         COMMENT "Compiling xlang sources"
         VERBATIM
@@ -77,7 +81,7 @@ if (XLANG_SRCS)
     )
 else()
     add_custom_target(xlang_objects
-        COMMENT "No xlang source files found under ${XLANG_SRC_ROOT}"
+        COMMENT "No xlang source files found under ${XLANG_SOURCE_DIR}"
     )
 endif()
 

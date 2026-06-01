@@ -42,7 +42,11 @@ elseif (MSVC)
 endif()
 
 
-# step1: build xlang-runtime-lib
+# step 1: build 3rd-party dependencies
+add_subdirectory(3rd-party/tiny-regex-c)
+add_subdirectory(3rd-party/cJSON)
+
+# step 2: build xlang-runtime-lib
 add_subdirectory(runtime)
 
 add_subdirectory(src)
