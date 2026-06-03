@@ -43,8 +43,7 @@ endif()
 
 
 # step 1: build 3rd-party dependencies
-add_subdirectory(3rd-party/tiny-regex-c)
-add_subdirectory(3rd-party/cJSON)
+add_subdirectory(3rd-party)
 
 # step 2: build xlang-runtime-lib
 add_subdirectory(runtime)

@@ -70,6 +70,7 @@ set(XLANG_NATIVE_RUNTIME_DIR "${CMAKE_BINARY_DIR}/xlang/runtime/native")
 
 set(XLANG_CORE_SOURCES
     "${XLANG_CORE_RT_SOURCE_DIR}/io/console.c"
+    "${XLANG_CORE_RT_SOURCE_DIR}/io/file.c"
     "${XLANG_CORE_RT_SOURCE_DIR}/memory/sysmem.c"
     "${XLANG_CORE_RT_SOURCE_DIR}/math.c"
     # "${XLANG_CORE_RT_SOURCE_DIR}/stacktrace.c"

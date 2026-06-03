@@ -1,3 +1,4 @@
+@file.class("Xlang")
 package xlang.compiler
 
 
