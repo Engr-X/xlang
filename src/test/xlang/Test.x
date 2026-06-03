@@ -1,9 +1,10 @@
 @file.class("Test")
-
 package xlang
+
+import xlang.util.IO
 
 
 fun main()
 {
-    putln("HelloWorld" as pointer<char>)
+    IO.enableANSIColor()
 }

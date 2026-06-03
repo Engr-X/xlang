@@ -12,7 +12,90 @@ endif()
 
 ###############################################################
 
-# step 2: build xlang sources
+# step 2: build C sources
+
+set(XLANG_C_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/c/src")
+set(XLANG_C_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/c/include")
+set(XLANG_C_OBJ_ROOT "${CMAKE_BINARY_DIR}/objs/src/main/c")
+
+file(GLOB_RECURSE XLANG_C_SOURCES
+    CONFIGURE_DEPENDS
+    "${XLANG_C_SOURCE_DIR}/*.c"
+)
+
+set(XLANG_C_OBJS)
+set(XLANG_C_OBJ_DIRS)
+
+foreach(c_src_abs ${XLANG_C_SOURCES})
+    file(RELATIVE_PATH c_src_rel "${XLANG_C_SOURCE_DIR}" "${c_src_abs}")
+    string(REPLACE "\\" "/" c_src_rel "${c_src_rel}")
+
+    get_filename_component(c_src_dir "${c_src_rel}" DIRECTORY)
+    get_filename_component(c_src_name_we "${c_src_rel}" NAME_WE)
+
+    if (c_src_dir STREQUAL "")
+        set(c_obj_dir "${XLANG_C_OBJ_ROOT}")
+        set(c_obj_abs "${XLANG_C_OBJ_ROOT}/${c_src_name_we}.o")
+    else()
+        set(c_obj_dir "${XLANG_C_OBJ_ROOT}/${c_src_dir}")
+        set(c_obj_abs "${XLANG_C_OBJ_ROOT}/${c_src_dir}/${c_src_name_we}.o")
+    endif()
+
+    list(APPEND XLANG_C_OBJ_DIRS "${c_obj_dir}")
+    list(APPEND XLANG_C_OBJS "${c_obj_abs}")
+endforeach()
+
+list(REMOVE_DUPLICATES XLANG_C_OBJ_DIRS)
+set_property(GLOBAL PROPERTY GP_XLANG_C_OBJS "${XLANG_C_OBJS}")
+
+if (XLANG_C_SOURCES)
+    foreach(c_src_abs ${XLANG_C_SOURCES})
+        file(RELATIVE_PATH c_src_rel "${XLANG_C_SOURCE_DIR}" "${c_src_abs}")
+        string(REPLACE "\\" "/" c_src_rel "${c_src_rel}")
+
+        get_filename_component(c_src_dir "${c_src_rel}" DIRECTORY)
+        get_filename_component(c_src_name_we "${c_src_rel}" NAME_WE)
+
+        if (c_src_dir STREQUAL "")
+            set(c_obj_dir "${XLANG_C_OBJ_ROOT}")
+            set(c_obj_abs "${XLANG_C_OBJ_ROOT}/${c_src_name_we}.o")
+        else()
+            set(c_obj_dir "${XLANG_C_OBJ_ROOT}/${c_src_dir}")
+            set(c_obj_abs "${XLANG_C_OBJ_ROOT}/${c_src_dir}/${c_src_name_we}.o")
+        endif()
+
+        add_custom_command(
+            OUTPUT "${c_obj_abs}"
+
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${c_obj_dir}"
+            COMMAND ${CMAKE_C_COMPILER}
+                -I "${XLANG_C_INCLUDE_DIR}"
+                -c "${c_src_abs}"
+                -o "${c_obj_abs}"
+
+            DEPENDS "${c_src_abs}"
+
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+
+            COMMENT "Compiling C source ${c_src_rel}"
+            VERBATIM
+            COMMAND_EXPAND_LISTS
+        )
+    endforeach()
+
+    add_custom_target(xlang_c_objects ALL
+        DEPENDS ${XLANG_C_OBJS}
+    )
+else()
+    add_custom_target(xlang_c_objects
+        COMMENT "No C source files found under ${XLANG_C_SOURCE_DIR}"
+    )
+endif()
+
+
+###############################################################
+
+# step 3: build xlang sources
 
 set(XLANG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(XLANG_OBJ_ROOT "${CMAKE_BINARY_DIR}/objs/main")
@@ -93,7 +176,7 @@ endif()
 
 ###############################################################
 
-# step 3: build xlang executable
+# step 4: build xlang executable
 
 set(XLANG_DIR "${CMAKE_BINARY_DIR}/xlang")
 set(XLANG_EXE "${XLANG_DIR}/xlang${CMAKE_EXECUTABLE_SUFFIX}")
@@ -105,12 +188,12 @@ if (XLANG_SRCS)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XLANG_DIR}"
         COMMAND ${XLANG}
             --target=x64
-            -lib ${XLANG_COMPILER_OBJS} ${XLANG_LIBS}
+            -lib ${XLANG_COMPILER_OBJS} ${XLANG_C_OBJS} ${XLANG_LIBS}
             -d "${XLANG_EXE}"
             "--include-runtime"
             --main=xlang.compiler.Xlang.main
 
-        DEPENDS ${XLANG_COMPILER_OBJS} cjson tiny-regex ${XLANG}
+        DEPENDS ${XLANG_COMPILER_OBJS} ${XLANG_C_OBJS} cjson tiny-regex ${XLANG}
 
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 

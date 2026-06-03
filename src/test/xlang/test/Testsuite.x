@@ -1,18 +1,35 @@
 package xlang.test
 
 import xlang.System
-
 import xlang.util.string.StringBuilder
+import xlang.util.IO
+import xlang.util.TypeConvert
 
 
 val TEST_SUCCESS: int = 0
-private val TEXT_BUFFER: blob[1024]
+private val BUFFER_SPACE: blob[1024]
+private val TEXT_BUFFER: pointer<char> = BUFFER_SPACE as pointer<char>
+
+private val PASS_MSG: pointer<char> = "PASS" as pointer<char>
+private val FAIL_MSG: pointer<char> = "FAIL" as pointer<char>
 
 
 private fun insertTabs(dest: StringBuilder, n: int)
 {
     repeat n * 4:
         dest.append(' ')
+}
+
+
+private fun printTabs(n: int)
+{
+    val sb: pointer<StringBuilder> = StringBuilder()
+
+    repeat n * 4:
+        sb.append(' ')
+
+    sb.get(TEXT_BUFFER)
+    put(TEXT_BUFFER)
 }
 
 
@@ -38,12 +55,20 @@ struct TestCase
     private var name: pointer<char>
 
 
-    // TODO use real stringbuilder to improve efficiency
-    fun runTest(n: int, record: pointer<TestRecord>)
+    fun __init__(name: pointer<char>, func: () -> int)
     {
-        val sb: StringBuilder = StringBuilder()
+        this.name = name
+        this.func = func
+    }
+
+
+    // TODO use real stringbuilder to improve efficiency
+    fun runTest( n: int, record: pointer<TestRecord>)
+    {
+        val sb: pointer<StringBuilder> = StringBuilder()
         insertTabs(sb, n)
         sb.append(this.name)
+        sb.append(':')
         sb.append(' ')
 
         val result: int = this.func()
@@ -52,11 +77,19 @@ struct TestCase
 
         if result == TEST_SUCCESS:
         {
-            sb.append("pass" as pointer<char>)
+            IO.coloredSprint(TEXT_BUFFER, PASS_MSG, 32)
+            sb.append(TEXT_BUFFER)
             record.correct++
         }
         else:
-            sb.append("fail" as pointer<char>)
+        {
+            IO.coloredSprint(TEXT_BUFFER, FAIL_MSG, 91)
+            sb.append(TEXT_BUFFER)
+        }
+
+        sb.newline()
+        sb.get(TEXT_BUFFER)
+        put(TEXT_BUFFER)
     }
 }
 
@@ -65,19 +98,28 @@ struct TestUnion
 {
     var type: int
     var testCase: pointer<TestCase>
-    var group: pointer<Testgroup>
+    var testGroup: pointer<TestGroup>
+
+
+    fun __init__(type: int, testCase: pointer<TestCase>, testGroup: pointer<TestGroup>)
+    {
+        this.type = type
+        this.testCase = testCase
+        this.testGroup = testGroup
+    }
+
 
     fun runTest(n: int, record: pointer<TestRecord>)
     {
         if this.type == TestCase.TYPE:
             this.testCase.runTest(n, record)
         else:
-            this.group.runTest(n, record)
+            this.testGroup.runTest(n, record)
     }
 }
 
 
-struct Testgroup
+struct TestGroup
 {
     static val TYPE: int = 1
 
@@ -85,7 +127,7 @@ struct Testgroup
     private static val LOAD_FACTOR: double = 0.75
 
     var length: int
-
+    private var name: pointer<char>
     private val capacity: int;
     private var list: pointer<pointer<TestUnion>>
 
@@ -93,6 +135,7 @@ struct Testgroup
     fun __init__(name: pointer<char>)
     {
         this.length = 0
+        this.name = name
         this.capacity = INIT_CAPCITY
         this.list = System.allocMemory(this.capacity * sizeof(pointer<TestUnion>))
     }
@@ -116,8 +159,40 @@ struct Testgroup
     }
 
 
-    private fun runTest(n: int, record: pointer<TestRecord>)
+    fun runTest(n: int, record: pointer<TestRecord>)
     {
-        
+        printTabs(n)
+        putln(this.name)
+
+        for (var i = 0; i < this.length; i++):
+        {
+            val union: pointer<TestUnion> = this.list[i]
+            union.runTest(n + 1, record)
+        }
+    }
+
+
+    fun runTest()
+    {
+        val sb: pointer<StringBuilder> = StringBuilder()
+        val record: pointer<TestRecord> = TestRecord()
+        this.runTest(0, record)
+
+        TypeConvert.intToString(TEXT_BUFFER, record.correct)
+        sb.append(TEXT_BUFFER)
+        sb.append(" out of " as pointer<char>)
+        TypeConvert.intToString(TEXT_BUFFER, record.total)
+        sb.append(TEXT_BUFFER)
+        sb.append("passed." as pointer<char>)
+
+        if record.correct == record.total:
+        {
+            sb.newline()
+            IO.coloredSprint(TEXT_BUFFER, "Congratulations!" as pointer<char>, 32)
+            sb.append(TEXT_BUFFER)
+        }
+
+        sb.get(TEXT_BUFFER)
+        put(TEXT_BUFFER)
     }
 }

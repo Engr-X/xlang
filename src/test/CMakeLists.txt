@@ -24,6 +24,7 @@ set(XLANG_TEST_LIBS
 
 collect_xlang_sources(XLANG_TEST_SOURCES "${XLANG_TEST_SOURCE_DIR}")
 get_property(XLANG_COMPILER_OBJS GLOBAL PROPERTY GP_XLANG_COMPILER_OBJS)
+get_property(XLANG_C_OBJS GLOBAL PROPERTY GP_XLANG_C_OBJS)
 
 set(XLANG_TEST_SRCS)
 set(XLANG_TEST_OBJS)
@@ -61,10 +62,10 @@ if (XLANG_TEST_SRCS)
             --target=x64
             --root=${XLANG_TEST_SOURCE_DIR}
             -c ${XLANG_TEST_SRCS}
-            -lib ${XLANG_COMPILER_OBJS}
+            -lib ${XLANG_COMPILER_OBJS} ${XLANG_C_OBJS}
             -d ${XLANG_TEST_OBJ_ROOT}
 
-        DEPENDS ${XLANG_COMPILER_OBJS} cjson tiny-regex ${XLANG}
+        DEPENDS ${XLANG_COMPILER_OBJS} ${XLANG_C_OBJS} cjson tiny-regex ${XLANG_TEST_SOURCES} ${XLANG}
 
         WORKING_DIRECTORY ${XLANG_TEST_SOURCE_DIR}
 
@@ -98,12 +99,12 @@ if (XLANG_TEST_SRCS)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XLANG_TEST_DIR}"
         COMMAND ${XLANG}
             --target=x64
-            -lib ${XLANG_COMPILER_OBJS} ${XLANG_TEST_OBJS} ${XLANG_TEST_LIBS}
+            -lib ${XLANG_COMPILER_OBJS} ${XLANG_C_OBJS} ${XLANG_TEST_OBJS} ${XLANG_TEST_LIBS}
             -d "${XLANG_TEST_EXE}"
             "--include-runtime"
             "--main=${XLANG_TEST_MAIN}"
 
-        DEPENDS ${XLANG_COMPILER_OBJS} ${XLANG_TEST_OBJS} cjson tiny-regex ${XLANG}
+        DEPENDS ${XLANG_COMPILER_OBJS} ${XLANG_C_OBJS} ${XLANG_TEST_OBJS} cjson tiny-regex ${XLANG}
 
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 

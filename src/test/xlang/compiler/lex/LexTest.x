@@ -1,9 +1,9 @@
 @file.class("LexTest")
 package xlang.compiler.lex
 
-import xlang.test.Testgroup
+import xlang.test.TestGroup
 
 
-val TEST_GROUP: pointer<Testgroup> = Testgroup("xlang.compiler.lex.Lex" as pointer<char>)
+val TEST_GROUP: pointer<TestGroup> = TestGroup("xlang.compiler.lex.Lex" as pointer<char>)
 
 
