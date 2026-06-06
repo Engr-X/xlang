@@ -17,6 +17,23 @@ fun strlen(str: pointer<char>) -> int
 }
 
 
+fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
+{
+    var ptr1: pointer<char> = str1
+    var ptr2: pointer<char> = str2
+
+    for (;
+        ptr1.deref != NULL_CHAR && ptr2.deref != NULL_CHAR;
+        ptr1++, ptr2++)
+    {
+        if ptr1.deref != ptr2.deref:
+            return false
+    }
+
+    return ptr1.deref == ptr2.deref
+}
+
+
 fun strcpy(dest: pointer<char>, src: pointer<char>)
 {
     var destPtr: pointer<char> = dest

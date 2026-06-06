@@ -63,7 +63,7 @@ struct TestCase
 
 
     // TODO use real stringbuilder to improve efficiency
-    fun runTest( n: int, record: pointer<TestRecord>)
+    fun runTest(n: int, record: pointer<TestRecord>)
     {
         val sb: pointer<StringBuilder> = StringBuilder()
         insertTabs(sb, n)
@@ -149,7 +149,7 @@ struct TestGroup
 
 
     // pre testUninon must allocate on heap
-    fun addTestunion(testUnion: pointer<TestUnion>)
+    fun addTestUnion(testUnion: pointer<TestUnion>)
     {
         if this.length + 1 >= ((this.capacity as double) * LOAD_FACTOR) as int:
             this.resize()
@@ -178,16 +178,16 @@ struct TestGroup
         val record: pointer<TestRecord> = TestRecord()
         this.runTest(0, record)
 
+        sb.newline()
         TypeConvert.intToString(TEXT_BUFFER, record.correct)
         sb.append(TEXT_BUFFER)
         sb.append(" out of " as pointer<char>)
         TypeConvert.intToString(TEXT_BUFFER, record.total)
         sb.append(TEXT_BUFFER)
-        sb.append("passed." as pointer<char>)
+        sb.append(" passed." as pointer<char>)
 
         if record.correct == record.total:
         {
-            sb.newline()
             IO.coloredSprint(TEXT_BUFFER, "Congratulations!" as pointer<char>, 32)
             sb.append(TEXT_BUFFER)
         }
