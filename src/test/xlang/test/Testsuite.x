@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 package xlang.test
 
 import xlang.System
@@ -6,7 +31,7 @@ import xlang.util.IO
 import xlang.util.TypeConvert
 
 
-val TEST_SUCCESS: int = 0
+val TEST_SUCCESS_STATUES: int = 0
 private val BUFFER_SPACE: blob[1024]
 private val TEXT_BUFFER: pointer<char> = BUFFER_SPACE as pointer<char>
 
@@ -75,7 +100,7 @@ struct TestCase
 
         record.total++
 
-        if result == TEST_SUCCESS:
+        if result == TEST_SUCCESS_STATUES:
         {
             IO.coloredSprint(TEXT_BUFFER, PASS_MSG, 32)
             sb.append(TEXT_BUFFER)
@@ -184,7 +209,7 @@ struct TestGroup
         sb.append(" out of " as pointer<char>)
         TypeConvert.intToString(TEXT_BUFFER, record.total)
         sb.append(TEXT_BUFFER)
-        sb.append(" passed." as pointer<char>)
+        sb.append(" tests passed. " as pointer<char>)
 
         if record.correct == record.total:
         {

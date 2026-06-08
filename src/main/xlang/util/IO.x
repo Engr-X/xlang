@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 @file.class("IO")
 package xlang.util
 

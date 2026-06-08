@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 #ifndef _XLANG_UTIL_IO_
 #define _XLANG_UTIL_IO_
 

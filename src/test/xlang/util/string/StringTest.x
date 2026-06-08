@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 @file.class("StringTest")
 package xlang.util.string
 
@@ -18,18 +43,18 @@ fun genTest() -> TestGroup
     val strcpyTC: pointer<TestCase> = new TestCase("strcpy" as pointer<char>, strcpyTest)
     val strcatTC: pointer<TestCase> = new TestCase("strcat" as pointer<char>, strcatTest)
 
-    val testcaseSpace: blob[sizeof(pointer<TestCase>) * 100]
-    val testcase: pointer<pointer<TestCase>> = testcaseSpace as pointer<pointer<TestCase>>
-    val testcaseLength: int = 4
+    val testCaseSpace: blob[sizeof(pointer<TestCase>) * 100]
+    val testCase: pointer<pointer<TestCase>> = testCaseSpace as pointer<pointer<TestCase>>
+    val testCaseLength: int = 4
 
-    testcase[0] = strlenTC
-    testcase[1] = streqTC
-    testcase[2] = strcpyTC
-    testcase[3] = strcatTC
+    testCase[0] = strlenTC
+    testCase[1] = streqTC
+    testCase[2] = strcpyTC
+    testCase[3] = strcatTC
 
-    for (var i = 0; i < testcaseLength; i++)
+    for (var i = 0; i < testCaseLength; i++)
     {
-        val tu: TestUnion = new TestUnion(TestCase.TYPE, testcase[i], 0 as TestGroup)
+        val tu: TestUnion = new TestUnion(TestCase.TYPE, testCase[i], null)
         result.addTestUnion(tu)
     }
 

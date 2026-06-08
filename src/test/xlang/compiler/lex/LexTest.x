@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 @file.class("LexTest")
 package xlang.compiler.lex
 

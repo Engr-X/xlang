@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 #include "io.h"
 
 #include <stdio.h>
@@ -5,6 +30,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+
 
 
 int enable_ansi_color()

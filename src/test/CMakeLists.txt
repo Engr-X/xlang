@@ -1,3 +1,28 @@
+# Copyright (c) 2026 Di Wang
+# SPDX-License-Identifier: MIT
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+
 # xlang executable (can be passed from parent with -DXLANG=...).
 if (NOT DEFINED XLANG OR XLANG STREQUAL "")
     find_program(XLANG NAMES xlang xlang.exe)
