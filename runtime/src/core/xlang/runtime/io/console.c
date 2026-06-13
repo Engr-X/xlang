@@ -86,7 +86,7 @@ void xlang_put_char(const char value)
 
 
 /**
- * Prints an 8-bit signed integer without appending a trailing newline.
+ * Prints a 8-bit signed integer without appending a trailing newline.
  *
  * The integer is converted to its decimal textual representation before being
  * written to standard output.
@@ -174,7 +174,7 @@ void xlang_put_f64(const x_f64 value)
 /**
  * Prints a pointer value without appending a trailing newline.
  *
- * The pointer is converted to an implementation-defined address string before
+ * The pointer is converted to a implementation-defined address string before
  * being written to standard output. This function is intended for diagnostics,
  * debugging, and low-level runtime output.
  *
@@ -233,7 +233,7 @@ void xlang_putln_char(const char value)
 
 
 /**
- * Prints an 8-bit signed integer followed by a newline.
+ * Prints a 8-bit signed integer followed by a newline.
  *
  * This function has the same integer conversion behavior as `xlang_put_i8`,
  * but appends a newline after the decimal representation.
@@ -247,7 +247,7 @@ void xlang_putln_i8(const x_i8 value)
 
 
 /**
- * Prints an 16-bit signed integer followed by a newline.
+ * Prints a 16-bit signed integer followed by a newline.
  *
  * This function has the same integer conversion behavior as `xlang_put_i16`,
  * but appends a newline after the decimal representation.
@@ -261,7 +261,7 @@ void xlang_putln_i16(const x_i16 value)
 
 
 /**
- * Prints an 32-bit signed integer followed by a newline.
+ * Prints a 32-bit signed integer followed by a newline.
  *
  * This function has the same integer conversion behavior as `xlang_put_i32`,
  * but appends a newline after the decimal representation.
@@ -275,7 +275,7 @@ void xlang_putln_i32(const x_i32 value)
 
 
 /**
- * Prints an 64-bit signed integer followed by a newline.
+ * Prints a 64-bit signed integer followed by a newline.
  *
  * This function has the same integer conversion behavior as `xlang_put_i64`,
  * but appends a newline after the decimal representation.
@@ -294,7 +294,7 @@ void xlang_putln_i64(const x_i64 value)
  * This function has the same floating-point conversion behavior as
  * `xlang_put_f32`, but appends a newline after the textual representation.
  *
- * @param valuethe              32-bit floating-point value to print
+ * @param valuethe              the 32-bit floating-point value to print
  */
 void xlang_putln_f32(const x_f32 value)
 {
