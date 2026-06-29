@@ -26,13 +26,22 @@
 @file.class("Xlang")
 package xlang.compiler
 
-import xlang.util.IO
+import xlang.compiler.lex.Tokenizer
+import xlang.lex.Token
+import xlang.lex.TokenList
 
 
 fun main()
 {
-    IO.enableANSIColor()
-    val buffer: blob[100]
-    IO.coloredSprint(buffer as pointer<char>, "Hello, World" as pointer<char>, 32)
-    putln(buffer as pointer<char>)
+    val tokens: TokenList = Tokenizer.tokenize("111 Hello++ \"string\r\n\", this is my programming language" as pointer<char>)
+
+    for (var i: int = 0; i < tokens.length(); i++):
+    {
+        val token: pointer<Token> = tokens.get(i)
+
+        if token.kind == Token.EOF_KIND:
+            putln("<EOF>" as pointer<char>)
+        else:
+            putln(token.text)
+    }
 }

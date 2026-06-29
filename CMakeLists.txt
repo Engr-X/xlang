@@ -38,6 +38,27 @@ elseif (MSVC)
 endif()
 
 
+# Required bootstrap tools.
+if (NOT DEFINED XLANG OR XLANG STREQUAL "")
+    find_program(XLANG NAMES xlang xlang.exe)
+endif()
+
+if (NOT XLANG)
+    message(FATAL_ERROR "Cannot find xlang executable. Use -DXLANG=/path/to/xlang(.exe)")
+endif()
+
+if (NOT DEFINED PYTHON_EXECUTABLE OR PYTHON_EXECUTABLE STREQUAL "")
+    find_program(PYTHON_EXECUTABLE NAMES python python3 python.exe)
+endif()
+
+if (NOT PYTHON_EXECUTABLE)
+    message(FATAL_ERROR "Cannot find Python executable. Use -DPYTHON_EXECUTABLE=/path/to/python(.exe)")
+endif()
+
+message(STATUS "XLANG = ${XLANG}")
+message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
+
+
 # step 1: build 3rd-party dependencies
 add_subdirectory(3rd-party)
 

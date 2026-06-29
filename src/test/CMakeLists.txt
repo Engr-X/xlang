@@ -102,6 +102,10 @@ if (XLANG_TEST_SRCS)
     add_custom_target(xlang_test_objects ALL
         DEPENDS ${XLANG_TEST_OBJS}
     )
+    add_dependencies(xlang_test_objects
+        xlang_c_objects
+        xlang_objects
+    )
 else()
     add_custom_target(xlang_test_objects
         COMMENT "No xlang test source files found under ${XLANG_TEST_SOURCE_DIR}"
@@ -138,8 +142,13 @@ if (XLANG_TEST_SRCS)
         COMMAND_EXPAND_LISTS
     )
 
-    add_custom_target(xlang_test_executable
+    add_custom_target(xlang_test_executable ALL
         DEPENDS "${XLANG_TEST_EXE}"
+    )
+    add_dependencies(xlang_test_executable
+        xlang_test_objects
+        xlang_c_objects
+        xlang_objects
     )
 else()
     add_custom_target(xlang_test_executable

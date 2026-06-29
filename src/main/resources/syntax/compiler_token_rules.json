@@ -1,0 +1,437 @@
+{
+    "package: ": "xlang.compiler.lex",
+    "imports": ["xlang.System", "xlang.util.string.StringBuilder"],
+    "constants":
+    [
+        "val INVALID_TOKEN_ERROR_MSG: pointer<char> = \"invalid token: \" as pointer<char>",
+        "val UNTERMINATED_BLOCK_COMMENT_ERROR_MSG: pointer<char> = \"unterminated block comment\" as pointer<char>",
+        "val UNTERMINATED_CHAR_ERROR_MSG: pointer<char> = \"unterminated char comment\"",
+        "val UNTERMINATED_STRING_ERROR_MSG: pointer<char> = \"unterminated string comment\"",
+
+        "val LINE_COMMENT_STATE: int = 10",
+        "val BLOCK_COMMENT_STATE: int = 11",
+        "val CHAR_STATE: int = 12",
+        "val STRING_STATE: int = 13",
+
+        "val TK_TOKEN_PASS: int = 1",
+        "val TK_IDENTITY: int = 2",
+        "val TK_INTEGER: int = 3",
+        "val TK_LONG: int = 4",
+        "val TK_FLOAT: int = 5",
+        "val TK_DOUBLE: int = 6",
+        "val TK_LONG_DOUBLE: int = 7",
+        "val TK_CHAR: int = 8",
+        "val TK_STRING: int = 9"
+    ],
+
+    "token_def_start": 100,
+    "token_defs":
+    [
+        {"name": "KW_FALSE", "pattern": "false"},
+        {"name": "KW_NULL", "pattern": "null"},
+        {"name": "KW_TRUE", "pattern": "true"},
+
+        {"name": "KW_PUBLIC", "pattern": "public"},
+        {"name": "KW_PROTECTED", "pattern": "protected"},
+        {"name": "KW_PRIVATE", "pattern": "private"},
+
+        {"name": "KW_VAR", "pattern": "var"},
+        {"name": "KW_VAL", "pattern": "val"},
+        {"name": "KW_MUT", "pattern": "mut"},
+        {"name": "KW_STATIC", "pattern": "static"},
+        {"name": "KW_INLINE", "pattern": "inline"},
+        {"name": "KW_NATIVE", "pattern": "native"},
+
+        {"name": "KW_PACKAGE", "pattern": "package"},
+        {"name": "KW_IMPORT", "pattern": "import"},
+
+        {"name": "KW_POINTER", "pattern": "pointer"},
+        {"name": "KW_BLOB", "pattern": "blob"},
+        {"name": "KW_BOOL", "pattern": "bool"},
+        {"name": "KW_BYTE", "pattern": "byte"},
+        {"name": "KW_CHAR", "pattern": "char"},
+        {"name": "KW_SHORT", "pattern": "short"},
+        {"name": "KW_INT", "pattern": "int"},
+        {"name": "KW_LONG", "pattern": "long"},
+        {"name": "KW_FLOAT", "pattern": "float"},
+        {"name": "KW_DOUBLE", "pattern": "double"},
+
+        {"name": "KW_NEW", "pattern": "new"},
+        {"name": "KW_AS", "pattern": "as"},
+
+        {"name": "KW_IF", "pattern": "if"},
+        {"name": "KW_ELIF", "pattern": "elif"},
+        {"name": "KW_ELSE", "pattern": "else"},
+        {"name": "KW_DO", "pattern": "do"},
+        {"name": "KW_WHILE", "pattern": "while"},
+        {"name": "KW_UNTIL", "pattern": "until"},
+        {"name": "KW_LOOP", "pattern": "loop"},
+        {"name": "KW_FOR", "pattern": "for"},
+        {"name": "KW_REPEAT", "pattern": "repeat"},
+        {"name": "KW_BREAK", "pattern": "break"},
+        {"name": "KW_CONTINUE", "pattern": "continue"},
+        {"name": "KW_RETURN", "pattern": "return"},
+        {"name": "KW_PASS", "pattern": "pass"},
+
+        {"name": "KW_INV", "pattern": "inv"},
+        {"name": "KW_SHL", "pattern": "shl"},
+        {"name": "KW_SHR", "pattern": "shr"},
+        {"name": "KW_USHR", "pattern": "ushr"},
+        {"name": "KW_AND", "pattern": "and"},
+        {"name": "KW_NAND", "pattern": "nand"},
+        {"name": "KW_XOR", "pattern": "xor"},
+        {"name": "KW_XNOR", "pattern": "xnor"},
+        {"name": "KW_OR", "pattern": "or"},
+        {"name": "KW_NOR", "pattern": "nor"},
+        {"name": "KW_IMPLIES", "pattern": "implies"},
+        {"name": "KW_NIMPLIES", "pattern": "nimplies"},
+
+        {"name": "KW_FUN", "pattern": "fun"},
+        {"name": "KW_STRUCT", "pattern": "struct"},
+        {"name": "KW_CLASS", "pattern": "class"}
+    ],
+
+    "symbol_def_start": 1000,
+    "symbol_defs":
+    [
+        {"name": "DOUBLE_LESS_EQUAL", "pattern": "<<="},
+        {"name": "DOUBLE_GREATER_EQUAL", "pattern": ">>="},
+        {"name": "BANG_CARET_EQUAL", "pattern": "!^="},
+        {"name": "DOUBLE_STAR_EQUAL", "pattern": "**="},
+        {"name": "QUESTION_ARROW", "pattern": "?->"},
+        {"name": "BANG_DOUBLE_AMPERSAND", "pattern": "!&&"},
+        {"name": "BANG_DOUBLE_PIPE", "pattern": "!||"},
+        {"name": "NOT_ARROW", "pattern": "!->"},
+        {"name": "DOUBLE_ARROW", "pattern": "<->"},
+
+        {"name": "PIPE_EQUAL", "pattern": "|="},
+        {"name": "CARET_EQUAL", "pattern": "^="},
+        {"name": "PLUS_EQUAL", "pattern": "+="},
+        {"name": "MINUS_EQUAL", "pattern": "-="},
+        {"name": "STAR_EQUAL", "pattern": "*="},
+        {"name": "SLASH_EQUAL", "pattern": "/="},
+        {"name": "PERCENT_EQUAL", "pattern": "%="},
+
+        {"name": "DOUBLE_EQUAL", "pattern": "=="},
+        {"name": "BANG_EQUAL", "pattern": "!="},
+        {"name": "GREATER_EQUAL", "pattern": ">="},
+        {"name": "LESS_EQUAL", "pattern": "<="},
+
+        {"name": "DOUBLE_GREATER", "pattern": ">>"},
+        {"name": "DOUBLE_LESS", "pattern": "<<"},
+        {"name": "DOUBLE_PIPE", "pattern": "||"},
+        {"name": "DOUBLE_AMPERSAND", "pattern": "&&"},
+
+        {"name": "DOUBLE_STAR", "pattern": "**"},
+        {"name": "DOUBLE_PLUS", "pattern": "++"},
+        {"name": "DOUBLE_MINUS", "pattern": "--"},
+        {"name": "DOUBLE_DOT", "pattern": ".."},
+
+        {"name": "ARROW", "pattern": "->"},
+        {"name": "FAT_ARROW", "pattern": "=>"},
+        {"name": "DOUBLE_COLON", "pattern": "::"},
+
+        {"name": "EQUAL", "pattern": "="},
+        {"name": "GREATER", "pattern": ">"},
+        {"name": "LESS", "pattern": "<"},
+        {"name": "CARET", "pattern": "^"},
+        {"name": "BANG", "pattern": "!"},
+
+        {"name": "PLUS", "pattern": "+"},
+        {"name": "MINUS", "pattern": "-"},
+        {"name": "STAR", "pattern": "*"},
+        {"name": "SLASH", "pattern": "/"},
+        {"name": "PERCENT", "pattern": "%"},
+
+        {"name": "AT", "pattern": "@"},
+        {"name": "DOLLAR", "pattern": "$"},
+        {"name": "LEFT_PAREN", "pattern": "("},
+        {"name": "RIGHT_PAREN", "pattern": ")"},
+        {"name": "LEFT_BRACKET", "pattern": "["},
+        {"name": "RIGHT_BRACKET", "pattern": "]"},
+        {"name": "LEFT_BRACE", "pattern": "{"},
+        {"name": "RIGHT_BRACE", "pattern": "}"},
+
+        {"name": "SEMICOLON", "pattern": ";"},
+        {"name": "COMMA", "pattern": ","},
+        {"name": "QUESTION", "pattern": "?"},
+        {"name": "COLON", "pattern": ":"},
+        {"name": "DOT", "pattern": "."},
+        {"name": "BACKSLASH", "pattern": "\\"}
+    ],
+
+    "defs":
+    [
+        {"key": "letter", "pattern": "[a-zA-Z]"},
+        {"key": "digit", "pattern": "[0-9]"},
+        {"key": "underscore", "pattern": "[_]"},
+        {"key": "space", "pattern": "[\\ \\t\\r\\n\\f\\v]"},
+        {"key": "newline", "pattern": "\\r?\\n"},
+        {"key": "eof", "pattern": "\\0"},
+        {"key": "sign", "pattern": "[\\-\\+]"},
+        {"key": "bin_digit", "pattern": "[01]"},
+        {"key": "hex_digit", "pattern": "[0-9a-fA-F]"},
+        {"key": "float_postfix", "pattern": "[fF]"},
+        {"key": "long_postfix", "pattern": "[lL]"},
+        
+        {"key": "int_lit", "pattern": "(0[xX]$hex_digit+)|$digit+"},
+        {"key": "long_lit", "pattern": "$int_lit$long_postfix"},
+        {"key": "double_lit", "pattern": "$digit*\\.$digit+([eE]$sign?$digit+)?"},
+        {"key": "float_lit", "pattern": "$double_lit$float_postfix"},
+        {"key": "long_double_lit", "pattern": "$double_lit$long_postfix"},
+
+        {"key": "ident", "pattern": "[a-zA-Z_][a-zA-Z0-9_]*"},
+        {"key": "default", "pattern": "."}
+    ],
+    "rules":
+    [
+        {"state": "LexState.DEFAULT", "patterns": ["//"], "action": "begainLineComment"},
+        {"state": "LexState.DEFAULT", "patterns": ["/\\*"], "action": "begainBlockComment"},
+        {"state": "LexState.DEFAULT", "patterns": ["\\'"], "action": "begainChar"},
+        {"state": "LexState.DEFAULT", "patterns": ["\""], "action": "begainString"},
+        
+        {"state": "LexState.DEFAULT", "patterns": ["$newline"], "action": "tokenPass"},
+        {"state": "LexState.DEFAULT", "patterns": ["$space"], "action": "skip"},
+
+        {"state": "LexState.DEFAULT", "patterns": ["$long_double_lit"], "action": "eatLongDoubleLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$float_lit"], "action": "eatFloatLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$double_lit"], "action": "eatDoubleLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$long_lit"], "action": "eatLongLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$int_lit"], "action": "eatIntLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$symbols"], "action": "$eatSymbol"},
+        {"state": "LexState.DEFAULT", "patterns": ["$ident"], "action": "eatIdent"},
+
+        {"state": "LexState.DEFAULT", "patterns": ["$default"], "action": "defaultError"},
+
+
+        {"state": "LINE_COMMENT_STATE", "patterns": ["$newline"], "action": "endLineComment"},
+        {"state": "LINE_COMMENT_STATE", "patterns": ["$default"], "action": "skip"},
+
+
+        {"state": "BLOCK_COMMENT_STATE", "patterns": ["$eof"], "action": "unterminatedBlockCommentError"},
+        {"state": "BLOCK_COMMENT_STATE", "patterns": ["\\*/"], "action": "endBlockComment"},
+        {"state": "BLOCK_COMMENT_STATE", "patterns": ["$newline"], "action": "skipNewLine"},
+        {"state": "BLOCK_COMMENT_STATE", "patterns": ["$default"], "action": "skip"},
+
+
+        {"state": "CHAR_STATE", "patterns": ["$eof"], "action": "unterminatedCharError"},
+        {"state": "CHAR_STATE", "patterns": ["$newline"], "action": "unterminatedCharError"},
+        {"state": "CHAR_STATE", "patterns": ["\\'"], "action": "endChar"},
+        {"state": "CHAR_STATE", "patterns": ["$default"], "action": "eatChar"},
+
+
+        {"state": "STRING_STATE", "patterns": ["$eof"], "action": "unterminatedStringError"},
+        {"state": "STRING_STATE", "patterns": ["$newline"], "action": "unterminatedStringError"},
+        {"state": "STRING_STATE", "patterns": ["\""], "action": "endString"},
+        {"state": "STRING_STATE", "patterns": ["$default"], "action": "eatChar"}
+    ],
+    "others":
+    [
+        [
+            "private inline fun skip(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    dest.updateCursor(input.textLength)",
+            "    return null",
+            "}"
+        ],
+        [
+            "private inline fun skipNewLine(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val cursor: LexPosition = dest.getCursorPtr()",
+            "    cursor.line++",
+            "    cursor.column = 0",
+            "    cursor.offset += input.textLength",
+            "    return null",
+            "}"
+        ],
+        [
+            "private inline fun errorToken(input: LexInput, errorType: int, dest: LexState, errorInfo: pointer<char>) -> Token",
+            "{",
+            "    val pos: TokenPosition = new TokenPosition(input.pos.offset, input.pos.line, input.pos.column, input.textLength)",
+            "    return new Token(errorType, pos, input.text, errorInfo)",
+            "}"
+        ],
+        [
+            "private fun defaultError(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val tokenText: pointer<char> = System.allocMemory(String.strlen(input.text) + 16) as pointer<char>",
+            "    String.strcpy(tokenText, INVALID_TOKEN_ERROR_MSG)",
+            "    String.strcat(tokenText, input.text)",
+            "    return errorToken(input, -LexState.DEFAULT, dest, tokenText)",
+            "}"
+        ],
+
+
+        [
+            "private inline fun changeState(input: LexInput, state: int, dest: LexState) -> Token",
+            "{",
+            "    dest.setState(state)",
+            "    dest.updateCursor(input.textLength)",
+            "    return null",
+            "}"
+        ],
+        [
+            "private fun begainLineComment(input: LexInput, dest: LexState) -> Token =",
+            "    changeState(input, LINE_COMMENT_STATE, dest)"
+        ],
+        [
+            "private fun begainBlockComment(input: LexInput, dest: LexState) -> Token =",
+            "    changeState(input, BLOCK_COMMENT_STATE, dest)"
+        ],
+        [
+            "private fun begainChar(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    dest.accumulator.clear()",
+            "    return changeState(input, CHAR_STATE, dest)",
+            "}"
+        ],
+        [
+            "private fun tokenPass(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val pos: TokenPosition = new TokenPosition(input.pos.offset, input.pos.line, input.pos.column, input.textLength)",
+            "    skipNewLine(input, dest)",
+            "    return new Token(TK_TOKEN_PASS, pos, null)",
+            "}"
+        ],
+        [
+            "private fun begainString(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    dest.accumulator.clear()",
+            "    return changeState(input, STRING_STATE, dest)",
+            "}"
+        ],
+
+
+        [
+            "private inline fun eatToken(input: LexInput, numberType: int, dest: LexState) -> Token",
+            "{",
+            "    val pos: TokenPosition = new TokenPosition(input.pos.offset, input.pos.line, input.pos.column, input.textLength)",
+            "    dest.updateCursor(input.textLength)",
+            "    return new Token(numberType, pos, input.text)",
+            "}"
+        ],
+        [
+            "private fun eatIntLit(input: LexInput, dest: LexState) -> Token =",
+            "    eatToken(input, TK_INTEGER, dest)"
+        ],
+        [
+            "private fun eatLongLit(input: LexInput, dest: LexState) -> Token =",
+            "    eatToken(input, TK_LONG, dest)"
+        ],
+        [
+            "private fun eatFloatLit(input: LexInput, dest: LexState) -> Token =",
+            "    eatToken(input, TK_FLOAT, dest)"
+        ],
+        [
+            "private fun eatDoubleLit(input: LexInput, dest: LexState) -> Token =",
+            "    eatToken(input, TK_DOUBLE, dest)"
+        ],
+        [
+            "private fun eatLongDoubleLit(input: LexInput, dest: LexState) -> Token =",
+            "    eatToken(input, TK_LONG_DOUBLE, dest)"
+        ],
+
+        [
+            "private inline fun getKeywordKind(text: pointer<char>) -> int",
+            "{",
+            "    var left: int = 0",
+            "    var right: int = keywordListLength - 1",
+            "",
+            "    while left <= right:",
+            "    {",
+            "        val mid: int = (left + right) / 2",
+            "        val cmp: int = String.strcmp(text, getKeywordText(mid))",
+            "",
+            "        if cmp == 0:",
+            "            return tokenDefStart + mid",
+            "",
+            "        if cmp < 0:",
+            "            right = mid - 1",
+            "        else:",
+            "            left = mid + 1",
+            "    }",
+            "",
+            "    return TK_IDENTITY",
+            "}"
+        ],
+        [
+            "private fun eatIdent(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val kind: int = getKeywordKind(input.text)",
+            "    return eatToken(input, kind, dest)",
+            "}"
+        ],
+        
+        
+
+        [
+            "private fun endLineComment(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    dest.setState(LexState.DEFAULT)",
+            "    val cursor: LexPosition = dest.getCursorPtr()",
+            "    cursor.line++",
+            "    cursor.column = 0",
+            "    cursor.offset += input.textLength",
+            "    return null",
+            "}"
+        ],
+
+
+        [
+            "private fun unterminatedBlockCommentError(input: LexInput, dest: LexState) -> Token =",
+            "    errorToken(input, -BLOCK_COMMENT_STATE, dest, UNTERMINATED_BLOCK_COMMENT_ERROR_MSG)"
+        ],
+        [
+            "private fun endBlockComment(input: LexInput, dest: LexState) -> Token =",
+            "    changeState(input, LexState.DEFAULT, dest)"
+        ],
+
+
+        [
+            "private fun unterminatedCharError(input: LexInput, dest: LexState) -> Token =",
+            "    errorToken(input, -CHAR_STATE, dest, UNTERMINATED_CHAR_ERROR_MSG)"
+        ],
+        [
+            "private fun endChar(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val charText: pointer<char> = System.allocMemory(dest.accumulator.length + 1) as pointer<char>",
+            "    dest.accumulator.get(charText)",
+            "    val pos: TokenPosition = new TokenPosition(",
+            "        input.pos.offset - dest.accumulator.length,",
+            "        input.pos.line,",
+            "        input.pos.column - dest.accumulator.length,",
+            "        dest.accumulator.length)",
+            "    changeState(input, LexState.DEFAULT, dest)",
+            "    return new Token(TK_CHAR, pos, charText)",
+            "}"
+        ],
+        [
+            "private fun eatChar(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    dest.accumulator.append(input.text)",
+            "    dest.updateCursor(input.textLength)",
+            "    return null",
+            "}"
+        ],
+
+
+        [
+            "private fun unterminatedStringError(input: LexInput, dest: LexState) -> Token =",
+            "    errorToken(input, -STRING_STATE, dest, UNTERMINATED_STRING_ERROR_MSG)"
+        ],
+        [
+            "private fun endString(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val charText: pointer<char> = System.allocMemory(dest.accumulator.length + 1) as pointer<char>",
+            "    dest.accumulator.get(charText)",
+            "    val pos: TokenPosition = new TokenPosition(",
+            "        input.pos.offset - dest.accumulator.length,",
+            "        input.pos.line,",
+            "        input.pos.column - dest.accumulator.length,",
+            "        dest.accumulator.length)",
+            "    changeState(input, LexState.DEFAULT, dest)",
+            "    return new Token(TK_STRING, pos, charText)",
+            "}"
+        ]
+    ]
+}

@@ -31,6 +31,7 @@ import xlang.test.TestGroup
 import xlang.test.TestUnion
 
 import xlang.util.IO
+import xlang.util.TypeConvertTest
 import xlang.util.string.StringBuilderTest
 import xlang.util.string.StringTest
 
@@ -39,11 +40,12 @@ private fun getTestGroup() -> TestGroup
 {
     val result: TestGroup = new TestGroup("xlang" as pointer<char>)
     val testGroupSpace: blob[sizeof(pointer<TestGroup>) * 100]
-    val testGroupLength: int = 2
+    val testGroupLength: int = 3
     val testGroups: pointer<pointer<TestGroup>> = testGroupSpace as pointer<pointer<TestGroup>>
 
     testGroups[0] = StringTest.TEST_GROUP
     testGroups[1] = StringBuilderTest.TEST_GROUP
+    testGroups[2] = TypeConvertTest.TEST_GROUP
 
     for (var i = 0; i < testGroupLength; i++)
     {
@@ -63,3 +65,4 @@ fun main()
 
     testGroup.runTest()
 }
+

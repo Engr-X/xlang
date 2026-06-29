@@ -17,15 +17,17 @@ fun genTest() -> TestGroup
     val appendStringTC: pointer<TestCase> = new TestCase("appendString" as pointer<char>, appendStringTest)
     val newlineTC: pointer<TestCase> = new TestCase("newline" as pointer<char>, newlineTest)
     val resizeTC: pointer<TestCase> = new TestCase("resize" as pointer<char>, resizeTest)
+    val clearTC: pointer<TestCase> = new TestCase("clear" as pointer<char>, clearTest)
 
     val testCaseSpace: blob[sizeof(pointer<TestCase>) * 100]
     val testCase: pointer<pointer<TestCase>> = testCaseSpace as pointer<pointer<TestCase>>
-    val testCaseLength: int = 4
+    val testCaseLength: int = 5
 
     testCase[0] = appendCharTC
     testCase[1] = appendStringTC
     testCase[2] = newlineTC
     testCase[3] = resizeTC
+    testCase[4] = clearTC
 
     for (var i = 0; i < testCaseLength; i++)
     {
@@ -126,6 +128,38 @@ fun resizeTest() -> int
 
     if text[40] != String.NULL_CHAR:
         return 3
+
+    return 0
+}
+
+
+fun clearTest() -> int
+{
+    val sb: pointer<StringBuilder> = StringBuilder()
+    val buffer: blob[64]
+    val text: pointer<char> = buffer as pointer<char>
+
+    sb.append("Hello" as pointer<char>)
+    sb.clear()
+    sb.get(text)
+
+    if sb.length != 0:
+        return 1
+
+    if text[0] != String.NULL_CHAR:
+        return 2
+
+    if !String.streq(text, "" as pointer<char>):
+        return 3
+
+    sb.append("World" as pointer<char>)
+    sb.get(text)
+
+    if sb.length != 5:
+        return 4
+
+    if !String.streq(text, "World" as pointer<char>):
+        return 5
 
     return 0
 }

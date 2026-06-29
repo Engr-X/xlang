@@ -16,6 +16,7 @@ endif()
 
 set(XLANG_C_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/c/src")
 set(XLANG_C_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/c/include")
+set(XLANG_TINY_REGEX_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/3rd-party/tiny-regex/include")
 set(XLANG_C_OBJ_ROOT "${CMAKE_BINARY_DIR}/objs/src/main/c")
 
 file(GLOB_RECURSE XLANG_C_SOURCES
@@ -70,6 +71,7 @@ if (XLANG_C_SOURCES)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${c_obj_dir}"
             COMMAND ${CMAKE_C_COMPILER}
                 -I "${XLANG_C_INCLUDE_DIR}"
+                -I "${XLANG_TINY_REGEX_INCLUDE_DIR}"
                 -c "${c_src_abs}"
                 -o "${c_obj_abs}"
 
@@ -107,8 +109,14 @@ set(XLANG_LIBS
 
 collect_xlang_sources(XLANG_SOURCES "${XLANG_SOURCE_DIR}")
 
+if (DEFINED XLANG_COMPILER_TOKENIZER)
+    list(APPEND XLANG_SOURCES "${XLANG_COMPILER_TOKENIZER}")
+    list(REMOVE_DUPLICATES XLANG_SOURCES)
+endif()
+
 # filter xlang/compiler/codegen
 list(FILTER XLANG_SOURCES EXCLUDE REGEX ".*[\\\\/]xlang[\\\\/]compiler[\\\\/]codegen[\\\\/].*")
+list(FILTER XLANG_SOURCES EXCLUDE REGEX ".*[\\/]xlang[\\/]lex[\\/]Codegen\\.x$")
 
 set(XLANG_SRCS)
 set(XLANG_OBJS)
@@ -134,7 +142,7 @@ foreach(src_abs ${XLANG_SOURCES})
     list(APPEND XLANG_OBJ_DIRS "${obj_dir}")
     list(APPEND XLANG_OBJS "${obj_abs}")
 
-    if (src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/util/")
+    if (src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lex/" OR src_rel MATCHES "^xlang/util/")
         list(APPEND XLANG_COMPILER_OBJS "${obj_abs}")
     endif()
 endforeach()
@@ -166,6 +174,9 @@ if (XLANG_SRCS)
 
     add_custom_target(xlang_objects ALL
         DEPENDS ${XLANG_OBJS}
+    )
+    add_dependencies(xlang_objects
+        xlang_compiler_tokenizer_codegen
     )
 else()
     add_custom_target(xlang_objects
