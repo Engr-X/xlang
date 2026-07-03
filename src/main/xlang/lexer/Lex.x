@@ -23,9 +23,10 @@
  *
  */
 
-package xlang.lex
+package xlang.lexer
 
 import xlang.System
+import xlang.TokenPosition
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
@@ -49,18 +50,21 @@ struct LexPosition
         this.line = line
         this.column = column
     }
+
+
+    inline fun toTokenPosition(length: int) -> TokenPosition = new TokenPosition(this.offset, this.line, this.column, length)
 }
 
 
 struct LexInput
 {
     var pos: LexPosition
-    var prevChar: char
+    var prevChar: int
     var text: pointer<char>
     var textLength: int
 
 
-    fun __init__(pos: LexPosition, prevChar: char, text: pointer<char>, textLength: int)
+    fun __init__(pos: LexPosition, prevChar: int, text: pointer<char>, textLength: int)
     {
         this.pos = pos
         this.prevChar = prevChar
@@ -112,7 +116,7 @@ struct LexState
         this.code = code
         this.state = DEFAULT
         this.accumulator = new StringBuilder()
-        this.cursorPos = LexPosition.START_POSITION
+        this.cursorPos = new LexPosition(0, 1, 1)
     }
     
 
@@ -123,7 +127,7 @@ struct LexState
     fun getState(): int = this.state
 
 
-    fun append(c: char):
+    fun append(c: int):
         this.accumulator.append(c)
 
 
@@ -141,17 +145,23 @@ struct LexState
     }
 
 
+    /**
+     * Applies the first matching rule for the current lexer state and cursor.
+     *
+     * @param rules             pointer to the ordered rule table
+     * @param rulesLength       number of rules available in the table
+     * @return                  matched token, null for skipped input, or EOF at default-state end
+     */
     fun apply(rules: pointer<pointer<Rule>>, rulesLength: int) -> Token
     {
         val currentPtr: pointer<char> = this.code + this.cursorPos.offset;
 
-        if currentPtr.deref == String.NULL_CHAR && this.state == DEFAULT:
+        if currentPtr.deref == '\0' && this.state == DEFAULT:
             return new Token(Token.EOF_KIND, null, null)
 
         for (var i: int = 0; i < rulesLength; i++):
         {
             val rule: Rule = rules[i]
-
 
             if rule.state == this.state:
             {
@@ -159,8 +169,8 @@ struct LexState
 
                 if matchLength >= 0:
                 {
-                    val preChar: char = if this.cursorPos.offset == 0: ((-1) as char) else: this.code[this.cursorPos.offset - 1]
-                    val token: pointer<char> = System.allocMemory(matchLength + 1) as pointer<char>
+                    val preChar: int = if this.cursorPos.offset == 0: -1 else: this.code[this.cursorPos.offset - 1] as int
+                    val token: pointer<char> = System.allocMemory((matchLength + 1) * sizeof(char)) as pointer<char>
                     String.strncpy(token, currentPtr, matchLength)
 
                     val inputPos: LexPosition = LexPosition.copy(this.cursorPos)

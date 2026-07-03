@@ -56,7 +56,7 @@ import xlang.System
  *
  * A string is considered ended when this character is reached.
  */
-val NULL_CHAR: char = '\0'
+val NULL_CHAR: int = 0
 
 
 /**
@@ -64,7 +64,7 @@ val NULL_CHAR: char = '\0'
  *
  * This is the newline character used by text utilities.
  */
-val LINE_FEED: char = '\n'
+val LINE_FEED: int = 10
 
 
 /**
@@ -82,7 +82,7 @@ fun strlen(str: pointer<char>) -> int
 
     var count: int = 0
 
-    for (var ptr: pointer<char> = str; ptr.deref != NULL_CHAR; ptr++, count++);
+    for (var ptr: pointer<char> = str; ptr.deref != '\0'; ptr++, count++);
 
     return count
 }
@@ -107,7 +107,7 @@ fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
     var ptr2: pointer<char> = str2
 
     for (;
-        ptr1.deref != NULL_CHAR && ptr2.deref != NULL_CHAR;
+        ptr1.deref != '\0' && ptr2.deref != '\0';
         ptr1++, ptr2++)
     {
         if ptr1.deref != ptr2.deref:
@@ -118,6 +118,18 @@ fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
 }
 
 
+/**
+ * Compares two null-terminated strings lexicographically.
+ *
+ * The return value follows the usual strcmp ordering contract, but is
+ * normalized to -1, 0, or 1 instead of returning the raw character difference.
+ * Null is treated as smaller than any non-null string, and two null pointers
+ * compare equal.
+ *
+ * @param str1                  pointer to the first null-terminated string
+ * @param str2                  pointer to the second null-terminated string
+ * @return                      -1 if str1 < str2, 0 if equal, 1 if str1 > str2
+ */
 fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
 {
     if str1 == str2:
@@ -133,20 +145,23 @@ fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
     var ptr2: pointer<char> = str2
 
     for (;
-        ptr1.deref != NULL_CHAR && ptr2.deref != NULL_CHAR;
+        ptr1.deref != '\0' && ptr2.deref != '\0';
         ptr1++, ptr2++)
     {
-        if ptr1.deref < ptr2.deref:
+        val ch1: int = ptr1.deref as int
+        val ch2: int = ptr2.deref as int
+
+        if ch1 < ch2:
             return -1
 
-        if ptr1.deref > ptr2.deref:
+        if ch1 > ch2:
             return 1
     }
 
     if ptr1.deref == ptr2.deref:
         return 0
 
-    if ptr1.deref == NULL_CHAR:
+    if ptr1.deref == '\0':
         return -1
 
     return 1
@@ -171,10 +186,10 @@ fun strcpy(dest: pointer<char>, src: pointer<char>)
     var destPtr: pointer<char> = dest
     var srcPtr: pointer<char> = src
 
-    for (;srcPtr.deref != NULL_CHAR; destPtr++, srcPtr++):
+    for (;srcPtr.deref != '\0'; destPtr++, srcPtr++):
         destPtr.deref = srcPtr.deref
 
-    destPtr.deref = NULL_CHAR
+    destPtr.deref = '\0'
 }
 
 
@@ -223,19 +238,19 @@ fun strncpy(dest: pointer<char>, src: pointer<char>, maxCopyLength: int) -> int
 
     if src == null || maxCopyLength <= 0:
     {
-        dest[0] = NULL_CHAR
+        dest[0] = '\0'
         return 0
     }
 
     var copiedLength: int = 0
 
-    while copiedLength < maxCopyLength && src[copiedLength] != NULL_CHAR:
+    while copiedLength < maxCopyLength && src[copiedLength] != '\0':
     {
         dest[copiedLength] = src[copiedLength]
         copiedLength++
     }
 
-    dest[copiedLength] = NULL_CHAR
+    dest[copiedLength] = '\0'
 
     return copiedLength
 }
@@ -281,7 +296,7 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
 
     if src == null || start < 0 || length <= 0:
     {
-        dest[0] = NULL_CHAR
+        dest[0] = '\0'
         return 0
     }
 
@@ -289,7 +304,7 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
 
     if start >= srcLength:
     {
-        dest[0] = NULL_CHAR
+        dest[0] = '\0'
         return 0
     }
 
@@ -297,6 +312,20 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
 }
 
 
+/**
+ * Matches a regular expression pattern against the beginning of a string.
+ *
+ * This is a native wrapper around the tiny-regex based matcher. The match must
+ * start at str[0]; a pattern that only matches later in the string is treated
+ * as no match. The returned value is the number of characters matched.
+ *
+ * The native wrapper also handles tokenizer-specific helpers such as top-level
+ * pattern alternatives and the standalone EOF pattern "\\0".
+ *
+ * @param pattern               pointer to the null-terminated regex pattern
+ * @param str                   pointer to the null-terminated input string
+ * @return                      matched length, or -1 if the pattern does not match
+ */
 @native("regex_match")
 native inline fun strRegMatch(pattern: pointer<char>, str: pointer<char>) -> int
 

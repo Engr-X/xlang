@@ -9,6 +9,32 @@ endif()
 
 # step 1: build codegen file
 
+set(XLANG_TOKENIZER_CODEGEN "${CMAKE_CURRENT_SOURCE_DIR}/xlang/lexer/tokenizer_codegen.py")
+set(XLANG_COMPILER_TOKEN_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_token_rules.json")
+set(XLANG_COMPILER_TOKENIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/Tokenizer.x")
+
+add_custom_command(
+    OUTPUT "${XLANG_COMPILER_TOKENIZER}"
+
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer"
+    COMMAND ${PYTHON_EXECUTABLE}
+        "${XLANG_TOKENIZER_CODEGEN}"
+        -c "${XLANG_COMPILER_TOKEN_RULES}"
+        -d "${XLANG_COMPILER_TOKENIZER}"
+
+    DEPENDS
+        "${XLANG_TOKENIZER_CODEGEN}"
+        "${XLANG_COMPILER_TOKEN_RULES}"
+
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+
+    COMMENT "Generating compiler tokenizer"
+    VERBATIM
+)
+
+add_custom_target(xlang_compiler_tokenizer_codegen
+    DEPENDS "${XLANG_COMPILER_TOKENIZER}"
+)
 
 ###############################################################
 
@@ -17,6 +43,7 @@ endif()
 set(XLANG_C_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/c/src")
 set(XLANG_C_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/c/include")
 set(XLANG_TINY_REGEX_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/3rd-party/tiny-regex/include")
+set(XLANG_RUNTIME_CORE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/runtime/include/core")
 set(XLANG_C_OBJ_ROOT "${CMAKE_BINARY_DIR}/objs/src/main/c")
 
 file(GLOB_RECURSE XLANG_C_SOURCES
@@ -72,6 +99,7 @@ if (XLANG_C_SOURCES)
             COMMAND ${CMAKE_C_COMPILER}
                 -I "${XLANG_C_INCLUDE_DIR}"
                 -I "${XLANG_TINY_REGEX_INCLUDE_DIR}"
+                -I "${XLANG_RUNTIME_CORE_INCLUDE_DIR}"
                 -c "${c_src_abs}"
                 -o "${c_obj_abs}"
 
@@ -142,7 +170,7 @@ foreach(src_abs ${XLANG_SOURCES})
     list(APPEND XLANG_OBJ_DIRS "${obj_dir}")
     list(APPEND XLANG_OBJS "${obj_abs}")
 
-    if (src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lex/" OR src_rel MATCHES "^xlang/util/")
+    if (src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lexer/" OR src_rel MATCHES "^xlang/util/")
         list(APPEND XLANG_COMPILER_OBJS "${obj_abs}")
     endif()
 endforeach()

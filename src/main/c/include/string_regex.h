@@ -26,6 +26,8 @@
 #ifndef _XLANG_UTIL_STRING_REGEX_
 #define _XLANG_UTIL_STRING_REGEX_
 
-int regex_match(const char* const pattern, const char* const str);
+#include "xlang/xtypedef.h"
+
+int regex_match(const x_char* const pattern, const x_char* const str);
 
 #endif

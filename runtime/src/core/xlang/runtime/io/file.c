@@ -27,17 +27,51 @@
 
 #include <stdio.h>
 #include <limits.h>
+#include <stdlib.h>
 
 
-int file_size(const char* const path, int* const result)
+static size_t xchar_strlen(const x_char* const value)
 {
+    size_t length = 0;
+
+    while (value[length] != 0)
+        length++;
+
+    return length;
+}
+
+
+static char* narrow_xchar_string(const x_char* const value)
+{
+    const size_t length = xchar_strlen(value);
+    char* const result = malloc(length + 1);
+
+    if (result == NULL)
+        return NULL;
+
+    for (size_t i = 0; i < length; i++)
+        result[i] = (char)(value[i] & 0xff);
+
+    result[length] = '\0';
+    return result;
+}
+
+
+int file_size(const x_char* const path, int* const result)
+{
+    char* narrow_path;
     FILE* file;
     long size;
 
     if (path == NULL || result == NULL)
         return -1;
 
-    file = fopen(path, "rb");
+    narrow_path = narrow_xchar_string(path);
+    if (narrow_path == NULL)
+        return -1;
+
+    file = fopen(narrow_path, "rb");
+    free(narrow_path);
 
     if (file == NULL)
         return -2;
@@ -108,8 +142,10 @@ int file_size(const char* const path, int* const result)
  * @warning                     `dest` must point to writable memory containing at least `file_size + 1` bytes.
  * @warning                     The function does not receive the capacity of `dest`; passing an * undersized buffer causes undefined behavior.
  */
-int read_file(const char* const path, char* const dest)
+int read_file(const x_char* const path, x_char* const dest)
 {
+    char* narrow_path;
+    char* bytes;
     FILE* file;
     long size;
     size_t read_size;
@@ -117,7 +153,13 @@ int read_file(const char* const path, char* const dest)
     if (path == NULL || dest == NULL)
         return -1;
 
-    file = fopen(path, "rb");
+    narrow_path = narrow_xchar_string(path);
+    if (narrow_path == NULL)
+        return -1;
+
+    file = fopen(narrow_path, "rb");
+    free(narrow_path);
+
     if (file == NULL)
         return -2;
 
@@ -146,15 +188,27 @@ int read_file(const char* const path, char* const dest)
         return -6;
     }
 
-    read_size = fread(dest, 1, (size_t)(size), file);
+    bytes = malloc((size_t)(size) + 1);
+    if (bytes == NULL)
+    {
+        fclose(file);
+        return -5;
+    }
+
+    read_size = fread(bytes, 1, (size_t)(size), file);
     if (read_size != (size_t)(size))
     {
+        free(bytes);
         fclose(file);
         return -7;
     }
 
-    dest[read_size] = '\0';
+    for (size_t i = 0; i < read_size; i++)
+        dest[i] = (x_u8)bytes[i];
 
+    dest[read_size] = 0;
+
+    free(bytes);
     fclose(file);
 
     return (int)(read_size);

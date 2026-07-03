@@ -60,9 +60,9 @@ private native inline fun filesize(path: pointer<char>) -> int;
  * Reads a whole file into a caller-provided buffer.
  *
  * This is a low-level native binding used by higher-level file helpers.
- * The destination buffer must have at least filesize(path) + 1 bytes because
- * the native implementation appends a final null terminator after the bytes
- * read from disk.
+ * The destination buffer must have at least filesize(path) + 1 character
+ * slots because the native implementation widens each file byte into one
+ * char element and appends a final null terminator.
  *
  * @param dest                  pointer to the destination character buffer
  * @param path                  pointer to the null-terminated file path
@@ -77,8 +77,8 @@ private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<ch
  *
  * The file is read as raw bytes by the native implementation, so line endings
  * are preserved exactly as they exist on disk. The returned buffer is allocated
- * with one extra byte for the final null terminator, which makes it usable as a
- * pointer<char> source buffer for tokenizer-style code.
+ * with one extra character slot for the final null terminator, which makes it
+ * usable as a pointer<char> source buffer for tokenizer-style code.
  *
  * Empty files, invalid paths, and allocation failures return null.
  *
@@ -92,7 +92,7 @@ fun readFile(path: pointer<char>) -> pointer<char>
     if size <= 0:
         return null
 
-    val buffer: pointer<char> = System.allocMemory(size + 1) as pointer<char>
+    val buffer: pointer<char> = System.allocMemory((size + 1) * sizeof(char)) as pointer<char>
 
     if buffer == null:
         return null

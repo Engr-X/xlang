@@ -44,13 +44,15 @@
 #define COLOR_BRIGHT_CYAN    96
 #define COLOR_BRIGHT_WHITE   97
 
+#include "xlang/xtypedef.h"
+
 
 int enable_ansi_color();
 
 
-int colored_sprint(char* const dest, const char* const value, const int color);
+int colored_sprint(x_char* const dest, const x_char* const value, const int color);
 
 
-int colored_sprintln(char* const dest, const char* const value, const int color);
+int colored_sprintln(x_char* const dest, const x_char* const value, const int color);
 
 #endif

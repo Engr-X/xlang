@@ -24,7 +24,7 @@
  */
 
 @file.class("TokenizerHelper")
-package xlang.lex
+package xlang.lexer
 
 
 fun tokenize(code: pointer<char>, rules: pointer<pointer<Rule>>, rulesLength: int) -> TokenList

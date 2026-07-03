@@ -26,23 +26,38 @@
 package xlang.test
 
 import xlang.System
+import xlang.util.string.String
 import xlang.util.string.StringBuilder
 import xlang.util.IO
 import xlang.util.TypeConvert
 
 
 val TEST_SUCCESS_STATUES: int = 0
-private val BUFFER_SPACE: blob[1024]
+private val TEST_CASE_NAME_TAB_WIDTH: int = 8
+private val BUFFER_SPACE: blob[1024 * sizeof(char)]
 private val TEXT_BUFFER: pointer<char> = BUFFER_SPACE as pointer<char>
 
-private val PASS_MSG: pointer<char> = "PASS" as pointer<char>
-private val FAIL_MSG: pointer<char> = "FAIL" as pointer<char>
+private val PASS_MSG: pointer<char> = "PASS"
+private val FAIL_MSG: pointer<char> = "FAIL"
 
 
 private fun insertTabs(dest: StringBuilder, n: int)
 {
-    repeat n * 4:
-        dest.append(' ')
+    repeat n:
+        dest.append("    ")
+}
+
+
+private fun padToTabs(dest: StringBuilder, text: pointer<char>, tabs: int)
+{
+    val targetLength: int = tabs * 4
+    val textLength: int = String.strlen(text)
+
+    if textLength >= targetLength:
+        return
+
+    repeat targetLength - textLength:
+        dest.append(' ' as int)
 }
 
 
@@ -51,7 +66,7 @@ private fun printTabs(n: int)
     val sb: pointer<StringBuilder> = StringBuilder()
 
     repeat n * 4:
-        sb.append(' ')
+        sb.append(' ' as int)
 
     sb.get(TEXT_BUFFER)
     put(TEXT_BUFFER)
@@ -93,8 +108,8 @@ struct TestCase
         val sb: pointer<StringBuilder> = StringBuilder()
         insertTabs(sb, n)
         sb.append(this.name)
-        sb.append(':')
-        sb.append(' ')
+        sb.append(": ")
+        padToTabs(sb, this.name, TEST_CASE_NAME_TAB_WIDTH)
 
         val result: int = this.func()
 
@@ -109,6 +124,9 @@ struct TestCase
         else:
         {
             IO.coloredSprint(TEXT_BUFFER, FAIL_MSG, 91)
+            sb.append(TEXT_BUFFER)
+            sb.append(" exit with code: ")
+            TypeConvert.intToString(TEXT_BUFFER, result, 10)
             sb.append(TEXT_BUFFER)
         }
 
@@ -204,16 +222,16 @@ struct TestGroup
         this.runTest(0, record)
 
         sb.newline()
-        TypeConvert.intToString(TEXT_BUFFER, record.correct)
+        TypeConvert.intToString(TEXT_BUFFER, record.correct, 10)
         sb.append(TEXT_BUFFER)
-        sb.append(" out of " as pointer<char>)
-        TypeConvert.intToString(TEXT_BUFFER, record.total)
+        sb.append(" out of ")
+        TypeConvert.intToString(TEXT_BUFFER, record.total, 10)
         sb.append(TEXT_BUFFER)
-        sb.append(" tests passed. " as pointer<char>)
+        sb.append(" tests passed. ")
 
         if record.correct == record.total:
         {
-            IO.coloredSprint(TEXT_BUFFER, "Congratulations!" as pointer<char>, 32)
+            IO.coloredSprint(TEXT_BUFFER, "Congratulations!", 32)
             sb.append(TEXT_BUFFER)
         }
 

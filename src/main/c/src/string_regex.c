@@ -39,6 +39,33 @@
 static char regex_pattern_buffer[REGEX_PATTERN_BUFFER_SIZE];
 
 
+static size_t xchar_strlen(const x_char* const value)
+{
+    size_t length = 0;
+
+    while (value[length] != 0)
+        length++;
+
+    return length;
+}
+
+
+static char* narrow_xchar_string(const x_char* const value)
+{
+    const size_t length = xchar_strlen(value);
+    char* const result = malloc(length + 1);
+
+    if (result == NULL)
+        return NULL;
+
+    for (size_t i = 0; i < length; i++)
+        result[i] = (char)(value[i] & 0xff);
+
+    result[length] = '\0';
+    return result;
+}
+
+
 static int regex_match_raw(const char* const pattern, const char* const str)
 {
     int match_index;
@@ -304,10 +331,29 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
 }
 
 
-int regex_match(const char* const pattern, const char* const str)
+int regex_match(const x_char* const pattern, const x_char* const str)
 {
+    char* narrow_pattern;
+    char* narrow_str;
+    int result;
+
     if (pattern == NULL || str == NULL)
         return -1;
 
-    return regex_match_range(pattern, 0, strlen(pattern), str);
+    narrow_pattern = narrow_xchar_string(pattern);
+    narrow_str = narrow_xchar_string(str);
+
+    if (narrow_pattern == NULL || narrow_str == NULL)
+    {
+        free(narrow_pattern);
+        free(narrow_str);
+        return -1;
+    }
+
+    result = regex_match_range(narrow_pattern, 0, strlen(narrow_pattern), narrow_str);
+
+    free(narrow_pattern);
+    free(narrow_str);
+
+    return result;
 }

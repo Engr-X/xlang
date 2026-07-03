@@ -1,12 +1,13 @@
 {
-    "package: ": "xlang.compiler.lex",
+    "package: ": "xlang.compiler.lexer",
     "imports": ["xlang.System", "xlang.util.string.StringBuilder"],
     "constants":
     [
-        "val INVALID_TOKEN_ERROR_MSG: pointer<char> = \"invalid token: \" as pointer<char>",
-        "val UNTERMINATED_BLOCK_COMMENT_ERROR_MSG: pointer<char> = \"unterminated block comment\" as pointer<char>",
+        "val INVALID_TOKEN_ERROR_MSG: pointer<char> = \"invalid token: \"",
+        "val UNTERMINATED_BLOCK_COMMENT_ERROR_MSG: pointer<char> = \"unterminated block comment\"",
         "val UNTERMINATED_CHAR_ERROR_MSG: pointer<char> = \"unterminated char comment\"",
         "val UNTERMINATED_STRING_ERROR_MSG: pointer<char> = \"unterminated string comment\"",
+        "val INVALID_IDENTITY_NAME_ERROR_MSG: pointer<char> = \"invalid identity name: \"",
 
         "val LINE_COMMENT_STATE: int = 10",
         "val BLOCK_COMMENT_STATE: int = 11",
@@ -174,36 +175,43 @@
         {"key": "float_postfix", "pattern": "[fF]"},
         {"key": "long_postfix", "pattern": "[lL]"},
         
-        {"key": "int_lit", "pattern": "(0[xX]$hex_digit+)|$digit+"},
-        {"key": "long_lit", "pattern": "$int_lit$long_postfix"},
-        {"key": "double_lit", "pattern": "$digit*\\.$digit+([eE]$sign?$digit+)?"},
-        {"key": "float_lit", "pattern": "$double_lit$float_postfix"},
-        {"key": "long_double_lit", "pattern": "$double_lit$long_postfix"},
+        {"key": "hex_int_lit", "pattern": "0[xX]$hex_digit+"},
+        {"key": "decimal_int_lit", "pattern": "$digit+"},
+        {"key": "int_lit", "pattern": "$hex_int_lit|$decimal_int_lit"},
+        {"key": "long_lit", "pattern": "$hex_int_lit$long_postfix|$decimal_int_lit$long_postfix"},
+        {"key": "double_no_exp_lit", "pattern": "$digit*\\.$digit+"},
+        {"key": "double_exp_lit", "pattern": "$digit*\\.$digit+[eE]$sign?$digit+"},
+        {"key": "double_lit", "pattern": "$double_exp_lit|$double_no_exp_lit"},
+        {"key": "float_lit", "pattern": "$double_exp_lit$float_postfix|$double_no_exp_lit$float_postfix"},
+        {"key": "long_double_lit", "pattern": "$double_exp_lit$long_postfix|$double_no_exp_lit$long_postfix"},
 
         {"key": "ident", "pattern": "[a-zA-Z_][a-zA-Z0-9_]*"},
+        {"key": "invalid_ident", "pattern": "$decimal_int_lit[a-zA-Z_][a-zA-Z0-9_]*"},
+        {"key": "escaped_char", "pattern": "\\\\."},
         {"key": "default", "pattern": "."}
     ],
     "rules":
     [
+        {"state": "LexState.DEFAULT", "patterns": ["$eof"], "action": "eatEOF"},
         {"state": "LexState.DEFAULT", "patterns": ["//"], "action": "begainLineComment"},
         {"state": "LexState.DEFAULT", "patterns": ["/\\*"], "action": "begainBlockComment"},
         {"state": "LexState.DEFAULT", "patterns": ["\\'"], "action": "begainChar"},
         {"state": "LexState.DEFAULT", "patterns": ["\""], "action": "begainString"},
-        
         {"state": "LexState.DEFAULT", "patterns": ["$newline"], "action": "tokenPass"},
         {"state": "LexState.DEFAULT", "patterns": ["$space"], "action": "skip"},
-
         {"state": "LexState.DEFAULT", "patterns": ["$long_double_lit"], "action": "eatLongDoubleLit"},
         {"state": "LexState.DEFAULT", "patterns": ["$float_lit"], "action": "eatFloatLit"},
         {"state": "LexState.DEFAULT", "patterns": ["$double_lit"], "action": "eatDoubleLit"},
         {"state": "LexState.DEFAULT", "patterns": ["$long_lit"], "action": "eatLongLit"},
-        {"state": "LexState.DEFAULT", "patterns": ["$int_lit"], "action": "eatIntLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$hex_int_lit"], "action": "eatIntLit"},
+        {"state": "LexState.DEFAULT", "patterns": ["$invalid_ident"], "action": "invalidIdentError"},
+        {"state": "LexState.DEFAULT", "patterns": ["$decimal_int_lit"], "action": "eatIntLit"},
         {"state": "LexState.DEFAULT", "patterns": ["$symbols"], "action": "$eatSymbol"},
         {"state": "LexState.DEFAULT", "patterns": ["$ident"], "action": "eatIdent"},
-
         {"state": "LexState.DEFAULT", "patterns": ["$default"], "action": "defaultError"},
 
 
+        {"state": "LINE_COMMENT_STATE", "patterns": ["$eof"], "action": "eatEOF"},
         {"state": "LINE_COMMENT_STATE", "patterns": ["$newline"], "action": "endLineComment"},
         {"state": "LINE_COMMENT_STATE", "patterns": ["$default"], "action": "skip"},
 
@@ -216,17 +224,23 @@
 
         {"state": "CHAR_STATE", "patterns": ["$eof"], "action": "unterminatedCharError"},
         {"state": "CHAR_STATE", "patterns": ["$newline"], "action": "unterminatedCharError"},
+        {"state": "CHAR_STATE", "patterns": ["$escaped_char"], "action": "eatChar"},
         {"state": "CHAR_STATE", "patterns": ["\\'"], "action": "endChar"},
         {"state": "CHAR_STATE", "patterns": ["$default"], "action": "eatChar"},
 
 
         {"state": "STRING_STATE", "patterns": ["$eof"], "action": "unterminatedStringError"},
         {"state": "STRING_STATE", "patterns": ["$newline"], "action": "unterminatedStringError"},
+        {"state": "STRING_STATE", "patterns": ["$escaped_char"], "action": "eatChar"},
         {"state": "STRING_STATE", "patterns": ["\""], "action": "endString"},
         {"state": "STRING_STATE", "patterns": ["$default"], "action": "eatChar"}
     ],
     "others":
     [
+        [
+            "private inline fun eatEOF(input: LexInput, dest: LexState) -> Token =",
+            "    new Token(Token.EOF_KIND, input.pos.toTokenPosition(input.textLength), \"\")"
+        ],
         [
             "private inline fun skip(input: LexInput, dest: LexState) -> Token",
             "{",
@@ -245,17 +259,23 @@
             "}"
         ],
         [
-            "private inline fun errorToken(input: LexInput, errorType: int, dest: LexState, errorInfo: pointer<char>) -> Token",
-            "{",
-            "    val pos: TokenPosition = new TokenPosition(input.pos.offset, input.pos.line, input.pos.column, input.textLength)",
-            "    return new Token(errorType, pos, input.text, errorInfo)",
-            "}"
+            "private inline fun errorToken(input: LexInput, errorType: int, dest: LexState, errorInfo: pointer<char>) -> Token =",
+            "    new Token(errorType, input.pos.toTokenPosition(input.textLength), input.text, errorInfo)"
         ],
         [
             "private fun defaultError(input: LexInput, dest: LexState) -> Token",
             "{",
-            "    val tokenText: pointer<char> = System.allocMemory(String.strlen(input.text) + 16) as pointer<char>",
+            "    val tokenText: pointer<char> = System.allocMemory((String.strlen(input.text) + 16) * sizeof(char)) as pointer<char>",
             "    String.strcpy(tokenText, INVALID_TOKEN_ERROR_MSG)",
+            "    String.strcat(tokenText, input.text)",
+            "    return errorToken(input, -LexState.DEFAULT, dest, tokenText)",
+            "}"
+        ],
+        [
+            "private fun invalidIdentError(input: LexInput, dest: LexState) -> Token",
+            "{",
+            "    val tokenText: pointer<char> = System.allocMemory((String.strlen(input.text) + 32) * sizeof(char)) as pointer<char>",
+            "    String.strcpy(tokenText, INVALID_IDENTITY_NAME_ERROR_MSG)",
             "    String.strcat(tokenText, input.text)",
             "    return errorToken(input, -LexState.DEFAULT, dest, tokenText)",
             "}"
@@ -288,9 +308,8 @@
         [
             "private fun tokenPass(input: LexInput, dest: LexState) -> Token",
             "{",
-            "    val pos: TokenPosition = new TokenPosition(input.pos.offset, input.pos.line, input.pos.column, input.textLength)",
             "    skipNewLine(input, dest)",
-            "    return new Token(TK_TOKEN_PASS, pos, null)",
+            "    return new Token(TK_TOKEN_PASS, input.pos.toTokenPosition(input.textLength), null)",
             "}"
         ],
         [
@@ -305,9 +324,8 @@
         [
             "private inline fun eatToken(input: LexInput, numberType: int, dest: LexState) -> Token",
             "{",
-            "    val pos: TokenPosition = new TokenPosition(input.pos.offset, input.pos.line, input.pos.column, input.textLength)",
             "    dest.updateCursor(input.textLength)",
-            "    return new Token(numberType, pos, input.text)",
+            "    return new Token(numberType, input.pos.toTokenPosition(input.textLength), input.text)",
             "}"
         ],
         [
@@ -394,7 +412,7 @@
         [
             "private fun endChar(input: LexInput, dest: LexState) -> Token",
             "{",
-            "    val charText: pointer<char> = System.allocMemory(dest.accumulator.length + 1) as pointer<char>",
+            "    val charText: pointer<char> = System.allocMemory((dest.accumulator.length + 1) * sizeof(char)) as pointer<char>",
             "    dest.accumulator.get(charText)",
             "    val pos: TokenPosition = new TokenPosition(",
             "        input.pos.offset - dest.accumulator.length,",
@@ -422,7 +440,7 @@
         [
             "private fun endString(input: LexInput, dest: LexState) -> Token",
             "{",
-            "    val charText: pointer<char> = System.allocMemory(dest.accumulator.length + 1) as pointer<char>",
+            "    val charText: pointer<char> = System.allocMemory((dest.accumulator.length + 1) * sizeof(char)) as pointer<char>",
             "    dest.accumulator.get(charText)",
             "    val pos: TokenPosition = new TokenPosition(",
             "        input.pos.offset - dest.accumulator.length,",

@@ -37,13 +37,13 @@ import xlang.System
  *
  * Invariant:
  * - length is the number of valid characters, excluding the null terminator.
- * - capacity is the number of allocated char slots.
+ * - capacity is the number of allocated character slots.
  * - list[length] is always String.NULL_CHAR.
  */
 struct StringBuilder
 {
     
-    // Initial number of char slots allocated for a new builder.
+    // Initial number of character slots allocated for a new builder.
     private static val INIT_CAPACITY: int = 16
 
 
@@ -65,7 +65,7 @@ struct StringBuilder
 
 
      /**
-     * Number of char slots currently allocated in the internal buffer.
+     * Number of character slots currently allocated in the internal buffer.
      */
     private var capacity: int
 
@@ -89,7 +89,7 @@ struct StringBuilder
         this.length = 0
         this.capacity = INIT_CAPACITY
         this.list = System.allocMemory(this.capacity * sizeof(char))
-        this.list.deref = String.NULL_CHAR
+        this.list.deref = '\0'
     }
 
 
@@ -103,7 +103,7 @@ struct StringBuilder
     fun clear()
     {
         this.length = 0
-        this.list.deref = String.NULL_CHAR
+        this.list.deref = '\0'
     }
 
 
@@ -114,7 +114,7 @@ struct StringBuilder
      * current length + inserted length + null terminator.
      *
      * If the current capacity is too small, it is doubled until it can hold the
-     * required number of char slots. The internal buffer is then reallocated.
+     * required number of character slots. The internal buffer is then reallocated.
      *
      * @param insertLength      number of characters that will be inserted
      */
@@ -130,21 +130,21 @@ struct StringBuilder
 
 
     /**
-     * Appends one character to the builder.
+     * Appends one character code to the builder.
      *
      * The builder checks the load threshold before writing the character.
      * After the character is appended, the internal buffer is terminated with
      * String.NULL_CHAR.
      *
-     * @param ch                character to append
+     * @param ch                character code to append
      */
-    fun append(ch: char)
+    fun append(ch: int)
     {
         if this.length + 1 >= ((this.capacity as double) * LOAD_FACTOR) as int:
             this.resize(1)
         
-        this.list[this.length++] = ch
-        this.list[this.length] = String.NULL_CHAR
+        this.list[this.length++] = ch as char
+        this.list[this.length] = '\0'
     }
 
 

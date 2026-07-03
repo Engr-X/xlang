@@ -26,11 +26,13 @@
 #ifndef _XLANG_RUNTIME_FILE_H_
 #define _XLANG_RUNTIME_FILE_H_
 
+#include "xlang/xtypedef.h"
+
 /**
  * 
  */
 
-int file_size(const char* const path, int* const result);
+int file_size(const x_char* const path, int* const result);
 
 
 /**
@@ -72,6 +74,6 @@ int file_size(const char* const path, int* const result);
  * @warning                     `dest` must point to writable memory containing at least `file_size + 1` bytes.
  * @warning                     The function does not receive the capacity of `dest`; passing an * undersized buffer causes undefined behavior.
  */
-int read_file(const char* const path, char* const dest);
+int read_file(const x_char* const path, x_char* const dest);
 
 #endif

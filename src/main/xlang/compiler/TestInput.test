@@ -1,0 +1,4 @@
+package xlang.compiler
+
+fun test():
+    put("Hello World\r\n")

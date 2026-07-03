@@ -15,12 +15,12 @@ SYMBOL_ACTION_MACRO = "$eatSymbol"
 
 
 DEFAULT_IMPORTS: set[str] = {
-    "xlang.lex.Lex",
-    "xlang.lex.LexState",
-    "xlang.lex.LexPosition",
-    "xlang.lex.Token",
-    "xlang.lex.TokenizerHelper",
-    "xlang.lex.TokenPosition"}
+    "xlang.lexer.Lex",
+    "xlang.lexer.LexState",
+    "xlang.lexer.LexPosition",
+    "xlang.lexer.Token",
+    "xlang.lexer.TokenizerHelper",
+    "xlang.lexer.TokenPosition"}
 
 
 def read_json(path: Path) -> JsonObject:
@@ -34,7 +34,7 @@ def write_text(path: Path, content: str) -> None:
 
 
 def getPackageName(rules: JsonObject) -> str:
-    return rules.get("package", rules.get("package: ", "xlang.lex"))
+    return rules.get("package", rules.get("package: ", ""))
 
 
 def getClassName(rules: JsonObject, dest: Path) -> str:
@@ -334,7 +334,7 @@ def genTokenDefs(token_defs: list[TokenDef], token_def_start: int, tabs: int) ->
         "",
         f"{indent}val keywordListLength: int = {token_def_length}",
         f"{indent}val keywordListSlotSize: int = {slot_size}",
-        f"{indent}val keywordTextSpace: blob[{text_space_size}]",
+        f"{indent}val keywordTextSpace: blob[{text_space_size} * sizeof(char)]",
         f"{indent}val keywordTextList: pointer<char> = keywordTextSpace as pointer<char>",
         "",
         "",
@@ -348,7 +348,7 @@ def genTokenDefs(token_defs: list[TokenDef], token_def_start: int, tabs: int) ->
 
     for index, item in enumerate(token_defs):
         pattern = json.dumps(item["pattern"])
-        lines.append(f"{body_indent}String.strcpy(getKeywordText({index}), {pattern} as pointer<char>)")
+        lines.append(f"{body_indent}String.strcpy(getKeywordText({index}), {pattern})")
 
     lines.extend([
         f"{indent}}}",
@@ -374,7 +374,7 @@ def genSymbolDefs(symbol_defs: list[TokenDef], symbol_def_start: int, tabs: int)
 
     for item in symbol_defs:
         pattern = json.dumps(item["pattern"])
-        lines.append(f"{indent}val {item['name']}_PATTERN: pointer<char> = {pattern} as pointer<char>")
+        lines.append(f"{indent}val {item['name']}_PATTERN: pointer<char> = {pattern}")
 
     return "\n".join(lines) + "\n\n\n"
 
@@ -395,7 +395,7 @@ def genRules(rules: list[JsonObject], defs: Defs, tabs: int) -> str:
         patterns = getRulePatterns(rule)
         pattern = json.dumps("|".join(expandPattern(pattern, defs) for pattern in patterns))
         action = rule["action"]
-        lines.append(f"{indent}val rule{index}: Rule = Rule({index}, {state}, {pattern} as pointer<char>, {action})")
+        lines.append(f"{indent}val rule{index}: Rule = Rule({index}, {state}, {pattern}, {action})")
 
     return "\n".join(lines) + "\n\n\n"
 

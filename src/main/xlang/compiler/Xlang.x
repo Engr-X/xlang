@@ -26,21 +26,27 @@
 @file.class("Xlang")
 package xlang.compiler
 
-import xlang.compiler.lex.Tokenizer
-import xlang.lex.Token
-import xlang.lex.TokenList
+import xlang.compiler.lexer.Tokenizer
+import xlang.lexer.Token
+import xlang.lexer.TokenList
+import xlang.util.IO
 
 
 fun main()
 {
-    val tokens: TokenList = Tokenizer.tokenize("111 Hello++ \"string\r\n\", this is my programming language" as pointer<char>)
+    val text: pointer<char> = IO.readFile("D:/Coding/projects/Xlang/xlang/src/main/xlang/compiler/TestInput.test")
+    val tokens: TokenList = Tokenizer.tokenize(text)
 
     for (var i: int = 0; i < tokens.length(); i++):
     {
         val token: pointer<Token> = tokens.get(i)
 
         if token.kind == Token.EOF_KIND:
-            putln("<EOF>" as pointer<char>)
+            putln("<EOF>")
+        elif token.kind < 0:
+            putln(token.errorInfo)
+        elif token.text == null:
+            pass
         else:
             putln(token.text)
     }

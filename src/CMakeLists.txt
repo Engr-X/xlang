@@ -53,34 +53,6 @@ function(collect_xlang_sources out_var root_dir)
 endfunction()
 
 
-set(XLANG_TOKENIZER_CODEGEN "${CMAKE_CURRENT_SOURCE_DIR}/main/xlang/lex/tokenizer_codegen.py")
-set(XLANG_COMPILER_TOKEN_RULES "${CMAKE_CURRENT_SOURCE_DIR}/main/resources/syntax/compiler_token_rules.json")
-set(XLANG_COMPILER_TOKENIZER "${CMAKE_CURRENT_SOURCE_DIR}/main/xlang/compiler/lex/Tokenizer.x")
-
-add_custom_command(
-    OUTPUT "${XLANG_COMPILER_TOKENIZER}"
-
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/main/xlang/compiler/lex"
-    COMMAND ${PYTHON_EXECUTABLE}
-        "${XLANG_TOKENIZER_CODEGEN}"
-        -c "${XLANG_COMPILER_TOKEN_RULES}"
-        -d "${XLANG_COMPILER_TOKENIZER}"
-
-    DEPENDS
-        "${XLANG_TOKENIZER_CODEGEN}"
-        "${XLANG_COMPILER_TOKEN_RULES}"
-
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-
-    COMMENT "Generating compiler tokenizer"
-    VERBATIM
-)
-
-add_custom_target(xlang_compiler_tokenizer_codegen
-    DEPENDS "${XLANG_COMPILER_TOKENIZER}"
-)
-
-
 add_subdirectory(main)
 
 set(XLANG_TEST_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/test")

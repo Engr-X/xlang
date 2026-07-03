@@ -23,12 +23,10 @@
  *
  */
 
-package xlang.lex
+package xlang.lexer
 
 import xlang.System
 import xlang.util.string.String
-
-
 
 
 struct TokenPosition
@@ -52,7 +50,8 @@ struct TokenPosition
 struct Token
 {
     static val EOF_KIND: int = 0
-    
+    static val EOF_STRING: pointer<char> = "<EOF>"
+
     var kind: int
     var pos: TokenPosition
     var text: pointer<char>
@@ -66,7 +65,7 @@ struct Token
 
         if kind == EOF_KIND:
         {
-            this.text = null
+            this.text = EOF_STRING
             return
         }
 
@@ -82,7 +81,7 @@ struct Token
 
         if kind == EOF_KIND:
         {
-            this.text = null
+            this.text = EOF_STRING
             return
         }
 
@@ -130,14 +129,8 @@ struct TokenList
     }
 
 
-    fun length() -> int
-    {
-        return this.size
-    }
+    fun length() -> int = this.size
 
 
-    fun get(index: int) -> pointer<Token>
-    {
-        return this.tokens[index]
-    }
+    fun get(index: int) -> pointer<Token> = this.tokens[index]
 }

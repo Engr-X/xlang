@@ -74,7 +74,7 @@ extern void xlang_put_bool(const bool value);
  *
  * @param value                 the character value to print
  */
-extern void xlang_put_char(const char value);
+extern void xlang_put_char(const x_char value);
 
 
 /**
@@ -168,7 +168,7 @@ extern void xlang_put_p(const void* value);
  *
  * @param value                 the null-terminated string to print
  */
-extern void xlang_put_str(const char* const value);
+extern void xlang_put_str(const x_char* const value);
 
 
 /**
@@ -190,7 +190,7 @@ extern void xlang_putln_bool(const bool value);
  *
  * @param value                 the character value to print
  */
-extern void xlang_putln_char(const char value);
+extern void xlang_putln_char(const x_char value);
 
 
 /**
@@ -281,6 +281,6 @@ extern void xlang_putln_p(const void* value);
  *
  * @param value                 the null-terminated string to print
  */
-extern void xlang_putln_str(const char* const value);
+extern void xlang_putln_str(const x_char* const value);
 
 #endif
