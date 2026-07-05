@@ -23,7 +23,6 @@ import qualified Semantic.TypeEnv as TEnv
 import qualified Parse.SyntaxTree as AST
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import qualified Lex.Token as Lex
 
 
 -- Expand an expression into: (prefix statements, residual expression).
@@ -586,7 +585,7 @@ getVarKey _ = error "getVarKey: not a Var atom"
 getAtomType :: IRAtom -> TACM Class
 getAtomType (BoolC _) = return AST.Bool
 getAtomType (CharC _) = return AST.Char
-getAtomType (StringC s) = return (AST.Blob (AST.IntConst (show (length s + 1)) Lex.dummyToken))
+getAtomType (StringC _) = return (AST.Pointer AST.Char)
 getAtomType (Int8C _) = return AST.Int8T
 getAtomType (Int16C _) = return AST.Int16T
 getAtomType (Int32C _) = return AST.Int32T

@@ -26,6 +26,7 @@ import qualified Util.Exception as UE
     NL                  { t@(Lex.TokenPass  _) }
     KW_TRUE             { t@(Lex.Ident "true" _) }
     KW_FALSE            { t@(Lex.Ident "false" _) }
+    KW_NULL             { t@(Lex.Ident "null" _) }
     
     KW_PUBLIC           { t@(Lex.Ident "public" _) }
     KW_PROTECTED        { t@(Lex.Ident "protected" _) }

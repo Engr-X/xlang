@@ -7,6 +7,7 @@ module Semantic.NativeLibLoader (
 ) where
 
 import Control.Monad (filterM)
+import Control.Applicative ((<|>))
 import Data.Aeson (FromJSON(..), Result(..), Value(..), eitherDecode, fromJSON, withObject, (.:), (.:?), (.!=))
 import Data.Aeson.Types (Parser)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
@@ -44,9 +45,19 @@ newtype NativeEnvelope = NativeEnvelope [NativeClass]
 
 data NativeClass = NativeClass {
     ncQName :: QName,
+    ncClassType :: NativeClassType,
+    ncStructSize :: Maybe Int,
     ncAttrs :: [NativeField],
     ncMethods :: [NativeMethod]
 }
+
+
+data NativeClassType
+    = NativeClassKind
+    | NativeStructKind
+    | NativeInterfaceKind
+    | NativeAbstractClassKind
+    deriving (Eq, Show)
 
 
 data NativeField = NativeField {
@@ -119,10 +130,14 @@ instance FromJSON NativeEnvelope where
 instance FromJSON NativeClass where
     parseJSON = withObject "NativeClass" $ \o -> do
         qnVal <- o .: "class"
+        classType <- o .:? "class_type" >>= parseClassTypeMaybe
+        structSize <- o .:? "struct_size"
         attrs <- o .:? "attributes" .!= []
         methods <- o .:? "methods" .!= []
         NativeClass
             <$> parseQName qnVal
+            <*> pure classType
+            <*> pure structSize
             <*> pure attrs
             <*> pure methods
 
@@ -234,9 +249,17 @@ mergeNativeEnvelopes (NativeEnvelope left) (NativeEnvelope right) =
     mergeClass newer older =
         NativeClass {
             ncQName = ncQName older,
+            ncClassType = pickClassType newer older,
+            ncStructSize = ncStructSize newer <|> ncStructSize older,
             ncAttrs = mergeFields (ncAttrs older) (ncAttrs newer),
             ncMethods = mergeMethods (ncMethods older) (ncMethods newer)
         }
+
+    pickClassType :: NativeClass -> NativeClass -> NativeClassType
+    pickClassType newer older =
+        if ncClassType newer /= NativeClassKind
+            then ncClassType newer
+            else ncClassType older
 
     mergeFields :: [NativeField] -> [NativeField] -> [NativeField]
     mergeFields xs ys = dedupBy fieldKey (xs ++ ys)
@@ -534,6 +557,8 @@ parseNativeSymbolsEnvelope symbols =
         fieldsByOwner = foldl' (\mp f -> Map.insertWith (++) (init (nfQNameWithName f)) [f] mp) Map.empty fields
         mkClass qn = NativeClass {
             ncQName = qn,
+            ncClassType = NativeClassKind,
+            ncStructSize = Nothing,
             ncAttrs = map dropFieldQName (Map.findWithDefault [] qn fieldsByOwner),
             ncMethods = map dropMethodQName (Map.findWithDefault [] qn methodsByOwner)
         }
@@ -759,6 +784,8 @@ parseLegacyAsmEnvelope blocks =
         fieldsByOwner = foldl' (\mp f -> Map.insertWith (++) (init (nfQNameWithName f)) [f] mp) Map.empty attrs
         mkClass qn = NativeClass {
             ncQName = qn,
+            ncClassType = NativeClassKind,
+            ncStructSize = Nothing,
             ncAttrs = map dropFieldQName (Map.findWithDefault [] qn fieldsByOwner),
             ncMethods = map dropMethodQName (Map.findWithDefault [] qn methodsByOwner)
         }
@@ -1016,6 +1043,7 @@ buildEnv path (NativeEnvelope classes) =
     let fieldDecls = concatMap collectFieldDecls classes
         methodDecls = concatMap collectMethodDecls classes
         templateDecls = concatMap (collectTemplateDecls path) classes
+        structDecls = concatMap collectStructDecls classes
 
         iVarMap = Map.fromListWith (++) [(k, pos) | (k, _, _, pos) <- fieldDecls]
         iFunMap = Map.fromListWith (++) [(k, pos) | (k, _, _, pos) <- methodDecls]
@@ -1024,8 +1052,9 @@ buildEnv path (NativeEnvelope classes) =
         tVarMap = Map.fromListWith keepFirst [(k, (t, pos, full)) | (k, full, t, pos) <- fieldDecls]
         tFunMap = foldl' insertFun Map.empty methodDecls
         tTemplateMap = foldl' insertTemplate Map.empty templateDecls
+        tStructMap = foldl' insertTemplate Map.empty structDecls
         tEnv0 = emptyTypedImportEnv path
-        tEnv = tEnv0 { tVars = tVarMap, tFuncs = tFunMap, tTemplates = tTemplateMap }
+        tEnv = tEnv0 { tVars = tVarMap, tFuncs = tFunMap, tTemplates = tTemplateMap, tStructs = tStructMap }
     in (iEnv, tEnv)
   where
     keepFirst :: a -> a -> a
@@ -1066,7 +1095,8 @@ collectFieldDecls cls = concatMap one (ncAttrs cls)
         let (pkg, clsName) = splitOwnerQName (ncQName cls)
             fullQn = ncQName cls ++ [nfName f]
             aliases = aliasesFor pkg clsName (nfName f) (nfOwnerType f)
-            keys = map (applyVisibility (isPublicAccessMask (nfAccessMask f))) aliases
+            publicLike = isPublicAccessMask (nfAccessMask f) || isGeneratedStructMember cls clsName (nfName f)
+            keys = map (applyVisibility publicLike) aliases
         in [(k, fullQn, nfType f, []) | k <- keys]
 
 
@@ -1078,7 +1108,8 @@ collectMethodDecls cls = concatMap one (ncMethods cls)
         let (pkg, clsName) = splitOwnerQName (ncQName cls)
             fullQn = ncQName cls ++ [nmName m]
             aliases = aliasesFor pkg clsName (nmName m) (nmOwnerType m)
-            keys = map (applyVisibility (isPublicAccessMask (nmAccessMask m))) aliases
+            publicLike = isPublicAccessMask (nmAccessMask m) || isGeneratedStructMember cls clsName (nmName m)
+            keys = map (applyVisibility publicLike) aliases
             sig = FunSig {
                 funParams = nmParamTypes m,
                 funReturn = nmReturnType m
@@ -1096,8 +1127,121 @@ collectTemplateDecls path cls = concatMap one (ncMethods cls)
             let (pkg, clsName) = splitOwnerQName (ncQName cls)
                 fullQn = ncQName cls ++ [nmName m]
                 aliases = aliasesFor pkg clsName (nmName m) (nmOwnerType m)
-                keys = map (applyVisibility (isPublicAccessMask (nmAccessMask m))) aliases
+                publicLike = isPublicAccessMask (nmAccessMask m) || isGeneratedStructMember cls clsName (nmName m)
+                keys = map (applyVisibility publicLike) aliases
             in [(k, fullQn, stmt, []) | k <- keys]
+
+
+isGeneratedStructMember :: NativeClass -> String -> String -> Bool
+isGeneratedStructMember cls clsName raw =
+    ncClassType cls == NativeStructKind && (clsName ++ "$") `isPrefixOf` raw
+
+
+collectStructDecls :: NativeClass -> [(QName, QName, Statement, [Position])]
+collectStructDecls cls
+    | ncClassType cls /= NativeStructKind = []
+    | otherwise =
+        case nativeStructStub cls of
+            Nothing -> []
+            Just stmt ->
+                let (pkg, clsName) = splitOwnerQName (ncQName cls)
+                    fullQn = ncQName cls ++ ["$struct"]
+                    aliases = aliasesFor pkg clsName "$struct" OwnerClass
+                in [(k, fullQn, stmt, []) | k <- aliases]
+
+
+nativeStructStub :: NativeClass -> Maybe Statement
+nativeStructStub cls =
+    case reverse (ncQName cls) of
+        [] -> Nothing
+        clsName : _ ->
+            let tok = syntheticIdentToken 1 clsName
+                size = max 8 (maybe 8 id (ncStructSize cls))
+                opaqueTok = syntheticIdentToken 2 "$opaque"
+                staticTok = syntheticIdentToken 3 "static"
+                opaqueField = AST.DefField
+                    ["$opaque"]
+                    (Just (Blob (AST.IntConst (show size) opaqueTok)))
+                    Nothing
+                    [opaqueTok]
+                instanceFields = mapMaybe (nativeStructInstanceField clsName) (ncAttrs cls)
+                staticFields = mapMaybe (nativeStructStaticField clsName staticTok) (ncAttrs cls)
+                methods = mapMaybe (nativeStructMethod clsName) (ncMethods cls)
+                layoutFields = if null instanceFields then [opaqueField] else instanceFields
+            in Just (AST.Struct [] [] (tok, AST.Variable clsName tok) (layoutFields ++ staticFields ++ methods))
+
+
+nativeStructInstanceField :: String -> NativeField -> Maybe Statement
+nativeStructInstanceField clsName f =
+    case stripStructMemberName clsName (nfName f) of
+        Just _ -> Nothing
+        Nothing ->
+            let name = nfName f
+                tok = syntheticIdentToken 20 name
+            in Just (AST.DefField [name] (Just (nfType f)) Nothing [tok])
+
+
+nativeStructStaticField :: String -> Lex.Token -> NativeField -> Maybe Statement
+nativeStructStaticField clsName staticTok f = do
+    member <- stripStructMemberName clsName (nfName f)
+    if member == "$size"
+        then Nothing
+        else Just (AST.DefConstField [member] (Just (nfType f)) Nothing [staticTok])
+
+
+nativeStructMethod :: String -> NativeMethod -> Maybe Statement
+nativeStructMethod clsName m = do
+    member <- nativeStructMemberName clsName (nmName m) (nmOwnerType m)
+    let tok = syntheticIdentToken 10 member
+        (isInst, params0) = splitStructThisParam clsName (nmParamTypes m)
+        params = zipWith mkParam [0 :: Int ..] params0
+        ret = (nmReturnType m, [tok])
+        nameExpr = AST.Variable member tok
+        body = AST.Multiple []
+    if isInst
+        then Just (AST.InstanceMethod [(AST.Public, [])] [] ret nameExpr params body)
+        else Just (AST.StaticMethod [(AST.Public, [AST.Static])] [] ret nameExpr params body)
+  where
+    mkParam :: Int -> Class -> (Class, String, [Lex.Token])
+    mkParam idx ty =
+        let name = "arg" ++ show idx
+            tok = syntheticIdentToken (100 + idx) name
+        in (ty, name, [tok])
+
+
+nativeStructMemberName :: String -> String -> OwnerType -> Maybe String
+nativeStructMemberName clsName raw ownerType =
+    case stripStructMemberName clsName raw of
+        Just member -> Just member
+        Nothing ->
+            if ownerType == OwnerClass
+                then Just raw
+                else Nothing
+
+
+stripStructMemberName :: String -> String -> Maybe String
+stripStructMemberName clsName raw =
+    stripPrefix (clsName ++ "$") raw
+
+
+splitStructThisParam :: String -> [Class] -> (Bool, [Class])
+splitStructThisParam clsName params =
+    case params of
+        p : rest | isStructThisParam clsName p -> (True, rest)
+        _ -> (False, params)
+
+
+isStructThisParam :: String -> Class -> Bool
+isStructThisParam clsName ty =
+    case normalizeClass ty of
+        Pointer (Class qn []) -> not (null qn) && last qn == clsName
+        Class ["pointer"] [Class qn []] -> not (null qn) && last qn == clsName
+        _ -> False
+
+
+syntheticIdentToken :: Int -> String -> Lex.Token
+syntheticIdentToken seed name =
+    Lex.Ident name (makePosition (-1) (-200000 - seed) (max 1 (length name)))
 
 
 nativeTemplateStmtFromMethod :: Path -> NativeMethod -> Maybe Statement
@@ -1321,6 +1465,19 @@ parseQName v = case (fromJSON v :: Result [String]) of
     splitByDot s = case break (== '.') s of
         (a, []) -> [a]
         (a, _:rest) -> a : splitByDot rest
+
+
+parseClassTypeMaybe :: Maybe Value -> Parser NativeClassType
+parseClassTypeMaybe Nothing = pure NativeClassKind
+parseClassTypeMaybe (Just v) = case (fromJSON v :: Result String) of
+    Success s ->
+        case map toLower s of
+            "class" -> pure NativeClassKind
+            "struct" -> pure NativeStructKind
+            "interface" -> pure NativeInterfaceKind
+            "abstract_class" -> pure NativeAbstractClassKind
+            other -> fail ("unsupported native class_type: " ++ other)
+    Error e -> fail e
 
 
 parseAccessMask :: Value -> Parser Int

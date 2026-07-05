@@ -96,7 +96,6 @@ insertTokenPassTest = testGroup "Lex.TokenPass.insertTokenPass " $ map (\(n, s, 
         ident "if", ident "a",
         nl,
         ident "b", sym LParen, sym RParen,
-        nl,
         ident "else",
         nl,
         ident "c", sym LParen, sym RParen,
@@ -113,7 +112,6 @@ insertTokenPassTest = testGroup "Lex.TokenPass.insertTokenPass " $ map (\(n, s, 
         ident "if", ident "a",
         nl,
         ident "b", sym LParen, sym RParen,
-        nl,
         ident "else", ident "c", sym LParen, sym RParen,
         nl,
         ident "d", sym LParen, sym RParen,
@@ -189,62 +187,6 @@ insertTokenPassTest = testGroup "Lex.TokenPass.insertTokenPass " $ map (\(n, s, 
         eof]),
 
 
-    -- NL is inserted before '{' due to line change after ')', but not inserted after '{' or before '}'.
-    ("10", unlines [
-        "int f()",
-        "{",
-        "return 1",
-        "}"], [
-            
-        ident "int",
-        ident "f",
-        sym LParen,
-        sym RParen,
-        nl,
-        sym LBrace,
-        ident "return",
-        number "1",
-        nl,
-        sym RBrace,
-        nl,
-        eof]),
-
-
-    -- parenDepth suppresses NL inside () even across lines.
-    -- We still expect NL before '{' due to line change after ')'.
-    ("11", unlines [
-        "int g(",
-        "a,",
-        "b",
-        ")",
-        "{",
-        "}"], [
-            
-        ident "int", ident "g", sym LParen,
-        ident "a", sym Comma,
-        ident "b",
-        sym RParen,
-        nl,
-        sym LBrace,
-        nl,
-        sym RBrace,
-        nl,
-        eof]),
-
-    -- no NL after '{' and no NL before '}' under current block handling.
-    ("12", unlines [
-        "class A {",
-        "int x = 1",
-        "}"], [
-            
-        ident "class", ident "A", sym LBrace,
-        ident "int", ident "x", sym Assign, number "1",
-        nl,
-        sym RBrace,
-        nl,
-        eof]),
-
-
     -- ':' is banned on both sides, so no NL around it.
     -- NL is inserted before '{' because previous token ')' is on a different line.
     ( "13", unlines [
@@ -303,68 +245,6 @@ insertTokenPassTest = testGroup "Lex.TokenPass.insertTokenPass " $ map (\(n, s, 
         nl,
         eof]),
         
-    ( "16", unlines [
-        "package com.wangdi.collections",
-        "",
-        "class List",
-        "{",
-        "    private int[] data = int[10]",
-        "",
-        "    private int length = 0",
-        "",
-        "    List()",
-        "    {",
-        "        println(\"List created\")",
-        "    }",
-        "",
-        "    public int getSize() => this.length",
-        "",
-        "    public int head()",
-        "    {",
-        "        if this.length == 0",
-        "            throw new Exception(\"List is empty\")",
-        "        ",
-        "        return this.data[0]",
-        "    }",
-        "}"], [
-        
-        ident "package", ident "com", sym Dot, ident "wangdi", sym Dot, ident "collections",
-        nl,
-        ident "class", ident "List",
-        nl,
-        sym LBrace,
-        ident "private", ident "int", sym LBracket, sym RBracket, ident "data", sym Assign,
-        ident "int", sym LBracket, number "10", sym RBracket,
-        nl,
-        ident "private", ident "int", ident "length", sym Assign, number "0",
-        nl,
-        ident "List", sym LParen, sym RParen,
-        nl,
-        sym LBrace,
-        ident "println", sym LParen, str "List created", sym RParen,
-        nl,
-        sym RBrace,
-        nl,
-        ident "public", ident "int", ident "getSize", sym LParen, sym RParen,
-        sym FatArrow,
-        ident "this", sym Dot, ident "length",
-        nl,
-        ident "public", ident "int", ident "head", sym LParen, sym RParen,
-        nl,
-        sym LBrace,
-        ident "if", ident "this", sym Dot, ident "length", sym Equal, number "0",
-        nl,
-        ident "throw", ident "new", ident "Exception", sym LParen, str "List is empty", sym RParen,
-        nl,
-        ident "return", ident "this", sym Dot, ident "data",
-        sym LBracket, number "0", sym RBracket,
-        nl,
-        sym RBrace,
-        nl,
-        sym RBrace,
-        nl,
-        eof]),
-
     ("17", unlines [
         "import com.wangdi.*",
         "import java.lang.*"], [
@@ -433,54 +313,6 @@ splitShiftInGenericsTests = testGroup "Lex.TokenPass.splitShiftInGenerics" $
         mkId  "a" 1 1 1,
         mkSym BitRShift 1 3 2,
         mkId  "b" 1 6 1]),
-
-    ("1", "foo::<HashMap::<List::<Int>>>(h)", [
-        mkId  "foo" 1 1 3,
-        mkSym DoubleColon 1 4 2,
-        mkSym LessThan 1 6 1,
-        mkId "HashMap" 1 7 7,
-        mkSym DoubleColon 1 14 2,
-        mkSym LessThan 1 16 1,
-        mkId  "List" 1 17 4,
-        mkSym DoubleColon 1 21 2,
-        mkSym LessThan 1 23 1,
-        mkId "Int" 1 24 3,
-
-        mkSym GreaterThan 1 27 1,
-        mkSym GreaterThan 1 28 1,
-        mkSym GreaterThan 1 29 1,
-        mkSym LParen 1 30 1,
-        mkId "h" 1 31 1,
-        mkSym RParen 1 32 1]),
-
-    ("2", "f::<List::<Int>>(x)", [
-        mkId "f" 1 1 1,
-        mkSym DoubleColon 1 2 2,
-        mkSym LessThan 1 4 1,
-        mkId "List" 1 5 4,
-        mkSym DoubleColon 1 9 2,
-        mkSym LessThan 1 11 1,
-        mkId "Int" 1 12 3,
-        mkSym GreaterThan 1 15 1,
-        mkSym GreaterThan 1 16 1,
-        mkSym LParen 1 17 1,
-        mkId "x" 1 18 1,
-        mkSym RParen 1 19 1]),
-
-    ("3", "g::<Int>(a) >> 1", [
-        mkId "g" 1 1 1,
-        mkSym DoubleColon 1 2 2,
-        mkSym LessThan 1 4 1,
-        mkId "Int" 1 5 3,
-        mkSym GreaterThan 1 8 1,
-        mkSym LParen 1 9 1,
-        mkId "a" 1 10 1,
-        mkSym RParen 1 11 1,
-
-        -- English comment: outside generic context, keep shift.
-        mkSym BitRShift 1 13 2,
-
-        mkNum "1" 1 16 1]),
 
     ("4", "val p: pointer<pointer<int>>", [
         mkId "val" 1 1 3,

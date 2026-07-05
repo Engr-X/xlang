@@ -113,7 +113,7 @@ loopAssignKeyTests = testGroup "IR.TACLowing.collectAssignKeysBlock" [
             tokI = LT.Ident "i" posI
             expr = AST.Unary AST.SelfInc (AST.Variable "i" tokI) tokI
             blk = AST.Multiple [AST.Expr expr]
-            vUses = Map.fromList [([posI], TEnv.VarLocal (Public, []) "i" 0)]
+            vUses = Map.fromList [([posI], TEnv.VarLocal (Public, []) "i" 0 Int32T)]
             st0 = TAC.mkTACState vUses Map.empty
             keys = evalState (TAC.runTACM (collectAssignKeysBlock blk)) st0
         keys @?= [("i", 0)],
@@ -126,10 +126,33 @@ loopAssignKeyTests = testGroup "IR.TACLowing.collectAssignKeysBlock" [
             tokN = LT.NumberConst "1" posN
             expr = AST.Binary AST.PlusAssign (AST.Variable "i" tokI) (AST.IntConst "1" tokN) tokPlusAssign
             blk = AST.Multiple [AST.Expr expr]
-            vUses = Map.fromList [([posI], TEnv.VarLocal (Public, []) "i" 0)]
+            vUses = Map.fromList [([posI], TEnv.VarLocal (Public, []) "i" 0 Int32T)]
             st0 = TAC.mkTACState vUses Map.empty
             keys = evalState (TAC.runTACM (collectAssignKeysBlock blk)) st0
         keys @?= [("i", 0)]
+    ,
+    testCase "post-inc inside assignment lhs index is loop-carried" $ do
+        let posDest = makePosition 3 1 4
+            posOffset = makePosition 3 6 6
+            tokDest = LT.Ident "dest" posDest
+            tokOffset = LT.Ident "offset" posOffset
+            tokInc = LT.Symbol LT.PlusPlus (makePosition 3 12 2)
+            tokAdd = LT.Symbol LT.Plus (makePosition 3 5 1)
+            tokAssign = LT.Symbol LT.Assign (makePosition 3 15 1)
+            lhs = AST.Unary AST.DeRef
+                (AST.Binary AST.Add
+                    (AST.Variable "dest" tokDest)
+                    (AST.Unary AST.SelfInc (AST.Variable "offset" tokOffset) tokInc)
+                    tokAdd)
+                tokDest
+            expr = AST.Binary AST.Assign lhs (AST.CharConst '1' LT.dummyToken) tokAssign
+            blk = AST.Multiple [AST.Expr expr]
+            vUses = Map.fromList [
+                ([posOffset], TEnv.VarLocal (Public, []) "offset" 0 Int32T)
+                ]
+            st0 = TAC.mkTACState vUses Map.empty
+            keys = evalState (TAC.runTACM (collectAssignKeysBlock blk)) st0
+        keys @?= [("offset", 0)]
     ]
 
 
@@ -423,7 +446,7 @@ pointerSuffixLoweringTests = testGroup "IR.TACLowing.pointerSuffix" [
             tokA = LT.Ident "a" posA
             tokRef = LT.Ident "ref" (makePosition 1 3 3)
             expr = AST.Qualified ["a", "ref"] [tokA, tokRef]
-            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0)]
+            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0 Int32T)]
             stacks = Map.fromList [(("a", 0), [(Int32T, 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (instrs, outAtom, outTy) = evalState (TAC.runTACM $ do
@@ -442,7 +465,7 @@ pointerSuffixLoweringTests = testGroup "IR.TACLowing.pointerSuffix" [
             tokDref = LT.Ident "dref" (makePosition 2 9 4)
             expr = AST.Qualified ["b", "deref", "dref"] [tokB, tokDeref, tokDref]
             bTy = Pointer (Pointer Int32T)
-            vUses = Map.fromList [([posB], TEnv.VarLocal (Public, []) "b" 0)]
+            vUses = Map.fromList [([posB], TEnv.VarLocal (Public, []) "b" 0 bTy)]
             stacks = Map.fromList [(("b", 0), [(bTy, 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (instrs, outTy) = evalState (TAC.runTACM $ do
@@ -480,8 +503,8 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
             tokI = LT.Ident "i" posI
             expr = AST.Call (AST.Qualified ["arr", "get"] [tokArr, tokGet]) [AST.Variable "i" tokI]
             vUses = Map.fromList
-                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0)
-                , ([posI], TEnv.VarLocal (Public, []) "i" 1)
+                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0 (Pointer Int32T))
+                , ([posI], TEnv.VarLocal (Public, []) "i" 1 Int32T)
                 ]
             stacks = Map.fromList
                 [ (("arr", 0), [(Pointer Int32T, 0)])
@@ -509,9 +532,9 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
                 (AST.Qualified ["arr", "set"] [tokArr, tokSet])
                 [AST.Variable "i" tokI, AST.Variable "v" tokV]
             vUses = Map.fromList
-                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0)
-                , ([posI], TEnv.VarLocal (Public, []) "i" 1)
-                , ([posV], TEnv.VarLocal (Public, []) "v" 2)
+                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0 (Pointer Int32T))
+                , ([posI], TEnv.VarLocal (Public, []) "i" 1 Int32T)
+                , ([posV], TEnv.VarLocal (Public, []) "v" 2 Int32T)
                 ]
             stacks = Map.fromList
                 [ (("arr", 0), [(Pointer Int32T, 0)])
@@ -540,9 +563,9 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
             lhs = AST.Unary AST.DeRef (AST.Binary AST.Add (AST.Variable "arr" tokArr) (AST.Variable "i" tokI) tokLbr) tokLbr
             expr = AST.Binary AST.Assign lhs (AST.Variable "v" tokV) tokAssign
             vUses = Map.fromList
-                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0)
-                , ([posI], TEnv.VarLocal (Public, []) "i" 1)
-                , ([posV], TEnv.VarLocal (Public, []) "v" 2)
+                [ ([posArr], TEnv.VarLocal (Public, []) "arr" 0 (Pointer Int32T))
+                , ([posI], TEnv.VarLocal (Public, []) "i" 1 Int32T)
+                , ([posV], TEnv.VarLocal (Public, []) "v" 2 Int32T)
                 ]
             stacks = Map.fromList
                 [ (("arr", 0), [(Pointer Int32T, 0)])
@@ -559,6 +582,24 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
         assertBool "index assign should read old value" (any isDerefInstr nodes)
         assertBool "index assign should still write" (any isDerefAssignInstr nodes),
 
+    testCase "pointer<char> arithmetic scales index by 4 bytes" $ do
+        let posP = makePosition 14 1 1
+            posOne = makePosition 14 5 1
+            tokP = LT.Ident "p" posP
+            tokOne = LT.NumberConst "1" posOne
+            tokPlus = LT.Symbol LT.Plus (makePosition 14 3 1)
+            expr = AST.Binary AST.Add (AST.Variable "p" tokP) (AST.IntConst "1" tokOne) tokPlus
+            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0 (Pointer Char))]
+            stacks = Map.fromList [(("p", 0), [(Pointer Char, 0)])]
+            st0 = TAC.mkTACState vUses Map.empty
+            (nodes, outTy) = evalState (TAC.runTACM $ do
+                TAC.setVarStacks stacks
+                (lowered, outAtom) <- exprLowing expr
+                ty <- TAC.getAtomType outAtom
+                pure (lowered, ty)) st0
+        outTy @?= Pointer Char
+        assertBool "pointer<char> index must be scaled by sizeof(char)" (any isMulBy4 nodes),
+
     testCase "blob assignment from string lowers to System.memcopy call" $ do
         let posA = makePosition 13 1 1
             posEq = makePosition 13 3 1
@@ -567,7 +608,7 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
             tokEq = LT.Symbol LT.Assign posEq
             tokS = LT.StrConst "Hi" posS
             expr = AST.Binary AST.Assign (AST.Variable "a" tokA) (AST.StringConst "Hi" tokS) tokEq
-            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0)]
+            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0 (Blob (AST.IntConst "16" LT.dummyToken)))]
             stacks = Map.fromList [(("a", 0), [(Blob (AST.IntConst "16" LT.dummyToken), 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (nodes, outTy) = evalState (TAC.runTACM $ do
@@ -595,9 +636,14 @@ pointerIntrinsicLoweringTests = testGroup "IR.TACLowing.pointerIntrinsic" [
         IRInstr (TAC.DerefAssign _ (TAC.Int8C _) 1) -> True
         _ -> False
 
+    isMulBy4 :: IRNode -> Bool
+    isMulBy4 node = case node of
+        IRInstr (TAC.IBinary _ AST.Mul _ (TAC.Int64C 4)) -> True
+        _ -> False
+
     isMemcopyCall :: IRNode -> Bool
     isMemcopyCall node = case node of
-        IRInstr (TAC.ICallStaticDirect _ ["xlang", "System", "memcopy"] [_, _, TAC.Int32C 3]) -> True
+        IRInstr (TAC.ICallStaticDirect _ ["xlang", "System", "memcopy"] [_, _, TAC.Int32C 12]) -> True
         _ -> False
 
 incDecDerefLoweringTests :: TestTree
@@ -608,7 +654,7 @@ incDecDerefLoweringTests = testGroup "IR.TACLowing.incDecDeref" [
             tokStar = LT.Symbol LT.Multiply (makePosition 40 2 1)
             tokInc = LT.Symbol LT.PlusPlus (makePosition 40 3 2)
             expr = AST.Unary AST.SelfInc (AST.Unary AST.DeRef (AST.Variable "p" tokP) tokStar) tokInc
-            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0)]
+            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0 (Pointer Int32T))]
             stacks = Map.fromList [(("p", 0), [(Pointer Int32T, 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (nodes, outTy) = evalState (TAC.runTACM $ do
@@ -626,7 +672,7 @@ incDecDerefLoweringTests = testGroup "IR.TACLowing.incDecDeref" [
             tokStar = LT.Symbol LT.Multiply (makePosition 41 3 1)
             tokInc = LT.Symbol LT.PlusPlus (makePosition 41 1 2)
             expr = AST.Unary AST.IncSelf (AST.Unary AST.DeRef (AST.Variable "p" tokP) tokStar) tokInc
-            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0)]
+            vUses = Map.fromList [([posP], TEnv.VarLocal (Public, []) "p" 0 (Pointer Int32T))]
             stacks = Map.fromList [(("p", 0), [(Pointer Int32T, 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (nodes, outTy) = evalState (TAC.runTACM $ do
@@ -674,7 +720,7 @@ functionPointerLoweringTests = testGroup "IR.TACLowing.functionPointer" [
             expr = AST.Call (AST.Variable "fp" tokFp)
                 [AST.IntConst "1" tok1, AST.IntConst "2" tok2]
             fpTy = FuncPtr Int32T [Int32T, Int32T]
-            vUses = Map.fromList [([posFp], TEnv.VarLocal (Public, []) "fp" 0)]
+            vUses = Map.fromList [([posFp], TEnv.VarLocal (Public, []) "fp" 0 fpTy)]
             stacks = Map.fromList [(("fp", 0), [(fpTy, 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (nodes, outTy) = evalState (TAC.runTACM $ do
@@ -696,7 +742,7 @@ functionPointerLoweringTests = testGroup "IR.TACLowing.functionPointer" [
             rhs = AST.Variable "add" tokAdd
             expr = AST.Binary AST.Assign lhs rhs tokAssign
             fpTy = FuncPtr Int32T [Int32T, Int32T]
-            vUses = Map.fromList [([posSlot], TEnv.VarLocal (Public, []) "slot" 0)]
+            vUses = Map.fromList [([posSlot], TEnv.VarLocal (Public, []) "slot" 0 (Pointer fpTy))]
             fUses = Map.fromList [([posAdd], TEnv.FunLocal (Public, []) ["add"] (FunSig [Int32T, Int32T] Int32T))]
             stacks = Map.fromList [(("slot", 0), [(Pointer fpTy, 0)])]
             st0 = TAC.mkTACState vUses fUses
@@ -749,11 +795,25 @@ sizeofLoweringTests = testGroup "IR.TACLowing.sizeof" [
         nodes @?= []
         outAtom @?= TAC.Int32C 4,
 
+    testCase "sizeof(char) folds to 4 bytes" $ do
+        let expr = AST.SizeOfType (Char, [LT.dummyToken]) LT.dummyToken
+            st0 = TAC.mkTACState Map.empty Map.empty
+            (nodes, outAtom) = evalState (TAC.runTACM (exprLowing expr)) st0
+        nodes @?= []
+        outAtom @?= TAC.Int32C 4,
+
+    testCase "sizeof(struct type) folds to pointer size" $ do
+        let expr = AST.SizeOfType (Class ["Token"] [], [LT.dummyToken]) LT.dummyToken
+            st0 = TAC.mkTACState Map.empty Map.empty
+            (nodes, outAtom) = evalState (TAC.runTACM (exprLowing expr)) st0
+        nodes @?= []
+        outAtom @?= TAC.Int32C 8,
+
     testCase "sizeof(variable) uses type only and folds to constant atom" $ do
         let posA = makePosition 20 1 1
             tokA = LT.Ident "a" posA
             expr = AST.SizeOfExpr (AST.Variable "a" tokA) LT.dummyToken
-            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0)]
+            vUses = Map.fromList [([posA], TEnv.VarLocal (Public, []) "a" 0 Int64T)]
             stacks = Map.fromList [(("a", 0), [(Int64T, 0)])]
             st0 = TAC.mkTACState vUses Map.empty
             (nodes, outAtom) = evalState (TAC.runTACM $ do
@@ -782,7 +842,43 @@ structClassSplitTests = testGroup "IR.TACLowing.structClassSplit" [
             stmts = [peopleSize, peopleInit, mainFun]
             (grouped, plain) = splitStructStmts (structNamePrefixes stmts) stmts
         length (Map.findWithDefault [] "people" grouped) @?= 2
-        plain @?= [mainFun]
+        plain @?= [mainFun],
+
+    testCase "qualified lowered qname keeps explicit struct owner before default file owner" $ do
+        let ownerOverrides = Map.fromList
+                [ (defaultPlainOwnerKey, "TestsuiteX")
+                , ("TestCase$TYPE", "TestCase")
+                , ("Testgroup$TYPE", "Testgroup")
+                ]
+            out = qualifyLoweredQName
+                TAC.IRClassTypeStruct
+                ownerOverrides
+                ["xlang", "test", "Testgroup"]
+                ["TestCase$TYPE"]
+        out @?= ["xlang", "test", "TestCase", "TestCase$TYPE"],
+
+    testCase "struct IR metadata keeps instance fields for native library import" $ do
+        let tokLength = LT.Ident "length" (makePosition 0 2 6)
+            metaField =
+                AST.DefField
+                    [AST.structInstanceFieldMetaName "StringBuilder" "length"]
+                    (Just Int32T)
+                    Nothing
+                    [tokLength]
+            irClass = evalState
+                (TAC.runTACM $ classStmtsLowing TAC.IRClassTypeStruct [] "StringBuilder" Map.empty [metaField])
+                (TAC.mkTACState Map.empty Map.empty)
+            structAttrs =
+                case irClass of
+                    TAC.IRClass _ "StringBuilder" TAC.IRClassTypeStruct attrs _ _ _ _ _ _ -> [attrs]
+                    _ -> []
+            hasLength attrs =
+                any (\(_, cls, name, memberType) ->
+                    name == "length" && cls == Int32T && memberType == TAC.MemberClass) attrs
+
+        case structAttrs of
+            (attrs:_) -> assertBool "struct metadata should expose instance field length" (hasLength attrs)
+            [] -> assertFailure "expected StringBuilder struct IR class"
     ]
 
 tests :: TestTree

@@ -58,6 +58,11 @@ data TypeCtx = TypeCtx {
     tcFullFunUses :: Map [Position] FullFunctionTable
 } deriving (Show)
 
+generatedFunctionImportKeys :: QName -> String -> [QName]
+generatedFunctionImportKeys packages name =
+    let qImport = packages ++ [name]
+    in if '$' `elem` name then [qImport, [name]] else [qImport]
+
 
 -- | Type checker state monad.
 type TypeM a = State TypeCtx a
@@ -259,7 +264,7 @@ sizeofClassBytes :: Class -> Maybe Int
 sizeofClassBytes cls0 = case normalizeTypeAlias (normalizeClass cls0) of
     Int8T -> Just 1
     Bool -> Just 1
-    Char -> Just 1
+    Char -> Just 4
     Int16T -> Just 2
     Int32T -> Just 4
     Float32T -> Just 4
@@ -387,12 +392,22 @@ shouldWarnBinaryCastsTC :: Operator -> Class -> Class -> Bool
 shouldWarnBinaryCastsTC bop a b = case bop of
     Add -> not (isPointerArithPair a b)
     Sub -> not (isPointerType a && isIntegerType b)
+    Equal -> not (isPointerComparePair a b)
+    NotEqual -> not (isPointerComparePair a b)
+    LessThan -> not (isPointerComparePair a b)
+    LessEqual -> not (isPointerComparePair a b)
+    GreaterThan -> not (isPointerComparePair a b)
+    GreaterEqual -> not (isPointerComparePair a b)
     _ -> True
   where
     isPointerArithPair :: Class -> Class -> Bool
     isPointerArithPair x y =
         (isPointerType x && isIntegerType y) ||
         (isIntegerType x && isPointerType y)
+
+    isPointerComparePair :: Class -> Class -> Bool
+    isPointerComparePair x y =
+        isPointerType (normalizeTypeAlias x) && isPointerType (normalizeTypeAlias y)
 
 
 inferIfExprType :: Path -> [Position] -> Class -> Class -> TypeM Class
@@ -627,13 +642,16 @@ inferExpr path packages envs (Variable str tok) = do
                             -- ????????ContextCheck ????????
                             Nothing -> do
                                 let qLocal = [str]
-                                    qImport = packages ++ [str]
+                                    qImports = generatedFunctionImportKeys packages str
                                     localSigs = lookupFun qLocal (tcFunScopes c)
                                     localEntries = [(FunLocal defaultDecl qLocal sig, sig) | sig <- localSigs]
                                     importEntries =
                                         concatMap
-                                            (maybe [] (\(sigs, _, full) -> [(FunImported defaultDeclFlags qImport full sig, sig) | sig <- sigs]) . Map.lookup qImport . tFuncs)
-                                            envs
+                                            (\qImport ->
+                                                concatMap
+                                                    (maybe [] (\(sigs, _, full) -> [(FunImported defaultDeclFlags qImport full sig, sig) | sig <- sigs]) . Map.lookup qImport . tFuncs)
+                                                    envs)
+                                            qImports
                                     candidates = localEntries ++ importEntries
                                 case candidates of
                                     [] ->
@@ -775,13 +793,16 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
             Variable name tok -> do
                 c <- get
                 let qLocal = [name]
-                    qImport = packages ++ [name]
+                    qImports = generatedFunctionImportKeys packages name
                     localSigs = lookupFun qLocal (tcFunScopes c)
                     localEntries = [(FunLocal defaultDecl qLocal sig, sig) | sig <- localSigs]
                     importEntries =
                         concatMap
-                            (maybe [] (\(sigs, _, full) -> [(FunImported defaultDeclFlags qImport full sig, sig) | sig <- sigs]) . Map.lookup qImport . tFuncs)
-                            envs
+                            (\qImport ->
+                                concatMap
+                                    (maybe [] (\(sigs, _, full) -> [(FunImported defaultDeclFlags qImport full sig, sig) | sig <- sigs]) . Map.lookup qImport . tFuncs)
+                                    envs)
+                            qImports
                     entries = localEntries ++ importEntries
                     matches = filter (matchesSig retTy paramTs . snd) entries
                     pos = [Lex.tokenPos tok]
@@ -1131,13 +1152,16 @@ inferExpr path packages envs e@(Call callee args) = do
         isNamedFunctionCallee ctx expr0 = case expr0 of
             Variable name _ ->
                 let qLocal = [name]
-                    qImport = packages ++ [name]
+                    qImports = generatedFunctionImportKeys packages name
                     hasLocal = not (null (lookupFun qLocal (tcFunScopes ctx)))
                     hasImported =
                         any
-                            (\tenv -> case Map.lookup qImport (tFuncs tenv) of
-                                Just (sigs, _, _) -> not (null sigs)
-                                Nothing -> False)
+                            (\tenv ->
+                                any
+                                    (\qImport -> case Map.lookup qImport (tFuncs tenv) of
+                                        Just (sigs, _, _) -> not (null sigs)
+                                        Nothing -> False)
+                                    qImports)
                             envs
                 in hasLocal || hasImported
             Qualified names toks -> case parsePointerSuffixQualified names toks of
@@ -1157,11 +1181,14 @@ inferExpr path packages envs e@(Call callee args) = do
         lowerRegularCall ctx callPos0 fScopes0 expr argInfos = case expr of
             Variable name tok -> do
                 let qLocal = [name]
-                let qImport = packages ++ [name]
+                let qImports = generatedFunctionImportKeys packages name
                 let importEntries =
                         concatMap
-                            (maybe [] (\(sigs, _, full) -> [(qImport, full, sigs)]) . Map.lookup qImport . tFuncs)
-                            envs
+                            (\qImport ->
+                                concatMap
+                                    (maybe [] (\(sigs, _, full) -> [(qImport, full, sigs)]) . Map.lookup qImport . tFuncs)
+                                    envs)
+                            qImports
                 resolveScopedCall qLocal name fScopes0 importEntries [Lex.tokenPos tok] callPos0 argInfos
 
             Qualified names toks -> case names of
@@ -1322,7 +1349,7 @@ inferLiteral _ e = case e of
     LongDoubleConst _ _ -> pure Float128T
     CharConst _ _ -> pure Char
     BoolConst _ _ -> pure Bool
-    StringConst s tok -> pure (Blob (IntConst (show (length s + 1)) tok))
+    StringConst _ _ -> pure (Pointer Char)
     _ -> error "inferLiteral: non-literal expression"
 
 

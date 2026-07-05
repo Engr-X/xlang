@@ -79,9 +79,44 @@ void xlang_put_bool(const bool value)
  *
  * @param value                 the character value to print
  */
-void xlang_put_char(const char value)
+static void xlang_put_utf8_char(const x_char value)
 {
-    putchar(value);
+    x_u32 code = (x_u32)value;
+
+    if (value < 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff))
+        code = 0xfffd;
+
+    if (code <= 0x7f)
+    {
+        putchar((int)code);
+        return;
+    }
+
+    if (code <= 0x7ff)
+    {
+        putchar((int)(0xc0 | (code >> 6)));
+        putchar((int)(0x80 | (code & 0x3f)));
+        return;
+    }
+
+    if (code <= 0xffff)
+    {
+        putchar((int)(0xe0 | (code >> 12)));
+        putchar((int)(0x80 | ((code >> 6) & 0x3f)));
+        putchar((int)(0x80 | (code & 0x3f)));
+        return;
+    }
+
+    putchar((int)(0xf0 | (code >> 18)));
+    putchar((int)(0x80 | ((code >> 12) & 0x3f)));
+    putchar((int)(0x80 | ((code >> 6) & 0x3f)));
+    putchar((int)(0x80 | (code & 0x3f)));
+}
+
+
+void xlang_put_char(const x_char value)
+{
+    xlang_put_utf8_char(value);
 }
 
 
@@ -197,9 +232,13 @@ void xlang_put_p(const void* value)
  *
  * @param value                 the null-terminated string to print
  */
-void xlang_put_str(const char* const value)
+void xlang_put_str(const x_char* const value)
 {
-    printf("%s", value);
+    if (value == NULL)
+        return;
+
+    for (const x_char* ptr = value; *ptr != 0; ptr++)
+        xlang_put_utf8_char(*ptr);
 }
 
 
@@ -225,9 +264,9 @@ void xlang_putln_bool(const bool value)
  *
  * @param value                 the character value to print
  */
-void xlang_putln_char(const char value)
+void xlang_putln_char(const x_char value)
 {
-    putchar(value);
+    xlang_put_utf8_char(value);
     putchar('\n');
 }
 
@@ -341,7 +380,8 @@ void xlang_putln_p(const void* value)
  *
  * @param value                 the null-terminated string to print
  */
-void xlang_putln_str(const char* const value)
+void xlang_putln_str(const x_char* const value)
 {
-    puts(value);
+    xlang_put_str(value);
+    putchar('\n');
 }

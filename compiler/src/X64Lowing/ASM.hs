@@ -137,7 +137,7 @@ sizeByClass64 = Map.fromList [
     (AST.Float64T, 8),
     (AST.Float128T, 16),
     (AST.Bool, 1),
-    (AST.Char, 1)]
+    (AST.Char, 4)]
 
 
 bitsByClass64 :: Map.Map Class Bits
@@ -146,13 +146,14 @@ bitsByClass64 = Map.fromList [
     (AST.Int64T, B64),
     (AST.Int16T, B16),
     (AST.Int8T, B8L),
-    (AST.Char, B8L),
+    (AST.Char, B32),
     (AST.Bool, B8L)]
 
 
 cppCallTypeMap64 :: Map.Map Class String
 cppCallTypeMap64 = Map.fromList [
     (AST.Bool, "bool"),
+    (AST.Char, "int"),
     (AST.Int8T, "char"),
     (AST.Int16T, "short"),
     (AST.Int32T, "int"),

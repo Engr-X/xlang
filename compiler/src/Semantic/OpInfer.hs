@@ -6,7 +6,7 @@ import Control.Applicative (liftA3)
 import Data.List (elemIndex, intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (mapMaybe)
-import Data.Char (isLower)
+import Data.Char (isUpper)
 import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
 import Semantic.TypeEnv (FunSig(..))
 import Util.Exception (ErrorKind, Warning(..))
@@ -30,10 +30,12 @@ augAssignOp op = case op of
 
 -- | Conversion rank for basic types (smaller -> narrower).
 --   Used by promotion to choose the wider of two operands.
+--   Char is treated as an unsigned 32-bit character type, so it ranks above
+--   int32 but below int64.
 --   'Void' is included as a sentinel with rank -1.
 basicTypeRank :: Map Class Int
 basicTypeRank = Map.fromList [
-    (Bool, 0), (Char, 1), (Int8T, 2), (Int16T, 3), (Int32T, 4),
+    (Bool, 0), (Int8T, 1), (Int16T, 2), (Int32T, 3), (Char, 4),
     (Int64T, 5), (Float32T, 6), (Float64T, 7), (Float128T, 8),(Void, -1)]
 
 
@@ -42,9 +44,10 @@ basicTypeRank = Map.fromList [
 numericRangeRank :: Map Class Int
 numericRangeRank = Map.fromList [
     (Bool, 0),
-    (Char, 1), (Int8T, 1),
+    (Int8T, 1),
     (Int16T, 2),
     (Int32T, 3),
+    (Char, 4),
     (Float32T, 4),
     (Int64T, 5),
     (Float64T, 6),
@@ -76,15 +79,17 @@ normalizeTypeAlias = go True
     shouldAutoRefUserClass c = case c of
         Class ["String"] [] -> False
         Class ["Any"] [] -> False
-        Class [name] [] -> case name of
-            (ch:_) -> isLower ch
-            [] -> False
+        Class qn [] -> not (isTemplateTypeName (last qn))
         _ -> False
+
+    isTemplateTypeName :: String -> Bool
+    isTemplateTypeName [] = False
+    isTemplateTypeName s = all isUpper s
 
 
 widenedClass :: Class -> [Class]
 widenedClass Bool = [Bool]
-widenedClass Char = [Char, Int8T, Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
+widenedClass Char = [Char, Float32T, Int64T, Float64T, Float128T]
 widenedClass Int8T = [Int8T, Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
 widenedClass Int16T = [Int16T, Int32T, Float32T, Int64T, Float64T, Float128T]
 widenedClass Int32T = [Int32T, Float32T, Int64T, Float64T, Float128T]
@@ -109,7 +114,12 @@ widenedArgs :: Path -> [Position] -> [(Class, [Position])] -> [FunSig] -> Either
 widenedArgs path callPos argInfos sigs =
     let (argTsRaw, argPos) = unzip argInfos
         argTs = map normalizeTypeAlias argTsRaw
-        dist argT paramT = elemIndex paramT (widenedClass argT)
+        dist argT paramT =
+            case (argT, paramT) of
+                (Pointer Void, Pointer _) ->
+                    if paramT == Pointer Void then Just 0 else Just 1
+                _ ->
+                    elemIndex paramT (widenedClass argT)
 
         buildCandidate sig =
             let ps = map normalizeTypeAlias (funParams sig)
@@ -147,9 +157,12 @@ widenedArgs path callPos argInfos sigs =
 
 -- | Reverse lookup for basic type ranks.
 --   Converts a rank back into a 'Class' after promotion.
---   Assumes ranks in 'basicTypeRank' are unique.
 basicTypeRankRev :: Map Int Class
 basicTypeRankRev = Map.fromList $ map (\(k, v) -> (v, k)) (Map.toList basicTypeRank)
+
+
+rankToPromotedBasicType :: Int -> Class
+rankToPromotedBasicType r = Map.findWithDefault (error "cannot find the type") r basicTypeRankRev
 
 
 -- | Check whether a class is a basic type tracked in 'basicTypeRank'.
@@ -201,6 +214,7 @@ iCast p pos fromT toT
         isPointerVoidWiden :: Class -> Class -> Bool
         isPointerVoidWiden fromTy toTy = case (normalizeTypeAlias fromTy, normalizeTypeAlias toTy) of
             (Pointer _, Pointer Void) -> True
+            (Pointer Void, Pointer _) -> True
             (Blob _, Pointer Void) -> True
             _ -> False
 
@@ -210,11 +224,11 @@ iCast p pos fromT toT
         integralRank :: Class -> Int
         integralRank t = case t of
             Bool -> 0
-            Char -> 1
             Int8T -> 1
             Int16T -> 2
             Int32T -> 3
-            Int64T -> 4
+            Char -> 4
+            Int64T -> 5
             _ -> -1
 
         isIntegralWiden :: Class -> Class -> Bool
@@ -237,7 +251,7 @@ promoteBasicType a b =
         rb = Map.findWithDefault (-2) b basicTypeRank
         rInt = Map.findWithDefault (-2) Int32T basicTypeRank
         r = max rInt (max ra rb)
-    in Map.findWithDefault (error "cannot find the type") r basicTypeRankRev
+    in rankToPromotedBasicType r
 
 
 unaryOpInfer :: Map (Operator, Class) Class

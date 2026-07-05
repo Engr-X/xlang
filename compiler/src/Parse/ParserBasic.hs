@@ -144,6 +144,9 @@ parseAnnotationArgExprs rawArgs
         [Lex.Ident s pos]
             | map toLower s == "true" -> Just (BoolConst True (Lex.Ident s pos))
             | map toLower s == "false" -> Just (BoolConst False (Lex.Ident s pos))
+            | map toLower s == "null" ->
+                let tok = Lex.Ident s pos
+                in Just (Cast (Pointer Void, [tok]) (IntConst "0" tok) tok)
             | otherwise -> Nothing
         [Lex.Symbol Lex.Plus pos, x] -> do
             inner <- parseLiteralExpr [x]

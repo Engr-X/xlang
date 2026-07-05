@@ -107,5 +107,9 @@ fun memcopy(dest: pointer<*>, src: pointer<*>, srcPos: int, destPos: int, size: 
 native inline fun allocMemory(size: int) -> pointer<*>
 
 
+@native("xlang_realloc")
+native inline fun reallocMemory(mem: pointer<*>, size: int) -> pointer<*>
+
+
 @native("xlang_mfree")
 native inline fun freeMemory(pre: pointer<*>) -> void

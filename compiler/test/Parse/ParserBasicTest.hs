@@ -205,9 +205,19 @@ stmtToExprTests = testGroup "Parse.ParserBasic.stmtToExpr" $ map (\(name, _, stm
         expr = AST.IntConst "42" tok
 
 
+parseAnnotationArgExprsTests :: TestTree
+parseAnnotationArgExprsTests = testGroup "Parse.ParserBasic.parseAnnotationArgExprs" [
+    testCase "null annotation arg uses pointer<void> sugar" $
+        parseAnnotationArgExprs [tokNull] @?= [Cast (Pointer Void, [tokNull]) (IntConst "0" tokNull) tokNull]
+    ]
+    where
+        tokNull = Lex.Ident "null" (makePosition 1 1 4)
+
+
 
 tests :: TestTree
 tests = testGroup "Parse.ParserBasic" [
     qnameToExprTests, nearestTokTests, mkHappyErrorExprTests,
     prettyAccessTests, prettyDeclFlagTests, prettyDeclFlagsTests, prettyDeclTests,
-    classifyNumberTests, toExceptionTests, stmtToBlockTests, stmtToExprTests]
+    classifyNumberTests, toExceptionTests, stmtToBlockTests, stmtToExprTests,
+    parseAnnotationArgExprsTests]

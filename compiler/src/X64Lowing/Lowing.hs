@@ -31,12 +31,10 @@ import X64Lowing.ASM (
     staticInitName)
 
 import qualified Data.ByteString.Lazy.Char8 as BL8
-import qualified Data.Char as DC
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified IR.TAC as IR
-import qualified Lex.Token as Lex
 import qualified Parse.SyntaxTree as Parse
 import qualified Parse.SyntaxTree as AST
 import qualified Semantic.TypeEnv as TEnv
@@ -65,7 +63,6 @@ genIntCast64 dstAtom fromC toC srcAtom = do
 
         widenIns
             | not widen = []
-            | fromC == AST.Char = [X64.Movz t32 t8 X64.B32]
             | fromC == AST.Int8T = [X64.Movs t32 t8 X64.B32]
             | fromC == AST.Int16T = [X64.Movs t32 t16 X64.B32]
             | otherwise = []
@@ -238,7 +235,7 @@ genIntToFloatCast64 dstAtom fromC toC srcAtom = do
             AST.Int32T -> ([X64.Mov i32 srcAtom X64.B32], i32, X64.B32)
             AST.Int16T -> ([X64.Mov i16 srcAtom X64.B16, X64.Movs i32 i16 X64.B32], i32, X64.B32)
             AST.Int8T -> ([X64.Mov i8 srcAtom X64.B8L, X64.Movs i32 i8 X64.B32], i32, X64.B32)
-            AST.Char -> ([X64.Mov i8 srcAtom X64.B8L, X64.Movz i32 i8 X64.B32], i32, X64.B32)
+            AST.Char -> ([X64.Mov i32 srcAtom X64.B32], i32, X64.B32)
             AST.Bool -> ([X64.Mov i8 srcAtom X64.B8L, X64.Movz i32 i8 X64.B32], i32, X64.B32)
             _ -> error $ "genIntToFloatCast64: unsupported source class: " ++ show fromC
     case toC of
@@ -545,11 +542,6 @@ structSizeByQName64 qn = do
 structReturnInfo64 :: Class -> X64LowerM (Maybe ([String], Int))
 structReturnInfo64 retTy = case retTy of
     AST.Class qn _ -> do
-        mSize <- structSizeByQName64 qn
-        case mSize of
-            Just n | n > 0 -> return (Just (qn, n))
-            _ -> return Nothing
-    AST.Pointer (AST.Class qn _) -> do
         mSize <- structSizeByQName64 qn
         case mSize of
             Just n | n > 0 -> return (Just (qn, n))
@@ -1089,14 +1081,8 @@ data FloatImmKey64
     deriving (Eq, Ord, Show)
 
 
-floatConstLabelPrefix64 :: X64.CallConv64 -> String
-floatConstLabelPrefix64 cc = case X64.ccCompiler cc of
-    X64.NASM -> "LC"
-    _ -> ".LC"
-
-
-floatConstLabel64 :: X64.CallConv64 -> Int -> String
-floatConstLabel64 cc idx = floatConstLabelPrefix64 cc ++ showHex idx ""
+floatConstLabel64 :: [String] -> Int -> String
+floatConstLabel64 ownerQName idx = mangleQName64 False ownerQName ++ "$LC" ++ showHex idx ""
 
 
 floatImmKeyFromAtom64 :: IR.IRAtom -> Maybe FloatImmKey64
@@ -1158,15 +1144,15 @@ floatImmStaticData64 key label = case key of
     Float64ImmKey64 hex64 -> X64.StaticData label [X64.Quad hex64]
 
 
-collectClassFloatConsts64 :: X64.CallConv64 -> Int -> IR.IRClass -> (Map FloatImmKey64 String, [X64.StaticData], Int)
-collectClassFloatConsts64 cc seqStart (IR.IRClass _ _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _ cFuns _) =
+collectClassFloatConsts64 :: X64.CallConv64 -> [String] -> Int -> IR.IRClass -> (Map FloatImmKey64 String, [X64.StaticData], Int)
+collectClassFloatConsts64 _ ownerQName seqStart (IR.IRClass _ _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _ cFuns _) =
     let staticKeys = concatMap floatImmKeysFromBlock64 sBlocks
         funKeys = concatMap funFloatKeys funs
         cFunKeys = concatMap cFunFloatKeys cFuns
         keys = uniqueInOrder64 (staticKeys ++ funKeys ++ cFunKeys)
         pairs = zip keys [seqStart ..]
-        keyToLabel = Map.fromList [(k, floatConstLabel64 cc idx) | (k, idx) <- pairs]
-        dataSegs = [floatImmStaticData64 k (floatConstLabel64 cc idx) | (k, idx) <- pairs]
+        keyToLabel = Map.fromList [(k, floatConstLabel64 ownerQName idx) | (k, idx) <- pairs]
+        dataSegs = [floatImmStaticData64 k (floatConstLabel64 ownerQName idx) | (k, idx) <- pairs]
         seqNext = seqStart + length keys
     in (keyToLabel, dataSegs, seqNext)
     where
@@ -1176,15 +1162,15 @@ collectClassFloatConsts64 cc seqStart (IR.IRClass _ _ _ _ (IR.StaticInit (sBlock
         cFunFloatKeys (IR.IRCFunction _ _ _ _ (blocks, _) _) = concatMap floatImmKeysFromBlock64 blocks
 
 
-collectClassStringConsts64 :: X64.CallConv64 -> Int -> IR.IRClass -> (Map String String, [X64.StaticData], Int)
-collectClassStringConsts64 cc seqStart (IR.IRClass _ _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _ cFuns _) =
+collectClassStringConsts64 :: X64.CallConv64 -> [String] -> Int -> IR.IRClass -> (Map String String, [X64.StaticData], Int)
+collectClassStringConsts64 cc ownerQName seqStart (IR.IRClass _ _ _ _ (IR.StaticInit (sBlocks, _)) _ funs _ cFuns _) =
     let staticKeys = concatMap stringKeysFromBlock64 sBlocks
         funKeys = concatMap funStringKeys funs
         cFunKeys = concatMap cFunStringKeys cFuns
         keys = uniqueInOrder64 (staticKeys ++ funKeys ++ cFunKeys)
         pairs = zip keys [seqStart ..]
-        keyToLabel = Map.fromList [(k, stringConstLabel64 cc idx) | (k, idx) <- pairs]
-        dataSegs = [X64.StaticData (stringConstLabel64 cc idx) (stringBytesData64 cc k) | (k, idx) <- pairs]
+        keyToLabel = Map.fromList [(k, stringConstLabel64 ownerQName idx) | (k, idx) <- pairs]
+        dataSegs = [X64.StaticData (stringConstLabel64 ownerQName idx) (stringBytesData64 cc k) | (k, idx) <- pairs]
         seqNext = seqStart + length keys
     in (keyToLabel, dataSegs, seqNext)
   where
@@ -1214,14 +1200,8 @@ floatConstAtom64 cls key = do
     return (X64.Bss (X64.mkRawQName64 lbl) [cls] rip)
 
 
-stringConstLabelPrefix64 :: X64.CallConv64 -> String
-stringConstLabelPrefix64 cc = case X64.ccCompiler cc of
-    X64.NASM -> "LS"
-    _ -> ".LS"
-
-
-stringConstLabel64 :: X64.CallConv64 -> Int -> String
-stringConstLabel64 cc idx = stringConstLabelPrefix64 cc ++ showHex idx ""
+stringConstLabel64 :: [String] -> Int -> String
+stringConstLabel64 ownerQName idx = mangleQName64 False ownerQName ++ "$LS" ++ showHex idx ""
 
 
 stringImmFromAtom64 :: IR.IRAtom -> Maybe String
@@ -1244,7 +1224,7 @@ lookupStringConstLabel64 s = do
 atomTypeM64 :: IRAtom -> X64LowerM Class
 atomTypeM64 (IR.BoolC _) = return AST.Bool
 atomTypeM64 (IR.CharC _) = return AST.Char
-atomTypeM64 (IR.StringC s) = return (AST.Blob (AST.IntConst (show (length s + 1)) Lex.dummyToken))
+atomTypeM64 (IR.StringC _) = return (AST.Pointer AST.Char)
 atomTypeM64 (IR.Int8C _) = return AST.Int8T
 atomTypeM64 (IR.Int16C _) = return AST.Int16T
 atomTypeM64 (IR.Int32C _) = return AST.Int32T
@@ -1315,7 +1295,7 @@ movMemToReg memAtom@(X64.Mem {}) cls =
         AST.Int16T -> movInt X64.B16
         AST.Int8T -> movInt X64.B8L
         AST.Bool -> movInt X64.B8L
-        AST.Char -> movInt X64.B8L
+        AST.Char -> movInt X64.B32
         AST.Float32T -> getTmpFRegM64 >>= \fTmp -> return (X64.Movss (X64.Reg fTmp X64.NN) memAtom X64.B32)
         AST.Float64T -> getTmpFRegM64 >>= \fTmp -> return (X64.Movsd (X64.Reg fTmp X64.NN) memAtom X64.B64)
         _ -> error $ "movMemToReg: unsupported class " ++ show cls
@@ -1410,7 +1390,12 @@ normalizeIntCmpOperands64 bits lhs rhs =
     case lhs of
         X64.Imm _ -> do
             iTmp <- getTmpIRegM64
-            let lhsReg = X64.Reg iTmp bits
+            iRet <- getIRetRegM64
+            let rhsReg = case rhs of
+                    X64.Reg r _ -> Just r
+                    _ -> Nothing
+                lhsScratch = if rhsReg == Just iTmp then iRet else iTmp
+                lhsReg = X64.Reg lhsScratch bits
             return ([X64.Mov lhsReg lhs bits], lhsReg, rhs)
         _ -> return ([], lhs, rhs)
 
@@ -1534,7 +1519,7 @@ unaryIntBits64 dstCls srcCls op
 movLike64 :: X64.Bits -> X64.Atom -> X64.Atom -> X64LowerM [X64.Instruction]
 movLike64 bits dst src = case (dst, src) of
     _ | isMemLikeAtom64 dst && isMemLikeAtom64 src -> do
-        tmp <- getTmpIRegM64
+        tmp <- getIRetRegM64
         let tmpAtom = X64.Reg tmp bits
         return [X64.Mov tmpAtom src bits, X64.Mov dst tmpAtom bits]
     _ ->
@@ -1818,24 +1803,15 @@ x64StmtCode64 (IR.IAssign dst src) = do
         then x64StmtCode64 (IR.ICast dst (srcCls, dstCls) src)
         else if isRefClass64 dstCls || isRefClass64 srcCls
             then do
-                tmp <- getTmpIRegM64
+                tmp <- getIRetRegM64
                 let tmpAtom = X64.Reg tmp X64.B64
                 srcLoad <- loadRefValueToReg64 src tmpAtom srcAtom
                 return (srcLoad ++ [X64.Mov dstAtom tmpAtom X64.B64])
             else case intAssignBits64 srcCls of
-                Just bits -> do
-                    tmp <- getTmpIRegM64
-                    let tmpAtom = X64.Reg tmp bits
-                    return [X64.Mov tmpAtom srcAtom bits, X64.Mov dstAtom tmpAtom bits]
+                Just bits -> movLike64 bits dstAtom srcAtom
                 Nothing -> case srcCls of
-                    AST.Float32T -> do
-                        tmpF <- getTmpFRegM64
-                        let tmpAtom = X64.Reg tmpF X64.NN
-                        return [X64.Movss tmpAtom srcAtom X64.B32, X64.Movss dstAtom tmpAtom X64.B32]
-                    AST.Float64T -> do
-                        tmpF <- getTmpFRegM64
-                        let tmpAtom = X64.Reg tmpF X64.NN
-                        return [X64.Movsd tmpAtom srcAtom X64.B64, X64.Movsd dstAtom tmpAtom X64.B64]
+                    AST.Float32T -> movLikeF32 dstAtom srcAtom
+                    AST.Float64T -> movLikeF64 dstAtom srcAtom
                     _ ->
                         error $ "x64StmtLowing64(IAssign): unsupported assignment class: " ++ show srcCls
 
@@ -1897,8 +1873,8 @@ x64StmtCode64 (IR.IUnary dst AST.LogicalNot src) = do
     if dstCls /= AST.Bool || srcCls /= AST.Bool
         then error $ "x64StmtLowing64(LogicalNot): only bool is supported, got: " ++ show (dstCls, srcCls)
         else do
-            pref <- movLike64 X64.B32 dstAtom srcAtom
-            return $ pref ++ [X64.Xor dstAtom (X64.Imm 1) X64.B32]
+            pref <- movLike64 X64.B8L dstAtom srcAtom
+            return $ pref ++ [X64.Xor dstAtom (X64.Imm 1) X64.B8L]
 
 x64StmtCode64 (IR.IUnary dst AST.BitInv src) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
@@ -2359,7 +2335,7 @@ x64StmtCode64 (IR.DerefAssign ptr src widthN) = do
     expectedWidth <- case targetCls of
         AST.Int8T -> return 1
         AST.Bool -> return 1
-        AST.Char -> return 1
+        AST.Char -> return 4
         AST.Int16T -> return 2
         AST.Int32T -> return 4
         AST.Float32T -> return 4
@@ -2401,7 +2377,8 @@ x64StmtCode64 (IR.DerefAssign ptr src widthN) = do
             return (loadPtr ++ [X64.Movsd vReg srcAtom X64.B64, X64.Movsd ptrMem vReg X64.B64])
         cls | cls == AST.Int64T || isRefClass64 cls -> do
             let vReg = X64.Reg valRegN X64.B64
-            return (loadPtr ++ [X64.Mov vReg srcAtom X64.B64, X64.Mov ptrMem vReg X64.B64])
+            srcLoad <- loadRefValueToReg64 src vReg srcAtom
+            return (loadPtr ++ srcLoad ++ [X64.Mov ptrMem vReg X64.B64])
         cls -> case Map.lookup cls bitsByClass64 of
             Just bits -> do
                 let vReg = X64.Reg valRegN bits
@@ -2508,9 +2485,90 @@ instrExternRefs64 :: [X64.Instruction] -> [ExternRef]
 instrExternRefs64 = foldl' step []
     where
         step :: [ExternRef] -> X64.Instruction -> [ExternRef]
-        step acc instr = case externTargetFromInstr64 instr of
-            Just (fullName, sigTs) -> mkExternRef64 fullName sigTs : acc
-            Nothing -> acc
+        step acc instr =
+            let callRefs = case externTargetFromInstr64 instr of
+                    Just (fullName, sigTs) -> [mkExternRef64 fullName sigTs]
+                    Nothing -> []
+                atomRefs = concatMap atomExternRefs64 (instrAtoms64 instr)
+            in atomRefs ++ callRefs ++ acc
+
+
+atomExternRefs64 :: X64.Atom -> [ExternRef]
+atomExternRefs64 (X64.Bss fullName sigTs _)
+    | X64.isRawQName64 fullName = []
+    | otherwise = [mkExternRef64 fullName sigTs]
+atomExternRefs64 _ = []
+
+
+instrAtoms64 :: X64.Instruction -> [X64.Atom]
+instrAtoms64 instr = case instr of
+    X64.Mov a b _ -> [a, b]
+    X64.Movs a b _ -> [a, b]
+    X64.Movz a b _ -> [a, b]
+    X64.Movd a b _ -> [a, b]
+    X64.Movq a b _ -> [a, b]
+    X64.Cvtsi2ss a b _ -> [a, b]
+    X64.Cvtsi2sd a b _ -> [a, b]
+    X64.Cvttss2si a b _ -> [a, b]
+    X64.Cvttsd2si a b _ -> [a, b]
+    X64.Cvtss2sd a b _ -> [a, b]
+    X64.Cvtsd2ss a b _ -> [a, b]
+    X64.Movss a b _ -> [a, b]
+    X64.Movsd a b _ -> [a, b]
+    X64.Lea a b _ -> [a, b]
+    X64.Add a b _ -> [a, b]
+    X64.Addss a b _ -> [a, b]
+    X64.Addsd a b _ -> [a, b]
+    X64.Addps a b _ -> [a, b]
+    X64.Addpd a b _ -> [a, b]
+    X64.Sub a b _ -> [a, b]
+    X64.Subss a b _ -> [a, b]
+    X64.Subsd a b _ -> [a, b]
+    X64.Subps a b _ -> [a, b]
+    X64.Subpd a b _ -> [a, b]
+    X64.Inc a _ -> [a]
+    X64.Dec a _ -> [a]
+    X64.Neg a _ -> [a]
+    X64.Mul a b _ -> [a, b]
+    X64.Mulss a b _ -> [a, b]
+    X64.Mulsd a b _ -> [a, b]
+    X64.Mulps a b _ -> [a, b]
+    X64.Mulpd a b _ -> [a, b]
+    X64.IMul a b _ -> [a, b]
+    X64.Div a b _ -> [a, b]
+    X64.Divss a b _ -> [a, b]
+    X64.Divsd a b _ -> [a, b]
+    X64.Divps a b _ -> [a, b]
+    X64.Divpd a b _ -> [a, b]
+    X64.IDiv a b _ -> [a, b]
+    X64.And a b _ -> [a, b]
+    X64.Or a b _ -> [a, b]
+    X64.Xorps a b _ -> [a, b]
+    X64.Xorpd a b _ -> [a, b]
+    X64.Xor a b _ -> [a, b]
+    X64.Not a _ -> [a]
+    X64.Shl a b _ -> [a, b]
+    X64.Sal a b _ -> [a, b]
+    X64.Shr a b _ -> [a, b]
+    X64.Sar a b _ -> [a, b]
+    X64.Cmp a b _ -> [a, b]
+    X64.Ucomiss a b _ -> [a, b]
+    X64.Ucomisd a b _ -> [a, b]
+    X64.Test a b _ -> [a, b]
+    X64.Cmove a b _ -> [a, b]
+    X64.Cmovz a b _ -> [a, b]
+    X64.Cmovne a b _ -> [a, b]
+    X64.Cmovnz a b _ -> [a, b]
+    X64.Cmovg a b _ -> [a, b]
+    X64.Cmovge a b _ -> [a, b]
+    X64.Cmovl a b _ -> [a, b]
+    X64.Cmovle a b _ -> [a, b]
+    X64.Cmovs a b _ -> [a, b]
+    X64.Cmovns a b _ -> [a, b]
+    X64.Setp a _ -> [a]
+    X64.Setne a _ -> [a]
+    X64.CallA a -> [a]
+    _ -> []
 
 
 x64StmtLowing64 :: IRInstr -> X64LowerM ([X64.Instruction], [ExternRef])
@@ -2580,77 +2638,60 @@ stringBytesData64 cc s = [stringZConst64 cc s]
 
 stringZConst64 :: X64.CallConv64 -> String -> X64.InstrConst
 stringZConst64 cc s = case X64.ccCompiler cc of
+    X64.NASM -> X64.RawString ("dd\t\t" ++ nasmDdStringZ64 s)
+    _ -> X64.RawString (".long\t\t" ++ gasLongStringZ64 s)
+
+
+metadataBytesData64 :: X64.CallConv64 -> String -> [X64.InstrConst]
+metadataBytesData64 cc s = [metadataZConst64 cc s]
+
+
+metadataZConst64 :: X64.CallConv64 -> String -> X64.InstrConst
+metadataZConst64 cc s = case X64.ccCompiler cc of
     X64.NASM -> X64.RawString ("db\t\t" ++ nasmDbStringZ64 s)
     _ -> X64.RawString (".asciz\t\t" ++ show s)
 
 
+nasmDdStringZ64 :: String -> String
+nasmDdStringZ64 s =
+    let toks = map (show . ord) s ++ ["0"]
+        lines' = packAsmConstTokensLines64 100 toks
+    in intercalate "\n    dd\t\t" lines'
+
+
+gasLongStringZ64 :: String -> String
+gasLongStringZ64 s =
+    let toks = map (show . ord) s ++ ["0"]
+        lines' = packAsmConstTokensLines64 100 toks
+    in intercalate "\n    .long\t\t" lines'
+
+
 nasmDbStringZ64 :: String -> String
 nasmDbStringZ64 s =
-    let toks = stringTokens ++ ["0"]
-        lines' = packDbTokensLines64 100 toks
+    let toks = map (show . ord) s ++ ["0"]
+        lines' = packAsmConstTokensLines64 100 toks
     in intercalate "\n    db\t\t" lines'
+
+
+packAsmConstTokensLines64 :: Int -> [String] -> [String]
+packAsmConstTokensLines64 maxLen = reverse . finalize . foldl' step ([], [], 0)
   where
-    quotedChunkMax64 :: Int
-    quotedChunkMax64 = 80
+    sepLen :: Int
+    sepLen = 2 -- ", "
 
-    segTok :: String -> String
-    segTok seg = "'" ++ seg ++ "'"
+    tokenLen :: String -> Int
+    tokenLen = length
 
-    chunkString64 :: Int -> String -> [String]
-    chunkString64 n txt
-        | n <= 0 = [txt]
-        | null txt = []
-        | otherwise =
-            let (h, t) = splitAt n txt
-            in h : chunkString64 n t
+    step :: ([[String]], [String], Int) -> String -> ([[String]], [String], Int)
+    step (linesAcc, curRev, curLen) tok
+        | curLen == 0 = (linesAcc, [tok], tokenLen tok)
+        | curLen + sepLen + tokenLen tok <= maxLen = (linesAcc, tok : curRev, curLen + sepLen + tokenLen tok)
+        | otherwise = (reverse curRev : linesAcc, [tok], tokenLen tok)
 
-    isSafeQuotedChar :: Char -> Bool
-    isSafeQuotedChar c = c /= '\'' && not (DC.isControl c)
-
-    pushSegRev :: String -> [String] -> [String]
-    pushSegRev segRev toksRev
-        | null segRev = toksRev
-        | otherwise =
-            let seg = reverse segRev
-                segTokens = map segTok (chunkString64 quotedChunkMax64 seg)
-            in reverse segTokens ++ toksRev
-
-    buildStringTokens :: String -> [String]
-    buildStringTokens txt =
-        let (toksRev, segRev) = foldl' step ([], []) txt
-            doneRev = pushSegRev segRev toksRev
-        in reverse doneRev
-      where
-        step :: ([String], String) -> Char -> ([String], String)
-        step (toksRev, segRev) c
-            | isSafeQuotedChar c = (toksRev, c : segRev)
-            | otherwise =
-                let toksRev1 = pushSegRev segRev toksRev
-                    byteTok = show (ord c .&. 0xFF)
-                in (byteTok : toksRev1, [])
-
-    stringTokens :: [String]
-    stringTokens = buildStringTokens s
-
-    packDbTokensLines64 :: Int -> [String] -> [String]
-    packDbTokensLines64 maxLen = reverse . finalize . foldl' step ([], [], 0)
-      where
-        sepLen :: Int
-        sepLen = 2 -- ", "
-
-        tokenLen :: String -> Int
-        tokenLen = length
-
-        step :: ([[String]], [String], Int) -> String -> ([[String]], [String], Int)
-        step (linesAcc, curRev, curLen) tok
-            | curLen == 0 = (linesAcc, [tok], tokenLen tok)
-            | curLen + sepLen + tokenLen tok <= maxLen = (linesAcc, tok : curRev, curLen + sepLen + tokenLen tok)
-            | otherwise = (reverse curRev : linesAcc, [tok], tokenLen tok)
-
-        finalize :: ([[String]], [String], Int) -> [String]
-        finalize (linesAcc, curRev, _)
-            | null curRev = map (intercalate ", ") linesAcc
-            | otherwise = map (intercalate ", ") (reverse curRev : linesAcc)
+    finalize :: ([[String]], [String], Int) -> [String]
+    finalize (linesAcc, curRev, _)
+        | null curRev = map (intercalate ", ") linesAcc
+        | otherwise = map (intercalate ", ") (reverse curRev : linesAcc)
 
 
 -- Lower class static attributes to assembly static data labels.
@@ -2692,7 +2733,7 @@ isStaticAttr64 ((_, flags), _, _, _) = Parse.Static `elem` flags
 staticBits64 :: Class -> X64.Bits
 staticBits64 cls = case cls of
     AST.Bool -> X64.B8L
-    AST.Char -> X64.B8L
+    AST.Char -> X64.B32
     AST.Int8T -> X64.B8L
     AST.Int16T -> X64.B16
     AST.Int32T -> X64.B32
@@ -3024,8 +3065,9 @@ classTypeCode64 classType = case classType of
     IR.IRClassTypeAbstractClass -> "abstract_class"
 
 
-classInfoJsonValue64 :: Parse.Decl -> IR.IRClassType -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> [IR.IRTemplateFunction] -> Value
-classInfoJsonValue64 classDecl classType ownerQName mainKind attrs funs tFuns = object [
+classInfoJsonValue64 :: Parse.Decl -> IR.IRClassType -> Maybe Int -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> [IR.IRTemplateFunction] -> Value
+classInfoJsonValue64 classDecl classType structSize ownerQName mainKind attrs funs tFuns = object $
+    [
     "access" .= declAccessMask64 classDecl,
     "class_type" .= classTypeCode64 classType,
     "attributes" .= map classInfoFieldJson64 attrs,
@@ -3036,12 +3078,12 @@ classInfoJsonValue64 classDecl classType ownerQName mainKind attrs funs tFuns = 
     "methods" .= (map classInfoMethodJson64 funs ++ map classInfoTemplateMethodJson64 tFuns),
     "signature" .= ([] :: [[String]]),
     "super_class" .= ([] :: [String])
-    ]
+    ] ++ maybe [] (\n -> ["struct_size" .= n]) structSize
 
 
-classInfoJsonText64 :: Parse.Decl -> IR.IRClassType -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> [IR.IRTemplateFunction] -> String
-classInfoJsonText64 classDecl classType ownerQName mainKind attrs funs tFuns =
-    BL8.unpack (encode (classInfoJsonValue64 classDecl classType ownerQName mainKind attrs funs tFuns))
+classInfoJsonText64 :: Parse.Decl -> IR.IRClassType -> Maybe Int -> [String] -> IR.MainKind -> [IR.Attribute] -> [IR.IRFunction] -> [IR.IRTemplateFunction] -> String
+classInfoJsonText64 classDecl classType structSize ownerQName mainKind attrs funs tFuns =
+    BL8.unpack (encode (classInfoJsonValue64 classDecl classType structSize ownerQName mainKind attrs funs tFuns))
 
 
 templateMethodBaseSymbol64 :: [String] -> IR.IRTemplateFunction -> String
@@ -3064,7 +3106,7 @@ templateMethodArtifacts64 cc ownerQName tFuns = do
     let one tf =
             let (ptrSym, lenSym, dataSym, bodyText) = templateMethodSymbols64 ownerQName tf
                 bodyStored = escapeTemplateBodyText64 bodyText
-                dataSeg = X64.StaticData dataSym (stringBytesData64 cc bodyStored)
+                dataSeg = X64.StaticData dataSym (metadataBytesData64 cc bodyStored)
                 ptrInstrs = [
                     X64.Lea (X64.Reg X64.A X64.B64) (X64.Bss (X64.mkRawQName64 dataSym) [] rip) X64.B64,
                     X64.Ret
@@ -3258,8 +3300,8 @@ x64LowingClass pkgSegs (IR.IRClass decl className classType attrs sInit staticAt
     let baseOff = 0
         ownerQName = pkgSegs ++ [className]
         klass = IR.IRClass decl className classType attrs sInit staticAtomTypes funs tFuns cFuns mainKind
-        (floatConstLblMap, floatConstData, floatSeqNext) = collectClassFloatConsts64 cc floatSeqStart klass
-        (stringConstLblMap, stringConstData, stringSeqNext) = collectClassStringConsts64 cc stringSeqStart klass
+        (floatConstLblMap, floatConstData, floatSeqNext) = collectClassFloatConsts64 cc ownerQName floatSeqStart klass
+        (stringConstLblMap, stringConstData, stringSeqNext) = collectClassStringConsts64 cc ownerQName stringSeqStart klass
         (clinitStackSlots, clinitStackData) = collectClinitStackSlots64 ownerQName staticAtomTypes sInit
         stClinit = (mkClinitState64 sInit staticAtomTypes clinitStackSlots baseOff cc) {
             stFloatConstLabelMap64 = floatConstLblMap,
@@ -3270,10 +3312,17 @@ x64LowingClass pkgSegs (IR.IRClass decl className classType attrs sInit staticAt
             stStructSizeMap64 = structSizeMap,
             stInClinit64 = True
             }
-        classInfoAttrs = filter isStaticAttr64 attrs
-        classInfoText = classInfoJsonText64 decl classType ownerQName mainKind classInfoAttrs funs tFuns
+        classInfoAttrs =
+            if classType == IR.IRClassTypeStruct
+                then attrs
+                else filter isStaticAttr64 attrs
+        classInfoStructSize =
+            if classType == IR.IRClassTypeStruct
+                then structSizeFromClass64 className klass
+                else Nothing
+        classInfoText = classInfoJsonText64 decl classType classInfoStructSize ownerQName mainKind classInfoAttrs funs tFuns
         classInfoDataLabel = mangleQName64 False ownerQName ++ "_infoData"
-        classInfoData = X64.StaticData classInfoDataLabel (stringBytesData64 cc classInfoText)
+        classInfoData = X64.StaticData classInfoDataLabel (metadataBytesData64 cc classInfoText)
         classInfoSeg = X64.X64ClassInfo ownerQName classInfoDataLabel (length classInfoText)
     modify' (\s -> s { stFloatConstSeq64 = floatSeqNext, stStringConstSeq64 = stringSeqNext })
     (templateStaticData, templateSegs) <- templateMethodArtifacts64 cc ownerQName tFuns

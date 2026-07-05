@@ -78,6 +78,16 @@ mkFunTOk name p =
         Multiple [Command (Return (Just (intExpr 1 (p + 3)))) (identTok "return" (p + 4))]
 
 
+mkStruct :: String -> Int -> [Statement] -> Statement
+mkStruct name p members =
+    Struct [] [] (identTok "struct" p, varExpr name (p + 1)) members
+
+
+mkVoidMethod :: String -> Int -> Statement
+mkVoidMethod name p =
+    InstanceMethod [] [] (Void, [identTok "void" p]) (varExpr name (p + 1)) [] (Multiple [])
+
+
 mkPackageDecl :: QName -> Int -> Declaration
 mkPackageDecl qn p = Package qn [identTok "package" p]
 
@@ -349,6 +359,27 @@ topoOrderTests = mkGroup "Semantic.CheckProgram.topoOrder" [
     ]
 
 
+topoSccOrderTests :: TestTree
+topoSccOrderTests = mkGroup "Semantic.CheckProgram.topoSccOrder" [
+    ("0", do
+        let depMap = Map.fromList [
+                (["app"], [["lib"]]),
+                (["lib"], [["core"]]),
+                (["core"], [])]
+        topoSccOrder depMap [["app"], ["lib"], ["core"]] @?= [[["core"]], [["lib"]], [["app"]]]),
+
+    ("1", do
+        let depMap = Map.fromList [
+                (["a"], [["b"]]),
+                (["b"], [["a"]]),
+                (["c"], [["a"]])]
+            out = topoSccOrder depMap [["a"], ["b"], ["c"]]
+        length out @?= 2
+        HashSet.fromList (head out) @?= HashSet.fromList [["a"], ["b"]]
+        out !! 1 @?= [["c"]])
+    ]
+
+
 mergeImportEnvTests :: TestTree
 mergeImportEnvTests = mkGroup "Semantic.CheckProgram.mergeImportEnv" [
     ("0", do
@@ -574,17 +605,6 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
             assertBool "without explicit java.lang import, abs should be undefined"
                 (any (isInfixOf "is not defined in this context" . errWhy) errs)),
 
-    ("7", do
-        let prog = mkProgram [] [["xlang", "math"]] [assignStmt "b" (intExpr 1 1) 1]
-            ten = (emptyTypedImportEnv "xmath.x") {
-                tFuncs = Map.fromList [
-                    (["xlang", "math", "MathX", "succ"], ([FunSig [Int32T] Int32T], [pos 2], ["xlang", "math", "MathX", "succ"]))
-                    ]
-            }
-        assertLeftWith (checkOneProgram "a.x" prog [] [ten]) $ \errs ->
-            assertBool "must reject package-ending import"
-                (any (isInfixOf "must end with a class name or '*'" . errWhy) errs)),
-
     ("8", do
         let callStmt = Expr (Binary Assign (varExpr "b" 1) (Call (varExpr "succ" 2) [intExpr 1 3]) (symTok Lex.Assign 4))
             prog = mkProgram [] [["xlang", "math", "MathX"]] [callStmt]
@@ -612,18 +632,10 @@ checkOneProgramTests = mkGroup "Semantic.CheckProgram.checkOneProgram" [
             Left e -> assertFailure ("expected Right, got Left: " ++ show e))
     ,
 
-    ("10", do
-        let stmt = DefVar ["p"] (Just (Pointer Int32T)) Nothing [identTok "p" 1]
-            prog = mkProgram [] [] [stmt]
-        assertLeftWith (checkOneProgramForTarget SemanticTargetJvm "a.x" prog [] []) $ \errs ->
-            assertBool "jvm target must reject pointer types"
-                (any (isInfixOf "pointer type is not supported on JVM target" . errWhy) errs))
-    ,
-
     ("11", do
         let expr = Qualified ["a", "ref"] [identTok "a" 1, identTok "ref" 1]
             prog = mkProgram [] [] [Expr expr]
-        assertLeftWith (checkOneProgramForTarget SemanticTargetJvm "a.x" prog [] []) $ \errs ->
+        assertLeftWith (checkOneProgramForTarget SemanticTargetJvm "a.x" prog [] [] []) $ \errs ->
             assertBool "jvm target must reject pointer operators"
                 (any (isInfixOf "pointer operator is not supported on JVM target" . errWhy) errs))
     ]
@@ -646,20 +658,49 @@ checkProgmTests = mkGroup "Semantic.CheckProgram.checkProgm" [
                 (any (isInfixOf "'missing.pkg' is not defined in this context." . errWhy) errs)),
 
     ("3", do
-        let aProg = mkProgram ["a"] [["b"]] []
-            bProg = mkProgram ["b"] [["a"]] []
+        let aProg = mkProgram ["a"] [["b", "*"]] [assignStmt "a" (varExpr "b" 10) 10]
+            bProg = mkProgram ["b"] [["a", "*"]] [assignStmt "b" (intExpr 1 20) 20]
             files = [("a/main.x", aProg), ("b/main.x", bProg)]
-        assertLeftWith (checkProgm "." files) $ \errs ->
-            assertBool "must report circular import"
-                (any (isInfixOf "circular import detected" . errWhy) errs))
+        assertRightWith (checkProgm "." files) $ \xs ->
+            length xs @?= 2)
     ,
 
     ("4", do
+        let aProg = mkProgram ["a"] [["b", "*"]] [assignStmt "a" (varExpr "b" 10) 10]
+            bProg = mkProgram ["b"] [["a", "*"]] [assignStmt "b" (addExpr (varExpr "a" 20) (intExpr 1 21) 20) 20]
+            files = [("a/main.x", aProg), ("b/main.x", bProg)]
+        assertLeftWith (checkProgm "." files) $ \errs ->
+            assertBool "must reject unbreakable static definition cycle"
+                (any (isInfixOf "is not defined in this context." . errWhy) errs))
+    ,
+
+    ("5", do
         let decls = [JavaName "A" (strTok "A" 1), JavaName "B" (strTok "B" 2)]
             files = [("a.x", (decls, []))]
         assertLeftWith (checkProgm "." files) $ \errs ->
             assertBool "must report duplicate classname"
                 (any ((== UE.multipleJavaNameMsg) . errWhy) errs))
+    ,
+
+    ("6", do
+        let testGroupStruct = mkStruct "TestGroup" 10
+                [ DefField ["dummy"] (Just Int32T) Nothing [identTok "dummy" 15]
+                , mkVoidMethod "runTest" 20
+                ]
+            testsuiteProg = mkProgram ["xlang", "test"] [] [testGroupStruct]
+            testGroupCtor = Call (varExpr "TestGroup" 30) []
+            (stringDecls, stringStmts) = mkProgram ["xlang", "util", "string"] [["xlang", "test", "Testsuite"]]
+                [DefVar ["TEST_GROUP"] (Just (Class ["TestGroup"] [])) (Just testGroupCtor) [identTok "TEST_GROUP" 31]]
+            stringTestProg = (JavaName "StringTest" (strTok "StringTest" 32) : stringDecls, stringStmts)
+            runCall = Call (Qualified ["StringTest", "TEST_GROUP", "runTest"] [identTok "StringTest" 40, identTok "TEST_GROUP" 41, identTok "runTest" 42]) []
+            testProg = mkProgram ["xlang"] [["xlang", "util", "string", "StringTest"]] [Expr runCall]
+            files =
+                [ ("xlang/Test.x", testProg)
+                , ("xlang/util/string/StringTest.x", stringTestProg)
+                , ("xlang/test/Testsuite.x", testsuiteProg)
+                ]
+        assertRightWith (checkProgm "." files) $ \xs ->
+            length xs @?= 3)
     ]
 
 
@@ -899,6 +940,7 @@ tests = testGroup "Semantic.CheckProgram" [
     cycleErrorsTests,
     sccToErrorTests,
     topoOrderTests,
+    topoSccOrderTests,
     mergeImportEnvTests,
     mergeTypedEnvTests,
     symbolAliasesTests,

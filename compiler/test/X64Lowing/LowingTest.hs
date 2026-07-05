@@ -11,6 +11,7 @@ import Test.Tasty.HUnit
 import X64Lowing.Lowing (
     lowerCFun,
     runX64LowerState64,
+    stStringConstLabelMap64,
     stStructQNameSet64,
     stStructSizeMap64,
     x64LowingFunc,
@@ -36,14 +37,14 @@ mkFun atomTypes =
 
 newStackMemChkstkTests :: TestTree
 newStackMemChkstkTests = testGroup "X64Lowing.NewStackMem.chkstk" [
-    testCase "windows x64 inserts ___chkstk_ms probe call" $ do
+    testCase "windows x64 dynamic NewStackMem stays self-contained" $ do
         let dst = Var ("dst", 0, 0)
             ir = NewStackMem dst (Int64C 40000)
             fun = mkFun (Map.fromList [(dst, Pointer Void)])
             st = runX64LowerState64 fun 32 X64.winCC64
             instrs = evalState (x64StmtCode64 ir) st
             hasChkstk = any isChkstkCall instrs
-        assertBool "expected ___chkstk_ms call for large dynamic stack allocation on Windows" hasChkstk
+        assertBool "NewStackMem must not depend on external ___chkstk_ms" (not hasChkstk)
 
     , testCase "linux x64 does not insert ___chkstk_ms probe call" $ do
         let dst = Var ("dst", 0, 0)
@@ -85,7 +86,7 @@ newStackMemChkstkTests = testGroup "X64Lowing.NewStackMem.chkstk" [
 
         isLeaFrame :: X64.Instruction -> Bool
         isLeaFrame instr = case instr of
-            X64.Lea _ (X64.Mem (Just r) _ off) X64.B64 -> r == X64.B && off < 0
+            X64.Lea _ (X64.Mem (Just r) _ off) X64.B64 -> r == X64.BP && off < 0
             _ -> False
 
 
@@ -109,11 +110,96 @@ refAssignTests = testGroup "X64Lowing.IAssign.ref" [
             instrs = evalState (x64StmtCode64 ir) st
             hasStore64 = any isStore64 instrs
         assertBool "expected 8-byte store for function pointer deref assign" hasStore64
+  , testCase "deref assign of string literal stores string address on x64" $ do
+        let slot = Var ("slot", 0, 0)
+            lit = StringC "a"
+            ir = DerefAssign slot lit 8
+            fun = mkFun (Map.fromList [(slot, Pointer (Pointer Char))])
+            st = (runX64LowerState64 fun 32 X64.winCC64) {
+                stStringConstLabelMap64 = Map.fromList [("a", "$LSa")]
+                }
+            instrs = evalState (x64StmtCode64 ir) st
+            hasLeaStringAddr = any isLeaStringAddr instrs
+            hasStore64 = any isStore64 instrs
+        assertBool "expected lea of string label before pointer store" hasLeaStringAddr
+        assertBool "expected 8-byte store for pointer<char> string literal" hasStore64
     ]
   where
+    isLeaStringAddr :: X64.Instruction -> Bool
+    isLeaStringAddr instr = case instr of
+        X64.Lea (X64.Reg _ X64.B64) (X64.Bss _ _ _) X64.B64 -> True
+        _ -> False
+
     isStore64 :: X64.Instruction -> Bool
     isStore64 instr = case instr of
         X64.Mov (X64.Mem _ _ _) _ X64.B64 -> True
+        _ -> False
+
+
+memMoveTmpRegTests :: TestTree
+memMoveTmpRegTests = testGroup "X64Lowing.IAssign.mem-mem" [
+    testCase "integer mem-to-mem move uses rax as the scratch register" $ do
+        let src = Var ("src", 0, 0)
+            dst = Var ("dst", 0, 0)
+            ir = IAssign dst src
+            fun = mkFun (Map.fromList [(src, Int64T), (dst, Int64T)])
+            st = runX64LowerState64 fun 32 X64.winCC64
+            instrs = evalState (x64StmtCode64 ir) st
+            usesRaxScratch = any isRaxLoad instrs && any isRaxStore instrs
+            usesRcxScratch = any isRcxScratch instrs
+        assertBool "expected mem-to-mem move to use rax/eax/ax/al scratch" usesRaxScratch
+        assertBool "mem-to-mem move should not burn rcx as scratch" (not usesRcxScratch)
+    ]
+  where
+    isRaxLoad :: X64.Instruction -> Bool
+    isRaxLoad instr = case instr of
+        X64.Mov (X64.Reg X64.A X64.B64) (X64.Mem _ _ _) X64.B64 -> True
+        _ -> False
+
+    isRaxStore :: X64.Instruction -> Bool
+    isRaxStore instr = case instr of
+        X64.Mov (X64.Mem _ _ _) (X64.Reg X64.A X64.B64) X64.B64 -> True
+        _ -> False
+
+    isRcxScratch :: X64.Instruction -> Bool
+    isRcxScratch instr = case instr of
+        X64.Mov (X64.Reg X64.C _) _ _ -> True
+        X64.Mov _ (X64.Reg X64.C _) _ -> True
+        _ -> False
+
+
+logicalNotTests :: TestTree
+logicalNotTests = testGroup "X64Lowing.IUnary.LogicalNot" [
+    testCase "bool logical-not uses byte operations and does not overwrite neighboring stack slots" $ do
+        let codeParam = Param 0
+            src = Var ("src", 0, 0)
+            dst = Var ("dst", 0, 0)
+            ir = IUnary dst AST.LogicalNot src
+            fun =
+                IRFunction
+                    (Public, [])
+                    "tokenize"
+                    (FunSig [Pointer Char] Void)
+                    (Map.fromList [(codeParam, Pointer Char), (src, Bool), (dst, Bool)])
+                    ([IRBlock (0, [ir, VReturn])], 0)
+                    MemberClassWrapped
+            st = runX64LowerState64 fun 32 X64.winCC64
+            instrs = evalState (x64StmtCode64 ir) st
+            hasByteXor = any isByteXor instrs
+            hasWideBoolWrite = any isWideBoolWrite instrs
+        assertBool "expected bool logical-not to use an 8-bit xor" hasByteXor
+        assertBool "bool logical-not must not emit 32-bit writes to 1-byte stack slots" (not hasWideBoolWrite)
+    ]
+  where
+    isByteXor :: X64.Instruction -> Bool
+    isByteXor instr = case instr of
+        X64.Xor (X64.Mem _ _ _) (X64.Imm 1) X64.B8L -> True
+        _ -> False
+
+    isWideBoolWrite :: X64.Instruction -> Bool
+    isWideBoolWrite instr = case instr of
+        X64.Mov (X64.Mem _ _ _) _ X64.B32 -> True
+        X64.Xor (X64.Mem _ _ _) _ X64.B32 -> True
         _ -> False
 
 indirectCallRegTests :: TestTree
@@ -227,7 +313,7 @@ structReturnCallTests = testGroup "X64Lowing.StructReturnCall" [
     testCase "struct-return call reserves stack result area before call" $ do
         let dst = Var ("dst", 0, 0)
             arg0 = Var ("x", 0, 0)
-            sTy = Pointer (AST.Class ["S"] [])
+            sTy = AST.Class ["S"] []
             ir = ICallStatic dst ["Demo", "mk"] [arg0]
             fun = mkFun (Map.fromList [(dst, sTy), (arg0, Int32T)])
             st0 = runX64LowerState64 fun 32 X64.winCC64
@@ -243,6 +329,25 @@ structReturnCallTests = testGroup "X64Lowing.StructReturnCall" [
         assertBool "expected stack reserve (shadow + aligned struct return area) before call" hasStructReserve
         assertBool "expected hidden struct return pointer setup (lea r11, [rsp+32])" hasHiddenRetPtr
         assertBool "expected shadow-space restore after call" hasShadowRestore
+  , testCase "pointer-to-struct return uses normal rax return, not hidden sret" $ do
+        let dst = Var ("dst", 0, 0)
+            arg0 = Var ("x", 0, 0)
+            sPtrTy = Pointer (AST.Class ["S"] [])
+            ir = ICallStatic dst ["Demo", "get"] [arg0]
+            fun = mkFun (Map.fromList [(dst, sPtrTy), (arg0, Int32T)])
+            st0 = runX64LowerState64 fun 32 X64.winCC64
+            st =
+                st0 {
+                    stStructQNameSet64 = Set.fromList [["Demo", "S"]],
+                    stStructSizeMap64 = Map.fromList [(["Demo", "S"], 24)]
+                }
+            instrs = evalState (x64StmtCode64 ir) st
+            hasStructReserve = any isSubRsp64 instrs
+            hasHiddenRetPtr = any isLeaR11FromRspPlus32 instrs
+            hasRaxReturnMove = any isRaxReturnMove instrs
+        assertBool "pointer return must not reserve a struct-return area" (not hasStructReserve)
+        assertBool "pointer return must not pass a hidden return pointer" (not hasHiddenRetPtr)
+        assertBool "expected pointer return value to be copied from rax" hasRaxReturnMove
   ]
   where
     isSubRsp64 :: X64.Instruction -> Bool
@@ -260,11 +365,18 @@ structReturnCallTests = testGroup "X64Lowing.StructReturnCall" [
         X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm 32) X64.B64 -> True
         _ -> False
 
+    isRaxReturnMove :: X64.Instruction -> Bool
+    isRaxReturnMove instr = case instr of
+        X64.Mov (X64.Mem _ _ _) (X64.Reg X64.A X64.B64) X64.B64 -> True
+        _ -> False
+
 
 tests :: TestTree
 tests = testGroup "X64Lowing.LowingTest" [
     newStackMemChkstkTests
     , refAssignTests
+    , memMoveTmpRegTests
+    , logicalNotTests
     , indirectCallRegTests
     , ifImmCompareTests
     , firstBlockLabelTests

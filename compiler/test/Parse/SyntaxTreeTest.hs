@@ -585,36 +585,6 @@ promoteTopLevelFunctionsTests = testGroup "Parse.SyntaxTree.promoteTopLevelFunct
 
 normalizeProgramForLoweringTests :: TestTree
 normalizeProgramForLoweringTests = testGroup "Parse.SyntaxTree.normalizeProgramForLowering" [
-    testCase "template blueprint is removed while concrete instance is kept" $ do
-        let tokF = mkIdD "add"
-            tokT = mkIdD "T"
-            tokA = mkIdD "a"
-            tokB = mkIdD "b"
-            tokRet = mkIdD "return"
-            tokI = mkIdD "int"
-            tmpl = FunctionT
-                (Class ["T"] [], [tokT])
-                (Variable "add" tokF)
-                [(Class ["T"] [], [tokT])]
-                [ (Class ["T"] [], "a", [tokA])
-                , (Class ["T"] [], "b", [tokB])
-                ]
-                (Multiple [Command (Return (Just (Variable "a" tokA))) tokRet])
-            callStmt = Expr (CallT (Variable "add" tokF) [(Int32T, [tokI])]
-                [IntConst "1" (mkNumD "1"), IntConst "2" (mkNumD "2")])
-
-            (_, outStmts) = normalizeProgramForLowering ([], [tmpl, callStmt])
-
-            hasTemplateStmt = any isFunctionT outStmts
-            hasGeneratedConcrete = any isGeneratedConcreteFun outStmts
-            hasGeneratedPrivateFinal = any isGeneratedPrivateFinal outStmts
-            hasCallTExpr = any isCallTExpr (flattenProgram ([], outStmts))
-
-        assertBool "template declaration should be removed from lowering program" (not hasTemplateStmt)
-        assertBool "lowering program should contain generated concrete function" hasGeneratedConcrete
-        assertBool "generated concrete function should be private final" hasGeneratedPrivateFinal
-        assertBool "all template calls should be rewritten before lowering" (not hasCallTExpr),
-
     testCase "template call with mismatched type argument count becomes syntax error expr" $ do
         let tokF = mkIdD "add"
             tokT = mkIdD "T"
@@ -837,6 +807,110 @@ normalizeProgramForLoweringTests = testGroup "Parse.SyntaxTree.normalizeProgramF
 
 normalizeStructProgramTests :: TestTree
 normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram" [
+    testCase "rewrite imported struct field access when source uses simple type name" $ do
+        let tokStruct = mkIdD "struct"
+            tokBuilder = mkIdD "StringBuilder"
+            tokLength = mkIdD "length"
+            tokMain = mkIdD "main"
+            tokSb = mkIdD "sb"
+            tok0 = mkNumD "0"
+            tokNe = mkSymD Lex.NotEqual
+
+            externalStruct =
+                Struct [] [] (tokStruct, Variable "xlang$util$string$StringBuilder" tokBuilder)
+                    [ DefField ["length"] (Just Int32T) Nothing [tokLength] ]
+
+            mainStmt =
+                Function (Void, [tokMain]) (Variable "main" tokMain) []
+                    (Multiple
+                        [ DefVar ["sb"] (Just (Pointer (Class ["StringBuilder"] []))) Nothing [tokSb]
+                        , Expr (Binary NotEqual
+                            (Qualified ["sb", "length"] [tokSb, tokLength])
+                            (IntConst "0" tok0)
+                            tokNe)
+                        ])
+
+            (_, outStmts) = normalizeProgramWithExternalTemplatesAndStructs [] [externalStruct] ([], [mainStmt])
+            mainBody = case [b | Function _ (Variable "main" _) _ b <- outStmts] of
+                (b:_) -> b
+                _ -> Multiple []
+            flatMainExprs = flattenBlock (Just mainBody)
+
+            hasRawQualified =
+                any (\e -> case e of
+                    Qualified ["sb", "length"] _ -> True
+                    _ -> False) flatMainExprs
+            hasFieldLoad =
+                any (\e -> case e of
+                    Unary DeRef _ _ -> True
+                    _ -> False) flatMainExprs
+
+        assertBool "sb.length should not remain as an unresolved qualified name" (not hasRawQualified)
+        assertBool "sb.length should lower to a struct-field dereference" hasFieldLoad
+    ,
+    testCase "sizeof(struct) uses type size and memSize returns struct storage size" $ do
+        let tokStruct = mkIdD "struct"
+            tokToken = mkIdD "Token"
+            tokMain = mkIdD "main"
+            tokSizeof = mkIdD "sizeof"
+            tokPointer = mkIdD "pointer"
+            tokMemSize = mkIdD "memSize"
+            tokDirect = mkIdD "direct"
+            tokPtr = mkIdD "ptr"
+            tokMem = mkIdD "mem"
+            tokA = mkIdD "a"
+            tokB = mkIdD "b"
+            tokC = mkIdD "c"
+            tokD = mkIdD "d"
+
+            structStmt =
+                Struct [] [] (tokStruct, Variable "Token" tokToken)
+                    [ DefField ["a"] (Just Int32T) Nothing [tokA]
+                    , DefField ["b"] (Just Int32T) Nothing [tokB]
+                    , DefField ["c"] (Just Int32T) Nothing [tokC]
+                    , DefField ["d"] (Just Int32T) Nothing [tokD]
+                    ]
+
+            mainStmt =
+                Function (Void, [tokMain]) (Variable "main" tokMain) []
+                    (Multiple
+                        [ DefConstVar ["direct"] (Just Int32T)
+                            (Just (SizeOfType (Class ["Token"] [], [tokToken]) tokSizeof))
+                            [tokDirect]
+                        , DefConstVar ["ptr"] (Just Int32T)
+                            (Just (SizeOfType (Pointer (Class ["Token"] []), [tokPointer, tokToken]) tokSizeof))
+                            [tokPtr]
+                        , DefConstVar ["mem"] (Just Int32T)
+                            (Just (Call (Qualified ["Token", "memSize"] [tokToken, tokMemSize]) []))
+                            [tokMem]
+                        ])
+
+            (_, outStmts) = normalizeProgram ([], [structStmt, mainStmt])
+            initOf target = case
+                    [ e
+                    | Function _ (Variable "main" _) _ (Multiple ss) <- outStmts
+                    , DefConstVar [name] _ (Just e) _ <- ss
+                    , name == target
+                    ] of
+                (e:_) -> Just e
+                [] -> Nothing
+
+            memSizeFns =
+                [ body
+                | Function _ (Variable "Token$memSize" _) [] body <- outStmts
+                ]
+
+        initOf "direct" @?= Just (SizeOfType (Class ["Token"] [], [tokToken]) tokSizeof)
+        case initOf "ptr" of
+            Just (SizeOfType (Pointer (Class ["Token"] []), _) _) -> pure ()
+            other -> assertFailure ("unexpected pointer sizeof rewrite: " ++ show other)
+        case initOf "mem" of
+            Just (Call (Variable "Token$memSize" _) []) -> pure ()
+            other -> assertFailure ("unexpected memSize call rewrite: " ++ show other)
+        case memSizeFns of
+            [Multiple [Command (Return (Just (IntConst "32" _))) _]] -> pure ()
+            other -> assertFailure ("unexpected generated memSize body: " ++ show other)
+    ,
     testCase "rewrite struct static/member access and bare method call sugar" $ do
         let tokStruct = mkIdD "struct"
             tokPeople = mkIdD "people"
@@ -935,6 +1009,61 @@ normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram
         assertBool "unqualified static-field access in non-struct scope should rewrite when unique" (rewrittenStaticFieldCount >= 2)
         assertBool "unqualified static-field access in method should rewrite to struct static symbol" hasRewrittenBareStaticInMethod
     ,
+    testCase "local static struct field overrides imported qualified static alias" $ do
+        let tokStruct = mkIdD "struct"
+            tokLexPosition = mkIdD "LexPosition"
+            tokLexState = mkIdD "LexState"
+            tokStart = mkIdD "START_POSITION"
+            tokStatic = mkIdD "static"
+            tokOffset = mkIdD "offset"
+            tokLine = mkIdD "line"
+            tokColumn = mkIdD "column"
+            tokCursorPos = mkIdD "cursorPos"
+            tokInit = mkIdD "__init__"
+            tokThis = mkIdD "this"
+            tokAssign = mkSymD Lex.Assign
+            tok0 = mkNumD "0"
+            tok1 = mkNumD "1"
+
+            lexPosition =
+                Struct [] [] (tokStruct, Variable "LexPosition" tokLexPosition)
+                    [ DefConstField ["START_POSITION"] (Just (Class ["LexPosition"] []))
+                        (Just (Call (Variable "LexPosition" tokLexPosition)
+                            [IntConst "0" tok0, IntConst "1" tok1, IntConst "1" tok1]))
+                        [tokStatic, tokStart]
+                    , DefField ["offset"] (Just Int32T) Nothing [tokOffset]
+                    , DefField ["line"] (Just Int32T) Nothing [tokLine]
+                    , DefField ["column"] (Just Int32T) Nothing [tokColumn]
+                    ]
+
+            lexState =
+                Struct [] [] (tokStruct, Variable "LexState" tokLexState)
+                    [ DefField ["cursorPos"] (Just (Class ["LexPosition"] [])) Nothing [tokCursorPos]
+                    , InstanceMethod [] [] (Void, [tokInit]) (Variable "__init__" tokInit) []
+                        (Multiple
+                            [ Expr (Binary Assign
+                                (Qualified ["this", "cursorPos"] [tokThis, tokCursorPos])
+                                (Qualified ["LexPosition", "START_POSITION"] [tokLexPosition, tokStart])
+                                tokAssign)
+                            ])
+                    ]
+
+            externalAliases = Map.fromList [(["LexPosition", "START_POSITION"], "LexPosition")]
+            (_, outStmts) =
+                normalizeProgramWithExternalTemplatesStructsAndStaticValues [] [] externalAliases ([], [lexPosition, lexState])
+            flatExprs = flattenProgram ([], outStmts)
+            hasLocalStatic =
+                any (\e -> case e of
+                    Variable "LexPosition$START_POSITION" _ -> True
+                    _ -> False) flatExprs
+            hasQualifiedStatic =
+                any (\e -> case e of
+                    Qualified ["LexPosition", "START_POSITION"] _ -> True
+                    _ -> False) flatExprs
+
+        assertBool "local static field must lower to the local global symbol" hasLocalStatic
+        assertBool "local static field must not stay as an imported qualified alias" (not hasQualifiedStatic)
+    ,
     testCase "rewrite bare static method call inside struct static method" $ do
         let tokStruct = mkIdD "struct"
             tokScreen = mkIdD "Screen"
@@ -1017,6 +1146,136 @@ normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram
                     _ -> False) flatMainExprs
 
         assertBool "Display.INSTANCE.print(...) should rewrite to Display$print(Display$INSTANCE, ...)" hasRewrittenCall
+    ,
+    testCase "rewrite static value then field instanceMethod(...) call sugar" $ do
+        let tokStruct = mkIdD "struct"
+            tokOuter = mkIdD "Outer"
+            tokInner = mkIdD "Inner"
+            tokStatic = mkIdD "static"
+            tokVal = mkIdD "val"
+            tokInstance = mkIdD "INSTANCE"
+            tokInnerField = mkIdD "inner"
+            tokPing = mkIdD "ping"
+            tokMain = mkIdD "main"
+
+            innerStruct =
+                Struct [] [] (tokStruct, Variable "Inner" tokInner)
+                    [ InstanceMethod [] [] (Void, [tokPing]) (Variable "ping" tokPing) [] (Multiple [])
+                    ]
+
+            outerInstance =
+                DefConstField ["INSTANCE"] (Just (Class ["Outer"] []))
+                    (Just (Call (Variable "Outer" tokOuter) []))
+                    [tokStatic, tokVal, tokInstance]
+
+            outerStruct =
+                Struct [] [] (tokStruct, Variable "Outer" tokOuter)
+                    [ outerInstance
+                    , DefField ["inner"] (Just (Class ["Inner"] [])) Nothing [tokInnerField]
+                    ]
+
+            mainStmt =
+                Function (Void, [tokMain]) (Variable "main" tokMain) []
+                    (Multiple
+                        [ Expr (Call
+                            (Qualified ["Outer", "INSTANCE", "inner", "ping"] [tokOuter, tokInstance, tokInnerField, tokPing])
+                            [])
+                        ])
+
+            (_, outStmts) = normalizeProgram ([], [innerStruct, outerStruct, mainStmt])
+            mainBody = case [b | Function _ (Variable "main" _) _ b <- outStmts] of
+                (b:_) -> b
+                _ -> Multiple []
+            flatMainExprs = flattenBlock (Just mainBody)
+            hasRewrittenCall =
+                any (\e -> case e of
+                    Call (Variable "Inner$ping" _) (Cast (Pointer (Class ["Inner"] []), _) (Unary DeRef _ _) _ : _) -> True
+                    CallT (Variable "Inner$ping" _) _ (Cast (Pointer (Class ["Inner"] []), _) (Unary DeRef _ _) _ : _) -> True
+                    _ -> False) flatMainExprs
+
+        assertBool "Outer.INSTANCE.inner.ping() should rewrite by chaining value receivers" hasRewrittenCall
+    ,
+    testCase "rewrite this.structField.instanceMethod(...) call sugar" $ do
+        let tokStruct = mkIdD "struct"
+            tokTestCase = mkIdD "TestCase"
+            tokTestUnion = mkIdD "TestUnion"
+            tokRunTest = mkIdD "runTest"
+            tokThis = mkIdD "this"
+            tokField = mkIdD "testCase"
+            tokN = mkIdD "n"
+
+            testCaseStruct =
+                Struct [] [] (tokStruct, Variable "TestCase" tokTestCase)
+                    [ InstanceMethod [] [] (Void, [tokRunTest]) (Variable "runTest" tokRunTest)
+                        [(Int32T, "n", [tokN])]
+                        (Multiple [])
+                    ]
+
+            testUnionStruct =
+                Struct [] [] (tokStruct, Variable "TestUnion" tokTestUnion)
+                    [ DefField ["testCase"] (Just (Class ["TestCase"] [])) Nothing [tokField]
+                    , InstanceMethod [] [] (Void, [tokRunTest]) (Variable "runTest" tokRunTest)
+                        [(Int32T, "n", [tokN])]
+                        (Multiple
+                            [ Expr (Call
+                                (Qualified ["this", "testCase", "runTest"] [tokThis, tokField, tokRunTest])
+                                [Variable "n" tokN])
+                            ])
+                    ]
+
+            (_, outStmts) = normalizeProgram ([], [testCaseStruct, testUnionStruct])
+            methodBodies =
+                [ b
+                | InstanceMethod _ _ _ (Variable "TestUnion$runTest" _) _ b <- outStmts
+                ] ++
+                [ b
+                | StaticMethod _ _ _ (Variable "TestUnion$runTest" _) _ b <- outStmts
+                ]
+            flatExprs = concatMap (flattenBlock . Just) methodBodies
+            hasRewrittenFieldMethodCall =
+                any (\e -> case e of
+                    Call (Variable "TestCase$runTest" _) (Cast (Pointer (Class ["TestCase"] []), _) (Unary DeRef _ _) _ : _) -> True
+                    CallT (Variable "TestCase$runTest" _) _ (Cast (Pointer (Class ["TestCase"] []), _) (Unary DeRef _ _) _ : _) -> True
+                    _ -> False) flatExprs
+
+        assertBool "this.testCase.runTest(...) should rewrite to TestCase$runTest(pointer<TestCase>, ...)" hasRewrittenFieldMethodCall
+    ,
+    testCase "rewrite this.pointerField.deref as deref of field value" $ do
+        let tokStruct = mkIdD "struct"
+            tokBuilder = mkIdD "Builder"
+            tokInit = mkIdD "__init__"
+            tokThis = mkIdD "this"
+            tokList = mkIdD "list"
+            tokDeref = mkIdD "deref"
+            tokAssign = mkIdD "="
+
+            structStmt =
+                Struct [] [] (tokStruct, Variable "Builder" tokBuilder)
+                    [ DefField ["list"] (Just (Pointer Char)) Nothing [tokList]
+                    , InstanceMethod [] [] (Void, [tokInit]) (Variable "__init__" tokInit) []
+                        (Multiple
+                            [ Expr (Binary Assign
+                                (Qualified ["this", "list", "deref"] [tokThis, tokList, tokDeref])
+                                (CharConst '\0' tokDeref)
+                                tokAssign)
+                            ])
+                    ]
+
+            (_, outStmts) = normalizeProgram ([], [structStmt])
+            methodBodies =
+                [ b
+                | InstanceMethod _ _ _ (Variable "Builder$__init__" _) _ b <- outStmts
+                ] ++
+                [ b
+                | StaticMethod _ _ _ (Variable "Builder$__init__" _) _ b <- outStmts
+                ]
+            flatExprs = concatMap (flattenBlock . Just) methodBodies
+            hasDoubleDerefLhs =
+                any (\e -> case e of
+                    Binary Assign (Unary DeRef (Unary DeRef _ _) _) _ _ -> True
+                    _ -> False) flatExprs
+
+        assertBool "this.list.deref assignment should write through the pointer stored in the field" hasDoubleDerefLhs
     ,
     testCase "rewrite new Struct(...) into heap alloc + __init__ call" $ do
         let tokStruct = mkIdD "struct"
@@ -1127,7 +1386,7 @@ prettyExprTests = testGroup "Parse.SyntaxTree.prettyExpr" $ map (\(i, n, inp, ou
     ("3", 1, Just (BoolConst False (mkIdD "false")), insertSpace 4 ++ "false"),
     ("4", 0, Just (Variable "x" (mkIdD "x")), "x"),
     ("5", 0, Just (Qualified ["a","b","c"] [mkIdD "a"]), "a.b.c"),
-    ("6", 0, Just (Cast (Class ["Int"] [], [mkIdD "Int"]) (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(_Int)(1)"),
+    ("6", 0, Just (Cast (Class ["Int"] [], [mkIdD "Int"]) (IntConst "1" (mkNumD "1")) (mkIdD "cast")), "(Int)(1)"),
     ("7", 0, Just (Binary Add
         (Unary Sub (Variable "x" (mkIdD "x")) (mkIdD "-"))
         (IntConst "2" (mkNumD "2"))

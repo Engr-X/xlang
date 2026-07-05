@@ -7,7 +7,7 @@ module IR.TACLowing where
 import Data.Bits ((.&.))
 import Control.Monad (unless)
 import Control.Monad.State.Strict (evalState)
-import Data.List (partition, foldl', nub, isPrefixOf, sortOn)
+import Data.List (partition, foldl', nub, isPrefixOf, sortOn, stripPrefix)
 import Data.Char (toUpper, toLower, isSpace)
 import Text.Read (readMaybe)
 import Data.Maybe (listToMaybe, fromMaybe, catMaybes, mapMaybe)
@@ -443,7 +443,7 @@ pointerStoreSize :: Class -> Maybe Int
 pointerStoreSize cls = case cls of
     Int8T -> Just 1
     Bool -> Just 1
-    Char -> Just 1
+    Char -> Just 4
     Int16T -> Just 2
     Int32T -> Just 4
     Float32T -> Just 4
@@ -502,7 +502,7 @@ emitBlobStringWriteInstrs lhsAtom str = do
     lhsClass <- getAtomType lhsAtom
     let voidPtrClass = Pointer Void
         srcLit = TAC.StringC str
-        copyBytes = length str + 1
+        copyBytes = (length str + 1) * 4
     (dstCastRev, dstPtr) <- castIfNeeded lhsClass lhsAtom voidPtrClass
     srcClass <- getAtomType srcLit
     (srcCastRev, srcPtr) <- castIfNeeded srcClass srcLit voidPtrClass
@@ -532,7 +532,7 @@ pointerElemBytes ptrCls = case ptrCls of
     elemBytes :: Class -> Int
     elemBytes c = case c of
         Bool -> 1
-        Char -> 1
+        Char -> 4
         Int8T -> 1
         Int16T -> 2
         Int32T -> 4
@@ -552,7 +552,7 @@ sizeofClassBytesIR :: Class -> Maybe Int
 sizeofClassBytesIR cls0 = case AST.normalizeClass cls0 of
     Int8T -> Just 1
     Bool -> Just 1
-    Char -> Just 1
+    Char -> Just 4
     Int16T -> Just 2
     Int32T -> Just 4
     Float32T -> Just 4
@@ -687,7 +687,8 @@ exprLowing (AST.Cast (toClass, _) inner _) = do
     (instrs, oAtom) <- if AST.isAtom inner then atomLowing inner else exprLowing inner
     fromClass <- getAtomType oAtom
     (castInstrs, castAtom) <- castIfNeeded fromClass oAtom toClass
-    return (castInstrs ++ instrs, castAtom)
+    let seqForward = appendAfterCond (reverse instrs) castInstrs
+    return (reverse seqForward, castAtom)
 
 -- ++a
 exprLowing (AST.Unary AST.IncSelf (AST.Unary AST.DeRef inner _) _) = do
@@ -946,13 +947,18 @@ exprLowing (AST.Binary AST.Assign (AST.Unary AST.DeRef inner _) e2 _) = do
         _ ->
             error "unreachable pointer assignment base class"
 
+    oldAtom <- newSubCVar targetClass
+
     let baseForward = reverse baseInstrs0
         ptrCastForward = reverse ptrCastInstrs
         rhsForward = reverse (rhsCastInstrs ++ rhsInstrs0)
-        seqForward1 = appendAfterCond baseForward rhsForward
-        seqForward2 = appendAfterCond seqForward1 ptrCastForward
-    let seqForward3 = appendAfterCond seqForward2 [IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
-    return (reverse seqForward3, rhsAtom)
+        readOld = IRInstr (TAC.Deref oldAtom ptrAtom)
+        writeNew = IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)
+        seqForward1 = appendAfterCond baseForward ptrCastForward
+        seqForward2 = appendAfterCond seqForward1 [readOld]
+        seqForward3 = appendAfterCond seqForward2 rhsForward
+        seqForward4 = appendAfterCond seqForward3 [writeNew]
+    return (reverse seqForward4, oldAtom)
 
 -- TODO for class
 exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
@@ -969,11 +975,16 @@ exprLowing (AST.Binary AST.Assign (AST.Qualified names toks) e2 _) =
                 Just n -> return n
                 Nothing -> error $ "pointer assignment does not support class " ++ show targetClass
 
+            oldAtom <- newSubCVar targetClass
+
             let lhsForward = reverse lhsInstrs
                 rhsForward = reverse (rhsCastInstrs ++ rhsInstrs0)
-                seqForward1 = appendAfterCond lhsForward rhsForward
-                seqForward2 = appendAfterCond seqForward1 [IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)]
-            return (reverse seqForward2, rhsAtom)
+                readOld = IRInstr (TAC.Deref oldAtom ptrAtom)
+                writeNew = IRInstr (TAC.DerefAssign ptrAtom rhsAtom storeSize)
+                seqForward1 = appendAfterCond lhsForward [readOld]
+                seqForward2 = appendAfterCond seqForward1 rhsForward
+                seqForward3 = appendAfterCond seqForward2 [writeNew]
+            return (reverse seqForward3, oldAtom)
         Nothing ->
             case names of
                 ("this":_) -> error "TODO: assign to this.field is not supported yet"
@@ -1154,7 +1165,7 @@ exprLowing (AST.IfExpr cond thenE elseE _) = do
                 IRInstr (TAC.IAssign outAtom elseAtom),
                 IRInstr (TAC.Jump lJoin)
             ])
-        flow = appendAfterCond condStmts [
+        flow = condStmts ++ [
             IRBlockStmt (lThen, thenBody),
             IRBlockStmt (lElse, elseBody),
             IRBlockStmt (lJoin, [])
@@ -1488,6 +1499,66 @@ type VarKey = (String, Int)
 defaultPlainOwnerKey :: String
 defaultPlainOwnerKey = "$$default_owner$$"
 
+qualifyLoweredQName :: TAC.IRClassType -> Map String String -> [String] -> [String] -> [String]
+qualifyLoweredQName classType ownerOverrides cls qn
+    | classType == TAC.IRClassTypeStruct
+    , length qn == 2
+    , head qn == currentClassName
+    , not (belongsToCurrentStruct (last qn)) =
+        case defaultOwnerForStruct of
+            Just ownerCls -> pkg ++ [ownerCls, last qn]
+            Nothing -> qn
+    | length qn == 1 =
+        let sym = head qn
+        in case pickOwner sym of
+            Just ownerCls -> pkg ++ [ownerCls] ++ qn
+            Nothing ->
+                case preferPlainOwnerForStruct sym of
+                    Just ownerCls -> pkg ++ [ownerCls] ++ qn
+                    Nothing ->
+                        case defaultOwnerForStruct of
+                            Just ownerCls -> pkg ++ [ownerCls] ++ qn
+                            Nothing -> cls ++ qn
+    | isPkgOnly =
+        case pickOwner (last qn) of
+            Just ownerCls -> pkg ++ [ownerCls, last qn]
+            Nothing ->
+                case defaultOwnerForStruct of
+                    Just ownerCls -> pkg ++ [ownerCls, last qn]
+                    Nothing -> cls ++ [last qn]
+    | otherwise = qn
+    where
+        pkg = take (length cls - 1) cls
+        isPkgOnly = length qn == length cls && take (length cls - 1) qn == pkg
+        defaultOwnerForStruct :: Maybe String
+        defaultOwnerForStruct =
+            if classType == TAC.IRClassTypeStruct
+                then Map.lookup defaultPlainOwnerKey ownerOverrides
+                else Nothing
+        currentClassName :: String
+        currentClassName =
+            case reverse cls of
+                (x:_) -> x
+                [] -> ""
+        belongsToCurrentStruct :: String -> Bool
+        belongsToCurrentStruct sym =
+            sym == (currentClassName ++ "$$size")
+                || (currentClassName ++ "$") `isPrefixOf` sym
+        preferPlainOwnerForStruct :: String -> Maybe String
+        preferPlainOwnerForStruct sym =
+            if classType == TAC.IRClassTypeStruct && not (belongsToCurrentStruct sym)
+                then Map.lookup defaultPlainOwnerKey ownerOverrides
+                else Nothing
+        pickOwner :: String -> Maybe String
+        pickOwner sym =
+            case Map.lookup sym ownerOverrides of
+                Just ownerCls -> Just ownerCls
+                Nothing ->
+                    case break (== '$') sym of
+                        (ownerCls, '$' : _)
+                            | not (null ownerCls) -> Just ownerCls
+                        _ -> Nothing
+
 resolveLiveVarKey :: String -> VarKey -> TACM VarKey
 resolveLiveVarKey rawName key@(realName, _) = do
     key0 <- resolveVarKey key
@@ -1626,8 +1697,9 @@ collectAssignKeysBlock (AST.Multiple ss) = do
         collectAssignKeysExpr expr = case expr of
             AST.Binary op lhs rhs _ | isAssignLikeOp op -> do
                 ks1 <- collectAssignKeysLhs lhs
-                ks2 <- collectAssignKeysExpr rhs
-                return (ks1 ++ ks2)
+                ks2 <- collectAssignKeysExpr lhs
+                ks3 <- collectAssignKeysExpr rhs
+                return (ks1 ++ ks2 ++ ks3)
             AST.Binary _ e1 e2 _ -> do
                 ks1 <- collectAssignKeysExpr e1
                 ks2 <- collectAssignKeysExpr e2
@@ -2468,7 +2540,7 @@ collectAtomTypes sig stmts = do
             TAC.Float32C _ -> Just Float32T
             TAC.Float64C _ -> Just Float64T
             TAC.Float128C _ -> Just Float128T
-            TAC.StringC _ -> Just (Class ["String"] [])
+            TAC.StringC _ -> Just (Pointer Char)
             TAC.Var _ -> Map.lookup atom varTypeMap
             TAC.Param i ->
                 let ps = TEnv.funParams sig'
@@ -2551,7 +2623,7 @@ collectAtomTypesStatic stmts = do
             TAC.Float32C _ -> Just Float32T
             TAC.Float64C _ -> Just Float64T
             TAC.Float128C _ -> Just Float128T
-            TAC.StringC _ -> Just (Class ["String"] [])
+            TAC.StringC _ -> Just (Pointer Char)
             TAC.Var _ -> Map.lookup atom varTypeMap
             TAC.Param _ -> Nothing
             TAC.Phi pairs -> case pairs of
@@ -2749,20 +2821,25 @@ classStmtsLowing :: TAC.IRClassType -> [String] -> String -> Map String String -
 classStmtsLowing classType pkgSegs name ownerOverrides stmts = do
     let (funcDef, rest0) = partition AST.isFunction stmts
     let (templateDef, rest1) = partition AST.isFunctionT rest0
+    let (instanceFieldMetaStmts, staticRest) =
+            if classType == TAC.IRClassTypeStruct
+                then partition (isStructInstanceFieldMetaStmt name) rest1
+                else ([], rest1)
     let inlineNativeMap = Map.fromList (mapMaybe (inlineNativeFromStmt pkgSegs) funcDef)
     TAC.setInlineNativeTargets inlineNativeMap
 
-    let staticKeyMap = collectAssignKey rest1
-        constKeyMap = collectConstKey rest1
+    let staticKeyMap = collectAssignKey staticRest
+        constKeyMap = collectConstKey staticRest
     staticKeys <- mapM resolveStaticKey (Map.toList staticKeyMap)
     addStaticVars staticKeys
 
     retBId <- incBlockId
     let staticRet = IRBlockStmt (retBId, [IRInstr TAC.VReturn])
-    staticStmts0 <- stmtsLowing rest1
+    staticStmts0 <- stmtsLowing staticRest
     let staticStmts = staticStmts0 ++ [staticRet]
     staticAtomTypes <- collectAtomTypesStatic staticStmts
     staticFields <- mapM (staticFieldFor constKeyMap) staticKeys
+    let instanceFields = mapMaybe (structInstanceFieldAttr name) instanceFieldMetaStmts
     funcsWithC <- mapM functionLowering funcDef
     let classQName = pkgSegs ++ [name]
         staticBlocks0 = packIRBlocks staticStmts
@@ -2774,8 +2851,29 @@ classStmtsLowing classType pkgSegs name ownerOverrides stmts = do
         cFuncs = map (qualifyCFunction classQName) cFuncs0
         mainKind = detectMainKind classQName funcs
     let decl = (AST.Public, []) -- TODO: default class decl until parser carries modifiers.
-    return $ TAC.IRClass decl name classType staticFields (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs tFuncs cFuncs mainKind
+    return $ TAC.IRClass decl name classType (instanceFields ++ staticFields) (TAC.StaticInit (staticBlocks, retBId)) staticAtomTypes funcs tFuncs cFuncs mainKind
     where
+        isStructInstanceFieldMetaStmt :: String -> Statement -> Bool
+        isStructInstanceFieldMetaStmt s stmt = case structInstanceFieldAttr s stmt of
+            Just _ -> True
+            Nothing -> False
+
+        structInstanceFieldAttr :: String -> Statement -> Maybe (AST.Decl, Class, String, TAC.IRMemberType)
+        structInstanceFieldAttr s stmt =
+            case stmt of
+                AST.DefField [raw] mTy _ toks -> mkAttr raw mTy toks
+                AST.DefConstField [raw] mTy _ toks -> mkAttr raw mTy toks
+                AST.DefVar [raw] mTy _ toks -> mkAttr raw mTy toks
+                AST.DefConstVar [raw] mTy _ toks -> mkAttr raw mTy toks
+                _ -> Nothing
+          where
+            mkAttr raw mTy toks = do
+                fieldName <- stripPrefix (AST.structInstanceFieldMetaPrefix s) raw
+                let access0 = accessFromDeclTokens toks
+                    declField = (access0, [])
+                    fieldTy = fromMaybe Int64T mTy
+                pure (declField, fieldTy, fieldName, TAC.MemberClass)
+
         resolveStaticKey :: (String, [Position]) -> TACM (String, Int)
         resolveStaticKey (nameHint, poss) = do
             let go [] = error ("collectAssignKey: cannot resolve static key for " ++ show nameHint)
@@ -2813,72 +2911,12 @@ classStmtsLowing classType pkgSegs name ownerOverrides stmts = do
         qualifyInstr :: [String] -> IRInstr -> IRInstr
         qualifyInstr cls instr = case instr of
             TAC.GetFuncAddr dst (TAC.TACFunction qn sig) ->
-                TAC.GetFuncAddr dst (TAC.TACFunction (qualifyQName cls qn) sig)
-            TAC.ICallStatic dst qn args -> TAC.ICallStatic dst (qualifyQName cls qn) args
-            TAC.ICallVirtual dst qn args -> TAC.ICallVirtual dst (qualifyQName cls qn) args
-            TAC.IGetStatic dst qn -> TAC.IGetStatic dst (qualifyQName cls qn)
-            TAC.IPutStatic qn v -> TAC.IPutStatic (qualifyQName cls qn) v
+                TAC.GetFuncAddr dst (TAC.TACFunction (qualifyLoweredQName classType ownerOverrides cls qn) sig)
+            TAC.ICallStatic dst qn args -> TAC.ICallStatic dst (qualifyLoweredQName classType ownerOverrides cls qn) args
+            TAC.ICallVirtual dst qn args -> TAC.ICallVirtual dst (qualifyLoweredQName classType ownerOverrides cls qn) args
+            TAC.IGetStatic dst qn -> TAC.IGetStatic dst (qualifyLoweredQName classType ownerOverrides cls qn)
+            TAC.IPutStatic qn v -> TAC.IPutStatic (qualifyLoweredQName classType ownerOverrides cls qn) v
             _ -> instr
-
-        qualifyQName :: [String] -> [String] -> [String]
-        qualifyQName cls qn
-            | classType == TAC.IRClassTypeStruct
-            , length qn == 2
-            , head qn == currentClassName
-            , not (belongsToCurrentStruct (last qn)) =
-                case defaultOwnerForStruct of
-                    Just ownerCls -> pkg ++ [ownerCls, last qn]
-                    Nothing -> qn
-            | length qn == 1 =
-                let sym = head qn
-                in case preferPlainOwnerForStruct sym of
-                    Just ownerCls -> pkg ++ [ownerCls] ++ qn
-                    Nothing ->
-                        case pickOwner sym of
-                            Just ownerCls -> pkg ++ [ownerCls] ++ qn
-                            Nothing ->
-                                case defaultOwnerForStruct of
-                                    Just ownerCls -> pkg ++ [ownerCls] ++ qn
-                                    Nothing -> cls ++ qn
-            | isPkgOnly =
-                case pickOwner (last qn) of
-                    Just ownerCls -> pkg ++ [ownerCls, last qn]
-                    Nothing ->
-                        case defaultOwnerForStruct of
-                            Just ownerCls -> pkg ++ [ownerCls, last qn]
-                            Nothing -> cls ++ [last qn]
-            | otherwise = qn
-            where
-                pkg = take (length cls - 1) cls
-                isPkgOnly = length qn == length cls && take (length cls - 1) qn == pkg
-                defaultOwnerForStruct :: Maybe String
-                defaultOwnerForStruct =
-                    if classType == TAC.IRClassTypeStruct
-                        then Map.lookup defaultPlainOwnerKey ownerOverrides
-                        else Nothing
-                currentClassName :: String
-                currentClassName =
-                    case reverse cls of
-                        (x:_) -> x
-                        [] -> ""
-                belongsToCurrentStruct :: String -> Bool
-                belongsToCurrentStruct sym =
-                    sym == (currentClassName ++ "$$size")
-                        || (currentClassName ++ "$") `isPrefixOf` sym
-                preferPlainOwnerForStruct :: String -> Maybe String
-                preferPlainOwnerForStruct sym =
-                    if classType == TAC.IRClassTypeStruct && not (belongsToCurrentStruct sym)
-                        then Map.lookup defaultPlainOwnerKey ownerOverrides
-                        else Nothing
-                pickOwner :: String -> Maybe String
-                pickOwner sym =
-                    case Map.lookup sym ownerOverrides of
-                        Just ownerCls -> Just ownerCls
-                        Nothing ->
-                            case break (== '$') sym of
-                                (ownerCls, '$' : _)
-                                    | not (null ownerCls) -> Just ownerCls
-                                _ -> Nothing
 
 
 detectMainKind :: QName -> [IRFunction] -> TAC.MainKind

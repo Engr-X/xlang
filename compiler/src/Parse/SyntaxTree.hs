@@ -1580,7 +1580,7 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
             LongDoubleConst {} -> Just Float128T
             CharConst {} -> Just Char
             BoolConst {} -> Just Bool
-            StringConst s tok -> Just (Blob (IntConst (show (length s + 1)) tok))
+            StringConst {} -> Just (Pointer Char)
             Variable n _ -> Map.lookup n hints
             Cast (ty, _) _ _ -> Just (normalizeClass ty)
             Unary AddrOf e _ -> Pointer <$> inferExprTypeHint hints e
@@ -2704,10 +2704,15 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
 --   3) instantiate template calls into generated concrete functions.
 normalizeProgramWithExternalTemplatesAndStructs :: [Statement] -> [Statement] -> Program -> Program
 normalizeProgramWithExternalTemplatesAndStructs externalTemplates externalStructStmts =
+    normalizeProgramWithExternalTemplatesStructsAndStaticValues externalTemplates externalStructStmts Map.empty
+
+
+normalizeProgramWithExternalTemplatesStructsAndStaticValues :: [Statement] -> [Statement] -> Map [String] String -> Program -> Program
+normalizeProgramWithExternalTemplatesStructsAndStaticValues externalTemplates externalStructStmts externalStaticStructValues =
     instantiateTemplateCallsProgramWithExternal externalTemplates
         . inlineProgramFunctions
         . promoteTopLevelFunctions
-        . desugarStructProgramWithExternalStructs externalStructStmts
+        . desugarStructProgramWithExternalStructsAndStaticValues externalStructStmts externalStaticStructValues
 
 
 normalizeProgramWithExternalTemplates :: [Statement] -> Program -> Program
@@ -2725,6 +2730,7 @@ data StructMeta = StructMeta {
     smFields :: Map String StructFieldMeta,
     smStaticFields :: Set String,
     smStaticFieldTypes :: Map String Class,
+    smQualifiedStaticFields :: Set String,
     smInstanceMethods :: Set String,
     smStaticMethods :: Set String,
     smHasInit :: Bool,
@@ -2734,17 +2740,27 @@ data StructMeta = StructMeta {
 type StructMetaMap = Map String StructMeta
 type StructEnv = Map String (Maybe String)
 
+data StructChainTarget
+    = StructTypeTarget String
+    | StructValueTarget Expression (Maybe String)
+    deriving (Eq, Show)
+
 
 desugarStructProgram :: Program -> Program
 desugarStructProgram = desugarStructProgramWithExternalStructs []
 
 
 desugarStructProgramWithExternalStructs :: [Statement] -> Program -> Program
-desugarStructProgramWithExternalStructs externalStructStmts (decls, stmts0) =
+desugarStructProgramWithExternalStructs externalStructStmts =
+    desugarStructProgramWithExternalStructsAndStaticValues externalStructStmts Map.empty
+
+
+desugarStructProgramWithExternalStructsAndStaticValues :: [Statement] -> Map [String] String -> Program -> Program
+desugarStructProgramWithExternalStructsAndStaticValues externalStructStmts externalStaticStructValues (decls, stmts0) =
     let tops = flattenStmtGroups stmts0
         externalTops = flattenStmtGroups externalStructStmts
         structs = [s | s@Struct {} <- (externalTops ++ tops)]
-        metas = Map.fromList (map toPair structs)
+        metas = Map.unionWith mergeExternalLocalStructMeta (externalStaticStructMetas externalStaticStructValues) (Map.fromList (map toPair structs))
         expandTop st = case st of
             Struct {} -> expandStructStmt metas st
             _ -> [st]
@@ -2780,7 +2796,7 @@ buildStructMeta (Struct _ _ (_, nameExpr) members) =
         (fieldMap, staticFields, staticFieldTypes, instMethods, stMethods, hasInit0, endOff) =
             foldl' step (Map.empty, Set.empty, Map.empty, Set.empty, Set.empty, False, 0) members
         finalSize = align8 endOff
-    in StructMeta sname fieldMap staticFields staticFieldTypes instMethods stMethods hasInit0 finalSize
+    in StructMeta sname fieldMap staticFields staticFieldTypes Set.empty instMethods (Set.insert "memSize" stMethods) hasInit0 finalSize
   where
     step (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff) m = case m of
         DefField names mTy _ toks ->
@@ -2820,6 +2836,52 @@ buildStructMeta (Struct _ _ (_, nameExpr) members) =
 buildStructMeta _ = error "buildStructMeta: non-struct statement"
 
 
+mergeStructMeta :: StructMeta -> StructMeta -> StructMeta
+mergeStructMeta a b =
+    b {
+        smFields = Map.union (smFields b) (smFields a),
+        smStaticFields = Set.union (smStaticFields b) (smStaticFields a),
+        smStaticFieldTypes = Map.union (smStaticFieldTypes b) (smStaticFieldTypes a),
+        smQualifiedStaticFields = Set.union (smQualifiedStaticFields b) (smQualifiedStaticFields a),
+        smInstanceMethods = Set.union (smInstanceMethods b) (smInstanceMethods a),
+        smStaticMethods = Set.union (smStaticMethods b) (smStaticMethods a),
+        smHasInit = smHasInit b || smHasInit a,
+        smSize = max (smSize b) (smSize a)
+    }
+
+
+mergeExternalLocalStructMeta :: StructMeta -> StructMeta -> StructMeta
+mergeExternalLocalStructMeta externalMeta localMeta =
+    let merged = mergeStructMeta externalMeta localMeta
+    in merged {
+        smQualifiedStaticFields =
+            Set.difference (smQualifiedStaticFields merged) (smStaticFields localMeta)
+    }
+
+
+externalStaticStructMetas :: Map [String] String -> StructMetaMap
+externalStaticStructMetas =
+    Map.foldlWithKey' addOne Map.empty
+  where
+    addOne :: StructMetaMap -> [String] -> String -> StructMetaMap
+    addOne acc qn structName =
+        case reverse qn of
+            (fieldName : ownerName : _) ->
+                let meta = StructMeta {
+                        smName = ownerName,
+                        smFields = Map.empty,
+                        smStaticFields = Set.singleton fieldName,
+                        smStaticFieldTypes = Map.singleton fieldName (Class [structName] []),
+                        smQualifiedStaticFields = Set.singleton fieldName,
+                        smInstanceMethods = Set.empty,
+                        smStaticMethods = Set.empty,
+                        smHasInit = False,
+                        smSize = 8
+                    }
+                in Map.insertWith mergeStructMeta ownerName meta acc
+            _ -> acc
+
+
 align8 :: Int -> Int
 align8 n =
     let r = n `mod` 8
@@ -2830,7 +2892,7 @@ classStorageSizeBytes :: Class -> Int
 classStorageSizeBytes cls = case normalizeClass cls of
     Int8T -> 1
     Bool -> 1
-    Char -> 1
+    Char -> 4
     Int16T -> 2
     Int32T -> 4
     Float32T -> 4
@@ -2865,6 +2927,14 @@ structGlobalName :: String -> String -> String
 structGlobalName sname member = sname ++ "$" ++ member
 
 
+structInstanceFieldMetaPrefix :: String -> String
+structInstanceFieldMetaPrefix sname = sname ++ "$$field$"
+
+
+structInstanceFieldMetaName :: String -> String -> String
+structInstanceFieldMetaName sname member = structInstanceFieldMetaPrefix sname ++ member
+
+
 mkGeneratedIdentToken :: Int -> String -> Token
 mkGeneratedIdentToken seed name = Lex.Ident name (makePosition (-1) (-100000 - seed) (length name))
 
@@ -2882,8 +2952,31 @@ expandStructStmt metas st@(Struct _ _ (_, nameExpr) members) =
                 (Just Int32T)
                 (Just (IntConst (show (smSize meta)) sizeTok))
                 [sizeTok]
-    in sizeDecl : concatMap (expandMember sname) members
+        memSizeName = structGlobalName sname "memSize"
+        memSizeFun =
+            Function
+                (Int32T, [sizeTok])
+                (Variable memSizeName (renameIdentToken memSizeName sizeTok))
+                []
+                (Multiple [Command (Return (Just (IntConst (show (smSize meta)) sizeTok))) sizeTok])
+        fieldMetaDecls = concatMap (emitInstanceFieldMeta sname) members
+    in fieldMetaDecls ++ (sizeDecl : memSizeFun : concatMap (expandMember sname) members)
   where
+    emitInstanceFieldMeta :: String -> Statement -> [Statement]
+    emitInstanceFieldMeta sname member = case member of
+        DefField names mTy _ toks -> emit names mTy toks
+        DefConstField names mTy _ toks -> emit names mTy toks
+        DefVar names mTy _ toks -> emit names mTy toks
+        DefConstVar names mTy _ toks -> emit names mTy toks
+        _ -> []
+      where
+        emit names mTy toks = case names of
+            [n]
+                | not (hasStaticToken toks) ->
+                    let fTy = fromMaybe Int64T mTy
+                    in [DefField [structInstanceFieldMetaName sname n] (Just fTy) Nothing toks]
+            _ -> []
+
     expandMember :: String -> Statement -> [Statement]
     expandMember sname member = case member of
         DefField names mTy me toks ->
@@ -3183,10 +3276,28 @@ ctorStructName metas ex = case ex of
 
 structNameFromType :: StructMetaMap -> Class -> Maybe String
 structNameFromType metas ty = case normalizeClass ty of
-    Class [n] [] | Map.member n metas -> Just n
-    Pointer (Class [n] []) | Map.member n metas -> Just n
-    Class ["pointer"] [Class [n] []] | Map.member n metas -> Just n
+    Class qn [] -> resolveStructQName metas qn
+    Pointer (Class qn []) -> resolveStructQName metas qn
+    Class ["pointer"] [Class qn []] -> resolveStructQName metas qn
     _ -> Nothing
+
+
+structNameFromSizeofType :: StructMetaMap -> Class -> Maybe String
+structNameFromSizeofType metas ty = case normalizeClass ty of
+    Class qn [] -> resolveStructQName metas qn
+    _ -> Nothing
+
+
+resolveStructQName :: StructMetaMap -> [String] -> Maybe String
+resolveStructQName _ [] = Nothing
+resolveStructQName metas qn =
+    let simple = last qn
+        dollarName = intercalate "$" qn
+    in listToMaybe $ mapMaybe id
+        [ if Map.member dollarName metas then Just dollarName else Nothing
+        , if Map.member simple metas then Just simple else Nothing
+        , resolveUniqueStructBySimpleName metas simple
+        ]
 
 
 rewriteMaybeExpr :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Maybe Expression -> (Int, Maybe Expression)
@@ -3249,11 +3360,7 @@ rewriteExpr metas mThis env n ex = case ex of
         let (n1, e1) = rewriteExpr metas mThis env n e
         in (n1, SizeOfExpr e1 tok)
     SizeOfType (cls, ts) tok ->
-        case structNameFromType metas cls of
-            Just s ->
-                let sz = maybe 8 smSize (Map.lookup s metas)
-                in (n, IntConst (show sz) tok)
-            Nothing -> (n, SizeOfType (cls, ts) tok)
+        (n, SizeOfType (cls, ts) tok)
     IfExpr c t f toks ->
         let (n1, c1) = rewriteExpr metas mThis env n c
             (n2, t1) = rewriteExpr metas mThis env n1 t
@@ -3266,6 +3373,108 @@ rewriteExpr metas mThis env n ex = case ex of
         rewriteCall metas mThis env n callee Nothing args
     CallT callee tys args ->
         rewriteCall metas mThis env n callee (Just tys) args
+
+
+resolveStructChainTarget ::
+    StructMetaMap ->
+    Maybe String ->
+    StructEnv ->
+    [String] ->
+    [Token] ->
+    Maybe StructChainTarget
+resolveStructChainTarget =
+    resolveStructChainTargetWith True
+
+
+resolveStructChainTargetWith ::
+    Bool ->
+    StructMetaMap ->
+    Maybe String ->
+    StructEnv ->
+    [String] ->
+    [Token] ->
+    Maybe StructChainTarget
+resolveStructChainTargetWith castStructFields metas mThis env names toks = case names of
+    [] -> Nothing
+    (base : fields) -> do
+        start <- resolveStart base (tokAt 0)
+        go start (zip fields [1..])
+  where
+    resolveStart :: String -> Token -> Maybe StructChainTarget
+    resolveStart "this" tok = do
+        s <- mThis
+        pure (StructValueTarget (Variable "this" tok) (Just s))
+    resolveStart base tok =
+        case Map.lookup base env of
+            Just (Just s) -> Just (StructValueTarget (Variable base tok) (Just s))
+            Just Nothing -> Nothing
+            Nothing ->
+                StructTypeTarget <$> resolveStructTypeName base
+
+    resolveStructTypeName :: String -> Maybe String
+    resolveStructTypeName name
+        | Map.member name metas = Just name
+        | otherwise = resolveUniqueStructBySimpleName metas name
+
+    go :: StructChainTarget -> [(String, Int)] -> Maybe StructChainTarget
+    go target [] = Just target
+    go target ((field, idx) : rest) = do
+        next <- stepTarget target field (tokAt idx)
+        go next rest
+
+    stepTarget :: StructChainTarget -> String -> Token -> Maybe StructChainTarget
+    stepTarget (StructTypeTarget s) field tok =
+        staticFieldTarget s field tok
+    stepTarget (StructValueTarget expr (Just s)) field tok =
+        case instanceFieldTarget s expr field tok of
+            Just target -> Just target
+            Nothing -> staticFieldTarget s field tok
+    stepTarget (StructValueTarget _ Nothing) _ _ =
+        Nothing
+
+    instanceFieldTarget :: String -> Expression -> String -> Token -> Maybe StructChainTarget
+    instanceFieldTarget s expr field tok = do
+        sm <- Map.lookup s metas
+        fMeta <- Map.lookup field (smFields sm)
+        let rawExpr = Unary DeRef (structFieldAddrExpr s expr fMeta tok) tok
+            mStruct = structNameFromType metas (sfType fMeta)
+            expr1 = case mStruct of
+                Just sField | castStructFields -> Cast (Pointer (Class [sField] []), [tok]) rawExpr tok
+                Nothing -> rawExpr
+                _ -> rawExpr
+        pure (StructValueTarget expr1 mStruct)
+
+    staticFieldTarget :: String -> String -> Token -> Maybe StructChainTarget
+    staticFieldTarget s field tok = do
+        sm <- Map.lookup s metas
+        if Set.member field (smStaticFields sm)
+            then
+                let expr1 = staticFieldExpr s sm field tok
+                    mStruct = staticFieldStructResult s sm field
+                in Just (StructValueTarget expr1 mStruct)
+            else Nothing
+
+    staticFieldExpr :: String -> StructMeta -> String -> Token -> Expression
+    staticFieldExpr s sm field tok =
+        if Set.member field (smQualifiedStaticFields sm)
+            then Qualified [s, field] [renameIdentToken s tok, tok]
+            else
+                let g = structGlobalName s field
+                in Variable g (renameIdentToken g tok)
+
+    staticFieldStructResult :: String -> StructMeta -> String -> Maybe String
+    staticFieldStructResult s sm field =
+        case Map.lookup field (smStaticFieldTypes sm) >>= structNameFromType metas of
+            Just sField -> Just sField
+            Nothing ->
+                if map toLower field == "instance"
+                    then Just s
+                    else Nothing
+
+    tokAt :: Int -> Token
+    tokAt idx = case drop idx toks of
+        (tok : _) -> tok
+        [] -> Lex.dummyToken
 
 
 rewriteCall ::
@@ -3343,95 +3552,36 @@ rewriteCall metas mThis env n callee mTys args =
                     in (n2, case mTys of
                         Nothing -> Call callee1 args1
                         Just tys -> CallT callee1 tys args1)
-        Qualified [base, field, m] toks ->
+        Qualified names toks ->
             let mkCall nm extra seed = case mTys of
                     Nothing -> Call (Variable nm (mkGeneratedIdentToken seed nm)) (extra ++ args1)
                     Just tys -> CallT (Variable nm (mkGeneratedIdentToken seed nm)) tys (extra ++ args1)
-                baseTok = case toks of
-                    (t:_) -> t
-                    [] -> Lex.dummyToken
-                fieldTok = case toks of
-                    (_:t:_) -> t
-                    _ -> baseTok
                 fallbackCall =
                     let (n2, callee1) = rewriteExpr metas mThis env n1 callee
                     in (n2, case mTys of
                         Nothing -> Call callee1 args1
                         Just tys -> CallT callee1 tys args1)
-                ownerStruct =
-                    case resolveBaseStruct metas mThis env base of
-                        Just s -> Just s
-                        Nothing ->
-                            if Map.member base metas
-                                then Just base
-                                else Nothing
-            in case ownerStruct of
-                Just sOwner ->
-                    case Map.lookup sOwner metas of
-                        Just smOwner
-                            | Set.member field (smStaticFields smOwner) ->
-                                let recvExpr =
-                                        let g = structGlobalName sOwner field
-                                        in Variable g (renameIdentToken g fieldTok)
-                                    mRecvStruct =
-                                        case Map.lookup field (smFields smOwner) of
-                                            Just fMeta -> structNameFromType metas (sfType fMeta)
-                                            Nothing -> Nothing
-                                in if Set.member m (smInstanceMethods smOwner)
-                                    then (n1 + 1, mkCall (structGlobalName sOwner m) [recvExpr] n1)
-                                    else case mRecvStruct of
-                                        Just sRecv ->
-                                            case Map.lookup sRecv metas of
-                                                Just smRecv
-                                                    | Set.member m (smInstanceMethods smRecv) ->
-                                                        (n1 + 1, mkCall (structGlobalName sRecv m) [recvExpr] n1)
-                                                    | Set.member m (smStaticMethods smRecv) ->
-                                                        (n1 + 1, mkCall (structGlobalName sRecv m) [] n1)
-                                                    | otherwise ->
-                                                        fallbackCall
-                                                Nothing ->
-                                                    fallbackCall
-                                        Nothing ->
-                                            fallbackCall
-                            | otherwise ->
-                                fallbackCall
-                        Nothing ->
-                            fallbackCall
-                Nothing ->
-                    fallbackCall
-        Qualified [base, m] toks ->
-            let mkCall nm extra seed = case mTys of
-                    Nothing -> Call (Variable nm (mkGeneratedIdentToken seed nm)) (extra ++ args1)
-                    Just tys -> CallT (Variable nm (mkGeneratedIdentToken seed nm)) tys (extra ++ args1)
-                baseTok = case toks of
-                    (t:_) -> t
-                    [] -> Lex.dummyToken
-            in case resolveBaseStruct metas mThis env base of
-                Just s ->
-                    case Map.lookup s metas of
-                        Just sm
-                            | Set.member m (smStaticMethods sm) ->
-                                (n1 + 1, mkCall (structGlobalName s m) [] n1)
-                            | Set.member m (smInstanceMethods sm) ->
-                                (n1 + 1, mkCall (structGlobalName s m) [Variable base baseTok] n1)
-                            | otherwise ->
-                                fallbackCall
-                        Nothing -> fallbackCall
-                Nothing ->
-                    case Map.lookup base metas of
-                        Just sm
-                            | Set.member m (smStaticMethods sm) ->
-                                (n1 + 1, mkCall (structGlobalName base m) [] n1)
-                            | otherwise ->
-                                fallbackCall
-                        Nothing ->
-                            fallbackCall
-          where
-            fallbackCall =
-                let (n2, callee1) = rewriteExpr metas mThis env n1 callee
-                in (n2, case mTys of
-                    Nothing -> Call callee1 args1
-                    Just tys -> CallT callee1 tys args1)
+            in if length names < 2
+                then fallbackCall
+                else
+                    let (recvNames, m) = splitLast names
+                        recvToks = take (length recvNames) toks
+                    in case resolveStructChainTarget metas mThis env recvNames recvToks of
+                        Just (StructTypeTarget s) ->
+                            case Map.lookup s metas of
+                                Just sm
+                                    | Set.member m (smStaticMethods sm) ->
+                                        (n1 + 1, mkCall (structGlobalName s m) [] n1)
+                                _ -> fallbackCall
+                        Just (StructValueTarget recvExpr (Just s)) ->
+                            case Map.lookup s metas of
+                                Just sm
+                                    | Set.member m (smInstanceMethods sm) ->
+                                        (n1 + 1, mkCall (structGlobalName s m) [recvExpr] n1)
+                                    | Set.member m (smStaticMethods sm) ->
+                                        (n1 + 1, mkCall (structGlobalName s m) [] n1)
+                                _ -> fallbackCall
+                        _ -> fallbackCall
         _ ->
             let (n2, callee1) = rewriteExpr metas mThis env n1 callee
             in (n2, case mTys of
@@ -3509,60 +3659,17 @@ rewriteQualifiedRef metas mThis env names toks =
                         let addr = structFieldAddrExpr s baseExpr fMeta tok0
                         in case suffixL of
                             "ref" -> addr
-                            _ -> Unary DeRef addr tok0
+                            _ -> Unary DeRef (Unary DeRef addr tok0) tok0
                     Nothing -> Qualified names toks
-                else fromMaybe (Qualified names toks) (rewriteFieldChain names)
+                else rewriteChainOrFallback
         _ ->
-            case names of
-                [base, field] -> rewriteTwo base field
-                _ -> fromMaybe (Qualified names toks) (rewriteFieldChain names)
+            rewriteChainOrFallback
   where
-    rewriteFieldChain :: [String] -> Maybe Expression
-    rewriteFieldChain (base : fields@(_ : _)) = do
-        s0 <- resolveBaseStruct metas mThis env base
-        let baseExpr = Variable base tok0
-        go s0 baseExpr fields
-      where
-        go :: String -> Expression -> [String] -> Maybe Expression
-        go _ expr [] = Just expr
-        go s expr (field : rest) = do
-            sm <- Map.lookup s metas
-            fMeta <- Map.lookup field (smFields sm)
-            let expr1 = Unary DeRef (structFieldAddrExpr s expr fMeta tok0) tok0
-            case rest of
-                [] -> Just expr1
-                _ -> do
-                    sNext <- structNameFromType metas (sfType fMeta)
-                    go sNext expr1 rest
-
-    rewriteFieldChain _ = Nothing
-
-    rewriteTwo :: String -> String -> Expression
-    rewriteTwo base field =
-        case resolveBaseStruct metas mThis env base of
-            Just s ->
-                case Map.lookup s metas of
-                    Just sm
-                        | Set.member field (smStaticFields sm) ->
-                            let tok0 = case toks of
-                                    (t:_) -> t
-                                    [] -> Lex.dummyToken
-                            in Variable (structGlobalName s field) tok0
-                        | otherwise ->
-                            case resolveFieldBase base field of
-                                Just (_s, baseExpr, fMeta, tok0) ->
-                                    Unary DeRef (structFieldAddrExpr s baseExpr fMeta tok0) tok0
-                                Nothing -> Qualified names toks
-                    Nothing -> Qualified names toks
-            Nothing ->
-                case Map.lookup base metas of
-                    Just sm
-                        | Set.member field (smStaticFields sm) ->
-                            let tok0 = case toks of
-                                    (t:_) -> t
-                                    [] -> Lex.dummyToken
-                            in Variable (structGlobalName base field) tok0
-                    _ -> Qualified names toks
+    rewriteChainOrFallback :: Expression
+    rewriteChainOrFallback =
+        case resolveStructChainTargetWith False metas mThis env names toks of
+            Just (StructValueTarget expr _) -> expr
+            _ -> Qualified names toks
 
     resolveFieldBase :: String -> String -> Maybe (String, Expression, StructFieldMeta, Token)
     resolveFieldBase base field = do
@@ -3596,7 +3703,7 @@ mkStructCtorExpr ::
     [Expression] ->
     (Int, Expression)
 mkStructCtorExpr metas sname tok n args =
-    let sm = Map.findWithDefault (StructMeta sname Map.empty Set.empty Map.empty Set.empty Set.empty False 8) sname metas
+    let sm = Map.findWithDefault (StructMeta sname Map.empty Set.empty Map.empty Set.empty Set.empty Set.empty False 8) sname metas
         tmpName = "$" ++ sname ++ "$tmp$" ++ show n
         tmpTok = mkGeneratedIdentToken n tmpName
         blobTy = Blob (IntConst (show (smSize sm)) tok)
@@ -3623,7 +3730,7 @@ mkStructHeapCtorExpr ::
     [Expression] ->
     (Int, Expression)
 mkStructHeapCtorExpr metas sname tok n args =
-    let sm = Map.findWithDefault (StructMeta sname Map.empty Set.empty Map.empty Set.empty Set.empty False 8) sname metas
+    let sm = Map.findWithDefault (StructMeta sname Map.empty Set.empty Map.empty Set.empty Set.empty Set.empty False 8) sname metas
         tmpName = "$" ++ sname ++ "$heap$" ++ show n
         tmpTok = mkGeneratedIdentToken n tmpName
         ptrClass = Pointer (Class [sname] [])
@@ -3646,6 +3753,11 @@ mkStructHeapCtorExpr metas sname tok n args =
 structNameFromValueExpr :: StructMetaMap -> Maybe String -> StructEnv -> Expression -> Maybe String
 structNameFromValueExpr metas mThis env ex = case ex of
     Variable name _ -> resolveBaseStruct metas mThis env name
+    Qualified names toks ->
+        case resolveStructChainTarget metas mThis env names toks of
+            Just (StructTypeTarget s) -> Just s
+            Just (StructValueTarget _ mStruct) -> mStruct
+            Nothing -> Nothing
     Cast (ty, _) _ _ -> structNameFromType metas ty
     _ -> Nothing
 

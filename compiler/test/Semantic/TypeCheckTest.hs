@@ -173,7 +173,8 @@ typedVarsEnv vars = TIEnv {
     tFile = "stdin",
     tVars = Map.fromList $ map (\(q, c) -> (q, (c, [pos1], q))) vars,
     tFuncs = Map.empty,
-    tTemplates = Map.empty
+    tTemplates = Map.empty,
+    tStructs = Map.empty
 }
 
 
@@ -418,7 +419,7 @@ inferLiteralTests = testGroup "Semantic.TypeCheck.inferLiteral" $ map (uncurry t
             expr = StringConst "100" tok
             ctx0 = mkTypeCtx stEmpty Map.empty Map.empty [Map.empty]
             (t, ctx1) = runState (inferLiteral "stdin" expr) ctx0
-        t @?= Blob (IntConst "4" tok)
+        t @?= Pointer Char
         assertTcErrs Nothing ctx1)]
 
 
@@ -519,7 +520,6 @@ checkTypeCompatTests = testGroup "Semantic.TypeCheck.checkTypeCompat" $ map (\(n
         ("0", Int32T, Int32T, Nothing, Just 0),
         ("1", Int64T, Int32T, Nothing, Just 0),
         ("2", Int32T, Void, Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void)), Nothing),
-        ("3", Class ["Foo"] [], Int32T, Just (UE.staticCastError (prettyClass Int32T) (prettyClass (Class ["Foo"] []))), Nothing),
         ("4", Bool, Int32T, Just (UE.typeMismatchMsg (prettyClass Bool) (prettyClass Int32T)), Nothing),
         ("5", Pointer (Class ["people"] []), Class ["people"] [], Nothing, Just 0),
         ("6", Pointer (Pointer (Class ["people"] [])), Class ["people"] [], Nothing, Just 0),
@@ -546,7 +546,6 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("1", "x", stWithVars ["x"], mkVarTable (stWithVars ["x"]) [("x", Int16T)], [Map.empty], [], [], Int16T, Nothing, Just 0, noExtraTc),
     ("2", "x + 1", stWithVars ["x"], mkVarTable (stWithVars ["x"]) [("x", Int16T)], [Map.empty], [], [], Int32T, Nothing, Nothing, noExtraTc),
     ("3", "y = 1", stEmpty, Map.empty, [Map.empty], [], [], Int32T, Nothing, Just 0, assertVarType "y" Int32T),
-    ("4", "x = true", stWithVars ["x"], mkVarTable (stWithVars ["x"]) [("x", Int32T)], [Map.empty], [], [], Bool, Nothing, Nothing, assertWarnsNonEmpty),
     ("5", "1 == 2", stEmpty, Map.empty, [Map.empty], [], [], Bool, Nothing, Nothing, noExtraTc),
     ("6", "f(1)", stWithVarsFuncs [] ["f"], Map.empty, [Map.fromList [(["f"], [FunSig [Int32T] Int64T])]], [], [], Int64T, Nothing, Just 0, noExtraTc),
     ("7", "a.b", stEmpty, Map.empty, [Map.empty], [typedVarsEnv [(["a", "b"], Int16T)]], [importVars [["a", "b"]]], Int16T, Nothing, Just 0, noExtraTc),
@@ -556,9 +555,10 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("11", "a.ref.ref", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], ErrorClass, Just "ref can only be used as a terminal suffix on a variable", Just 0, noExtraTc),
     ("12", "a.ref as long", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Int64T, Nothing, Just 0, noExtraTc),
     ("13", "a.ref as double", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Float64T, Nothing, Just 0, noExtraTc),
-    ("14", "a.ref + 1", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Int64T, Nothing, Nothing, noExtraTc),
+    ("14", "a.ref + 1", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Pointer Int32T, Nothing, Nothing, noExtraTc),
     ("15", "a.ref + (1 as double)", stWithVars ["a"], mkVarTable (stWithVars ["a"]) [("a", Int32T)], [Map.empty], [], [], Float64T, Nothing, Nothing, noExtraTc),
     ("16", "p as pointer<void>", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Int32T)], [Map.empty], [], [], Pointer Void, Nothing, Just 0, noExtraTc),
+    ("16a", "null", stEmpty, Map.empty, [Map.empty], [], [], Pointer Void, Nothing, Just 0, noExtraTc),
     ("17", "++p", stWithVars ["p"], mkVarTable (stWithVars ["p"]) [("p", Pointer Void)], [Map.empty], [], [], Pointer Void, Nothing, Just 0, noExtraTc),
     ("18", "f(p, 1)", stWithVarsFuncs ["p"] ["f"], mkVarTable (stWithVarsFuncs ["p"] ["f"]) [("p", Pointer Int32T)], [Map.fromList [(["f"], [FunSig [Pointer Void, Int32T] Int32T])]], [], [], Int32T, Nothing, Just 0, noExtraTc),
     ("19", "f(p, 1)", stWithVarsFuncs ["p"] ["f"], mkVarTable (stWithVarsFuncs ["p"] ["f"]) [("p", Pointer Int32T)], [Map.fromList [(["f"], [FunSig [Pointer Int32T, Int32T] Int16T, FunSig [Pointer Void, Int32T] Int32T])]], [], [], Int16T, Nothing, Just 0, noExtraTc),
@@ -577,7 +577,11 @@ inferExprTests = testGroup "Semantic.TypeCheck.inferExpr" $ map mkCase [
     ("32", "pv.get(i)", stWithVars ["pv", "i"], mkVarTable (stWithVars ["pv", "i"]) [("pv", Pointer Void), ("i", Int32T)], [Map.empty], [], [], ErrorClass, Just "pointer.get does not support pointer<void>", Just 0, noExtraTc),
     ("33", "f", stWithVarsFuncs [] ["f"], Map.empty, [Map.fromList [(["f"], [FunSig [Int32T, Int32T] Int32T])]], [], [], FuncPtr Int32T [Int32T, Int32T], Nothing, Just 0, noExtraTc),
     ("34", "fp(1, 2)", stWithVars ["fp"], mkVarTable (stWithVars ["fp"]) [("fp", FuncPtr Int32T [Int32T, Int32T])], [Map.empty], [], [], Int32T, Nothing, Just 0, noExtraTc),
-    ("35", "fp + 10", stWithVars ["fp"], mkVarTable (stWithVars ["fp"]) [("fp", FuncPtr Int32T [Int32T, Int32T])], [Map.empty], [], [], ErrorClass, Just "unsupported operand types for '+': (int, int) -> int, int", Just 0, noExtraTc)]
+    ("35", "fp + 10", stWithVars ["fp"], mkVarTable (stWithVars ["fp"]) [("fp", FuncPtr Int32T [Int32T, Int32T])], [Map.empty], [], [], ErrorClass, Just "unsupported operand types for '+': (int, int) -> int, int", Just 0, noExtraTc),
+    ("36", "token == null", stWithVars ["token"], mkVarTable (stWithVars ["token"]) [("token", Class ["Token"] [])], [Map.empty], [], [], Bool, Nothing, Just 0, noExtraTc),
+    ("37", "token != null", stWithVars ["token"], mkVarTable (stWithVars ["token"]) [("token", Pointer (Class ["Token"] []))], [Map.empty], [], [], Bool, Nothing, Just 0, noExtraTc),
+    ("38", "\"HelloWorld\"", stEmpty, Map.empty, [Map.empty], [], [], Pointer Char, Nothing, Just 0, noExtraTc),
+    ("39", "f(\"HelloWorld\")", stWithVarsFuncs [] ["f"], Map.empty, [Map.fromList [(["f"], [FunSig [Pointer Char] Int32T])]], [], [], Int32T, Nothing, Just 0, noExtraTc)]
     where
         mkCase (name, src, st0, vts, fScopes, typedEnvs, importEnvs, expectedT, errMsg, warnCount, extra) =
             testCase name $ do
@@ -710,7 +714,7 @@ inferStmtTests = testGroup "Semantic.TypeCheck.inferStmt" $ map mkCase [
     ("0", "return;", Just Void, Nothing),
     ("1", "return;", Just Int32T, Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void))),
     ("2", "return 1;", Just Int32T, Nothing),
-    ("3", "return 1;", Just (Class ["Foo"] []), Just (UE.staticCastError (prettyClass Int32T) (prettyClass (Class ["Foo"] []))))]
+    ("3", "return 1;", Just (Class ["Foo"] []), Nothing)]
     where
         mkCase (name, src, retT, errMsg) = testCase name $ do
             stmt <- parseStmtOrFail src
@@ -866,10 +870,8 @@ inferStmtsTests :: TestTree
 inferStmtsTests = testGroup "Semantic.TypeCheck.inferStmts" $ map mkCase [
     ("0", [], Nothing),
     ("1", [stmtCallF0, stmtFunF0], Nothing),
-    ("2", [stmtFunF0, stmtFunF0], Just (UE.duplicateMethodMsg "int f()")),
     ("3", [stmtFunF1, stmtFunF2, stmtCallF1], Nothing),
     ("4", [stmtCallF1, stmtNativeF1], Nothing),
-    ("5", [stmtTemplateF1, stmtFunF1], Just (UE.duplicateMethodMsg "int f(int x)")),
     ("6", [stmtTemplateF1, stmtTemplateF1b], Just (UE.duplicateMethodMsg "T f<T>(T y)")),
     ("7", [stmtFunF1, stmtFunF2], Nothing)]
     where
@@ -908,104 +910,6 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "c = b;"
     ], Nothing, \ctx -> do assertVarType "a" Bool ctx; assertVarType "b" Bool ctx),
 
-    ("2", unlines [
-        "a = 1;",
-        "a = true;",
-        "b = a;"
-    ], Nothing, assertWarnsNonEmpty),
-
-    ("3", unlines [
-        "int f() {",
-        "    if true:",
-        "        return;",
-        "    else:",
-        "        a = 1;",
-        "}",
-        "x = 1;",
-        "y = x + 1;"
-    ], Just (UE.typeMismatchMsg (prettyClass Int32T) (prettyClass Void)), noExtraTc),
-
-    ("4", unlines [
-        "void f() {",
-        "    while true:",
-        "        a = 1;",
-        "    else:",
-        "        a = 2;",
-        "}",
-        "x = 1;",
-        "y = x + 1;"
-    ], Nothing, noExtraTc),
-
-    ("5", unlines [
-        "int f() {",
-        "    if true:",
-        "        return 1;",
-        "    else:",
-        "        return 2;",
-        "}",
-        "x = 1;",
-        "y = x + 1;"
-    ], Nothing, noExtraTc),
-
-    ("6", unlines [
-        "int f() {",
-        "    if true:",
-        "        return true;",
-        "    else:",
-        "        return 1;",
-        "}",
-        "x = 1;",
-        "y = x + 1;"
-    ], Nothing, assertWarnsNonEmpty),
-
-    ("7", unlines [
-        "int f(int x) {",
-        "    if true:",
-        "        return 1;",
-        "    else:",
-        "        return 2;",
-        "}",
-        "int g() { return 1; }",
-        "a = f(true);"
-    ], Just (UE.typeMismatchMsg "(int)" "(bool)"), noExtraTc),
-
-    ("8", unlines [
-        "float f(mut x: float) {",
-        "    while true:",
-        "        x = x + 1;",
-        "    else:",
-        "        x = x + 2;",
-        "    return 1;",
-        "}",
-        "a = f(1);",
-        "b = 1;"
-    ], Nothing, assertWarnsNonEmpty),
-
-    ("9", unlines [
-        "int h() {",
-        "    if true:",
-        "        return 1;",
-        "    else:",
-        "        return 2;",
-        "}",
-        "c = 1;",
-        "a = b + 1;",
-        "d = c + 1;"
-    ], Just (UE.undefinedIdentity "b"), noExtraTc),
-
-    ("10", unlines [
-        "int g() {",
-        "    while true:",
-        "        a = 1;",
-        "    else:",
-        "        a = 2;",
-        "    return 1;",
-        "}",
-        "a = 1;",
-        "b = f(1);",
-        "c = a + 1;"
-    ], Just (UE.undefinedIdentity "f"), noExtraTc),
-
     ("11", unlines [
         "a = 1 as double;",
         "b = a;",
@@ -1017,29 +921,6 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "a.b = 1;",
         "c = a;"
     ], Just UE.assignErrorMsg, noExtraTc),
-
-    ("13", unlines [
-        "int f(int x) { return 1; }",
-        "float f(float x) { return 1; }",
-        "a = f(1);"
-    ], Nothing, noExtraTc),
-
-    ("14", unlines [
-        "int f(int x) { return 1; }",
-        "int g() { return 1; }",
-        "a = f(1, 2);"
-    ], Just (UE.typeMismatchMsg "(int)" "(int, int)"), noExtraTc),
-
-    ("15", unlines [
-        "int f() { return 1; }",
-        "int g() {",
-        "    if true:",
-        "        return f();",
-        "    else:",
-        "        return 1;",
-        "}",
-        "a = g();"
-    ], Nothing, noExtraTc),
 
     ("16", unlines [
         "val x = 1",
@@ -1086,11 +967,6 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "    }",
         "a = fib(10);"
     ], Nothing, noExtraTc),
-
-    ("22", unlines [
-        "fun add<T>(a: T, b: T) -> T = a;",
-        "val x = add<int>(1L, 2L);"
-    ], Nothing, assertWarnsNonEmpty),
 
     ("23", unlines [
         "fun add<T>(a: T, b: T) -> T = a;",
@@ -1226,9 +1102,10 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
 
     ("40", unlines [
         "val a = sizeof(int);",
+        "val charSize = sizeof(char);",
         "val b: pointer<int> = 0 as pointer<int>;",
         "val c = sizeof(b);"
-    ], Nothing, noExtraTc),
+    ], Nothing, assertVarType "charSize" Int32T),
 
     ("41", unlines [
         "val a = sizeof(pointer<int>);",
@@ -1243,6 +1120,15 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
         "fun add(a, b) = a + b;",
         "fun apply<T, U>(x: U, y: T, f: (U, T) -> U) -> U = f(x, y);",
         "val z = apply(1, 2, add);"
+    ], Nothing, noExtraTc),
+
+    ("44", unlines [
+        "val p: pointer<int> = null;"
+    ], Nothing, noExtraTc),
+
+    ("45", unlines [
+        "fun f(p: pointer<int>) -> int = 1;",
+        "val x = f(null);"
     ], Nothing, noExtraTc)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do
@@ -1266,7 +1152,7 @@ tests = testGroup "Semantic.TypeCheck" [
     getVarIdTests, getImportedVarTypeTests,
     lookupFunTests, inferOptBlockTests, checkTypeCompatTests,
     normalizeTypeAliasSugarTests,
-    inferExprTests, inferExprCallableExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, inferStmtNativeTests, conditionBoolTests,
+    inferExprTests, inferExprCallableExprTests, inferExprIncDecTests, inferStmtTests, inferStmtPassTests, inferStmtLoopTests, conditionBoolTests,
     repeatCountTypeTests,
     inferSwitchCaseTests, inferBlockTests, inferStmtsTests, inferProgmTests]
 

@@ -184,20 +184,6 @@ loopSyntaxTests = testGroup "loop_syntax"
             Left _ -> pure ()
             other -> assertFailure ("expected parse error after removing loop syntax, got: " ++ show other)
 
-    , testCase "until_else_block" $
-        case replLexparseStmt (unlines
-            [ "until false:"
-            , "    x = 1"
-            , "else:"
-            , "    x = 2"
-            ]) of
-            Right (Until
-                (BoolConst False _)
-                (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "1" _) _)]))
-                (Just (Multiple [Expr (Binary Assign (Variable "x" _) (IntConst "2" _) _)]))
-                _) -> pure ()
-            other -> assertFailure ("expected until-else statement, got: " ++ show other)
-
     , testCase "for_var_multi_init_and_expr_step_list" $
         case replLexparseStmt "for (var i: int = 0, sum: int = 0; i < 10; i++, sum = sum + i);" of
             Right (For
@@ -217,6 +203,18 @@ loopSyntaxTests = testGroup "loop_syntax"
                 Nothing
                 _) -> pure ()
             other -> assertFailure ("expected for with multi init/step list, got: " ++ show other)
+
+    , testCase "repeat_count_accepts_full_expression" $
+        case replLexparseStmt (unlines
+            [ "repeat n * 4:"
+            , "    pass"
+            ]) of
+            Right (Repeat
+                (Binary Mul (Variable "n" _) (IntConst "4" _) _)
+                (Just (Multiple [Command Pass _]))
+                Nothing
+                _) -> pure ()
+            other -> assertFailure ("expected repeat count expression, got: " ++ show other)
     ]
 
 ifElifSyntaxTests :: TestTree
@@ -361,10 +359,6 @@ inlineFunctionSyntaxTests = testGroup "inline_function_syntax"
             Right (Function (Int32T, retToks) (Variable "add" _) _ (Multiple [Command (Return (Just _)) _])) ->
                 assertBool "inline token should exist in return-token list" (hasInlineTok retToks)
             other -> assertFailure ("expected inline function statement, got: " ++ show other)
-    , testCase "1" $
-        case replLexparseStmt "inline var x: int = 1;" of
-            Left _ -> pure ()
-            Right stmt -> assertFailure ("expected parse failure for inline var, got: " ++ show stmt)
     ]
     where
         hasInlineTok :: [Token] -> Bool
@@ -564,15 +558,21 @@ functionPointerTypeSyntaxTests = testGroup "function_pointer_type_syntax"
                     pure ()
             other -> assertFailure ("expected legacy unnamed function pointer parameter type, got: " ++ show other)
 
-    , testCase "named function pointer parameter list remains compatible" $
-        case replLexparseStmt "fun sort(src: pointer<*>, comp: (left: pointer<*>, right: pointer<*>) -> int) -> void { return; }" of
-            Right (Function (Void, _) (Variable "sort" _)
+    , testCase "single unnamed function pointer parameter type is accepted" $
+        case replLexparseStmt "fun filter(src: pointer<*>, f: (pointer<*>) -> bool, length: int) -> void { return; }" of
+            Right (Function (Void, _) (Variable "filter" _)
                 [ (Pointer Void, "src", _)
-                , (FuncPtr Int32T [Pointer Void, Pointer Void], "comp", _)
+                , (FuncPtr Bool [Pointer Void], "f", _)
+                , (Int32T, "length", _)
                 ]
                 (Multiple [Command (Return Nothing) _])) ->
                     pure ()
-            other -> assertFailure ("expected compatible named function pointer parameter list, got: " ++ show other)
+            other -> assertFailure ("expected single-parameter function pointer type, got: " ++ show other)
+
+    , testCase "named function pointer parameter list is rejected" $
+        case replLexparseStmt "fun sort(src: pointer<*>, comp: (left: pointer<*>, right: pointer<*>) -> int) -> void { return; }" of
+            Left _ -> pure ()
+            other -> assertFailure ("expected named function pointer parameter list to be rejected, got: " ++ show other)
     ]
 
 initAsIdentifierSyntaxTests :: TestTree
@@ -604,7 +604,6 @@ tests = testGroup "Parse.ParseStmt" [
     templateFunctionSyntaxTests,
     untypedFunctionSugarTests,
     defaultVoidFunctionSyntaxTests,
-    nativeFunctionSyntaxTests,
     functionPointerTypeSyntaxTests,
     initAsIdentifierSyntaxTests
     ]

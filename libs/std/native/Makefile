@@ -31,7 +31,7 @@ endif
 XLANG_SOURCES := \
 	xlang/Math.x \
 	xlang/System.x \
-	xlang/functional/List.x \
+	xlang/functional/FList.x \
 	xlang/sort/HeapSort.x \
 	xlang/io/Console.x
 

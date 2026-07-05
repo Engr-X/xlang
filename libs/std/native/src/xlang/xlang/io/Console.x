@@ -131,6 +131,16 @@ native inline fun put(value: double) -> void
 native inline fun put(value: pointer<*>) -> void
 
 
+/**
+ * Prints a string value without a trailing newline (string must end with \0).
+ * The text form follows xlang.String.valueOf(value).
+ *
+ * @param value     pointer value to print
+ */
+@native("xlang_put_str")
+native inline fun put(value: pointer<char>) -> void
+
+
 
 /**
  * Prints a boolean value and then prints a newline.
@@ -219,3 +229,14 @@ native inline fun putln(value: double) -> void
  */
 @native("xlang_putln_p")
 native inline fun putln(value: pointer<*>) -> void
+
+
+/**
+ * Prints a string value and then prints a newline (string must end with \0).
+ * The text form follows xlang.String.valueOf(value).
+ *
+ * @param value     pointer value to print
+ */
+@native("xlang_putln_str")
+native inline fun putln(value: pointer<char>) -> void
+

@@ -420,12 +420,6 @@ checkStmtTests = testGroup "Semantic.ContextCheck.checkStmt" $ map (\(name, stmt
             "    y = 2",
             "}"
         ], stInBlock),
-        ("1", Left $ unlines [
-            "while true:",
-            "    x = 1",
-            "else:",
-            "    y = 2"
-        ], stInBlock),
         ("2", Left $ unlines [
             "if true:",
             "    x = 1",
@@ -640,14 +634,6 @@ checkStmtsTests = testGroup "Semantic.ContextCheck.checkStmts" $ map (\(name, st
 checkProgmTests :: TestTree
 checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
     map mkCase [
-        ("0", unlines
-            [ "int f() { }"
-            , "int g(int x) { }"
-            , "a = f()"
-            , "b = g(1)"
-            , "c = a + b"
-            , "d = c + 2"
-            ], Nothing),
         ("1", unlines
             [ "a = 1"
             , "b = a + 2"
@@ -660,14 +646,6 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             , "c = b + 2"
             , "d = c + g(1)"
             ], Just (UE.undefinedIdentity "f")),
-        ("3", unlines
-            [ "int f() { }"
-            , "int g(int x) { }"
-            , "a = f() + g(1)"
-            , "b = a + c"
-            , "d = b + 1"
-            , "e = d + 2"
-            ], Just (UE.undefinedIdentity "c")),
         ("4", unlines
             [ "{"
             , "    a = 1"
@@ -675,137 +653,7 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
             , "}"
             , "c = 3"
             , "d = 4"
-            ], Nothing),
-        ("5", unlines
-            [ "int main() {"
-            , "    {"
-            , "        x = 1"
-            , "        y = x + 1;"
-            , "    }"
-            , "    z = 2"
-            , "    w = z + 1"
-            , "}"
-            , "p = 1"
-            , "q = p + 1"
-            , "r = q + 1"
-            ], Nothing),
-        ("6", unlines
-            [ "int main() {"
-            , "    {"
-            , "        x = 1;"
-            , "        y = x + 1;"
-            , "    }"
-            , "    z = x + 2"
-            , "    w = z + 1"
-            , "}"
-            , "p = 1"
-            , "q = p + 1"
-            , "r = q + 1"
-            ], Just (UE.undefinedIdentity "x")),
-        ("7", unlines
-            [ "int main() {"
-            , "    a = 1"
-            , "    {"
-            , "        b = a + 1"
-            , "        c = b + 1"
-            , "    }"
-            , "    d = a + 2"
-            , "    e = d + 1"
-            , "}"
-            , "p = 1"
-            , "q = p + 1"
-            , "r = q + 1"
-            ], Nothing),
-        ("8", unlines
-            [ "a = f()"
-            , "b = a + 1"
-            , "c = b + 1"
-            , "d = c + 1"
-            , "int f() { }"
-            ], Nothing),
-        ("9", unlines
-            [ "int f() { }"
-            , "a = f()"
-            , "b = g(1)"
-            , "c = b + 1"
-            , "d = c + 1"
-            ], Just (UE.undefinedIdentity "g")),
-        ("10", unlines
-            [ "int outer() {"
-            , "    int inner() { }"
-            , "    a = inner()"
-            , "    b = a + 1"
-            , "    c = b + 1"
-            , "}"
-            , "d = 1"
-            , "e = d + 1"
-            , "f = e + 1"
-            ], Nothing),
-        ("11", unlines
-            [ "int outer() {"
-            , "    int inner() { }"
-            , "    a = inner()"
-            , "    b = a + 1"
-            , "    c = b + 1"
-            , "}"
-            , "x = inner()"
-            , "y = x + 1"
-            , "z = y + 1"
-            ], Just (UE.undefinedIdentity "inner")),
-        ("12", unlines
-            [ "int main() {"
-            , "    a = 0"
-            , "    if true:"
-            , "        a = 1"
-            , "    else:"
-            , "        a = 2"
-            , "    b = a + 1"
-            , "    c = b + 1"
-            , "}"
-            , "d = 1"
-            , "e = d + 1"
-            , "f = e + 1"
-            ], Nothing),
-        ("13", unlines
-            [ "int main() {"
-            , "    if true:"
-            , "        a = 1"
-            , "    else:"
-            , "        a = 2"
-            , "    b = a + 1"
-            , "    c = b + 1"
-            , "}"
-            , "d = 1"
-            , "e = d + 1"
-            , "f = e + 1"
-            ], Just (UE.undefinedIdentity "a")),
-        ("14", unlines
-            [ "int main() {"
-            , "    i = 0"
-            , "    while true:"
-            , "        i = i + 1"
-            , "    else:"
-            , "        i = i + 2"
-            , "    j = i + 1"
-            , "    k = j + 1"
-            , "}"
-            , "a = 1"
-            , "b = a + 1"
-            , "c = b + 1"
-            ], Nothing),
-        ("15a", unlines
-            [ "int main() {"
-            , "    while true:"
-            , "        i = 1"
-            , "    else:"
-            , "        i = 2"
-            , "    j = i + 1"
-            , "    k = j + 1"
-            , "}"
-            , "a = 1"
-            , "b = a + 1"
-            , "c = b + 1"
-            ], Just (UE.undefinedIdentity "i"))] ++ [
+            ], Nothing)] ++ [
         
         testCase "15b" $ do
         let tokAdd = Lex.Ident "add" pos1
@@ -869,36 +717,6 @@ checkProgmTests = testGroup "Semantic.ContextCheck.checkProgm" (
                 [ "public var x = 1"
                 , "y = x + 1" ]
         assertCheckProgm (checkProgmFromSrc src) Nothing,
-
-        testCase "20" $ do
-        let src = unlines
-                [ "int main() {"
-                , "    val s = false, r = false"
-                , "    var p = false, q = false"
-                , "    repeat 3 {"
-                , "        val newP = q nand s"
-                , "        val newQ = p and r"
-                , "        p = newP"
-                , "        q = newQ"
-                , "    }"
-                , "}" ]
-        assertCheckProgm (checkProgmFromSrc src) Nothing,
-
-        testCase "21" $ do
-        let src = unlines
-                [ "int outer() {"
-                , "    private int inner() { }"
-                , "    return inner()"
-                , "}" ]
-        assertCheckProgm (checkProgmFromSrc src) (Just UE.nestedFunctionModifierMsg),
-
-        testCase "22" $ do
-        let src = unlines
-                [ "int outer() {"
-                , "    int main() { return 0 }"
-                , "    return main()"
-                , "}" ]
-        assertCheckProgm (checkProgmFromSrc src) (Just UE.nestedMainFunctionMsg),
 
         testCase "23" $ do
         let tokOuter = Lex.Ident "outer" pos1

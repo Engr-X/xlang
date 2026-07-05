@@ -267,6 +267,7 @@ parseEscapePrefix (c:rest) = case c of
     'n'  -> Just ('\n', rest)
     't'  -> Just ('\t', rest)
     'r'  -> Just ('\r', rest)
+    'a'  -> Just ('\a', rest)
     'b'  -> Just ('\b', rest)
     'f'  -> Just ('\f', rest)
     'v'  -> Just ('\v', rest)

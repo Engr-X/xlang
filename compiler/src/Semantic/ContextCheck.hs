@@ -29,6 +29,19 @@ isAssignOp op = op `elem` [
 isIncDecOp :: AST.Operator -> Bool
 isIncDecOp op = op `elem` [AST.IncSelf, AST.DecSelf, AST.SelfInc, AST.SelfDec]
 
+generatedFunctionImportKeys :: [String] -> String -> [[String]]
+generatedFunctionImportKeys packages name =
+    let qImport = packages ++ [name]
+    in if '$' `elem` name then [qImport, [name]] else [qImport]
+
+isGeneratedFunImport :: [String] -> String -> [ImportEnv] -> Bool
+isGeneratedFunImport packages name envs =
+    any (`isFunImport` envs) (generatedFunctionImportKeys packages name)
+
+lookupHiddenGeneratedFunPos :: [String] -> String -> [ImportEnv] -> Maybe [Position]
+lookupHiddenGeneratedFunPos packages name envs =
+    listToMaybe $ mapMaybe (`lookupHiddenFunPos` envs) (generatedFunctionImportKeys packages name)
+
 
 data PtrSuffixOp
     = PtrRef
@@ -282,11 +295,13 @@ checkExpr p packages envs expr = case expr of
                                 let uses' = Map.insert (tokenPos tok) vid (varUses c)
                                 put $ c { varUses = uses' }
                             Nothing -> pure ()
-                    else if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs
+                    else if isFuncDefine [name] cState || isGeneratedFunImport packages name envs
                         then pure ()
                     else case lookupHiddenVarPos (packages ++ [name]) envs of
                         Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
-                        Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
+                        Nothing -> case lookupHiddenGeneratedFunPos packages name envs of
+                            Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
+                            Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 
     AST.Qualified names tokens ->
         case parsePointerSuffixQualified names tokens of
@@ -447,11 +462,11 @@ checkExpr p packages envs expr = case expr of
                 AST.Variable name tok -> do
                     c <- get
                     let cState = st c
-                    if isFuncDefine [name] cState || isFunImport (packages ++ [name]) envs
+                    if isFuncDefine [name] cState || isGeneratedFunImport packages name envs
                         then pure ()
                         else if isVarDefine name cState || isVarImport (packages ++ [name]) envs
                             then pure ()
-                            else case lookupHiddenFunPos (packages ++ [name]) envs of
+                            else case lookupHiddenGeneratedFunPos packages name envs of
                                 Just _ -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] UE.notVisibleMsg
                                 Nothing -> addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
 

@@ -76,6 +76,7 @@ typedef int8_t      x_i8;
 typedef int16_t     x_i16;
 typedef int32_t     x_i32;
 typedef int64_t     x_i64;
+typedef int32_t     x_char;
 
 typedef uint8_t     x_u8;
 typedef uint16_t    x_u16;

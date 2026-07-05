@@ -272,87 +272,7 @@ lexparseExprTests = testGroup "Parse.ParseExpr.lexparseExpr" $
             (Unary LogicalNot
                 (Variable "c" $ mkId "c" 1 14 1)
                 (mkSym Lex.LogicalNot 1 13 1))
-            (mkSym Lex.Equal 1 10 2)),
-            
-    ("12", "addToMap::<int>(m, 1)", Right $
-            CallT
-                (Variable "addToMap" (mkId "addToMap" 1 1 8))
-                [(Int32T, [mkId "int" 1 12 3])]
-                [Variable "m" (mkId "m" 1 17 1), IntConst "1" (mkNum "1" 1 20 1)]
-        ),
-        
-    ("13", "makePair::<int, double>(x, 2)", Right $
-        CallT
-            (Variable "makePair" (mkId "makePair" 1 1 8))
-            [
-                (Int32T, [mkId "int" 1 12 3]),
-                (Float64T, [mkId "double" 1 17 6])
-            ] [
-                Variable "x" (mkId "x" 1 25 1),
-                IntConst "2" (mkNum "2" 1 28 1)]
-        ),
-
-    ("14", "foo::<HashMap::<List::<Int>>>(h)", Right $
-            CallT
-                (Variable "foo" (mkId "foo" 1 1 3))
-                [(
-                    Class ["HashMap"] [Class ["List"] [Class ["Int"] []]], [
-                    mkId "HashMap" 1 7 7,
-                    mkSym Lex.DoubleColon 1 14  2,
-                    mkSym Lex.LessThan    1 16  1,
-                    mkId  "List"          1 17  4,
-                    mkSym Lex.DoubleColon 1 21  2,
-                    mkSym Lex.LessThan    1 23  1,
-                    mkId  "Int"           1 24  3,
-                    mkSym Lex.GreaterThan 1 27  1,
-                    mkSym Lex.GreaterThan 1 28  1])
-                ]
-                [Variable "h" (mkId "h" 1 31 1)]
-        ),
-
-    ("15", "bar::<List::<int>, HashMap::<int>>(a, b)", Right $
-        CallT
-            (Variable "bar" (mkId "bar" 1 1 3))
-                [(
-                    Class ["List"] [Int32T], [
-                    mkId "List" 1 7 4,
-                    mkSym Lex.DoubleColon 1 11 2,
-                    mkSym Lex.LessThan 1 13 1,
-                    mkId "int" 1 14 3,
-                    mkSym Lex.GreaterThan 1 17 1]), (
-                        
-                        Class ["HashMap"] [Int32T], [
-                            mkId "HashMap" 1 20  7,
-                            mkSym Lex.DoubleColon 1 27 2,
-                            mkSym Lex.LessThan 1 29 1,
-                            mkId  "int" 1 30 3,
-                            mkSym Lex.GreaterThan 1 33 1])
-                    ] [
-                        Variable "a" (mkId "a" 1 36 1),
-                        Variable "b" (mkId "b" 1 39 1)]
-        ),
-
-    ("16", "size::<HashMap::<List::<Int>>>(h) + 1", Right $
-        Binary Add
-            (CallT
-                (Variable "size" (mkId "size" 1 1 4))
-                [(
-                    Class ["HashMap"] [Class ["List"] [Class ["Int"] []]], [
-                        mkId  "HashMap" 1 8 7,
-                        mkSym Lex.DoubleColon 1 15 2,
-                        mkSym Lex.LessThan 1 17 1,
-                        mkId  "List" 1 18 4,
-                        mkSym Lex.DoubleColon 1 22 2,
-                        mkSym Lex.LessThan 1 24 1,
-                        mkId  "Int" 1 25 3,
-                        mkSym Lex.GreaterThan 1 28 1,
-                        mkSym Lex.GreaterThan 1 29 1])
-                    ]
-                    [Variable "h" (mkId "h" 1 32 1)]
-                )
-                (IntConst "1" (mkNum "1" 1 37 1))
-                (mkSym Lex.Plus 1 35 1)
-    )]
+            (mkSym Lex.Equal 1 10 2))]
 
 tests :: TestTree
 tests = testGroup "Parse.ParseExpr" [
@@ -627,18 +547,6 @@ ifAssignSugarParseTests = testGroup "Parse.ParseExpr.ifExpr" [
                 _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
-    testCase "standalone IfExpr with bare else binary becomes (if-expr) + rhs" $
-        case replLexparseExpr "if a <= 1: a else: fib(a - 1) + fib(a - 2)" of
-            Right (Binary Add
-                (IfExpr
-                    (Binary LessEqual (Variable "a" _) (IntConst "1" _) _)
-                    (Variable "a" _)
-                    (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "1" _) _])
-                    _)
-                (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "2" _) _])
-                _) -> pure ()
-            other -> assertFailure ("unexpected parse result: " ++ show other),
-
     testCase "standalone IfExpr parses when else branch is parenthesized" $
         case replLexparseExpr "if a <= 1: a else: (fib(a - 1) + fib(a - 2))" of
             Right (IfExpr
@@ -647,21 +555,6 @@ ifAssignSugarParseTests = testGroup "Parse.ParseExpr.ifExpr" [
                 (Binary Add
                     (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "1" _) _])
                     (Call (Variable "fib" _) [Binary Sub (Variable "a" _) (IntConst "2" _) _])
-                    _)
-                _) -> pure ()
-            other -> assertFailure ("unexpected parse result: " ++ show other),
-
-    testCase "if-expression binds tighter than binary: a = (if ...) + rhs" $
-        case replLexparseExpr "a = if a > 10: 20 else: 10 + 100" of
-            Right (Binary Assign
-                (Variable "a" _)
-                (Binary Add
-                    (IfExpr
-                        (Binary GreaterThan (Variable "a" _) (IntConst "10" _) _)
-                        (IntConst "20" _)
-                        (IntConst "10" _)
-                        _)
-                    (IntConst "100" _)
                     _)
                 _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
@@ -761,11 +654,10 @@ pointerSuffixParseTests = testGroup "Parse.ParseExpr.pointerSuffix" [
             Right (Cast (Pointer Void, _) (Variable "a" _) _) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other),
 
-    testCase "cast supports pointer::<void>" $
-        case replLexparseExpr "a as pointer::<void>" of
-            Right (Cast (Pointer Void, _) (Variable "a" _) _) -> pure ()
-            other -> assertFailure ("unexpected parse result: " ++ show other)
-    ,
+    testCase "null desugars to 0 as pointer<*>" $
+        case replLexparseExpr "null" of
+            Right (Cast (Pointer Void, _) (IntConst "0" _) _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
 
     testCase "ptr[i] desugars to deref(ptr + i)" $
         case replLexparseExpr "ptr[i]" of

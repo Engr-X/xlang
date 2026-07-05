@@ -149,14 +149,9 @@ checkProgmWithDepsForTarget target root extImportEnvs extTypedEnvs files = do
     owners <- resolveAllImportsWithExternal pkgMap extPkgs modules
 
     let depMap = buildDepMap pkgMap owners
-        cycErrs = cycleErrors pkgMap depMap
-
-    if not (null cycErrs)
-        then Left cycErrs
-        else do
-            order <- topoOrder depMap (Map.keys pkgMap)
-            checked <- foldM (checkPackageWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs) Map.empty order
-            traverse (toResult checked) files
+        order = topoSccOrder depMap (Map.keys pkgMap)
+    checked <- foldM (checkPackageComponentWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs) Map.empty order
+    traverse (toResult checked) files
     where
         toResult :: Map QName CheckedPackage -> (Path, Program) -> Either [ErrorKind] (Path, TC.TypeCtx)
         toResult checked (path, (decls, _)) =
@@ -234,6 +229,7 @@ externalPackages envs =
             mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tVars env))
             ++ mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tFuncs env))
             ++ mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tTemplates env))
+            ++ mapMaybe (pkgFromFull . (\(_, _, full) -> full)) (Map.elems (tStructs env))
 
         pkgFromFull :: QName -> Maybe QName
         pkgFromFull full
@@ -314,6 +310,19 @@ topoOrder depMap roots = fmap snd (foldM step (HashSet.empty, []) roots)
                 Right (visited2, acc1 ++ [q])
 
 
+topoSccOrder :: Map QName [QName] -> [QName] -> [[QName]]
+topoSccOrder depMap roots =
+    let rootSet = HashSet.fromList roots
+        nodes = [
+            (pkg, pkg, filter (`HashSet.member` rootSet) (Map.findWithDefault [] pkg depMap))
+            | pkg <- nub roots]
+    in map sccPackages (stronglyConnComp nodes)
+  where
+    sccPackages :: SCC QName -> [QName]
+    sccPackages (AcyclicSCC pkg) = [pkg]
+    sccPackages (CyclicSCC pkgs) = pkgs
+
+
 checkPackage ::
     Map QName [ModuleInfo] ->
     Map QName [QName] ->
@@ -345,31 +354,131 @@ checkPackageWithDepsForTarget ::
     QName ->
     Either [ErrorKind] (Map QName CheckedPackage)
 checkPackageWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs checked pkg =
-    case Map.lookup pkg pkgMap of
+    checkPackageComponentWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs checked [pkg]
+
+
+checkPackageComponentWithDepsForTarget ::
+    SemanticTarget ->
+    Map QName [ModuleInfo] ->
+    Map QName [QName] ->
+    [ImportEnv] ->
+    [TypedImportEnv] ->
+    Map QName CheckedPackage ->
+    [QName] ->
+    Either [ErrorKind] (Map QName CheckedPackage)
+checkPackageComponentWithDepsForTarget target pkgMap depMap extImportEnvs extTypedEnvs checked componentPkgs0 = do
+    let componentPkgs = nub componentPkgs0
+        componentSet = HashSet.fromList componentPkgs
+    modsByPkg <- traverse lookupPkg componentPkgs
+    let mods = sortOn miPath (concat modsByPkg)
+        depPkgs = nub [
+            dep
+            | pkg <- componentPkgs
+            , dep <- Map.findWithDefault [] pkg depMap
+            , not (HashSet.member dep componentSet)]
+        depImportEnvs = mapMaybe (fmap cpImportEnv . (`Map.lookup` checked)) depPkgs ++ extImportEnvs
+        depTypedEnvs = mapMaybe (fmap cpTypedEnv . (`Map.lookup` checked)) depPkgs ++ extTypedEnvs
+        depStructStmts =
+            let depMods = concatMap (\q -> Map.findWithDefault [] q pkgMap) depPkgs
+            in collectTopLevelStructStmts depMods
+        componentStructStmts = collectTopLevelStructStmts mods
+        externalStructStmts = nub (componentStructStmts ++ depStructStmts)
+        seedPath = maybe "<pkg>" miPath (safeHead mods)
+        seedImport = IEnv { file = seedPath, iVars = Map.empty, iFuncs = Map.empty }
+        structMetadataTyped =
+            foldl'
+                mergeTypedEnv
+                (emptyTypedImportEnv seedPath)
+                (map structOnlyTypedEnv depTypedEnvs ++ map moduleStructOnlyTypedEnv mods)
+        componentDeclaredVarTyped =
+            foldl'
+                mergeTypedEnv
+                (emptyTypedImportEnv seedPath)
+                (map moduleDeclaredTopLevelVarTypedEnv mods)
+        seedTyped = mergeTypedEnv structMetadataTyped componentDeclaredVarTyped
+
+    (_, _, ctxMap) <-
+        checkPackageFixpoint target depImportEnvs depTypedEnvs mods seedImport seedTyped Map.empty externalStructStmts
+    foldM (insertCheckedPackage mods ctxMap structMetadataTyped) checked componentPkgs
+  where
+    lookupPkg :: QName -> Either [ErrorKind] [ModuleInfo]
+    lookupPkg pkg = case Map.lookup pkg pkgMap of
         Nothing -> Left [UE.Syntax (UE.makeError "<internal>" [] UE.internalErrorMsg)]
-        Just mods0 -> do
-            let mods = sortOn miPath mods0
-                depPkgs = Map.findWithDefault [] pkg depMap
-                depImportEnvs = mapMaybe (fmap cpImportEnv . (`Map.lookup` checked)) depPkgs ++ extImportEnvs
-                depTypedEnvs = mapMaybe (fmap cpTypedEnv . (`Map.lookup` checked)) depPkgs ++ extTypedEnvs
-                depStructStmts =
-                    let depMods = concatMap (\q -> Map.findWithDefault [] q pkgMap) depPkgs
-                    in collectTopLevelStructStmts depMods
-                pkgStructStmts = collectTopLevelStructStmts mods
-                externalStructStmts = nub (pkgStructStmts ++ depStructStmts)
-                seedPath = maybe "<pkg>" miPath (safeHead mods)
-                seedImport = IEnv { file = seedPath, iVars = Map.empty, iFuncs = Map.empty }
-                seedTyped = emptyTypedImportEnv seedPath
+        Just mods -> Right mods
 
-            (pkgImport, pkgTyped, ctxMap) <-
-                checkPackageFixpoint target depImportEnvs depTypedEnvs mods seedImport seedTyped Map.empty externalStructStmts
+    insertCheckedPackage ::
+        [ModuleInfo] ->
+        Map Path TC.TypeCtx ->
+        TypedImportEnv ->
+        Map QName CheckedPackage ->
+        QName ->
+        Either [ErrorKind] (Map QName CheckedPackage)
+    insertCheckedPackage mods ctxMap structMetadataTyped acc pkg = do
+        let pkgMods = sortOn miPath [mi | mi <- mods, miPkg mi == pkg]
+            seedPath = maybe "<pkg>" miPath (safeHead pkgMods)
+            seedImport = IEnv { file = seedPath, iVars = Map.empty, iFuncs = Map.empty }
+            seedTyped = emptyTypedImportEnv seedPath
+        exports <- traverse moduleExport pkgMods
+        let pkgImport = foldl' mergeImportEnv seedImport (map meImportEnv exports)
+            pkgTyped = mergeTypedEnv (foldl' mergeTypedEnv seedTyped (map meTypedEnv exports)) structMetadataTyped
+            pkgCtxs = Map.fromList [
+                (miPath mi, ctx)
+                | mi <- pkgMods
+                , Just ctx <- [Map.lookup (miPath mi) ctxMap]]
+            cp = CheckedPackage {
+                cpImportEnv = pkgImport,
+                cpTypedEnv = pkgTyped,
+                cpTypeCtxs = pkgCtxs
+            }
+        Right (Map.insert pkg cp acc)
+      where
+        moduleExport :: ModuleInfo -> Either [ErrorKind] ModuleExport
+        moduleExport mi = case Map.lookup (miPath mi) ctxMap of
+            Just ctx -> Right (buildExport mi ctx)
+            Nothing -> Left [UE.Syntax (UE.makeError (miPath mi) [] UE.internalErrorMsg)]
 
-            let cp = CheckedPackage {
-                    cpImportEnv = pkgImport,
-                    cpTypedEnv = pkgTyped,
-                    cpTypeCtxs = ctxMap
-                }
-            Right (Map.insert pkg cp checked)
+    structOnlyTypedEnv :: TypedImportEnv -> TypedImportEnv
+    structOnlyTypedEnv env =
+        (emptyTypedImportEnv (tFile env)) {
+            tFuncs = Map.filterWithKey isGeneratedStructFunction (tFuncs env),
+            tStructs = tStructs env
+        }
+
+    moduleStructOnlyTypedEnv :: ModuleInfo -> TypedImportEnv
+    moduleStructOnlyTypedEnv mi =
+        let progNorm@(_, stmts) = AST.normalizeProgramWithExternalTemplates [] (miProg mi)
+            wrapperClass = fromMaybe (fileClassName (miPath mi)) (getJavaName progNorm)
+            funMap = foldl' insertFun Map.empty (collectFunctionsWithClass wrapperClass (miPkg mi) stmts)
+        in
+        (emptyTypedImportEnv (miPath mi)) {
+            tFuncs = Map.filterWithKey isGeneratedStructFunction funMap,
+            tStructs = templateDeclsToMap (collectStructsWithClass (miPkg mi) (snd (miProg mi)))
+        }
+
+    moduleDeclaredTopLevelVarTypedEnv :: ModuleInfo -> TypedImportEnv
+    moduleDeclaredTopLevelVarTypedEnv mi =
+        let progNorm@(_, stmts) = AST.normalizeProgramWithExternalTemplates [] (miProg mi)
+            wrapperClass = fromMaybe (fileClassName (miPath mi)) (getJavaName progNorm)
+            varDecls = collectDeclaredTopLevelVarsWithClass wrapperClass (miPkg mi) stmts
+            varMap = Map.fromList [(keyQn, (cls, pos, fullQn)) | (keyQn, fullQn, cls, pos) <- varDecls]
+        in (emptyTypedImportEnv (miPath mi)) { tVars = varMap }
+
+    insertFun ::
+        Map QName ([FunSig], [Position], QName) ->
+        (QName, QName, FunSig, [Position]) ->
+        Map QName ([FunSig], [Position], QName)
+    insertFun mp (keyQn, fullQn, sig, pos) =
+        let entry = ([sig], pos, fullQn)
+            merge (newSigs, newPos, newFull) (oldSigs, oldPos, oldFull) =
+                let sigs = oldSigs ++ filter (`notElem` oldSigs) newSigs
+                    poses = oldPos ++ newPos
+                    full = if null oldFull then newFull else oldFull
+                in (sigs, poses, full)
+        in Map.insertWith merge keyQn entry mp
+
+    isGeneratedStructFunction :: QName -> ([FunSig], [Position], QName) -> Bool
+    isGeneratedStructFunction keyQn (_, _, fullQn) =
+        any ('$' `elem`) keyQn || any ('$' `elem`) fullQn
 
 
 checkPackageFixpoint ::
@@ -430,7 +539,8 @@ mergeTypedEnv a b =
     a {
         tVars = Map.union (tVars a) (tVars b),
         tFuncs = Map.unionWith mergeFunEntry (tFuncs a) (tFuncs b),
-        tTemplates = Map.unionWith mergeTemplateEntry (tTemplates a) (tTemplates b)
+        tTemplates = Map.unionWith mergeTemplateEntry (tTemplates a) (tTemplates b),
+        tStructs = Map.unionWith mergeTemplateEntry (tStructs a) (tStructs b)
     }
     where
         mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
@@ -492,6 +602,7 @@ collectFullQNames envs =
         map (\(_, _, full) -> full) (Map.elems (tVars env))
         ++ map (\(_, _, full) -> full) (Map.elems (tFuncs env))
         ++ map (\(_, _, full) -> full) (Map.elems (tTemplates env))
+        ++ map (\(_, _, full) -> full) (Map.elems (tStructs env))
 
 
 splitFullQName :: QName -> Maybe (QName, String, String)
@@ -607,7 +718,8 @@ expandTypedImportEnvBySpecs currentPkg specs env =
     env {
         tVars = expandVarMap (tVars env),
         tFuncs = expandFunMap (tFuncs env),
-        tTemplates = expandTemplateMap (tTemplates env)
+        tTemplates = expandTemplateMap (tTemplates env),
+        tStructs = expandTemplateMap (tStructs env)
     }
   where
     expandVarMap :: Map QName (AST.Class, [Position], QName) -> Map QName (AST.Class, [Position], QName)
@@ -620,8 +732,10 @@ expandTypedImportEnvBySpecs currentPkg specs env =
             aliases = [
                 (aliasKey, entry) | (keyQn, entry) <- entries,
                 let (isHidden, _) = splitHiddenQName keyQn,
+                let (_, payload) = splitHiddenQName keyQn,
                 let full = fullFromEntry entry,
-                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels),
+                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels)
+                    ++ generatedStructFunctionAliases payload full,
                 let aliasKey = if isHidden then toHiddenQName alias else alias]
             keepOld :: (AST.Class, [Position], QName) -> (AST.Class, [Position], QName) -> (AST.Class, [Position], QName)
             keepOld _ old = old
@@ -637,7 +751,9 @@ expandTypedImportEnvBySpecs currentPkg specs env =
                 (aliasKey, entry) | (keyQn, entry) <- entries,
                 let (isHidden, _) = splitHiddenQName keyQn,
                 let full = fullFromEntry entry,
-                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels),
+                let (_, payload) = splitHiddenQName keyQn,
+                alias <- aliasesForEntry full (HashSet.member (fullFromEntry entry) topLevels)
+                    ++ generatedStructFunctionAliases payload full,
                 let aliasKey = if isHidden then toHiddenQName alias else alias]
             mergeFunEntry :: ([FunSig], [Position], QName) -> ([FunSig], [Position], QName) -> ([FunSig], [Position], QName)
             mergeFunEntry (newSigs, newPos, newFull) (oldSigs, oldPos, oldFull) =
@@ -646,6 +762,11 @@ expandTypedImportEnvBySpecs currentPkg specs env =
                     full = if null oldFull then newFull else oldFull
                 in (sigs, poses, full)
         in foldl' (\acc (k, v) -> Map.insertWith mergeFunEntry k v acc) Map.empty aliases
+
+    generatedStructFunctionAliases :: QName -> QName -> [QName]
+    generatedStructFunctionAliases keyQn fullQn
+        | any ('$' `elem`) keyQn || any ('$' `elem`) fullQn = [keyQn]
+        | otherwise = []
 
     expandTemplateMap :: Map QName ([Statement], [Position], QName) -> Map QName ([Statement], [Position], QName)
     expandTemplateMap mp =
@@ -850,7 +971,14 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs externalStructSt
         let importedSpecs = dedupImportSpecs (defaultImportedSpecs ++ importedDeclSpecs)
             typedEnvs0 = map (expandTypedImportEnvBySpecs packageName importedSpecs) typedEnvs
             importedTemplateStmts = collectImportedTemplateStmts typedEnvs0
-            prog@(_, stmts) = AST.normalizeProgramWithExternalTemplatesAndStructs importedTemplateStmts externalStructStmts prog0
+            importedStructStmts = collectImportedStructStmts typedEnvs0
+            staticStructValues = collectStaticStructValueAliases typedEnvs0
+            prog@(_, stmts) =
+                AST.normalizeProgramWithExternalTemplatesStructsAndStaticValues
+                    importedTemplateStmts
+                    (externalStructStmts ++ importedStructStmts)
+                    staticStructValues
+                    prog0
             importEnvs0 =
                 if null typedEnvs
                     then defaultImportEnv path : importEnvs
@@ -879,8 +1007,23 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs externalStructSt
         oneEnv :: TypedImportEnv -> [Statement]
         oneEnv env = concat [defs | (defs, _, _) <- Map.elems (tTemplates env)]
 
+        collectImportedStructStmts :: [TypedImportEnv] -> [Statement]
+        collectImportedStructStmts envs =
+            dedupStmts (concatMap oneStructEnv envs)
+
+        oneStructEnv :: TypedImportEnv -> [Statement]
+        oneStructEnv env = concat [defs | (defs, _, _) <- Map.elems (tStructs env)]
+
         dedupStmts :: [Statement] -> [Statement]
         dedupStmts = nub
+
+        collectStaticStructValueAliases :: [TypedImportEnv] -> Map QName String
+        collectStaticStructValueAliases envs =
+            Map.fromList [
+                (keyQn, structName)
+                | env <- envs
+                , (keyQn, (cls, _, _)) <- Map.toList (tVars env)
+                , Just structName <- [structNameFromStaticValueClass cls]]
 
 
 collectTopLevelStructStmts :: [ModuleInfo] -> [Statement]
@@ -979,6 +1122,7 @@ buildExport mi ctx =
         funDecls = collectFunctionsWithClass wrapperClass pkg stmts
         templateDecls = collectTemplatesWithClass wrapperClass pkg stmts
         varDecls = collectTopLevelVarsWithClass wrapperClass pkg stmts ctx
+        structDecls = collectStructsWithClass pkg (snd (miProg mi))
 
         iVarsMap = Map.fromListWith (++) [(keyQn, pos) | (keyQn, _, _, pos) <- varDecls]
         iFuncsMap = Map.fromListWith (++) [(keyQn, pos) | (keyQn, _, _, pos) <- funDecls]
@@ -993,8 +1137,9 @@ buildExport mi ctx =
         tFuncsMap = foldl' insertFun Map.empty funDecls
 
         typedEnv0 = emptyTypedImportEnv path
-        tTemplatesMap = foldl' insertTemplate Map.empty templateDecls
-        typedEnv = typedEnv0 { tVars = tVarsMap, tFuncs = tFuncsMap, tTemplates = tTemplatesMap }
+        tTemplatesMap = templateDeclsToMap templateDecls
+        tStructsMap = templateDeclsToMap structDecls
+        typedEnv = typedEnv0 { tVars = tVarsMap, tFuncs = tFuncsMap, tTemplates = tTemplatesMap, tStructs = tStructsMap }
     in ModuleExport {
         meImportEnv = importEnv,
         meTypedEnv = typedEnv
@@ -1013,18 +1158,24 @@ buildExport mi ctx =
                     in (sigs, poses, full)
             in Map.insertWith merge keyQn entry mp
 
-        insertTemplate ::
-            Map QName ([Statement], [Position], QName) ->
-            (QName, QName, Statement, [Position]) ->
-            Map QName ([Statement], [Position], QName)
-        insertTemplate mp (keyQn, fullQn, defStmt, pos) =
-            let entry = ([defStmt], pos, fullQn)
-                merge (newDefs, newPos, newFull) (oldDefs, oldPos, oldFull) =
-                    let defs = oldDefs ++ filter (`notElem` oldDefs) newDefs
-                        poses = oldPos ++ newPos
-                        full = if null oldFull then newFull else oldFull
-                    in (defs, poses, full)
-            in Map.insertWith merge keyQn entry mp
+templateDeclsToMap ::
+    [(QName, QName, Statement, [Position])] ->
+    Map QName ([Statement], [Position], QName)
+templateDeclsToMap =
+    foldl' insertTemplate Map.empty
+  where
+    insertTemplate ::
+        Map QName ([Statement], [Position], QName) ->
+        (QName, QName, Statement, [Position]) ->
+        Map QName ([Statement], [Position], QName)
+    insertTemplate mp (keyQn, fullQn, defStmt, pos) =
+        let entry = ([defStmt], pos, fullQn)
+            merge (newDefs, newPos, newFull) (oldDefs, oldPos, oldFull) =
+                let defs = oldDefs ++ filter (`notElem` oldDefs) newDefs
+                    poses = oldPos ++ newPos
+                    full = if null oldFull then newFull else oldFull
+                in (defs, poses, full)
+        in Map.insertWith merge keyQn entry mp
 
 
 accessFromTokens :: [Lex.Token] -> AccessModified
@@ -1146,8 +1297,62 @@ collectTemplatesWithClass fileCls pkg = concatMap one . flattenTopStmtGroups
     one _ = []
 
 
+collectStructsWithClass :: QName -> [Statement] -> [(QName, QName, Statement, [Position])]
+collectStructsWithClass pkg = concatMap one . flattenTopStmtGroups
+  where
+    one :: Statement -> [(QName, QName, Statement, [Position])]
+    one stmt@(Struct _ _ (_, nameExpr) _) =
+        let name = AST.structNameFromExpr nameExpr
+            fullQn = pkg ++ [name, "$struct"]
+        in if null name then [] else [(fullQn, fullQn, stmt, map Lex.tokenPos (AST.stmtTokens stmt))]
+    one _ = []
+
+
 collectTopLevelVars :: Path -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
 collectTopLevelVars path = collectTopLevelVarsWithClass (fileClassName path)
+
+
+collectProgramStaticStructValueAliases :: [(Path, Program)] -> Map QName String
+collectProgramStaticStructValueAliases files =
+    Map.fromList
+        [ (keyQn, structName)
+        | (path, prog@(_, stmts)) <- files
+        , let pkg = getPackage prog
+              wrapperClass = fromMaybe (fileClassName path) (getJavaName prog)
+        , (keyQn, _, cls, _) <- collectDeclaredTopLevelVarsWithClass wrapperClass pkg stmts
+        , Just structName <- [structNameFromStaticValueClass cls]
+        ]
+
+
+structNameFromStaticValueClass :: AST.Class -> Maybe String
+structNameFromStaticValueClass cls = case AST.normalizeClass cls of
+    AST.Class names [] | not (null names) -> Just (last names)
+    AST.Pointer inner -> structNameFromStaticValueClass inner
+    _ -> Nothing
+
+
+collectDeclaredTopLevelVarsWithClass :: String -> QName -> [Statement] -> [(QName, QName, AST.Class, [Position])]
+collectDeclaredTopLevelVarsWithClass fileCls pkg stmts = mapMaybe one (flattenTopStmtGroups stmts) >>= expandAlias
+    where
+        one :: Statement -> Maybe (AccessModified, String, AST.Class, [Position])
+        one stmt@(DefField [name] (Just ty) _ toks) =
+            Just (accessOfStmt stmt, name, normalizeDeclared ty, map Lex.tokenPos toks)
+        one stmt@(DefConstField [name] (Just ty) _ toks) =
+            Just (accessOfStmt stmt, name, normalizeDeclared ty, map Lex.tokenPos toks)
+        one stmt@(DefVar [name] (Just ty) _ toks) =
+            Just (accessOfStmt stmt, name, normalizeDeclared ty, map Lex.tokenPos toks)
+        one stmt@(DefConstVar [name] (Just ty) _ toks) =
+            Just (accessOfStmt stmt, name, normalizeDeclared ty, map Lex.tokenPos toks)
+        one _ = Nothing
+
+        normalizeDeclared :: AST.Class -> AST.Class
+        normalizeDeclared = TC.normalizeTypeAlias . AST.normalizeClass
+
+        expandAlias :: (AccessModified, String, AST.Class, [Position]) -> [(QName, QName, AST.Class, [Position])]
+        expandAlias (access, name, cls, pos) =
+            let (fullQn, aliases) = symbolAliasesWithClass fileCls pkg name
+                keys = map (applyVisibilityKey access) aliases
+            in [ (key, fullQn, cls, pos) | key <- keys ]
 
 
 collectTopLevelVarsWithClass :: String -> QName -> [Statement] -> TC.TypeCtx -> [(QName, QName, AST.Class, [Position])]
@@ -1275,3 +1480,5 @@ prettyQName = intercalate "."
 safeHead :: [a] -> Maybe a
 safeHead [] = Nothing
 safeHead (x:_) = Just x
+
+

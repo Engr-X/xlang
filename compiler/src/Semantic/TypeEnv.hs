@@ -67,7 +67,9 @@ data TypedImportEnv = TIEnv {
     tVars :: Map QName (Class, [Position], QName),
     tFuncs :: Map QName ([FunSig], [Position], QName),
     -- | imported template blueprint functions (uninstantiated).
-    tTemplates :: Map QName ([Statement], [Position], QName)
+    tTemplates :: Map QName ([Statement], [Position], QName),
+    -- | imported struct blueprints used by frontend struct desugaring.
+    tStructs :: Map QName ([Statement], [Position], QName)
 } deriving (Eq, Show)
 
 
@@ -86,7 +88,7 @@ data FullFunctionTable
 
 
 emptyTypedImportEnv :: Path -> TypedImportEnv
-emptyTypedImportEnv p = TIEnv { tFile = p, tVars = Map.empty, tFuncs = Map.empty, tTemplates = Map.empty }
+emptyTypedImportEnv p = TIEnv { tFile = p, tVars = Map.empty, tFuncs = Map.empty, tTemplates = Map.empty, tStructs = Map.empty }
 
 -- | Default typed import environment with built-in functions preloaded.
 defaultTypedImportEnv :: Path -> TypedImportEnv

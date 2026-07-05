@@ -3,7 +3,7 @@ module Xlang where
 import Control.Monad (void, when)
 import Data.Char (isDigit, isSpace, toLower)
 import Data.Foldable (for_)
-import Data.List (intercalate, isSuffixOf, nub, sort, stripPrefix)
+import Data.List (dropWhileEnd, intercalate, isSuffixOf, nub, sort, stripPrefix)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
 import GHC.Conc (setNumCapabilities)
@@ -42,7 +42,7 @@ data Options = Options {
     optInputs :: [FilePath],
     optLibs :: [FilePath],
     optX64Compiler :: Maybe CX64.X64CompilerChoice,
-    optOutput :: Maybe FilePath,
+    optOutputs :: Maybe [FilePath],
     optIncludeRuntime :: Bool,
     optRoot :: FilePath,
     optJobs :: Int,
@@ -63,7 +63,7 @@ defaultOptions = Options {
     optInputs = [],
     optLibs = [],
     optX64Compiler = Nothing,
-    optOutput = Nothing,
+    optOutputs = Nothing,
     optIncludeRuntime = False,
     optRoot = ".",
     optJobs = 1,
@@ -253,14 +253,19 @@ findDefaultX64NativeLibs includeRuntime roots = do
     candidatesForRoot :: FilePath -> [FilePath]
     candidatesForRoot base
         | includeRuntime = [
+            base </> "build" </> "libs" </> "native",
             base </> "libs" </> "std" </> "native",
             base </> "libs" </> "native", -- legacy
+            base </> "runtime",
+            base </> "runtime" </> "build" </> "libs",
             base </> "std" </> "native",
             base </> "native",
             base </> "native-libs"]
         | otherwise = [
+            base </> "build" </> "libs" </> "native",
             base </> "runtime" </> "native",
             base </> "runtime", -- legacy
+            base </> "runtime" </> "build" </> "libs",
             base </> "libs" </> "std" </> "native",
             base </> "libs" </> "native", -- legacy
             base </> "std" </> "native",
@@ -310,11 +315,18 @@ preferStaticImportLibPath path
 isAllowedX64LibFile :: FilePath -> Bool
 isAllowedX64LibFile path =
     let ext = map toLower (takeExtension path)
-    in ext == ".dll" || ext == ".lib" || ext == ".a" || ext == ".so" || ext == ".dylib"
+    in ext == ".dll" || ext == ".lib" || ext == ".a" || ext == ".so" || ext == ".dylib" || ext == ".o" || ext == ".obj"
 
 
 invalidX64LibFiles :: [FilePath] -> [FilePath]
 invalidX64LibFiles = filter (not . isAllowedX64LibFile)
+
+
+isXlangSourceFile :: FilePath -> Bool
+isXlangSourceFile path =
+    let ext = map toLower (takeExtension path)
+    in ext `elem` [".x", ".xl", ".xlang"]
+
 
 splitOnDot :: String -> [String]
 splitOnDot s =
@@ -328,10 +340,7 @@ parseMainEntryClass raw =
     let segs = splitOnDot raw
     in if null raw || any null segs
         then Left "invalid --main format; expected: com.wangdi.MainKt.main"
-        else
-            case reverse segs of
-                ("main" : revCls) | not (null revCls) -> Right (reverse revCls)
-                _ -> Right segs
+        else Right segs
 
 parseArgs :: [String] -> Options
 parseArgs = go defaultOptions
@@ -347,6 +356,64 @@ parseArgs = go defaultOptions
 
         normalizePathArg :: String -> String
         normalizePathArg = stripWrappingQuotes
+
+        trimSpaces :: String -> String
+        trimSpaces = dropWhileEnd isSpace . dropWhile isSpace
+
+        trimComma :: String -> String
+        trimComma = trimSpaces . dropWhile (== ',') . dropWhileEnd (== ',')
+
+        splitCsv :: String -> [String]
+        splitCsv raw =
+            let (a, b) = break (== ',') raw
+                headPart = trimComma a
+            in case b of
+                [] ->
+                    if null headPart then [] else [headPart]
+                (_ : rest) ->
+                    let tailParts = splitCsv rest
+                    in if null headPart then tailParts else headPart : tailParts
+
+        isObjExtPath :: String -> Bool
+        isObjExtPath p =
+            let ext = map toLower (takeExtension p)
+            in ext == ".o" || ext == ".obj"
+
+        tokenLooksLikeObjListElem :: String -> Bool
+        tokenLooksLikeObjListElem tok =
+            let t = trimSpaces (stripWrappingQuotes tok)
+                cleaned = trimComma t
+            in t == ","
+                || ',' `elem` t
+                || (not (null cleaned) && isObjExtPath cleaned)
+
+        parseOutputListTokens :: [String] -> ([String], [String])
+        parseOutputListTokens = goCollect []
+          where
+            goCollect :: [String] -> [String] -> ([String], [String])
+            goCollect acc [] = (reverse acc, [])
+            goCollect acc (t : ts)
+                | null t = (reverse acc, ts)
+                | head t == '-' = (reverse acc, t : ts)
+                | tokenLooksLikeObjListElem t = goCollect (t : acc) ts
+                | otherwise = (reverse acc, t : ts)
+
+        parseMaybeObjOutputList :: String -> [String] -> Maybe ([FilePath], [String])
+        parseMaybeObjOutputList first rest =
+            let firstNorm = normalizePathArg first
+                firstTokenObjLike = tokenLooksLikeObjListElem firstNorm
+                secondTokenObjLike = case rest of
+                    (x : _) -> tokenLooksLikeObjListElem x
+                    [] -> False
+            in if not firstTokenObjLike || (not secondTokenObjLike && ',' `notElem` firstNorm)
+                then Nothing
+                else
+                    let (rawTokens, remaining) = parseOutputListTokens (firstNorm : rest)
+                        outs = concatMap (splitCsv . normalizePathArg) rawTokens
+                        outsNorm = filter (not . null) (map trimComma outs)
+                    in if length outsNorm >= 2
+                        then Just (outsNorm, remaining)
+                        else Nothing
 
         addInput :: Options -> FilePath -> Options
         addInput opts fp = opts {optInputs = optInputs opts ++ [normalizePathArg fp]}
@@ -508,9 +575,12 @@ parseArgs = go defaultOptions
                 then opts {optHelp = True, optError = Just "missing value(s) for -lib"}
                 else go opts {optLibs = optLibs opts ++ map normalizePathArg libs} rest
 
-        -- Kotlin style output: -d <dir|jar>. Keep "-d" alone as debug shorthand.
+        -- Kotlin style output: -d <dir|jar> (JVM), or -d <obj list> (x64 multi object).
         go opts ("-d" : out : xs)
-            | isLikelyPath out = go opts {optOutput = Just (normalizePathArg out)} xs
+            | isLikelyPath out =
+                case parseMaybeObjOutputList out xs of
+                    Just (outs, rest) -> go opts {optOutputs = Just outs} rest
+                    Nothing -> go opts {optOutputs = Just [normalizePathArg out]} xs
             | otherwise = go opts {optDebug = True} (out : xs)
         go opts ["-d"] = go opts {optDebug = True} []
 
@@ -537,8 +607,10 @@ printHelp = putStrLn $ unlines [
     "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [-d <dir|jar>]",
     "         [--main=<qname.main>] [-j <n>|--jobs <n>] [--include-runtime|-include-runtime] [--debug|-debug|-d]",
     "   xlang --target=x64 <file.x|file.xl|file.xlang> [more files ...]",
-    "         [-lib <a.jar b.class ...>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [--compiler=<nasm|as>] [-d <dir|file.o|file.exe|file.out|file.dll|file.so|file.dylib|file.a|file.lib>]",
+    "         [-lib <a.o b.o lib.a ...>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [--compiler=<nasm|as>] [-d <dir|file.o|file.exe|file.out|file.dll|file.so|file.dylib|file.a|file.lib|a.o,b.o,...>]",
     "         [-j <n>|--jobs <n>] [--debug|-debug|-d]",
+    "   xlang --target=x64 -lib <a.o b.o lib.a ...> -d <file.exe|file.out|file.dll|file.so|file.dylib|file.a|file.lib>",
+    "         [--main=<qname.main>] [--root=<dir>|--root <dir>|-r <dir>|root=<dir>] [--compiler=<nasm|as>]",
     "",
     "   xlang -v | --version",
     "   xlang -h | --help",
@@ -551,7 +623,7 @@ printHelp = putStrLn $ unlines [
     "   --target=jvm<n>  compatibility alias for --target-jvm<n> (e.g. --target=jvm25)",
     "   --target jvm<n>  compatibility alias for --target-jvm<n>",
     "   --target=x64     compile to x64 object output (and link when -d is exe/out/dll/so/dylib/a/lib)",
-    "                    each lowered unit emits .o (and .asm only in debug mode)",
+    "                    each source file emits one .o (and .asm only in debug mode)",
     "   --compiler=<nasm|as>",
     "                    x64-only assembler choice (default: nasm)",
     "   --compiler <nasm|as>",
@@ -574,7 +646,8 @@ printHelp = putStrLn $ unlines [
     "   -j<n>, -j <n>, --jobs <n>, --jobs=<n>",
     "                    use n worker threads",
     "                    applies to: 1) batch -lib loading, 2) post-IR JVM lowering + bytecode generation",
-    "   -lib <files...>  external libs: JVM(.class/.jar/.json/.db/.jmod), x64(.dll/.lib/.a/.so/.dylib)",
+    "   -lib <files...>  external libs: JVM(.class/.jar/.json/.db/.jmod), x64(.o/.obj/.dll/.lib/.a/.so/.dylib)",
+    "                    x64 object/link inputs must be passed here, not as -c inputs",
     "                    plus default stdlib: <xlang.exe dir>/libs/java/xlang-stdlib.jar",
     "                    plus default std metadata: <xlang.exe dir>/libs/java/jdk<target>-stdlib.db (on-demand)",
     "                    plus default runtime jars: <xlang.exe dir>/runtime/java/*.jar",
@@ -591,6 +664,9 @@ printHelp = putStrLn $ unlines [
     "                    JVM requires: -d <something>.jar",
     "                    x64: prefer static runtime libs (.a); dynamic libs are ignored for linking",
     "   --debug|-debug   JVM: write debug.json + per-class .ir; x64: write per-class .ir (+ timing logs)",
+    "   -d <a.o,b.o,...> x64-only: one .o/.obj per input source file (1:1 mapping)",
+    "                    spaces after commas are allowed, e.g. -d a.o, b.o",
+    "                    multi-output mode only accepts .o/.obj",
     "   -d               debug shorthand when used without output path",
     "   -v, --version    print xlang version",
     "   -h, --help       show this help"]
@@ -621,16 +697,26 @@ main = do
 
                         setNumCapabilities (optJobs opts)
 
-                        let srcPathsRaw = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
+                        let mTarget = resolveCompileTarget opts
+                            inputArgsResolved = map (CJ.resolveFromRoot rootAbs) (optInputs opts)
+                            srcPathsRaw = case mTarget of
+                                Just TargetX64 -> filter isXlangSourceFile inputArgsResolved
+                                _ -> inputArgsResolved
+                            invalidX64InputRaw = case mTarget of
+                                Just TargetX64 -> filter (not . isXlangSourceFile) inputArgsResolved
+                                _ -> []
                             userLibPathsRaw = map (CJ.resolveFromRoot rootAbs) (optLibs opts)
                         srcPaths <- mapM canonicalizeIfExists srcPathsRaw
                         userLibPaths <- mapM canonicalizeIfExists userLibPathsRaw
+                        invalidX64Inputs <- mapM canonicalizeIfExists invalidX64InputRaw
 
-                        let mTarget = resolveCompileTarget opts
+                        let
                             mTargetJvm = case mTarget of
                                 Just (TargetJvm n) -> Just n
                                 _ -> Nothing
-                            invalidInputs = CJ.invalidSourceFiles srcPaths
+                            invalidInputs = case mTarget of
+                                Just TargetX64 -> invalidX64Inputs
+                                _ -> CJ.invalidSourceFiles srcPaths
                             invalidLibs = case mTarget of
                                 Just TargetX64 -> invalidX64LibFiles userLibPaths
                                 _ -> CJ.invalidLibFiles userLibPaths
@@ -672,13 +758,14 @@ main = do
                             duplicateLibs = CJ.duplicateLibRefs combinedLibPaths
                             libPaths = combinedLibPaths
                             runtimeLibPaths = userLibPaths ++ defaultLibJars ++ defaultRuntimeLibJars
+                            mOutputs = fmap (map (CJ.resolveFromRoot rootAbs)) (optOutputs opts)
 
-                        case (mTarget, srcPaths, optOutput opts) of
-                            (Just _, [], _) -> do
+                        case (mTarget, srcPaths, mOutputs) of
+                            (Just (TargetJvm _), [], _) -> do
                                 putStrLn "missing input xlang file"
                                 printHelp
                             (Just _, _, _) | not (null invalidInputs) -> do
-                                putStrLn "invalid source file extension; only .x, .xl, .xlang are allowed"
+                                putStrLn "invalid source file extension; only .x, .xl, .xlang are allowed; pass x64 object/link inputs with -lib"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidInputs
                                 printHelp
                             (Just _, _, _) | not (null duplicateLibs) -> do
@@ -688,32 +775,37 @@ main = do
                             (Just _, _, _) | not (null invalidLibs) -> do
                                 case mTarget of
                                     Just TargetX64 ->
-                                        putStrLn "invalid -lib extension for x64; only .dll, .lib, .a, .so and .dylib are allowed"
+                                        putStrLn "invalid -lib extension for x64; only .o, .obj, .dll, .lib, .a, .so and .dylib are allowed"
                                     _ ->
                                         putStrLn "invalid -lib extension; only .class, .jar, .json, .db and .jmod are allowed"
                                 mapM_ (\p -> putStrLn ("  - " ++ p)) invalidLibs
                                 printHelp
-                            (Just (TargetJvm targetJvm), _, Just outPath0) -> do
-                                let outPath = CJ.resolveFromRoot rootAbs outPath0
-                                if isJust (optX64Compiler opts)
+                            (Just (TargetJvm targetJvm), _, Just outPaths) -> do
+                                if length outPaths > 1
                                     then do
-                                        putStrLn "--compiler is only valid with --target=x64"
+                                        putStrLn "JVM target does not support multiple -d outputs; provide exactly one output path"
                                         printHelp
-                                    else if includeRuntime && not (CJ.isJarOutput outPath)
-                                    then do
-                                        putStrLn "cannot use -include-runtime with classes output type; expected a .jar"
-                                        printHelp
-                                    else if not (CJ.isJarOutput outPath) && isJust mMainClassOverride
-                                        then do
-                                            putStrLn "--main is only valid when -d points to a .jar output"
-                                            printHelp
-                                    else if isJust (optPlatform opts)
-                                        then do
-                                            putStrLn "--platform is only valid with --target=x64"
-                                            printHelp
-                                        else if CJ.isJarOutput outPath
-                                        then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths runtimeLibPaths outPath includeRuntime (optDebug opts) mMainClassOverride
-                                        else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
+                                    else do
+                                        let outPath = head outPaths
+                                        if isJust (optX64Compiler opts)
+                                            then do
+                                                putStrLn "--compiler is only valid with --target=x64"
+                                                printHelp
+                                            else if includeRuntime && not (CJ.isJarOutput outPath)
+                                                then do
+                                                    putStrLn "cannot use -include-runtime with classes output type; expected a .jar"
+                                                    printHelp
+                                                else if not (CJ.isJarOutput outPath) && isJust mMainClassOverride
+                                                    then do
+                                                        putStrLn "--main is only valid when -d points to a .jar output"
+                                                        printHelp
+                                                    else if isJust (optPlatform opts)
+                                                        then do
+                                                            putStrLn "--platform is only valid with --target=x64"
+                                                            printHelp
+                                                        else if CJ.isJarOutput outPath
+                                                            then CJ.compileJVMToJar jobs targetJvm toolkitJar rootAbs srcPaths libPaths runtimeLibPaths outPath includeRuntime (optDebug opts) mMainClassOverride
+                                                            else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths (Just outPath) (optDebug opts))
                             (Just (TargetJvm targetJvm), _, Nothing) ->
                                 if isJust (optX64Compiler opts)
                                     then do
@@ -732,8 +824,8 @@ main = do
                                             putStrLn "--platform is only valid with --target=x64"
                                             printHelp
                                         else void (CJ.compileJVM jobs targetJvm toolkitJar rootAbs srcPaths libPaths Nothing (optDebug opts))
-                            (Just TargetX64, _, mOut) ->
-                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOut mMainClassOverride (optPlatform opts) (optX64Compiler opts) includeRuntime (optDebug opts))
+                            (Just TargetX64, _, mOuts) ->
+                                void (CX64.compileX64 jobs toolkitJar rootAbs srcPaths libPaths mOuts mMainClassOverride (optPlatform opts) (optX64Compiler opts) includeRuntime (optDebug opts))
                             _ -> do
                                 putStrLn "missing target; use --target-jvm<number> or --target=x64"
                                 printHelp

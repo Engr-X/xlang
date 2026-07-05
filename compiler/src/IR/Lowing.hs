@@ -26,10 +26,10 @@ import Lex.Tokenizer (tokenizeWithNL)
 import Parse.ParseProgm (parseProgm)
 import Parse.ParserBasic (toException)
 import Parse.SyntaxTree (Program, Statement, getErrorProgram)
-import Semantic.CheckProgram (SemanticTarget(..), checkProgmWithDepsForTarget)
+import Semantic.CheckProgram (SemanticTarget(..), checkProgmWithDepsForTarget, collectProgramStaticStructValueAliases)
 import Semantic.NameEnv (ImportEnv)
 import Semantic.TypeCheck (tcFullFunUses, tcFullVarUses, tcWarnings)
-import Semantic.TypeEnv (FullFunctionTable, FullVarTable, TypedImportEnv, tTemplates)
+import Semantic.TypeEnv (FullFunctionTable, FullVarTable, TypedImportEnv, tStructs, tTemplates, tVars)
 import Util.Exception (ErrorKind, Warning)
 import Util.Type (Path, Position)
 
@@ -48,6 +48,30 @@ collectExternalTemplateStmts envs =
   where
     oneEnv :: TypedImportEnv -> [AST.Statement]
     oneEnv env = concat [defs | (defs, _, _) <- Map.elems (tTemplates env)]
+
+
+collectExternalStructStmts :: [TypedImportEnv] -> [AST.Statement]
+collectExternalStructStmts envs =
+    nub (concatMap oneEnv envs)
+  where
+    oneEnv :: TypedImportEnv -> [AST.Statement]
+    oneEnv env = concat [defs | (defs, _, _) <- Map.elems (tStructs env)]
+
+
+collectExternalStaticStructValues :: [TypedImportEnv] -> Map [String] String
+collectExternalStaticStructValues envs =
+    Map.fromList
+        [ (keyQn, structName)
+        | env <- envs
+        , (keyQn, (cls, _, _)) <- Map.toList (tVars env)
+        , Just structName <- [structNameFromStaticValueClass cls]
+        ]
+  where
+    structNameFromStaticValueClass :: AST.Class -> Maybe String
+    structNameFromStaticValueClass cls = case AST.normalizeClass cls of
+        AST.Class names [] | not (null names) -> Just (last names)
+        AST.Pointer inner -> structNameFromStaticValueClass inner
+        _ -> Nothing
 
 
 collectProgramStructStmts :: [(Path, Program)] -> [AST.Statement]
@@ -116,14 +140,16 @@ codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
         parseErrs = concat (lefts parsed)
         progms = rights parsed
         externalTemplateStmts = collectExternalTemplateStmts depTypedEnvs
-        externalStructStmts = collectProgramStructStmts progms
+        externalStructStmts = collectProgramStructStmts progms ++ collectExternalStructStmts depTypedEnvs
+        externalStaticStructValues =
+            Map.union (collectProgramStaticStructValueAliases progms) (collectExternalStaticStructValues depTypedEnvs)
     in if not (null parseErrs)
         then Left parseErrs
         else case checkProgmWithDepsForTarget target root depImportEnvs depTypedEnvs progms of
             Left errs -> Left errs
             Right ctxs ->
                 let ctxMap = Map.fromList ctxs
-                    lowered = map (lowerOne externalTemplateStmts externalStructStmts ctxMap) progms
+                    lowered = map (lowerOne externalTemplateStmts externalStructStmts externalStaticStructValues ctxMap) progms
                     lowerErrs = concat (lefts lowered)
                     loweredOk = rights lowered
                 in if not (null lowerErrs)
@@ -148,16 +174,17 @@ codeToIRWithRootAndDepsForTarget target depImportEnvs depTypedEnvs root files =
         lowerOne ::
             [Statement] ->
             [Statement] ->
+            Map [String] String ->
             Map Path TC.TypeCtx ->
             (Path, Program) ->
             Either [ErrorKind] ((Path, TAC.IRProgm), [Warning])
         -- | Lower one already-checked program with its per-file type context.
-        lowerOne extTemplates extStructs ctxMap (path, progRaw) =
+        lowerOne extTemplates extStructs extStaticStructValues ctxMap (path, progRaw) =
             case Map.lookup path ctxMap of
                 Nothing ->
                     Left [UE.Syntax (UE.makeError path [] UE.internalErrorMsg)]
                 Just ctx ->
-                    let prog = AST.normalizeProgramWithExternalTemplatesAndStructs extTemplates extStructs progRaw
+                    let prog = AST.normalizeProgramWithExternalTemplatesStructsAndStaticValues extTemplates extStructs extStaticStructValues progRaw
                         (ir, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns = tcWarnings ctx ++ tacWarns
                     in Right ((path, ir), warns)
@@ -187,7 +214,9 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
         parseErrs = concat (lefts parsed)
         progms = rights parsed
         externalTemplateStmts = collectExternalTemplateStmts depTypedEnvs
-        externalStructStmts = collectProgramStructStmts progms
+        externalStructStmts = collectProgramStructStmts progms ++ collectExternalStructStmts depTypedEnvs
+        externalStaticStructValues =
+            Map.union (collectProgramStaticStructValueAliases progms) (collectExternalStaticStructValues depTypedEnvs)
     if not (null parseErrs)
         then pure (Left parseErrs)
         else do
@@ -204,7 +233,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                 Left errs -> pure (Left errs)
                 Right ctxs -> do
                     let ctxMap = Map.fromList ctxs
-                    loweredWithTime <- mapM (lowerOneTimed externalTemplateStmts externalStructStmts ctxMap) progms
+                    loweredWithTime <- mapM (lowerOneTimed externalTemplateStmts externalStructStmts externalStaticStructValues ctxMap) progms
                     let irTimings = map fst loweredWithTime
                         lowered = map snd loweredWithTime
                         lowerErrs = concat (lefts lowered)
@@ -257,10 +286,11 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
     lowerOneTimed ::
         [Statement] ->
         [Statement] ->
+        Map [String] String ->
         Map Path TC.TypeCtx ->
         (Path, Program) ->
         IO (IrLoweringStageTiming, Either [ErrorKind] ((Path, TAC.IRProgm), [Warning]))
-    lowerOneTimed extTemplates extStructs ctxMap (path, progRaw) =
+    lowerOneTimed extTemplates extStructs extStaticStructValues ctxMap (path, progRaw) =
         case Map.lookup path ctxMap of
             Nothing ->
                 pure
@@ -269,7 +299,7 @@ codeToIRWithRootAndDepsTimedForTarget target depImportEnvs depTypedEnvs root fil
                     )
             Just ctx -> do
                 ((ir, warns), irNs) <- timedIO $ do
-                    let prog = AST.normalizeProgramWithExternalTemplatesAndStructs extTemplates extStructs progRaw
+                    let prog = AST.normalizeProgramWithExternalTemplatesStructsAndStaticValues extTemplates extStructs extStaticStructValues progRaw
                         (ir0, tacWarns) = lowerWithUses path prog (tcFullVarUses ctx) (tcFullFunUses ctx)
                         warns0 = tcWarnings ctx ++ tacWarns
                     _ <- evaluate (length warns0)

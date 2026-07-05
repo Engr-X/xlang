@@ -13,12 +13,12 @@ import Control.Exception (bracket_, evaluate)
 import Control.Monad (filterM, unless, when)
 import Control.Monad.State.Strict (evalState)
 import Data.Char (toLower, isSpace)
-import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, isSuffixOf, nub, sort, sortOn)
+import Data.List (dropWhileEnd, foldl', intercalate, isPrefixOf, isSuffixOf, nub, partition, sort, sortOn)
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Environment (getExecutablePath)
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getTemporaryDirectory, listDirectory, removeFile, removePathForcibly)
-import System.FilePath ((</>), (<.>), takeBaseName, takeDirectory, takeExtension, replaceExtension, takeFileName)
+import System.FilePath ((</>), (<.>), dropExtension, makeRelative, splitDirectories, takeBaseName, takeDirectory, takeExtension, replaceExtension, takeFileName)
 import System.IO (hClose, openTempFile)
 import System.IO.Error (catchIOError, isDoesNotExistError)
 import System.Info (os)
@@ -192,7 +192,16 @@ data LinkKind
 data OutputMode
     = OutputDir FilePath
     | OutputSingleObject FilePath
+    | OutputPerSourceObjects [(FilePath, FilePath)]
     | OutputLinked FilePath LinkKind FilePath
+
+
+-- Base emit stage: always materialize object files first.
+-- Linked outputs use their object root as the base object directory.
+toBaseObjectMode :: OutputMode -> OutputMode
+toBaseObjectMode outMode = case outMode of
+    OutputLinked _ _ objRoot -> OutputDir objRoot
+    _ -> outMode
 
 
 data X64CompilerChoice
@@ -266,7 +275,7 @@ compileX64 ::
     FilePath ->
     [FilePath] ->
     [FilePath] ->
-    Maybe FilePath ->
+    Maybe [FilePath] ->
     Maybe [String] ->
     Maybe TargetPlatform ->
     Maybe X64CompilerChoice ->
@@ -283,100 +292,325 @@ compileX64WithAssembler ::
     FilePath ->
     [FilePath] ->
     [FilePath] ->
-    Maybe FilePath ->
+    Maybe [FilePath] ->
     Maybe [String] ->
     Maybe TargetPlatform ->
     Maybe X64CompilerChoice ->
     Bool ->
     Bool ->
     IO (Maybe [TAC.IRProgm])
-compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths mOutput mMainClassOverride mTargetPlatform mCompilerChoice includeRuntime debugOut = do
-    sourceRes <- mapConcurrentlyLimit jobs
-        (\path -> do
-            fileRes <- FH.readFile path
-            pure (path, fileRes))
-        srcPaths
-
-    let readErrs = [err | (_, Left err) <- sourceRes]
-        sources = [(path, code) | (path, Right code) <- sourceRes]
-
-    if not (null readErrs)
-        then do
-            mapM_ (putStrLn . UE.errorToString) readErrs
-            pure Nothing
+compileX64WithAssembler runAssembler jobs toolkitJar rootPath srcPaths libPaths mOutputs mMainClassOverride mTargetPlatform mCompilerChoice includeRuntime debugOut = do
+    if null srcPaths
+        then compileX64LinkOnly runAssembler rootPath libPaths mOutputs mMainClassOverride mTargetPlatform mCompilerChoice includeRuntime debugOut
         else do
-            let sourceImports = collectSourceImports sources
-            (libsRes, libsTime) <- timedIO (LibLoader.loadLibEnvsWithJobs jobs toolkitJar libPaths sourceImports)
-            case libsRes of
-                Left errs -> do
-                    mapM_ (putStrLn . UE.errorToString) errs
+            sourceRes <- mapConcurrentlyLimit jobs
+                (\path -> do
+                    fileRes <- FH.readFile path
+                    pure (path, fileRes))
+                srcPaths
+
+            let readErrs = [err | (_, Left err) <- sourceRes]
+                sources = [(path, code) | (path, Right code) <- sourceRes]
+
+            if not (null readErrs)
+                then do
+                    mapM_ (putStrLn . UE.errorToString) readErrs
                     pure Nothing
-                Right (depImportEnvs, depTypedEnvs) -> do
-                    mIrRes <- IR.codeToIRWithRootAndDepsTimedForTarget SCP.SemanticTargetNative depImportEnvs depTypedEnvs rootPath sources
-                    case mIrRes of
+                else do
+                    let sourceImports = collectSourceImports sources
+                    (libsRes, libsTime) <- timedIO (LibLoader.loadLibEnvsWithJobs jobs toolkitJar libPaths sourceImports)
+                    case libsRes of
                         Left errs -> do
                             mapM_ (putStrLn . UE.errorToString) errs
                             pure Nothing
-                        Right (irPairs, warns, pipelineTimingRaw) -> do
-                            mapM_ print warns
-                            printPerFileProgress irPairs
-                            let targetPlatform = resolveTargetPlatform mTargetPlatform
-                                targetOs = platformOsTag targetPlatform
-                                ccUsed = selectCallConv64 targetPlatform mCompilerChoice
-                            lowered <- mapM
-                                (\one@(path, _) -> do
-                                    (u, t) <- timedIO $ do
-                                        let us = lowerOneFile ccUsed one
-                                        _ <- evaluate (sum (map (length . unitAsmText) us))
-                                        pure us
-                                    pure (path, u, t))
-                                irPairs
-                            let irs = map snd irPairs
-                                baseUnits = concat [u | (_, u, _) <- lowered]
-                                outMode = resolveOutputMode rootPath mOutput
-
-                            case addExeEntryUnit64 targetOs ccUsed outMode mMainClassOverride irPairs baseUnits of
-                                Left errMsg -> do
-                                    putStrLn ("[ERROR] " ++ errMsg)
+                        Right (depImportEnvs, depTypedEnvs) -> do
+                            mIrRes <- IR.codeToIRWithRootAndDepsTimedForTarget SCP.SemanticTargetNative depImportEnvs depTypedEnvs rootPath sources
+                            case mIrRes of
+                                Left errs -> do
+                                    mapM_ (putStrLn . UE.errorToString) errs
                                     pure Nothing
-                                Right units ->
-                                    case validateOutputMode outMode units of
+                                Right (irPairs, warns, pipelineTimingRaw) -> do
+                                    mapM_ print warns
+                                    printPerFileProgress irPairs
+                                    let targetPlatform = resolveTargetPlatform mTargetPlatform
+                                        targetOs = platformOsTag targetPlatform
+                                        ccUsed = selectCallConv64 targetPlatform mCompilerChoice
+                                    case resolveOutputMode rootPath srcPaths mOutputs of
                                         Left errMsg -> do
                                             putStrLn ("[ERROR] " ++ errMsg)
                                             pure Nothing
-                                        Right () -> do
-                                            let emitUnits = coalesceUnitsForOutput outMode units
-                                            (objPaths, emitTimeNs) <- timedIO $
-                                                mapConcurrentlyLimit jobs (emitOne runAssembler debugOut outMode targetOs ccUsed rootPath) emitUnits
-                                            linkTimeNs <- if runAssembler
-                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode targetOs objPaths libPaths includeRuntime)
-                                                else pure 0
-                                            when debugOut $ do
-                                                writePerClassIRFiles (debugIrRootFromOutputMode rootPath outMode) irs
-                                                let pipelineTiming = CompileTimingSummary {
-                                                        tokenizeTimings = [
-                                                            StageTiming (IR.fePath t) (IR.feTokenizeNs t) |
-                                                            t <- IR.frontendStageTimings pipelineTimingRaw
-                                                        ],
-                                                        parseTimings = [
-                                                            StageTiming (IR.fePath t) (IR.feParseNs t) |
-                                                            t <- IR.frontendStageTimings pipelineTimingRaw
-                                                        ],
-                                                        importLoadNs = libsTime,
-                                                        semanticNs = IR.semanticStageNs pipelineTimingRaw,
-                                                        irTimings = [
-                                                            StageTiming (IR.irPath t) (IR.irLowerNs t) |
-                                                            t <- IR.irLowerStageTimings pipelineTimingRaw
-                                                        ],
-                                                        x64LowerTimings = [
-                                                            StageTiming path elapsed |
-                                                            (path, _, elapsed) <- lowered
-                                                        ],
-                                                        objectEmitNs = emitTimeNs,
-                                                        linkNs = linkTimeNs
-                                                    }
-                                                printCompileSummary pipelineTiming
-                                            pure (Just irs)
+                                        Right outMode -> do
+                                            let baseOutMode = toBaseObjectMode outMode
+                                            lowered <- mapM
+                                                (\one@(path, _) -> do
+                                                    (u, t) <- timedIO $ do
+                                                        let us = lowerOneFile ccUsed one
+                                                        _ <- evaluate (sum (map (length . unitAsmText) us))
+                                                        pure us
+                                                    pure (path, u, t))
+                                                irPairs
+                                            let irs = map snd irPairs
+                                                baseUnits = concat [u | (_, u, _) <- lowered]
+
+                                            case addExeEntryUnit64 targetOs ccUsed outMode mMainClassOverride irPairs baseUnits of
+                                                Left errMsg -> do
+                                                    putStrLn ("[ERROR] " ++ errMsg)
+                                                    pure Nothing
+                                                Right units ->
+                                                    case validateOutputMode baseOutMode units of
+                                                        Left errMsg -> do
+                                                            putStrLn ("[ERROR] " ++ errMsg)
+                                                            pure Nothing
+                                                        Right () -> do
+                                                            let emitUnits = coalesceUnitsForOutput rootPath baseOutMode units
+                                                            (objPaths, emitTimeNs) <- timedIO $
+                                                                mapConcurrentlyLimit jobs (emitOne runAssembler debugOut baseOutMode targetOs ccUsed rootPath) emitUnits
+                                                            linkTimeNs <- if runAssembler
+                                                                then snd <$> timedIO (linkIfNeeded debugOut rootPath outMode targetOs objPaths libPaths includeRuntime Nothing)
+                                                                else pure 0
+                                                            when debugOut $ do
+                                                                writePerClassIRFiles (debugIrRootFromOutputMode rootPath baseOutMode) irs
+                                                                let pipelineTiming = CompileTimingSummary {
+                                                                        tokenizeTimings = [
+                                                                            StageTiming (IR.fePath t) (IR.feTokenizeNs t) |
+                                                                            t <- IR.frontendStageTimings pipelineTimingRaw
+                                                                        ],
+                                                                        parseTimings = [
+                                                                            StageTiming (IR.fePath t) (IR.feParseNs t) |
+                                                                            t <- IR.frontendStageTimings pipelineTimingRaw
+                                                                        ],
+                                                                        importLoadNs = libsTime,
+                                                                        semanticNs = IR.semanticStageNs pipelineTimingRaw,
+                                                                        irTimings = [
+                                                                            StageTiming (IR.irPath t) (IR.irLowerNs t) |
+                                                                            t <- IR.irLowerStageTimings pipelineTimingRaw
+                                                                        ],
+                                                                        x64LowerTimings = [
+                                                                            StageTiming path elapsed |
+                                                                            (path, _, elapsed) <- lowered
+                                                                        ],
+                                                                        objectEmitNs = emitTimeNs,
+                                                                        linkNs = linkTimeNs
+                                                                    }
+                                                                printCompileSummary pipelineTiming
+                                                            pure (Just irs)
+
+
+compileX64LinkOnly ::
+    Bool ->
+    FilePath ->
+    [FilePath] ->
+    Maybe [FilePath] ->
+    Maybe [String] ->
+    Maybe TargetPlatform ->
+    Maybe X64CompilerChoice ->
+    Bool ->
+    Bool ->
+    IO (Maybe [TAC.IRProgm])
+compileX64LinkOnly runAssembler rootPath libPaths mOutputs mMainClassOverride mTargetPlatform mCompilerChoice includeRuntime debugOut = do
+    let targetPlatform = resolveTargetPlatform mTargetPlatform
+        targetOs = platformOsTag targetPlatform
+        ccUsed = selectCallConv64 targetPlatform mCompilerChoice
+    case resolveOutputMode rootPath [] mOutputs of
+        Left errMsg -> do
+            putStrLn ("[ERROR] " ++ errMsg)
+            pure Nothing
+        Right outMode -> case outMode of
+            OutputLinked _ linkKind _ -> do
+                let (objInputs, linkInputs) = partition isObjectInputX64 libPaths
+                    entrySym = "xlang_entry_main"
+                    calleeSym = resolveLinkOnlyMainSymbol mMainClassOverride
+                entryObjPath <- case linkKind of
+                    LinkExe -> do
+                        let entryUnit = mkLinkOnlyEntryUnit64 targetOs ccUsed entrySym calleeSym
+                        emitOne runAssembler debugOut outMode targetOs ccUsed rootPath entryUnit
+                    _ -> pure ""
+                let finalObjInputs = case linkKind of
+                        LinkExe -> objInputs ++ [entryObjPath]
+                        _ -> objInputs
+                    mEntryOverride = case linkKind of
+                        LinkExe -> Just entrySym
+                        _ -> Nothing
+                when runAssembler $
+                    linkIfNeeded debugOut rootPath outMode targetOs finalObjInputs linkInputs includeRuntime mEntryOverride
+                pure (Just [])
+            _ -> do
+                putStrLn "[ERROR] link-only mode requires linked output (-d <output>.exe/.out/.dll/.so/.dylib/.a/.lib)"
+                pure Nothing
+  where
+    isObjectInputX64 :: FilePath -> Bool
+    isObjectInputX64 path =
+        let ext = map toLower (takeExtension path)
+        in ext == ".o" || ext == ".obj"
+
+    resolveLinkOnlyMainSymbol :: Maybe [String] -> String
+    resolveLinkOnlyMainSymbol Nothing = "main"
+    resolveLinkOnlyMainSymbol (Just []) = "main"
+    resolveLinkOnlyMainSymbol (Just ["main"]) = "main"
+    resolveLinkOnlyMainSymbol (Just [raw]) = raw
+    resolveLinkOnlyMainSymbol (Just xs) =
+        let qn = case reverse xs of
+                ("main" : _) -> xs
+                _ -> xs ++ ["main"]
+        in X64.mangleQNameWithSig True qn [AST.Void]
+
+    mkLinkOnlyEntryUnit64 :: String -> X64.CallConv64 -> String -> String -> ClassAsmUnit
+    mkLinkOnlyEntryUnit64 targetOs ccUsed entrySym calleeSym =
+        let asmText = mkLinkOnlyEntryAsm64 targetOs ccUsed entrySym calleeSym
+        in ClassAsmUnit {
+            unitSourcePath = "__link_only_entry__",
+            unitOwnerQName = ["xlang", "link", "entry"],
+            unitAsmText = asmText
+        }
+
+
+mkLinkOnlyEntryAsm64 :: String -> X64.CallConv64 -> String -> String -> String
+mkLinkOnlyEntryAsm64 targetOs cc entrySym calleeSym =
+    let minitSym = "xlang_minit"
+        mexitSym = "xlang_mexit"
+        needWinEntryAlign = targetOs == "mingw32"
+        needPosixEntryExit = targetOs == "linux" || targetOs == "darwin"
+        posixExitNo = if targetOs == "darwin" then "0x2000001" else "60"
+        winPrologueNasm =
+            [ "    push rbp"
+            , "    mov rbp, rsp"
+            , "    and rsp, -16"
+            , "    sub rsp, 32"
+            ]
+        winEpilogueNasm =
+            [ "    leave" ]
+        posixPrologueNasm =
+            [ "    and rsp, -16" ]
+        posixExitNasm =
+            [ "    mov edi, eax"
+            , "    mov eax, " ++ posixExitNo
+            , "    syscall"
+            ]
+        mexitCallNasm
+            | needPosixEntryExit =
+                [ "    sub rsp, 16"
+                , "    mov DWORD [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD [rsp]"
+                , "    add rsp, 16"
+                ]
+            | otherwise =
+                [ "    mov DWORD [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD [rsp]"
+                ]
+        winPrologueIntel =
+            [ "    push rbp"
+            , "    mov rbp, rsp"
+            , "    and rsp, -16"
+            , "    sub rsp, 32"
+            ]
+        winEpilogueIntel =
+            [ "    leave" ]
+        posixPrologueIntel =
+            [ "    and rsp, -16" ]
+        posixExitIntel =
+            [ "    mov edi, eax"
+            , "    mov eax, " ++ posixExitNo
+            , "    syscall"
+            ]
+        mexitCallIntel
+            | needPosixEntryExit =
+                [ "    sub rsp, 16"
+                , "    mov DWORD PTR [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD PTR [rsp]"
+                , "    add rsp, 16"
+                ]
+            | otherwise =
+                [ "    mov DWORD PTR [rsp], eax"
+                , "    call " ++ mexitSym
+                , "    mov eax, DWORD PTR [rsp]"
+                ]
+        winPrologueAtt =
+            [ "    pushq %rbp"
+            , "    movq %rsp, %rbp"
+            , "    andq $-16, %rsp"
+            , "    subq $32, %rsp"
+            ]
+        winEpilogueAtt =
+            [ "    leave" ]
+        posixPrologueAtt =
+            [ "    andq $-16, %rsp" ]
+        posixExitAtt =
+            [ "    movl %eax, %edi"
+            , "    movq $" ++ posixExitNo ++ ", %rax"
+            , "    syscall"
+            ]
+        mexitCallAtt
+            | needPosixEntryExit =
+                [ "    subq $16, %rsp"
+                , "    movl %eax, (%rsp)"
+                , "    call " ++ mexitSym
+                , "    movl (%rsp), %eax"
+                , "    addq $16, %rsp"
+                ]
+            | otherwise =
+                [ "    movl %eax, (%rsp)"
+                , "    call " ++ mexitSym
+                , "    movl (%rsp), %eax"
+                ]
+    in case X64.ccCompiler cc of
+        X64.NASM -> unlines $
+            [ "global " ++ entrySym
+            , "extern " ++ calleeSym
+            , "extern " ++ minitSym
+            , "extern " ++ mexitSym
+            , "section .text"
+            , entrySym ++ ":"
+            ]
+            ++ [ln | needWinEntryAlign, ln <- winPrologueNasm]
+            ++ [ln | needPosixEntryExit, ln <- posixPrologueNasm]
+            ++ [ "    call " ++ minitSym ]
+            ++ [ "    call " ++ calleeSym ]
+            ++ [ "    xor eax, eax" ]
+            ++ mexitCallNasm
+            ++ [ln | needWinEntryAlign, ln <- winEpilogueNasm]
+            ++ [ln | needPosixEntryExit, ln <- posixExitNasm]
+            ++ [ "    ret" | not needPosixEntryExit ]
+        X64.GAS_INTEL -> unlines $
+            [ ".intel_syntax noprefix"
+            , ""
+            , ".global " ++ entrySym
+            , ".extern " ++ calleeSym
+            , ".extern " ++ minitSym
+            , ".extern " ++ mexitSym
+            , ".text"
+            , entrySym ++ ":"
+            ]
+            ++ [ln | needWinEntryAlign, ln <- winPrologueIntel]
+            ++ [ln | needPosixEntryExit, ln <- posixPrologueIntel]
+            ++ [ "    call " ++ minitSym ]
+            ++ [ "    call " ++ calleeSym ]
+            ++ [ "    xor eax, eax" ]
+            ++ mexitCallIntel
+            ++ [ln | needWinEntryAlign, ln <- winEpilogueIntel]
+            ++ [ln | needPosixEntryExit, ln <- posixExitIntel]
+            ++ [ "    ret" | not needPosixEntryExit ]
+        X64.GAS_ATT -> unlines $
+            [ ".att_syntax prefix"
+            , ""
+            , ".global " ++ entrySym
+            , ".extern " ++ calleeSym
+            , ".extern " ++ minitSym
+            , ".extern " ++ mexitSym
+            , ".text"
+            , entrySym ++ ":"
+            ]
+            ++ [ln | needWinEntryAlign, ln <- winPrologueAtt]
+            ++ [ln | needPosixEntryExit, ln <- posixPrologueAtt]
+            ++ [ "    call " ++ minitSym ]
+            ++ [ "    call " ++ calleeSym ]
+            ++ [ "    xorl %eax, %eax" ]
+            ++ mexitCallAtt
+            ++ [ln | needWinEntryAlign, ln <- winEpilogueAtt]
+            ++ [ln | needPosixEntryExit, ln <- posixExitAtt]
+            ++ [ "    ret" | not needPosixEntryExit ]
 
 
 printPerFileProgress :: [(FilePath, TAC.IRProgm)] -> IO ()
@@ -410,10 +644,15 @@ lowerOneFile ccUsed (srcPath, TAC.IRProgm pkgSegs classes) =
 
 
 classGlobalDecls64 :: [String] -> TAC.IRClass -> [X64.X64Decl]
-classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className classType _ _ _ funs tFuns cFuns _) =
+classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className classType attrs _ _ funs tFuns cFuns _) =
     let ownerQName = pkgSegs ++ [className]
         clinitGlobal = X64.Global (ownerQName ++ [X64.staticInitName]) [AST.Void]
         classInfoGlobal = X64.GlobalClassInfo ownerQName
+        pubStaticSymbols = [
+            (ownerQName ++ [fieldName], [cls])
+            | attr@(decl, cls, fieldName, _) <- attrs
+            , X64L.isStaticAttr64 attr
+            , shouldExportDecl decl]
         pubFunSymbols = [
             (ownerQName ++ [funName], TEnv.funParams sig ++ [TEnv.funReturn sig])
             | TAC.IRFunction decl funName sig _ _ _ <- funs, shouldExportDecl decl]
@@ -427,7 +666,7 @@ classGlobalDecls64 pkgSegs irCls@(TAC.IRClass _ className classType _ _ _ funs t
             , symName <- templateSymbolNames ownerQName tf
             ]
         wrappedMainSymbols = classWrappedMainSymbols64 pkgSegs irCls
-        funSymbols = nub (pubFunSymbols ++ pubCFunSymbols ++ pubTemplateSymbols ++ wrappedMainSymbols)
+        funSymbols = nub (pubStaticSymbols ++ pubFunSymbols ++ pubCFunSymbols ++ pubTemplateSymbols ++ wrappedMainSymbols)
         funGlobals = map (uncurry X64.Global) funSymbols
     in classInfoGlobal : clinitGlobal : funGlobals
   where
@@ -737,14 +976,15 @@ selectCallConv64 targetPlatform mCompilerChoice =
         Just X64CompilerAs -> base { X64.ccCompiler = X64.GAS_INTEL }
 
 
-resolveOutputMode :: FilePath -> Maybe FilePath -> OutputMode
-resolveOutputMode rootPath mOutput = case mOutput of
-    Nothing -> OutputDir (rootPath </> "out")
-    Just outRaw ->
+resolveOutputMode :: FilePath -> [FilePath] -> Maybe [FilePath] -> Either String OutputMode
+resolveOutputMode rootPath srcPaths mOutputs = case mOutputs of
+    Nothing -> Right (OutputDir (rootPath </> "out"))
+    Just [] -> Right (OutputDir (rootPath </> "out"))
+    Just [outRaw] ->
         let outPath = CJ.resolveFromRoot rootPath outRaw
             ext = map toLower (takeExtension outPath)
             objRoot = takeDirectory outPath </> (takeBaseName outPath ++ ".objs")
-        in case ext of
+        in Right $ case ext of
             ".o" -> OutputSingleObject outPath
             ".obj" -> OutputSingleObject outPath
             ".exe" -> OutputLinked outPath LinkExe objRoot
@@ -755,44 +995,94 @@ resolveOutputMode rootPath mOutput = case mOutput of
             ".a" -> OutputLinked outPath LinkStatic objRoot
             ".lib" -> OutputLinked outPath LinkStatic objRoot
             _ -> OutputDir outPath
+    Just outsRaw ->
+        let outs = map (CJ.resolveFromRoot rootPath) outsRaw
+            badExts = filter (\p -> let e = map toLower (takeExtension p) in e /= ".o" && e /= ".obj") outs
+        in if not (null badExts)
+            then Left "multiple -d outputs only support .o/.obj files"
+            else if length outs /= length srcPaths
+                then Left ("multiple -d outputs must match number of input sources: expected "
+                    ++ show (length srcPaths) ++ ", got " ++ show (length outs))
+                else Right (OutputPerSourceObjects (zip srcPaths outs))
 
 
 validateOutputMode :: OutputMode -> [ClassAsmUnit] -> Either String ()
 validateOutputMode (OutputSingleObject _) units
     | null units =
         Left "single .o output requires at least one lowered class, but got 0"
+validateOutputMode (OutputPerSourceObjects pairs) units
+    | null pairs =
+        Left "multiple .o outputs require at least one output path"
+    | not (null missingSources) =
+        Left ("no lowered class generated for source(s): " ++ intercalate ", " missingSources)
+  where
+    unitSources = Set.fromList (map unitSourcePath units)
+    missingSources = [src | (src, _) <- pairs, not (Set.member src unitSources)]
 validateOutputMode _ _ = Right ()
 
 
-coalesceUnitsForOutput :: OutputMode -> [ClassAsmUnit] -> [ClassAsmUnit]
-coalesceUnitsForOutput outMode units = case outMode of
+coalesceUnitsForOutput :: FilePath -> OutputMode -> [ClassAsmUnit] -> [ClassAsmUnit]
+coalesceUnitsForOutput rootPath outMode units = case outMode of
     OutputSingleObject _ -> case units of
         [] -> []
         [u] -> [u]
         many ->
             let srcHint = intercalate "+" (map (takeBaseName . unitSourcePath) many)
-                ownerHint = concatMap unitOwnerQName many
                 mergedText = coalesceAsmText many
             in [ClassAsmUnit {
                 unitSourcePath = srcHint,
-                unitOwnerQName = if null ownerHint then ["merged"] else ownerHint,
+                unitOwnerQName = ["merged"],
                 unitAsmText = mergedText
             }]
-    _ -> units
+    OutputPerSourceObjects pairs ->
+        [mergeForSource src [u | u <- units, unitSourcePath u == src] | (src, _) <- pairs, any (\u -> unitSourcePath u == src) units]
+    OutputDir _ -> mergeUnitsBySource units
+    OutputLinked {} -> mergeUnitsBySource units
   where
+    mergeUnitsBySource :: [ClassAsmUnit] -> [ClassAsmUnit]
+    mergeUnitsBySource us =
+        [mergeForSource src [u | u <- us, unitSourcePath u == src] | src <- nub (map unitSourcePath us)]
+
+    mergeForSource :: FilePath -> [ClassAsmUnit] -> ClassAsmUnit
+    mergeForSource _ [u] = u
+    mergeForSource src many =
+        let ownerHint = mergedOwnerQNameForSource rootPath src
+            mergedText = coalesceAsmText many
+        in ClassAsmUnit {
+            unitSourcePath = src,
+            unitOwnerQName = ownerHint,
+            unitAsmText = mergedText
+        }
+
+    mergedOwnerQNameForSource :: FilePath -> FilePath -> [String]
+    mergedOwnerQNameForSource root src
+        | src == "__link_only_entry__" = ["xlang", "link", "entry"]
+        | src == "main.x64" = ["main"]
+        | otherwise =
+            let rel = makeRelative root src
+                parts = filter validPathPart (splitDirectories (dropExtension rel))
+            in if null parts || any (=="..") parts
+                then [takeBaseName src]
+                else parts
+
+    validPathPart :: String -> Bool
+    validPathPart p = not (null p) && p /= "." && p /= ".."
+
     coalesceAsmText :: [ClassAsmUnit] -> String
     coalesceAsmText us =
         let allLines = concatMap (lines . unitAsmText) us
-            globals = foldl' collectGlobal HashSet.empty allLines
-            kept = filter (not . isShadowedExtern globals) allLines
+            defined = foldl' collectDefinedSymbol HashSet.empty allLines
+            kept = filter (not . isShadowedExtern defined) allLines
         in unlines kept
 
-    collectGlobal :: HashSet.HashSet String -> String -> HashSet.HashSet String
-    collectGlobal acc ln = case parseDeclSymbol "global" ln of
+    collectDefinedSymbol :: HashSet.HashSet String -> String -> HashSet.HashSet String
+    collectDefinedSymbol acc ln = case parseDeclSymbol "global" ln of
         Just sym | not (null sym) -> HashSet.insert sym acc
         _ -> case parseDeclSymbol ".global" ln of
             Just sym | not (null sym) -> HashSet.insert sym acc
-            _ -> acc
+            _ -> case parseAsmLabel ln of
+                Just sym | not (null sym) -> HashSet.insert sym acc
+                _ -> acc
 
     isShadowedExtern :: HashSet.HashSet String -> String -> Bool
     isShadowedExtern globals ln = case parseDeclSymbol "extern" ln of
@@ -811,6 +1101,23 @@ coalesceUnitsForOutput outMode units = case outMode of
                     sym = takeWhile (not . isSpace) rest
                 in if null sym then Nothing else Just sym
             else Nothing
+
+    parseAsmLabel :: String -> Maybe String
+    parseAsmLabel rawLine =
+        let t = trim rawLine
+        in case t of
+            [] -> Nothing
+            (';' : _) -> Nothing
+            _ ->
+                let (sym, rest) = break (== ':') t
+                in case rest of
+                    ':' : _ | isAsmLabelSymbol sym -> Just sym
+                    _ -> Nothing
+
+    isAsmLabelSymbol :: String -> Bool
+    isAsmLabelSymbol sym =
+        not (null sym)
+            && all (\c -> not (isSpace c) && c /= ',') sym
 
     trim :: String -> String
     trim = dropWhileEnd isSpace . dropWhile isSpace
@@ -862,8 +1169,8 @@ assembleOne rootPath targetOs cc asmPath objPath = case X64.ccCompiler cc of
         callProcess asCmd [asmPath, "-o", objPath]
 
 
-linkIfNeeded :: Bool -> FilePath -> OutputMode -> String -> [FilePath] -> [FilePath] -> Bool -> IO ()
-linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRuntime = case outMode of
+linkIfNeeded :: Bool -> FilePath -> OutputMode -> String -> [FilePath] -> [FilePath] -> Bool -> Maybe String -> IO ()
+linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRuntime mExeEntryOverride = case outMode of
     OutputLinked outPath linkKind objRoot -> do
         createDirectoryIfMissing True (takeDirectory outPath)
         case linkKind of
@@ -873,14 +1180,14 @@ linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRun
             LinkDyn ->
                 linkDynWithLd outPath objPaths linkLibPaths >> cleanupLegacyOutIfNeeded debugOut outPath
             LinkExe ->
-                linkExeWithLd outPath objPaths linkLibPaths
+                linkExeWithLd outPath objPaths linkLibPaths mExeEntryOverride
         cleanupLinkedObjRootIfNeeded debugOut objRoot
     _ -> pure ()
   where
     linkDynWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
     linkDynWithLd target objs libs = do
         sysLibs <- collectNativeStaticLibs
-        mingwTail <- mingwRuntimeTail
+        mingwTail <- mingwRuntimeTail False
         let libsUsedRaw = sanitizeDeprecatedBaseLibRefs $
                 if includeRuntime then filterOutDynamicLibRefs libs else libs
             libsUsedPre =
@@ -910,12 +1217,13 @@ linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRun
             _ ->
                 callProcessCandidates rootPath [("ld", ["-shared", "-o", target] ++ objs ++ linkLibs)]
 
-    linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> IO ()
-    linkExeWithLd target objs libs = do
+    linkExeWithLd :: FilePath -> [FilePath] -> [FilePath] -> Maybe String -> IO ()
+    linkExeWithLd target objs libs mEntrySym = do
         sysLibs <- if targetOs == "mingw32" && not includeRuntime
             then pure []
             else collectNativeStaticLibs
-        mingwTail <- mingwRuntimeTail
+        let usesCustomEntry = maybe False (/= "main") mEntrySym
+        mingwTail <- mingwRuntimeTail usesCustomEntry
         let libsUsedRaw = sanitizeDeprecatedBaseLibRefs $
                 if includeRuntime then filterOutDynamicLibRefs libs else libs
             libsUsedPre =
@@ -933,14 +1241,16 @@ linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRun
             linkLibs = wrapLibGroup (mergeLinkLibs libsUsed sysLibsUsed)
         case targetOs of
             "mingw32" -> do
-                let ldArgs = ["-e", "main", "-o", target]
+                let entrySym = maybe "main" id mEntrySym
+                    ldArgs = ["-e", entrySym, "-o", target]
                         ++ objs ++ linkLibs ++ mingwTail
                 callProcessCandidates rootPath
                     [ ("x86_64-w64-mingw32-ld", ldArgs)
                     , ("ld", ldArgs)
                     ]
             _ ->
-                callProcessCandidates rootPath [("ld", ["-e", "main", "-o", target] ++ objs ++ linkLibs)]
+                let entrySym = maybe "main" id mEntrySym
+                in callProcessCandidates rootPath [("ld", ["-e", entrySym, "-o", target] ++ objs ++ linkLibs)]
 
     collectNativeStaticLibs :: IO [FilePath]
     collectNativeStaticLibs = do
@@ -955,6 +1265,12 @@ linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRun
                 cwd </> "native-libs"
                 ]
             stdNativeDirs = nub [
+                exeDir </> "build" </> "libs" </> "native",
+                rootPath </> "build" </> "libs" </> "native",
+                cwd </> "build" </> "libs" </> "native",
+                exeDir </> "runtime" </> "build" </> "libs",
+                rootPath </> "runtime" </> "build" </> "libs",
+                cwd </> "runtime" </> "build" </> "libs",
                 exeDir </> "libs" </> "std" </> "native",
                 rootPath </> "libs" </> "std" </> "native",
                 cwd </> "libs" </> "std" </> "native",
@@ -1003,10 +1319,10 @@ linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRun
             exists <- doesFileExist p
             if exists then pure (Just p) else firstExisting rest
 
-    mingwRuntimeTail :: IO [FilePath]
-    mingwRuntimeTail
+    mingwRuntimeTail :: Bool -> IO [FilePath]
+    mingwRuntimeTail _
         | targetOs /= "mingw32" = pure []
-        | otherwise = do
+    mingwRuntimeTail skipCrtStartup = do
             resolved <- mapM (findMingwImportLib . fst) requiredLibs
             let pairs = zip resolved (map snd requiredLibs)
                 foundPaths = [p | (Just p, _) <- pairs]
@@ -1014,8 +1330,8 @@ linkIfNeeded debugOut rootPath outMode targetOs objPaths linkLibPaths includeRun
             pure (["--start-group"] ++ foundPaths ++ fallbackFlags ++ ["--end-group"])
       where
         requiredLibs =
-            [ ("libmingw32.a", "-lmingw32")
-            , ("libmingwex.a", "-lmingwex")
+            (if skipCrtStartup then [] else [("libmingw32.a", "-lmingw32")])
+            ++ [ ("libmingwex.a", "-lmingwex")
             , ("libwinpthread.a", "-lwinpthread")
             , ("libmsvcrt.a", "-lmsvcrt")
             , ("libkernel32.a", "-lkernel32")
@@ -1245,6 +1561,15 @@ resolveToolPath64 rootPath tool = do
 unitAsmPath :: OutputMode -> ClassAsmUnit -> FilePath
 unitAsmPath outMode unit = case outMode of
     OutputSingleObject objPath -> replaceExtension objPath ".asm"
+    OutputPerSourceObjects pairs ->
+        case lookup (unitSourcePath unit) pairs of
+            Just objPath -> replaceExtension objPath ".asm"
+            Nothing ->
+                let rel = ownerQNameToRelPath (unitOwnerQName unit) (takeBaseName (unitSourcePath unit))
+                    baseDir = case pairs of
+                        ((_, p) : _) -> takeDirectory p
+                        [] -> "."
+                in baseDir </> rel <.> "asm"
     OutputDir outDir ->
         let rel = ownerQNameToRelPath (unitOwnerQName unit) (takeBaseName (unitSourcePath unit))
         in outDir </> rel <.> "asm"
@@ -1256,6 +1581,15 @@ unitAsmPath outMode unit = case outMode of
 unitObjPath :: OutputMode -> ClassAsmUnit -> FilePath
 unitObjPath outMode unit = case outMode of
     OutputSingleObject objPath -> objPath
+    OutputPerSourceObjects pairs ->
+        case lookup (unitSourcePath unit) pairs of
+            Just objPath -> objPath
+            Nothing ->
+                let rel = ownerQNameToRelPath (unitOwnerQName unit) (takeBaseName (unitSourcePath unit))
+                    baseDir = case pairs of
+                        ((_, p) : _) -> takeDirectory p
+                        [] -> "."
+                in baseDir </> rel <.> "o"
     OutputDir outDir ->
         let rel = ownerQNameToRelPath (unitOwnerQName unit) (takeBaseName (unitSourcePath unit))
         in outDir </> rel <.> "o"
@@ -1276,5 +1610,11 @@ debugIrRootFromOutputMode rootPath outMode = case outMode of
     OutputSingleObject objPath ->
         let dir = takeDirectory objPath
         in if null dir then rootPath else dir
+    OutputPerSourceObjects pairs ->
+        case pairs of
+            ((_, p) : _) ->
+                let dir = takeDirectory p
+                in if null dir then rootPath else dir
+            [] -> rootPath
     OutputDir outDir -> outDir
     OutputLinked _ _ objRoot -> objRoot

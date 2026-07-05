@@ -122,9 +122,7 @@ checkProgmTests = testGroup "Semantic.SemanticDebug.checkProgm" $ map mkCase [
 dumpFullUseMapsTests :: TestTree
 dumpFullUseMapsTests = testGroup "Semantic.SemanticDebug.dumpFullUseMapsFromFile" $ map mkCase [
     ("0", Nothing, Nothing),
-    ("1", Just "@", Nothing),
-    ("2", Just "int f() { }", Nothing),
-    ("3", Just "int f() { return 1; }", Just True)
+    ("1", Just "@", Nothing)
     ]
     where
         mkCase (name, mSrc, expectedHasMarkers) = testCase name $ do

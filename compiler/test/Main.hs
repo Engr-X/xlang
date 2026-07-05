@@ -2,6 +2,7 @@ module Main (main) where
 
 import Lex.TokenPassTest
 import Lex.TokenizerTest
+import CompileX64Test
 
 import Parse.ParserBasicTest
 import Parse.SyntaxTreeTest
@@ -34,6 +35,7 @@ import Util.BasicTest
 import Util.MangleTest
 import Util.CompileJavaPolicyTest
 import Util.ExceptionTest
+import Util.XlangNativeLibsTest
 import Util.TypeTest
 
 import Test.Tasty
@@ -41,7 +43,9 @@ import Test.Tasty
 
 main :: IO ()
 main = defaultMain $ testGroup "xlang test" [
+    CompileX64Test.tests,
     Util.BasicTest.tests, Util.MangleTest.tests, Util.TypeTest.tests, Util.ExceptionTest.tests, Util.CompileJavaPolicyTest.tests,
+    Util.XlangNativeLibsTest.tests,
     Lex.TokenizerTest.tests, Lex.TokenPassTest.tests,
 
     Parse.ParserBasicTest.tests, Parse.SyntaxTreeTest.tests,

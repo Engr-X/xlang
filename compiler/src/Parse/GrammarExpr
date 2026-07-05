@@ -14,12 +14,47 @@ ClazzList :: { [(Class, [Token])] }
     | ClazzList ',' Clazz      { $3 : $1 }
     ;
 
--- reversed, at least two unnamed params to avoid QName/Atom ambiguity
+-- Single bare QName args like `(int) -> bool` collide with parenthesized
+-- expressions in the shared expression/type grammar. Keep the one-arg form to
+-- syntactically type-only shapes, and keep bare QName support through the
+-- comma-disambiguated multi-arg form.
 FuncPtrUnnamedParams :: { [(Class, [Token])] }
-    : Clazz ',' Clazz
-        { [$3, $1] }
+    : FuncPtrSingleUnnamedParam
+        { [$1] }
+    | QName ',' Clazz
+        { [$3, (normalizeClass $ Class (reverse (fst $1)) [], snd $1)] }
     | FuncPtrUnnamedParams ',' Clazz
         { $3 : $1 }
+    ;
+
+FuncPtrSingleUnnamedParam :: { (Class, [Token]) }
+    : '(' ')' '->' Clazz                 {
+        let (retTy, retToks) = $4 in
+        (normalizeClass $ FuncPtr retTy [], [$1, $2, $3] ++ retToks) }
+    | '(' FuncPtrUnnamedParams ')' '->' Clazz {
+        let (argPairs, (retTy, retToks)) = (reverse $2, $5) in
+        (normalizeClass $ FuncPtr retTy (map fst argPairs), [$1] ++ concatMap snd argPairs ++ [$3, $4] ++ retToks) }
+    | QName '::' '<' ClazzList '>'      { let reversed = reverse $4 in
+        (normalizeClass $ Class (reverse (fst $1)) (map fst reversed),
+        concat [snd $1, [$2, $3], concatMap snd reversed, [$5]]) }
+    | KW_BLOB '[' BlobSizeExpr ']'      {
+        let (blobExpr, blobToks) = $3 in
+        (Blob blobExpr, [$1, $2] ++ blobToks ++ [$4]) }
+    | KW_POINTER '<' ClazzList '>'      { let reversed = reverse $3 in
+        (normalizeClass $ Class ["pointer"] (map fst reversed),
+        [$1, $2] ++ concatMap snd reversed ++ [$4]) }
+    | KW_POINTER '::' '<' ClazzList '>' { let reversed = reverse $4 in
+        (normalizeClass $ Class ["pointer"] (map fst reversed),
+        [$1, $2, $3] ++ concatMap snd reversed ++ [$5]) }
+    | QName '::' '<' '*' '>'            {
+        (normalizeClass $ Class (reverse (fst $1)) [Class ["*"] []],
+        concat [snd $1, [$2, $3, $4, $5]]) }
+    | KW_POINTER '<' '*' '>'            {
+        (normalizeClass $ Class ["pointer"] [Class ["*"] []],
+        [$1, $2, $3, $4]) }
+    | KW_POINTER '::' '<' '*' '>'       {
+        (normalizeClass $ Class ["pointer"] [Class ["*"] []],
+        [$1, $2, $3, $4, $5]) }
     ;
 
 Clazz :: { (Class, [Token]) }
@@ -124,8 +159,9 @@ LValue :: { Expression }
 Atom :: { Expression }
     : KW_TRUE   { BoolConst True $1 }
     | KW_FALSE  { BoolConst False $1 }
-    | KW_SIZEOF '(' Expr ')'            { SizeOfExpr $3 $1 }
+    | KW_NULL   { Cast (Pointer Void, [$1]) (IntConst "0" $1) $1 }
     | KW_SIZEOF '(' SizeofTypeExpr ')'  { SizeOfType $3 $1 }
+    | KW_SIZEOF '(' Expr ')'            { SizeOfExpr $3 $1 }
 
     -- unary operators
     | '!' Postfix %prec '!'     { Unary LogicalNot $2 $1 }

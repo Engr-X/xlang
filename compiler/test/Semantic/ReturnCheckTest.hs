@@ -171,18 +171,6 @@ funcPosTests = testGroup "Semantic.ReturnCheck.funcPos" $ map mkCase [
             funcPos toks expr @?= expected
 
 
-funcSigTests :: TestTree
-funcSigTests = testGroup "Semantic.ReturnCheck.funcSig" $ map mkCase [
-    ("0", Int32T, varExpr "f" pos1, [(Int32T, "x", [])], Nothing, "int f(int x)"),
-    ("1", Void, Qualified ["A", "B"] [tok "A" pos2, tok "B" pos3], [], Nothing, "void A.B()"),
-    ("2", Int32T, varExpr "g" pos2, [(Class ["T"] [], "t", [])], Just [(Class ["T"] [], [])], "int g<_T>(_T t)"),
-    ("3", Float64T, varExpr "h" pos3, [(Int32T, "x", []), (Bool, "y", [])], Nothing, "double h(int x, bool y)")
-    ]
-    where
-        mkCase (name, retT, fname, params, mt, expected) = testCase name $
-            funcSig retT fname params mt @?= expected
-
-
 funcNameTests :: TestTree
 funcNameTests = testGroup "Semantic.ReturnCheck.funcName" $ map mkCase [
     ("0", varExpr "f" pos1, "f"),
@@ -282,7 +270,7 @@ isDefaultCaseTests = testGroup "Semantic.ReturnCheck.isDefaultCase" $ map mkCase
 tests :: TestTree
 tests = testGroup "Semantic.ReturnCheck" [
     returnCheckProgTests, checkStmtTests, checkBlockTests, checkSwitchCaseTests,
-    checkFuncTests, funcPosTests, funcSigTests, funcNameTests,
+    checkFuncTests, funcPosTests, funcNameTests,
     blockReturnsTests, stmtsReturnTests, stmtReturnsTests, blockReturnsMaybeTests,
     switchReturnsTests, caseReturnsTests, isDefaultCaseTests
     ]

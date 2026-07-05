@@ -45,7 +45,8 @@ emptyTypedImportEnvTests = testGroup "Semantic.TypeEnv.emptyTypedImportEnv" $
         tFile = path,
         tVars = Map.empty,
         tFuncs = Map.empty,
-        tTemplates = Map.empty
+        tTemplates = Map.empty,
+        tStructs = Map.empty
     }) [
         ("0", "a.x"),
         ("1", "src/Main.x"),

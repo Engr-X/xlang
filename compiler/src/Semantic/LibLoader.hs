@@ -1,6 +1,7 @@
 module Semantic.LibLoader (
     loadLibEnvs,
-    loadLibEnvsWithJobs
+    loadLibEnvsWithJobs,
+    isNativeBinLibPath
 ) where
 
 import Control.Concurrent.Async (forConcurrently)
@@ -74,7 +75,7 @@ isJsonLibPath path = map toLower (takeExtension path) == ".json"
 isNativeBinLibPath :: Path -> Bool
 isNativeBinLibPath path =
     let ext = map toLower (takeExtension path)
-    in ext == ".dll" || ext == ".lib" || ext == ".a" || ext == ".so" || ext == ".dylib"
+    in ext == ".dll" || ext == ".lib" || ext == ".a" || ext == ".so" || ext == ".dylib" || ext == ".o" || ext == ".obj"
 
 
 dedupNativeBinLibPaths :: [Path] -> [Path]

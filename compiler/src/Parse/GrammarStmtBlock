@@ -37,10 +37,10 @@ ElseBlock :: { (Maybe Block, Token) }
 
 -- repeat
 RepeatStmt :: { Statement }
-    : KW_REPEAT Atom ';'                   %prec IFX { Repeat $2 Nothing Nothing ($1, Nothing) }
-    | KW_REPEAT Atom ';' ElseBlock                   { Repeat $2 Nothing (fst $4) ($1, Just $ snd $4) }
-    | KW_REPEAT Atom BlockLike             %prec IFX { Repeat $2 (Just $3) Nothing ($1, Nothing) }
-    | KW_REPEAT Atom BlockLike ElseBlock             { Repeat $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
+    : KW_REPEAT Expr ';'                   %prec IFX { Repeat $2 Nothing Nothing ($1, Nothing) }
+    | KW_REPEAT Expr ';' ElseBlock                   { Repeat $2 Nothing (fst $4) ($1, Just $ snd $4) }
+    | KW_REPEAT Expr BlockLike             %prec IFX { Repeat $2 (Just $3) Nothing ($1, Nothing) }
+    | KW_REPEAT Expr BlockLike ElseBlock             { Repeat $2 (Just $3) (fst $4) ($1, Just $ snd $4) }
     ;
 
 

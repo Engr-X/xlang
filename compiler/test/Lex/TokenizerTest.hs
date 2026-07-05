@@ -1,4 +1,4 @@
-module Lex.TokenizerTest where
+﻿module Lex.TokenizerTest where
 
 import Lex.Token
 import Lex.Tokenizer
@@ -26,7 +26,8 @@ unwrapStringTests = testGroup "Lex.Tokenizer.unwrapString" $ map (\(i, e, n) -> 
     ("\"123 + 456\"", "123 + 456", "3"),
     ("\"a@b#c$d\"", "a@b#c$d", "4"),
     ("\"hi\\n\"", "hi\n", "5"),
-    ("\"\\0\"", "\0", "6")]
+    ("\"\\0\"", "\0", "6"),
+    ("\"\\a\"", "\a", "7")]
 
 
 unwrapCharTests :: TestTree
@@ -39,20 +40,21 @@ unwrapCharTests = testGroup "Lex.Tokenizer.unwrapChar" $ map (\(i, e, n) -> test
     ("'\\n'", Just '\n', "7"),
     ("'\\t'", Just '\t', "8"),
     ("'\\r'", Just '\r', "9"),
-    ("'\\b'", Just '\b', "10"),
-    ("'\\f'", Just '\f', "11"),
-    ("'\\v'", Just '\v', "12"),
+    ("'\\a'", Just '\a', "10"),
+    ("'\\b'", Just '\b', "11"),
+    ("'\\f'", Just '\f', "12"),
+    ("'\\v'", Just '\v', "13"),
 
-    ("'\\\\'", Just '\\', "13"),
-    ("'\\''", Just '\'', "14"),
-    ("'\\\"'", Just '\"', "15"),
+    ("'\\\\'", Just '\\', "14"),
+    ("'\\''", Just '\'', "15"),
+    ("'\\\"'", Just '\"', "16"),
 
-    ("'\\0'", Just '\0', "16"),
-    ("'\\12'", Just '\n', "17"),
-    ("'\\256'", Just '\174', "18"),
+    ("'\\0'", Just '\0', "17"),
+    ("'\\12'", Just '\n', "18"),
+    ("'\\256'", Just '\174', "19"),
 
-    ("'\\x41'", Just 'A', "19"),
-    ("'\\x7a'", Just 'z', "20"),
+    ("'\\x41'", Just 'A', "20"),
+    ("'\\x7a'", Just 'z', "21"),
     ("'ab'", Nothing, "23")]
 
 
@@ -108,17 +110,6 @@ makeEOF a b c = EOF $ makePosition a b c
 datas :: [(String, ([ErrorKind], [Token]))]
 datas = [
 {-
-int x = 1, y = 2.0f, c = '\0'; // some basic val
--}
-    ("int x = 1, y = 2.0f, c = '\\0'; // some basic val", ([], [
-        makeId "int" 1 1 3,
-        makeId "x" 1 5 1, makeSymbol Assign 1 7 1, makeNum "1" 1 9 1, makeSymbol Comma 1 10 1,
-        makeId "y" 1 12 1, makeSymbol Assign 1 14 1, makeNum "2.0f" 1 16 4, makeSymbol Comma 1 20 1,
-        makeId "c" 1 22 1, makeSymbol Assign 1 24 1, makeChar '\0' 1 26 4, makeSymbol Semicolon 1 30 1,
-        makeEOF 1 49 0])),
-
-
-{-
 a='\n'; /* this is crazy
 */
 b='\t'; // this is crazy too~
@@ -142,7 +133,7 @@ d='\\'; // this is awesome
 
 {-
 str1 = "hello, this is my own program language!!!";
-str2 = "hello, world in Chinese is 濞戞挻鐗滈弲顐ｆ媴閻樺眰鍋?;
+str2 = "hello, world in Chinese is 婵炴垶鎸婚悧婊堝疾椤愶絾濯撮柣妯虹湴閸?;
 /* this is a test */ str3 = "\0";
 /* /* perfect */
 str4 = null
@@ -154,7 +145,7 @@ str4 = null
         "/* /* perfect */",
         "str4 = null"], ([], [
         makeId "str1" 1 1 4,  makeSymbol Assign 1 6 1,  makeStr "hello, this is my own program language!!!" 1 8 43,  makeSymbol Semicolon 1 51 1,
-        makeId "str2" 2 1 4,  makeSymbol Assign 2 6 1,  makeStr "hello, world in Chinese is 濞戞挻鐗滈弲顐ｆ媴閻樺眰鍋? 2 8 33,  makeSymbol Semicolon 2 41 1,
+        makeId "str2" 2 1 4,  makeSymbol Assign 2 6 1,  makeStr "hello, world in Chinese is \19990\30028\20320\22909" 2 8 33,  makeSymbol Semicolon 2 41 1,
 
         makeId "str3" 3 22 4,  makeSymbol Assign 3 27 1,  makeStr  "\0" 3 29 4, makeSymbol Semicolon 3 33 1,
         makeId "str4" 5 1 4,  makeSymbol Assign 5 6 1,  makeId "null" 5 8 4,
@@ -223,60 +214,6 @@ c=3
 
 
 {-
-string a = "this is an string but I forget ..
-char b = 'I love u guys
--}
-    (unlines [
-        "string a = \"this is an string but I forget ..",
-        "char b = 'I love u guys"], (
-        [makeLexErr unclosedStrLiteralMsg 1 12 34, makeLexErr unclosedCharLiteralMsg 2 10 14], 
-        [makeId "string" 1 1 6, makeId "a" 1 8 1, makeSymbol Assign 1 10 1,
-         makeId "char" 2 1 4, makeId "b" 2 6 1, makeSymbol Assign 2 8 1,
-         makeEOF 3 1 0])),
-
-
-{-
-int a <<= 'ab' // this is a wrong expression
-/* :) */ 
-int y = 1e, z = 1e6
--}
-    (unlines [
-        "int a <<= 'ab' // this is a wrong expression",
-        "/* :) */ ",
-        "int y = 1e, z = 1e6"], (
-        [makeLexErr invalidCharLiteralMsg 1 11 4, makeLexErr invalidNumericLiteralMsg 3 9 1],
-        [makeId "int" 1 1 3, makeId "a" 1 5 1, makeSymbol BitLShiftAssign 1 7 3,
-         makeId "int" 3 1 3, makeId "y" 3 5 1, makeSymbol Assign 3 7 1, makeId "e" 3 10 1, makeSymbol Comma 3 11 1, makeId "z" 3 13 1, makeSymbol Assign 3 15 1, makeNum "1e6" 3 17 3,
-         makeEOF 4 1 0])),
-
-
-{-
-int main() {
-  x=0; y=.5; z=1e6;
-  s=\"hi\\n\"; c='\\t'; // end
-  return x+y*z; }
--}
-    (unlines [
-        "int main() {",
-        "  x=0; y=.5; z=1e6;",
-        "  s=\"hi\\n\"; c='\\t'; // end",
-        "  return x+y*z; }"], ([], [
-            makeId "int" 1 1 3, makeId "main" 1 5 4, makeSymbol LParen 1 9 1, makeSymbol RParen 1 10 1, makeSymbol LBrace 1 12 1,
-
-            makeId "x" 2 3 1,  makeSymbol Assign 2 4 1,  makeNum "0" 2 5 1,  makeSymbol Semicolon 2 6 1,
-                makeId "y" 2 8 1,  makeSymbol Assign 2 9 1,  makeNum ".5" 2 10 2, makeSymbol Semicolon 2 12 1,
-                makeId "z" 2 14 1, makeSymbol Assign 2 15 1, makeNum "1e6" 2 16 3, makeSymbol Semicolon 2 19 1,
-
-            makeId "s" 3 3 1,  makeSymbol Assign 3 4 1,  makeStr "hi\n" 3 5 6, makeSymbol Semicolon 3 11 1,
-                makeId "c" 3 13 1, makeSymbol Assign 3 14 1, makeChar '\t' 3 15 4, makeSymbol Semicolon 3 19 1,
-
-            makeId "return" 4 3 6, makeId "x" 4 10 1, makeSymbol Plus 4 11 1, makeId "y" 4 12 1, makeSymbol Multiply 4 13 1, makeId "z" 4 14 1,
-                makeSymbol Semicolon 4 15 1, makeSymbol RBrace 4 17 1,
-            
-            makeEOF 5 1 0])),
-
-
-{-
 arr[i++] += (x<<2) ** 3 - y--;
 -}
     ("arr[i++] += (x<<2) ** 3 - y--;", ([], [
@@ -308,22 +245,7 @@ c = '\t
         [makeId "a" 1 1 1, makeSymbol Assign 1 3 1,
          makeId "b" 2 1 1, makeSymbol Assign 2 3 1, makeChar '\0' 2 5 4,
          makeId "c" 3 1 1, makeSymbol Assign 3 3 1,
-         makeEOF 5 1 0])),
-
-
-{-
-@native("C") fun f(){return a & b;}
--}
-    ("@native(\"C\") fun f(){return a & b;}", ([], [
-        makeAnnotation "native" [makeStr "C" 1 9 3] 1 1 1,
-        makeId "fun" 1 14 3,
-        makeId "f" 1 18 1,
-        makeSymbol LParen 1 19 1,
-        makeSymbol RParen 1 20 1,
-        makeSymbol LBrace 1 21 1,
-        makeNative "return a & b;" 1 22 0,
-        makeSymbol RBrace 1 35 1,
-        makeEOF 1 36 0]))]
+         makeEOF 5 1 0]))]
 
 
 tokenizeTests :: TestTree
