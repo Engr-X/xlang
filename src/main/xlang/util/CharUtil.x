@@ -27,14 +27,14 @@
 package xlang.util
 
 
-fun isDigit(ch: int) -> bool = ('0' as int) <= ch && ch <= ('9' as int)
+fun isDigit(ch: int) -> bool = ('0') <= ch && ch <= ('9')
 
 
 fun isHexDigit(ch: int) -> bool =
-    (('0' as int) <= ch && ch <= ('9' as int)) ||
-    (('a' as int) <= ch && ch <= ('f' as int)) ||
-    (('A' as int) <= ch && ch <= ('F' as int))
+    (('0') <= ch && ch <= ('9')) ||
+    (('a') <= ch && ch <= ('f')) ||
+    (('A') <= ch && ch <= ('F'))
 
 
 fun isSpace(ch: int) -> bool =
-    ch == (' ' as int) || ch == ('\t' as int) || ch == ('\n' as int) || ch == ('\r' as int) || ch == ('\v' as int) || ch == ('\f' as int)
+    ch == (' ') || ch == ('\t') || ch == ('\n') || ch == ('\r') || ch == ('\v') || ch == ('\f')

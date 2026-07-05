@@ -45,9 +45,9 @@ fun appendCharTest() -> int
     val buffer: blob[64 * sizeof(char)]
     val text: pointer<char> = buffer as pointer<char>
 
-    sb.append('A' as int)
-    sb.append('B' as int)
-    sb.append('C' as int)
+    sb.append('A')
+    sb.append('B')
+    sb.append('C')
     sb.get(text)
 
     if sb.length != 3:
@@ -56,7 +56,7 @@ fun appendCharTest() -> int
     if !String.streq(text, "ABC"):
         return 2
 
-    if text[3] as int != String.NULL_CHAR:
+    if text[3] != String.NULL_CHAR:
         return 3
 
     return 0
@@ -98,7 +98,7 @@ fun newlineTest() -> int
     if sb.length != 11:
         return 1
 
-    if text[5] as int != String.LINE_FEED:
+    if text[5] != String.LINE_FEED:
         return 2
 
     if !String.streq(text, "Hello\nWorld"):
@@ -126,7 +126,7 @@ fun resizeTest() -> int
     if !String.streq(text, "0123456789abcdefghijKLMNOPQRSTuvwxyz!@#$"):
         return 2
 
-    if text[40] as int != String.NULL_CHAR:
+    if text[40] != String.NULL_CHAR:
         return 3
 
     return 0
@@ -146,7 +146,7 @@ fun clearTest() -> int
     if sb.length != 0:
         return 1
 
-    if text[0] as int != String.NULL_CHAR:
+    if text[0] != String.NULL_CHAR:
         return 2
 
     if !String.streq(text, ""):

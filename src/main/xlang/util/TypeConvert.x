@@ -64,7 +64,7 @@ private val MAX_RADIX: int = 36
  * @param ch                    ASCII digit character
  * @return                      integer value represented by the digit
  */
-inline fun charToInt(ch: int) -> int = ch - ('0' as int)
+inline fun charToInt(ch: char) -> int = (ch - '0') as int
 
 
 /**
@@ -76,7 +76,7 @@ inline fun charToInt(ch: int) -> int = ch - ('0' as int)
  * @param v                     decimal digit value
  * @return                      ASCII digit character
  */
-inline fun intToChar(v: int) -> int = v + ('0' as int)
+inline fun intToChar(v: int) -> char = v + '0'
 
 
 /**
@@ -102,25 +102,25 @@ inline fun checkRadix(radix: int) -> bool = MIN_RADIX <= radix && radix <= MAX_R
  * @param v                     digit value to convert
  * @return                      character representation of the digit
  */
-private fun intToRadixChar(v: int) -> int
+private fun intToRadixChar(v: int) -> char
 {
     if v < 10:
         return intToChar(v)
 
-    return v - 10 + ('a' as int)
+    return v - 10 + 'a'
 }
 
 
-private fun radixCharToInt(ch: int) -> int
+private fun radixCharToInt(ch: char) -> int
 {
-    if ('0' as int) <= ch && ch <= ('9' as int):
-        return ch - ('0' as int)
+    if '0' <= ch && ch <= '9':
+        return (ch - '0') as int
 
-    if ('a' as int) <= ch && ch <= ('z' as int):
-        return ch - ('a' as int) + 10
+    if 'a' <= ch && ch <= 'z':
+        return (ch - 'a' + 10) as int
 
-    if ('A' as int) <= ch && ch <= ('Z' as int):
-        return ch - ('A' as int) + 10
+    if 'A' <= ch && ch <= 'Z':
+        return (ch - 'A' + 10) as int
 
     return -1
 }
@@ -149,7 +149,7 @@ private fun rawStringToLong(text: pointer<char>, radix: int, length: int) -> lon
 
     for (var i = 0; i < length; i++)
     {
-        val digit: int = radixCharToInt(text[i] as int)
+        val digit: int = radixCharToInt(text[i])
 
         if digit < 0 || digit >= radix:
             return 0L

@@ -65,13 +65,13 @@ fun genTest() -> TestGroup
 
 fun charToIntTest() -> int
 {
-    if TypeConvert.charToInt(('0' as int)) != 0:
+    if TypeConvert.charToInt('0') != 0:
         return 1
 
-    if TypeConvert.charToInt(('5' as int)) != 5:
+    if TypeConvert.charToInt('5') != 5:
         return 2
 
-    if TypeConvert.charToInt(('9' as int)) != 9:
+    if TypeConvert.charToInt('9') != 9:
         return 3
 
     return 0
@@ -80,13 +80,13 @@ fun charToIntTest() -> int
 
 fun intToCharTest() -> int
 {
-    if TypeConvert.intToChar(0) != ('0' as int):
+    if TypeConvert.intToChar(0) != '0':
         return 1
 
-    if TypeConvert.intToChar(5) != ('5' as int):
+    if TypeConvert.intToChar(5) != '5':
         return 2
 
-    if TypeConvert.intToChar(9) != ('9' as int):
+    if TypeConvert.intToChar(9) != '9':
         return 3
 
     return 0
@@ -160,7 +160,7 @@ fun intToStringTest() -> int
     if !String.streq(text, "0"):
         return 1
 
-    if text[1] as int != String.NULL_CHAR:
+    if text[1] != String.NULL_CHAR:
         return 2
 
     TypeConvert.intToString(text, 12345, 10)
@@ -168,7 +168,7 @@ fun intToStringTest() -> int
     if !String.streq(text, "12345"):
         return 3
 
-    if text[5] as int != String.NULL_CHAR:
+    if text[5] != String.NULL_CHAR:
         return 4
 
     TypeConvert.intToString(text, -9876, 10)
@@ -176,7 +176,7 @@ fun intToStringTest() -> int
     if !String.streq(text, "-9876"):
         return 5
 
-    if text[5] as int != String.NULL_CHAR:
+    if text[5] != String.NULL_CHAR:
         return 6
 
     TypeConvert.intToString(text, 1000000000, 10)
@@ -184,7 +184,7 @@ fun intToStringTest() -> int
     if !String.streq(text, "1000000000"):
         return 7
 
-    if text[10] as int != String.NULL_CHAR:
+    if text[10] != String.NULL_CHAR:
         return 8
 
     TypeConvert.intToString(text, 255, 16)
@@ -192,7 +192,7 @@ fun intToStringTest() -> int
     if !String.streq(text, "ff"):
         return 9
 
-    if text[2] as int != String.NULL_CHAR:
+    if text[2] != String.NULL_CHAR:
         return 10
 
     TypeConvert.intToString(text, -10, 2)
@@ -200,7 +200,7 @@ fun intToStringTest() -> int
     if !String.streq(text, "-1010"):
         return 11
 
-    if text[5] as int != String.NULL_CHAR:
+    if text[5] != String.NULL_CHAR:
         return 12
 
     TypeConvert.intToString(text, 35, 36)
@@ -208,13 +208,13 @@ fun intToStringTest() -> int
     if !String.streq(text, "z"):
         return 13
 
-    if text[1] as int != String.NULL_CHAR:
+    if text[1] != String.NULL_CHAR:
         return 14
 
     text[0] = 'x'
     TypeConvert.intToString(text, 10, 1)
 
-    if text[0] as int != String.NULL_CHAR:
+    if text[0] != String.NULL_CHAR:
         return 15
 
     return 0

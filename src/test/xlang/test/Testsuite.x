@@ -25,7 +25,7 @@
 
 package xlang.test
 
-import xlang.System
+import xlang.util.ArrayList
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 import xlang.util.IO
@@ -57,7 +57,7 @@ private fun padToTabs(dest: StringBuilder, text: pointer<char>, tabs: int)
         return
 
     repeat targetLength - textLength:
-        dest.append(' ' as int)
+        dest.append(' ')
 }
 
 
@@ -66,7 +66,7 @@ private fun printTabs(n: int)
     val sb: pointer<StringBuilder> = StringBuilder()
 
     repeat n * 4:
-        sb.append(' ' as int)
+        sb.append(' ')
 
     sb.get(TEXT_BUFFER)
     put(TEXT_BUFFER)
@@ -166,39 +166,23 @@ struct TestGroup
 {
     static val TYPE: int = 1
 
-    private static val INIT_CAPCITY: int = 16
-    private static val LOAD_FACTOR: double = 0.75
-
     var length: int
     private var name: pointer<char>
-    private val capacity: int;
-    private var list: pointer<pointer<TestUnion>>
+    private var list: ArrayList
 
 
     fun __init__(name: pointer<char>)
     {
         this.length = 0
         this.name = name
-        this.capacity = INIT_CAPCITY
-        this.list = System.allocMemory(this.capacity * sizeof(pointer<TestUnion>))
+        this.list = new ArrayList(TestUnion.memSize())
     }
 
 
-    private fun resize()
-    {
-        this.capacity *= 2
-        this.list = System.reallocMemory(this.list, this.capacity * sizeof(pointer<TestUnion>))
-    }
-
-
-    // pre testUninon must allocate on heap
     fun addTestUnion(testUnion: pointer<TestUnion>)
     {
-        if this.length + 1 >= ((this.capacity as double) * LOAD_FACTOR) as int:
-            this.resize()
-
-        this.list[this.length] = testUnion
-        this.length++
+        this.list.push(testUnion)
+        this.length = this.list.length
     }
 
 
@@ -209,7 +193,7 @@ struct TestGroup
 
         for (var i = 0; i < this.length; i++):
         {
-            val union: pointer<TestUnion> = this.list[i]
+            val union: pointer<TestUnion> = this.list.get(i) as pointer<TestUnion>
             union.runTest(n + 1, record)
         }
     }

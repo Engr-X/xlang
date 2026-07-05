@@ -138,12 +138,12 @@ struct StringBuilder
      *
      * @param ch                character code to append
      */
-    fun append(ch: int)
+    fun append(ch: char)
     {
         if this.length + 1 >= ((this.capacity as double) * LOAD_FACTOR) as int:
             this.resize(1)
         
-        this.list[this.length++] = ch as char
+        this.list[this.length++] = ch
         this.list[this.length] = '\0'
     }
 

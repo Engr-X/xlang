@@ -27,6 +27,7 @@ package xlang.lexer
 
 import xlang.System
 import xlang.util.string.String
+import xlang.util.ArrayList
 
 
 struct TokenPosition
@@ -96,41 +97,20 @@ struct Token
 
 struct TokenList
 {
-    private static val INIT_CAPACITY: int = 16
-    private static val LOAD_FACTOR: double = 0.75
-
-    private var capacity: int
-    private var tokens: pointer<pointer<Token>>
-    private var size: int
+    private var tokens: ArrayList
 
 
-    fun __init__()
-    {
-        this.capacity = INIT_CAPACITY
-        this.tokens = System.allocMemory(this.capacity * sizeof(pointer<Token>))
-        this.size = 0
-    }
+    fun __init__():
+        this.tokens = new ArrayList(Token.memSize())
 
 
-    private fun resize()
-    {
-        this.capacity *= 2
-        this.tokens = System.reallocMemory(this.tokens, this.capacity * sizeof(pointer<Token>))
-    }
+    fun push(token: pointer<Token>):
+        this.tokens.push(token)
 
 
-    fun add(token: pointer<Token>)
-    {
-        if this.size + 1 >= ((this.capacity as double) * LOAD_FACTOR) as int:
-            this.resize()
-
-        this.tokens[this.size] = token
-        this.size++
-    }
+    fun length() -> int = this.tokens.length
 
 
-    fun length() -> int = this.size
-
-
-    fun get(index: int) -> pointer<Token> = this.tokens[index]
+    fun get(index: int) -> pointer<Token> =
+        this.tokens.get(index) as pointer<Token>
 }

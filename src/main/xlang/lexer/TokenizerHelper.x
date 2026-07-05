@@ -39,7 +39,7 @@ fun tokenize(code: pointer<char>, rules: pointer<pointer<Rule>>, rulesLength: in
         if token == null:
             continue
             
-        tokenList.add(token)
+        tokenList.push(token)
 
         if token.kind < 0 || token.isEOF():
             break

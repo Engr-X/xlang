@@ -56,7 +56,7 @@ import xlang.System
  *
  * A string is considered ended when this character is reached.
  */
-val NULL_CHAR: int = 0
+val NULL_CHAR: char = '\0'
 
 
 /**
@@ -64,7 +64,7 @@ val NULL_CHAR: int = 0
  *
  * This is the newline character used by text utilities.
  */
-val LINE_FEED: int = 10
+val LINE_FEED: char = '\n'
 
 
 /**

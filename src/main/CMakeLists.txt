@@ -187,6 +187,7 @@ if (XLANG_SRCS)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XLANG_OBJ_ROOT}" ${XLANG_OBJ_DIRS}
         COMMAND ${XLANG}
             --target=x64
+            --debug
             --root=${XLANG_SOURCE_DIR}
             -c ${XLANG_SRCS}
             -d ${XLANG_OBJ_ROOT}

@@ -59,12 +59,12 @@ struct LexPosition
 struct LexInput
 {
     var pos: LexPosition
-    var prevChar: int
+    var prevChar: char
     var text: pointer<char>
     var textLength: int
 
 
-    fun __init__(pos: LexPosition, prevChar: int, text: pointer<char>, textLength: int)
+    fun __init__(pos: LexPosition, prevChar: char, text: pointer<char>, textLength: int)
     {
         this.pos = pos
         this.prevChar = prevChar
@@ -127,7 +127,7 @@ struct LexState
     fun getState(): int = this.state
 
 
-    fun append(c: int):
+    fun append(c: char):
         this.accumulator.append(c)
 
 
@@ -156,7 +156,7 @@ struct LexState
     {
         val currentPtr: pointer<char> = this.code + this.cursorPos.offset;
 
-        if currentPtr.deref == '\0' && this.state == DEFAULT:
+        if currentPtr.deref == String.NULL_CHAR && this.state == DEFAULT:
             return new Token(Token.EOF_KIND, null, null)
 
         for (var i: int = 0; i < rulesLength; i++):
@@ -169,7 +169,7 @@ struct LexState
 
                 if matchLength >= 0:
                 {
-                    val preChar: int = if this.cursorPos.offset == 0: -1 else: this.code[this.cursorPos.offset - 1] as int
+                    val preChar: char = if this.cursorPos.offset == 0: -1 else: this.code[this.cursorPos.offset - 1] as int
                     val token: pointer<char> = System.allocMemory((matchLength + 1) * sizeof(char)) as pointer<char>
                     String.strncpy(token, currentPtr, matchLength)
 
