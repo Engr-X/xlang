@@ -58,7 +58,6 @@ import xlang.System
  */
 val NULL_CHAR: char = '\0'
 
-
 /**
  * Line feed character.
  *
@@ -108,7 +107,7 @@ fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
 
     for (;
         ptr1.deref != '\0' && ptr2.deref != '\0';
-        ptr1++, ptr2++)
+        ptr1++, ptr2++):
     {
         if ptr1.deref != ptr2.deref:
             return false
@@ -146,7 +145,7 @@ fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
 
     for (;
         ptr1.deref != '\0' && ptr2.deref != '\0';
-        ptr1++, ptr2++)
+        ptr1++, ptr2++):
     {
         val ch1: int = ptr1.deref as int
         val ch2: int = ptr2.deref as int

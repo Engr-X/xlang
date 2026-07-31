@@ -30,32 +30,38 @@ import xlang.test.TestCase
 import xlang.test.TestGroup
 import xlang.test.TestUnion
 
-import xlang.lexer.LexTest
-import xlang.compiler.lexer.TokenizerHelperTest
+import xlang.lexer.NormalizeFSMTest
+import xlang.lexer.TokenizeFSMTest
+import xlang.compiler.lexer.TokenNormalizerTest
+import xlang.compiler.TokenizerTest
 import xlang.util.IO
 import xlang.util.ArrayListTest
+import xlang.util.HashSetTest
 import xlang.util.TypeConvertTest
 import xlang.util.string.StringBuilderTest
 import xlang.util.string.StringTest
 
 
-private fun getTestGroup() -> TestGroup
+private fun getTestGroup() -> pointer<TestGroup>
 {
-    val result: TestGroup = new TestGroup("xlang")
+    val result: pointer<TestGroup> = new TestGroup("xlang")
     val testGroupSpace: blob[sizeof(pointer<TestGroup>) * 100]
-    val testGroupLength: int = 6
+    val testGroupLength: int = 9
     val testGroups: pointer<pointer<TestGroup>> = testGroupSpace as pointer<pointer<TestGroup>>
 
     testGroups[0] = StringTest.TEST_GROUP
     testGroups[1] = StringBuilderTest.TEST_GROUP
     testGroups[2] = ArrayListTest.TEST_GROUP
-    testGroups[3] = TypeConvertTest.TEST_GROUP
-    testGroups[4] = LexTest.TEST_GROUP
-    testGroups[5] = TokenizerHelperTest.TEST_GROUP
+    testGroups[3] = HashSetTest.TEST_GROUP
+    testGroups[4] = TypeConvertTest.TEST_GROUP
+    testGroups[5] = TokenizeFSMTest.TEST_GROUP
+    testGroups[6] = NormalizeFSMTest.TEST_GROUP
+    testGroups[7] = TokenizerTest.TEST_GROUP
+    testGroups[8] = TokenNormalizerTest.TEST_GROUP
 
-    for (var i = 0; i < testGroupLength; i++)
+    for (var i = 0; i < testGroupLength; i++):
     {
-        val tu: TestUnion = new TestUnion(TestGroup.TYPE, null, testGroups[i])
+        val tu: pointer<TestUnion> = new TestUnion(TestGroup.TYPE, null, testGroups[i])
         result.addTestUnion(tu)
     }
 
@@ -67,7 +73,7 @@ fun main()
 {
     IO.enableANSIColor()
 
-    val testGroup: TestGroup = getTestGroup()
+    val testGroup: pointer<TestGroup> = getTestGroup()
 
     testGroup.runTest()
 }

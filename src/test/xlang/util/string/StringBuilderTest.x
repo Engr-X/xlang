@@ -6,12 +6,12 @@ import xlang.test.TestGroup
 import xlang.test.TestUnion
 
 
-val TEST_GROUP: TestGroup = genTest()
+val TEST_GROUP: pointer<TestGroup> = genTest()
 
 
-fun genTest() -> TestGroup
+fun genTest() -> pointer<TestGroup>
 {
-    val result: TestGroup = new TestGroup("xlang.util.string.StringBuilder")
+    val result: pointer<TestGroup> = new TestGroup("xlang.util.string.StringBuilder")
 
     val appendCharTC: pointer<TestCase> = new TestCase("appendChar", appendCharTest)
     val appendStringTC: pointer<TestCase> = new TestCase("appendString", appendStringTest)
@@ -29,9 +29,9 @@ fun genTest() -> TestGroup
     testCase[3] = resizeTC
     testCase[4] = clearTC
 
-    for (var i = 0; i < testCaseLength; i++)
+    for (var i = 0; i < testCaseLength; i++):
     {
-        val tu: TestUnion = new TestUnion(TestCase.TYPE, testCase[i], null)
+        val tu: pointer<TestUnion> = new TestUnion(TestCase.TYPE, testCase[i], null)
         result.addTestUnion(tu)
     }
 
@@ -41,14 +41,14 @@ fun genTest() -> TestGroup
 
 fun appendCharTest() -> int
 {
-    val sb: pointer<StringBuilder> = StringBuilder()
+    val sb: pointer<StringBuilder> = new StringBuilder()
     val buffer: blob[64 * sizeof(char)]
     val text: pointer<char> = buffer as pointer<char>
 
     sb.append('A')
     sb.append('B')
     sb.append('C')
-    sb.get(text)
+    sb.toString(text)
 
     if sb.length != 3:
         return 1
@@ -59,20 +59,32 @@ fun appendCharTest() -> int
     if text[3] != String.NULL_CHAR:
         return 3
 
+    if sb.get(0) != 'A':
+        return 4
+
+    if sb.get(2) != 'C':
+        return 5
+
+    if sb.get(-1) != (-1) as char:
+        return 6
+
+    if sb.get(3) != (-1) as char:
+        return 7
+
     return 0
 }
 
 
 fun appendStringTest() -> int
 {
-    val sb: pointer<StringBuilder> = StringBuilder()
+    val sb: pointer<StringBuilder> = new StringBuilder()
     val buffer: blob[64 * sizeof(char)]
     val text: pointer<char> = buffer as pointer<char>
 
     sb.append("Hello")
     sb.append(", ")
     sb.append("World")
-    sb.get(text)
+    sb.toString(text)
 
     if sb.length != 12:
         return 1
@@ -86,14 +98,14 @@ fun appendStringTest() -> int
 
 fun newlineTest() -> int
 {
-    val sb: pointer<StringBuilder> = StringBuilder()
+    val sb: pointer<StringBuilder> = new StringBuilder()
     val buffer: blob[64 * sizeof(char)]
     val text: pointer<char> = buffer as pointer<char>
 
     sb.append("Hello")
     sb.newline()
     sb.append("World")
-    sb.get(text)
+    sb.toString(text)
 
     if sb.length != 11:
         return 1
@@ -110,15 +122,14 @@ fun newlineTest() -> int
 
 fun resizeTest() -> int
 {
-    val sb: pointer<StringBuilder> = StringBuilder()
+    val sb: pointer<StringBuilder> = new StringBuilder("0123456789")
     val buffer: blob[128 * sizeof(char)]
     val text: pointer<char> = buffer as pointer<char>
 
-    sb.append("0123456789")
     sb.append("abcdefghij")
     sb.append("KLMNOPQRST")
     sb.append("uvwxyz!@#$")
-    sb.get(text)
+    sb.toString(text)
 
     if sb.length != 40:
         return 1
@@ -129,19 +140,29 @@ fun resizeTest() -> int
     if text[40] != String.NULL_CHAR:
         return 3
 
+    val empty: pointer<StringBuilder> = new StringBuilder("")
+    empty.append("A")
+    empty.toString(text)
+
+    if empty.length != 1:
+        return 4
+
+    if !String.streq(text, "A"):
+        return 5
+
     return 0
 }
 
 
 fun clearTest() -> int
 {
-    val sb: pointer<StringBuilder> = StringBuilder()
+    val sb: pointer<StringBuilder> = new StringBuilder()
     val buffer: blob[64 * sizeof(char)]
     val text: pointer<char> = buffer as pointer<char>
 
     sb.append("Hello")
     sb.clear()
-    sb.get(text)
+    sb.toString(text)
 
     if sb.length != 0:
         return 1
@@ -153,7 +174,7 @@ fun clearTest() -> int
         return 3
 
     sb.append("World")
-    sb.get(text)
+    sb.toString(text)
 
     if sb.length != 5:
         return 4

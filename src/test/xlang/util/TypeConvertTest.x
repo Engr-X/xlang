@@ -30,12 +30,12 @@ import xlang.test.TestUnion
 import xlang.util.string.String
 
 
-val TEST_GROUP: TestGroup = genTest()
+val TEST_GROUP: pointer<TestGroup> = genTest()
 
 
-fun genTest() -> TestGroup
+fun genTest() -> pointer<TestGroup>
 {
-    val result: TestGroup = new TestGroup("xlang.util.TypeConvert")
+    val result: pointer<TestGroup> = new TestGroup("xlang.util.TypeConvert")
 
     val charToIntTC: pointer<TestCase> = new TestCase("charToInt", charToIntTest)
     val intToCharTC: pointer<TestCase> = new TestCase("intToChar", intToCharTest)
@@ -53,9 +53,9 @@ fun genTest() -> TestGroup
     testCase[3] = stringToLongTC
     testCase[4] = intToStringTC
 
-    for (var i = 0; i < testCaseLength; i++)
+    for (var i = 0; i < testCaseLength; i++):
     {
-        val tu: TestUnion = new TestUnion(TestCase.TYPE, testCase[i], null)
+        val tu: pointer<TestUnion> = new TestUnion(TestCase.TYPE, testCase[i], null)
         result.addTestUnion(tu)
     }
 

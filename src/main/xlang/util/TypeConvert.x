@@ -147,7 +147,7 @@ private fun rawStringToLong(text: pointer<char>, radix: int, length: int) -> lon
 
     var result: long = 0L
 
-    for (var i = 0; i < length; i++)
+    for (var i = 0; i < length; i++):
     {
         val digit: int = radixCharToInt(text[i])
 

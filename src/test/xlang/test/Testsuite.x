@@ -41,14 +41,14 @@ private val PASS_MSG: pointer<char> = "PASS"
 private val FAIL_MSG: pointer<char> = "FAIL"
 
 
-private fun insertTabs(dest: StringBuilder, n: int)
+private fun insertTabs(dest: pointer<StringBuilder>, n: int)
 {
     repeat n:
         dest.append("    ")
 }
 
 
-private fun padToTabs(dest: StringBuilder, text: pointer<char>, tabs: int)
+private fun padToTabs(dest: pointer<StringBuilder>, text: pointer<char>, tabs: int)
 {
     val targetLength: int = tabs * 4
     val textLength: int = String.strlen(text)
@@ -63,12 +63,12 @@ private fun padToTabs(dest: StringBuilder, text: pointer<char>, tabs: int)
 
 private fun printTabs(n: int)
 {
-    val sb: pointer<StringBuilder> = StringBuilder()
+    val sb: pointer<StringBuilder> = new StringBuilder()
 
     repeat n * 4:
         sb.append(' ')
 
-    sb.get(TEXT_BUFFER)
+    sb.toString(TEXT_BUFFER)
     put(TEXT_BUFFER)
 }
 
@@ -105,7 +105,7 @@ struct TestCase
     // TODO use real stringbuilder to improve efficiency
     fun runTest(n: int, record: pointer<TestRecord>)
     {
-        val sb: pointer<StringBuilder> = StringBuilder()
+        val sb: pointer<StringBuilder> = new StringBuilder()
         insertTabs(sb, n)
         sb.append(this.name)
         sb.append(": ")
@@ -131,7 +131,7 @@ struct TestCase
         }
 
         sb.newline()
-        sb.get(TEXT_BUFFER)
+        sb.toString(TEXT_BUFFER)
         put(TEXT_BUFFER)
     }
 }
@@ -168,14 +168,14 @@ struct TestGroup
 
     var length: int
     private var name: pointer<char>
-    private var list: ArrayList
+    private var list: pointer<ArrayList>
 
 
     fun __init__(name: pointer<char>)
     {
         this.length = 0
         this.name = name
-        this.list = new ArrayList(TestUnion.memSize())
+        this.list = new ArrayList(sizeof(TestUnion))
     }
 
 
@@ -201,8 +201,8 @@ struct TestGroup
 
     fun runTest()
     {
-        val sb: pointer<StringBuilder> = StringBuilder()
-        val record: pointer<TestRecord> = TestRecord()
+        val sb: pointer<StringBuilder> = new StringBuilder()
+        val record: pointer<TestRecord> = new TestRecord()
         this.runTest(0, record)
 
         sb.newline()
@@ -219,7 +219,7 @@ struct TestGroup
             sb.append(TEXT_BUFFER)
         }
 
-        sb.get(TEXT_BUFFER)
+        sb.toString(TEXT_BUFFER)
         put(TEXT_BUFFER)
     }
 }

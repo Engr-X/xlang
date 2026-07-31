@@ -31,12 +31,12 @@ import xlang.test.TestGroup
 import xlang.test.TestUnion
 
 
-val TEST_GROUP: TestGroup = genTest()
+val TEST_GROUP: pointer<TestGroup> = genTest()
 
 
-fun genTest() -> TestGroup
+fun genTest() -> pointer<TestGroup>
 {
-    val result: TestGroup = new TestGroup("xlang.util.string.String")
+    val result: pointer<TestGroup> = new TestGroup("xlang.util.string.String")
 
     val strlenTC: pointer<TestCase> = new TestCase("strlen", strlenTest)
     val streqTC: pointer<TestCase> = new TestCase("streq", streqTest)
@@ -62,9 +62,9 @@ fun genTest() -> TestGroup
     testCase[7] = substringTC
     testCase[8] = strMatchTC
 
-    for (var i = 0; i < testCaseLength; i++)
+    for (var i = 0; i < testCaseLength; i++):
     {
-        val tu: TestUnion = new TestUnion(TestCase.TYPE, testCase[i], null)
+        val tu: pointer<TestUnion> = new TestUnion(TestCase.TYPE, testCase[i], null)
         result.addTestUnion(tu)
     }
 

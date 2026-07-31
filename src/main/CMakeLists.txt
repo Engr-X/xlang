@@ -9,9 +9,17 @@ endif()
 
 # step 1: build codegen file
 
-set(XLANG_TOKENIZER_CODEGEN "${CMAKE_CURRENT_SOURCE_DIR}/xlang/lexer/tokenizer_codegen.py")
-set(XLANG_COMPILER_TOKEN_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_token_rules.json")
+set(XLANG_LEXER_CODEGEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xlang/lexer/codegen")
+set(XLANG_TOKENIZER_CODEGEN "${XLANG_LEXER_CODEGEN_DIR}/tokenizer_codegen.py")
+set(XLANG_NORMALIZER_CODEGEN "${XLANG_LEXER_CODEGEN_DIR}/normalizer_codegen.py")
+set(XLANG_LEXER_CODEGEN_UTILS
+    "${XLANG_LEXER_CODEGEN_DIR}/__init__.py"
+    "${XLANG_LEXER_CODEGEN_DIR}/util.py"
+)
+set(XLANG_COMPILER_TOKENIZER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_tokenizer.json")
+set(XLANG_COMPILER_TOKEN_NORMALIZER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_token_normalize.json")
 set(XLANG_COMPILER_TOKENIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/Tokenizer.x")
+set(XLANG_COMPILER_TOKEN_NORMALIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/TokenNormalizer.x")
 
 add_custom_command(
     OUTPUT "${XLANG_COMPILER_TOKENIZER}"
@@ -19,12 +27,13 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer"
     COMMAND ${PYTHON_EXECUTABLE}
         "${XLANG_TOKENIZER_CODEGEN}"
-        -c "${XLANG_COMPILER_TOKEN_RULES}"
+        -c "${XLANG_COMPILER_TOKENIZER_RULES}"
         -d "${XLANG_COMPILER_TOKENIZER}"
 
     DEPENDS
         "${XLANG_TOKENIZER_CODEGEN}"
-        "${XLANG_COMPILER_TOKEN_RULES}"
+        ${XLANG_LEXER_CODEGEN_UTILS}
+        "${XLANG_COMPILER_TOKENIZER_RULES}"
 
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 
@@ -34,6 +43,33 @@ add_custom_command(
 
 add_custom_target(xlang_compiler_tokenizer_codegen
     DEPENDS "${XLANG_COMPILER_TOKENIZER}"
+)
+
+add_custom_command(
+    OUTPUT "${XLANG_COMPILER_TOKEN_NORMALIZER}"
+
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer"
+    COMMAND ${PYTHON_EXECUTABLE}
+        "${XLANG_NORMALIZER_CODEGEN}"
+        -c "${XLANG_COMPILER_TOKEN_NORMALIZER_RULES}"
+        -t "${XLANG_COMPILER_TOKENIZER_RULES}"
+        -d "${XLANG_COMPILER_TOKEN_NORMALIZER}"
+
+    DEPENDS
+        "${XLANG_NORMALIZER_CODEGEN}"
+        "${XLANG_TOKENIZER_CODEGEN}"
+        ${XLANG_LEXER_CODEGEN_UTILS}
+        "${XLANG_COMPILER_TOKENIZER_RULES}"
+        "${XLANG_COMPILER_TOKEN_NORMALIZER_RULES}"
+
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+
+    COMMENT "Generating compiler token normalizer"
+    VERBATIM
+)
+
+add_custom_target(xlang_compiler_token_normalizer_codegen
+    DEPENDS "${XLANG_COMPILER_TOKEN_NORMALIZER}"
 )
 
 ###############################################################
@@ -142,6 +178,11 @@ if (DEFINED XLANG_COMPILER_TOKENIZER)
     list(REMOVE_DUPLICATES XLANG_SOURCES)
 endif()
 
+if (DEFINED XLANG_COMPILER_TOKEN_NORMALIZER)
+    list(APPEND XLANG_SOURCES "${XLANG_COMPILER_TOKEN_NORMALIZER}")
+    list(REMOVE_DUPLICATES XLANG_SOURCES)
+endif()
+
 # filter xlang/compiler/codegen
 list(FILTER XLANG_SOURCES EXCLUDE REGEX ".*[\\\\/]xlang[\\\\/]compiler[\\\\/]codegen[\\\\/].*")
 list(FILTER XLANG_SOURCES EXCLUDE REGEX ".*[\\/]xlang[\\/]lex[\\/]Codegen\\.x$")
@@ -187,7 +228,6 @@ if (XLANG_SRCS)
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XLANG_OBJ_ROOT}" ${XLANG_OBJ_DIRS}
         COMMAND ${XLANG}
             --target=x64
-            --debug
             --root=${XLANG_SOURCE_DIR}
             -c ${XLANG_SRCS}
             -d ${XLANG_OBJ_ROOT}
@@ -206,6 +246,7 @@ if (XLANG_SRCS)
     )
     add_dependencies(xlang_objects
         xlang_compiler_tokenizer_codegen
+        xlang_compiler_token_normalizer_codegen
     )
 else()
     add_custom_target(xlang_objects

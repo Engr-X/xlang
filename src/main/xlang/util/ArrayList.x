@@ -65,7 +65,6 @@ struct ArrayList
      */
     private static val LIST_INITIAL_CAPACITY: int = 10
 
-
     /*
      * Default resize threshold used by the single-argument constructor.
      *
@@ -76,12 +75,20 @@ struct ArrayList
 
 
     /*
+     * Default comparator used before callers provide one.
+     *
+     * It always reports "not equal", so contains(), indexOf(), and remove()
+     * are safe to call without a configured comparator, but they will never
+     * match an element.
+     */
+    static fun noComparator(left: pointer<*>, right: pointer<*>) -> int = 1
+
+    /*
      * Number of initialized elements currently stored in the list.
      *
      * Invariant: 0 <= length && length <= capacity.
      */
     var length: int
-
 
     /*
      * Size in bytes of exactly one element slot.
@@ -90,7 +97,6 @@ struct ArrayList
      * passing a positive value that matches the element type they store.
      */
     private val tsize: int
-
 
     /*
      * Raw backing storage.
@@ -101,7 +107,6 @@ struct ArrayList
      */
     private var data: pointer<byte>
 
-
     /*
      * Per-list resize threshold.
      *
@@ -110,13 +115,22 @@ struct ArrayList
      */
     private var loadFactor: double
 
-
     /*
      * Number of element slots currently allocated in data.
      *
      * The allocated byte size is capacity * tsize.
      */
     private var capacity: int
+
+
+    /*
+     * Comparator used by search and removal helpers.
+     *
+     * The first argument is the stored element slot inside this list. The
+     * second argument is the caller-provided item. A return value of 0 means the
+     * two values should be treated as equal.
+     */
+    private var cmp: (pointer<*>, pointer<*>) -> int
 
 
     /**
@@ -139,6 +153,7 @@ struct ArrayList
         this.capacity = LIST_INITIAL_CAPACITY
         this.loadFactor = LIST_LOAD_FACTOR
         this.data = System.allocMemory(tsize * this.capacity) as pointer<byte>
+        this.cmp = ArrayList.noComparator
     }
 
 
@@ -170,7 +185,48 @@ struct ArrayList
         this.capacity = initialCapacity
         this.loadFactor = loadFactor
         this.data = System.allocMemory(tsize * this.capacity) as pointer<byte>
+        this.cmp = ArrayList.noComparator
     }
+
+
+    fun __init__(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
+    {
+        this.length = 0
+        this.tsize = tsize
+        this.capacity = initialCapacity
+        this.loadFactor = loadFactor
+        this.data = System.allocMemory(tsize * this.capacity) as pointer<byte>
+        this.cmp = cmp
+    }
+
+
+    /**
+     * Sets the default comparator used by contains(), indexOf(), and remove().
+     *
+     * The comparator receives the stored slot as the first argument and the
+     * caller-provided item as the second argument. It must return 0 when the two
+     * values should be treated as equal.
+     */
+    fun setCmparator(cmp: (pointer<*>, pointer<*>) -> int):
+        this.cmp = cmp
+
+
+    /**
+     * Returns the raw backing buffer pointer.
+     *
+     * The returned pointer is the start address of the internal contiguous
+     * storage, not a copy. Element i begins at:
+     *     arrayPtr() + i * tsize
+     *
+     * This is mainly for bulk operations that need direct access to the stored
+     * bytes. Only the first length * tsize bytes should be treated as
+     * initialized element data. Bytes after that are allocated capacity but are
+     * not part of the logical list.
+     *
+     * The pointer becomes invalid after any operation that reallocates the
+     * backing buffer.
+     */
+    fun arrayPtr() -> pointer<byte> = this.data
 
 
     /**
@@ -212,6 +268,24 @@ struct ArrayList
      */
     private inline fun copyToSlot(index: int, item: pointer<*>):
         System.memcopy(this.data + index * this.tsize, item, this.tsize)
+
+
+    /**
+     * Allocates a standalone byte copy of one initialized slot.
+     *
+     * The returned pointer does not point into this list's backing buffer, so it
+     * remains readable after removeAt(), pop(), popFront(), or later resizes.
+     *
+     * Preconditions:
+     * - index must be a valid element index (0 <= index < length).
+     */
+    private fun copySlot(index: int) -> pointer<*>
+    {
+        val result: pointer<byte> = System.allocMemory(this.tsize) as pointer<byte>
+        System.memcopy(result, this.data + index * this.tsize, this.tsize)
+
+        return result
+    }
 
 
     /**
@@ -308,6 +382,75 @@ struct ArrayList
         this.moveSlots(1, 0, this.length)
         this.copyToSlot(0, item)
         this.length++
+    }
+
+
+    /**
+     * Returns the last element slot without removing it.
+     *
+     * The returned pointer points into the internal buffer. It becomes invalid
+     * after a resize, and its contents may change after mutating operations.
+     * Empty lists return null.
+     */
+    fun peek() -> pointer<*>
+    {
+        if this.length == 0:
+            return null
+
+        return this.data + (this.length - 1) * this.tsize
+    }
+
+
+    /**
+     * Returns the first element slot without removing it.
+     *
+     * The returned pointer points into the internal buffer. It becomes invalid
+     * after a resize, and its contents may change after mutating operations.
+     * Empty lists return null.
+     */
+    fun peekFront() -> pointer<*>
+    {
+        if this.length == 0:
+            return null
+
+        return this.data
+    }
+
+
+    /**
+     * Removes the last element and returns a standalone copy of its bytes.
+     *
+     * The returned pointer does not point into this list. It remains readable
+     * after the list is mutated. Empty lists return null.
+     */
+    fun pop() -> pointer<*>
+    {
+        if this.length == 0:
+            return null
+
+        val result: pointer<*> = this.copySlot(this.length - 1)
+        this.length--
+
+        return result
+    }
+
+
+    /**
+     * Removes the first element and returns a standalone copy of its bytes.
+     *
+     * Existing elements are shifted left by one slot. The returned pointer does
+     * not point into this list, so it is not affected by that shift. Empty lists
+     * return null.
+     */
+    fun popFront() -> pointer<*>
+    {
+        if this.length == 0:
+            return null
+
+        val result: pointer<*> = this.copySlot(0)
+        this.removeAt(0)
+
+        return result
     }
 
 
@@ -413,18 +556,13 @@ struct ArrayList
 
 
     /**
-     * Removes the first element that compares equal to item.
+     * Removes the first element equal to item using the list's default comparator.
      *
-     * Equality is decided by cmp(slot, item) == 0. slot points to the stored
-     * element bytes inside this list; item is the caller-provided search value.
-     * This means pointer-element callers should pass the address of a pointer
-     * slot, just like push() and set().
-     *
-     * If no element matches, the list is unchanged.
+     * If no comparator has been set, this function leaves the list unchanged.
      */
-    fun remove(item: pointer<*>, cmp: (pointer<*>, pointer<*>) -> int)
+    fun remove(item: pointer<*>)
     {
-        val index: int = this.indexOf(item, cmp)
+        val index: int = this.indexOf(item)
         
         if index >= 0:
             this.removeAt(index)
@@ -432,25 +570,32 @@ struct ArrayList
 
 
     /**
-     * Returns the index of the first element that compares equal to item.
+     * Returns the index of the first element equal to item.
      *
-     * cmp is called as cmp(slot, item), where slot is the address of the stored
-     * element slot and item is the caller-provided search value. A cmp result of
-     * 0 means equal.
+     * Equality is decided by this list's comparator. The comparator is called as
+     * cmp(slot, item), where slot is the address of the stored element slot and
+     * item is the caller-provided search value. A cmp result of 0 means equal.
      *
      * @return first matching index, or -1 when no element matches
      */
-    fun indexOf(item: pointer<*>, cmp: (pointer<*>, pointer<*>) -> int) -> int
+    fun indexOf(item: pointer<*>) -> int
     {
         for (var i = 0; i < this.length; i++):
         {
             val slot: pointer<byte> = this.data + i * this.tsize
-            if cmp(slot, item) == 0:
+            if this.cmp(slot, item) == 0:
                 return i
         }
 
         return -1
     }
+
+
+    /**
+     * Returns true if any element compares equal to item using the default comparator.
+     */
+    fun contains(item: pointer<*>) -> bool =
+        this.indexOf(item) >= 0
 
 
     /**
@@ -500,4 +645,61 @@ struct ArrayList
 
         return this.data + index * this.tsize
     }
+
+
+    /**
+     * Copies a half-open range into a new ArrayList.
+     *
+     * The range follows Java-style bounds:
+     * - from is inclusive.
+     * - to is exclusive.
+     * - the returned list length is to - from.
+     *
+     * Valid bounds are:
+     *     0 <= from && from <= to && to <= length
+     *
+     * This function returns a new list with copied element bytes. It is not a
+     * view into the original list. Later changes to either list do not update
+     * the other one.
+     *
+     * Invalid ranges return null.
+     *
+     * @param from              inclusive start index
+     * @param to                exclusive end index
+     * @return                  copied sublist, or null for an invalid range
+     */
+    fun sublist(from: int, to: int) -> pointer<ArrayList>
+    {
+        if from < 0 || to < from || to > this.length:
+            return null
+
+        val size: int = to - from
+        val sublist: pointer<ArrayList> = new ArrayList(this.tsize, size + 1, this.loadFactor, this.cmp)
+
+        if size > 0:
+        {
+            System.memcopy(
+                sublist.data,
+                this.data + from * this.tsize,
+                size * this.tsize)
+            sublist.length = size
+        }
+
+        return sublist
+    }
+
+
+    /**
+     * Copies all initialized element slots into a new ArrayList.
+     *
+     * This is a byte-level clone of the list storage. The returned list has its
+     * own backing buffer, so later insertions, removals, or set() calls on one
+     * list do not mutate the other list's slots.
+     *
+     * This is not a deep clone. If an element slot stores a pointer, only the
+     * pointer value is copied; the pointed-to object is shared.
+     *
+     * @return                  copied list containing the same element bytes
+     */
+    fun clone() -> pointer<ArrayList> = this.sublist(0, this.length)
 }

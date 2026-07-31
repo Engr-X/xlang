@@ -27,12 +27,12 @@ import xlang.test.TestUnion
 import xlang.util.string.String
 
 
-val TEST_GROUP: TestGroup = genTest()
+val TEST_GROUP: pointer<TestGroup> = genTest()
 
 
-fun genTest() -> TestGroup
+fun genTest() -> pointer<TestGroup>
 {
-    val result: TestGroup = new TestGroup("xlang.util.ArrayList")
+    val result: pointer<TestGroup> = new TestGroup("xlang.util.ArrayList")
 
     val pushGetTC: pointer<TestCase> = new TestCase("pushGet", pushGetTest)
     val pushFrontTC: pointer<TestCase> = new TestCase("pushFront", pushFrontTest)
@@ -44,10 +44,13 @@ fun genTest() -> TestGroup
     val removeAtTC: pointer<TestCase> = new TestCase("removeAt", removeAtTest)
     val indexOfTC: pointer<TestCase> = new TestCase("indexOf", indexOfTest)
     val removeTC: pointer<TestCase> = new TestCase("remove", removeTest)
+    val sublistTC: pointer<TestCase> = new TestCase("sublist", sublistTest)
+    val peekPopTC: pointer<TestCase> = new TestCase("peekPop", peekPopTest)
+    val comparatorTC: pointer<TestCase> = new TestCase("comparator", comparatorTest)
 
     val testCaseSpace: blob[sizeof(pointer<TestCase>) * 16]
     val testCase: pointer<pointer<TestCase>> = testCaseSpace as pointer<pointer<TestCase>>
-    val testCaseLength: int = 10
+    val testCaseLength: int = 13
 
     testCase[0] = pushGetTC
     testCase[1] = pushFrontTC
@@ -59,10 +62,13 @@ fun genTest() -> TestGroup
     testCase[7] = removeAtTC
     testCase[8] = indexOfTC
     testCase[9] = removeTC
+    testCase[10] = sublistTC
+    testCase[11] = peekPopTC
+    testCase[12] = comparatorTC
 
-    for (var i = 0; i < testCaseLength; i++)
+    for (var i = 0; i < testCaseLength; i++):
     {
-        val tu: TestUnion = new TestUnion(TestCase.TYPE, testCase[i], null)
+        val tu: pointer<TestUnion> = new TestUnion(TestCase.TYPE, testCase[i], null)
         result.addTestUnion(tu)
     }
 
@@ -87,7 +93,7 @@ private fun intCmp(left: pointer<*>, right: pointer<*>) -> int
 
 private fun pushGetTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
@@ -123,7 +129,7 @@ private fun pushGetTest() -> int
 
 private fun addTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int), 2, 0.75)
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int), 2, 0.75)
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
@@ -170,7 +176,7 @@ private fun addTest() -> int
 
 private fun addAllTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int), 2, 0.75)
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int), 2, 0.75)
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
     val sourceSpace: blob[sizeof(int) * 4]
@@ -240,11 +246,11 @@ private fun addAllTest() -> int
 
 private fun removeAtTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
-    for (var i = 0; i < 5; i++)
+    for (var i = 0; i < 5; i++):
     {
         value.deref = i + 1
         list.push(value)
@@ -271,9 +277,11 @@ private fun removeAtTest() -> int
 
 private fun indexOfTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
+
+    list.setCmparator(intCmp)
 
     value.deref = 11
     list.push(value)
@@ -288,15 +296,15 @@ private fun indexOfTest() -> int
     list.push(value)
 
     value.deref = 22
-    if list.indexOf(value, intCmp) != 1:
+    if list.indexOf(value) != 1:
         return 1
 
     value.deref = 11
-    if list.indexOf(value, intCmp) != 0:
+    if list.indexOf(value) != 0:
         return 2
 
     value.deref = 44
-    if list.indexOf(value, intCmp) != -1:
+    if list.indexOf(value) != -1:
         return 3
 
     return 0
@@ -305,9 +313,11 @@ private fun indexOfTest() -> int
 
 private fun removeTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
+
+    list.setCmparator(intCmp)
 
     value.deref = 7
     list.push(value)
@@ -322,7 +332,7 @@ private fun removeTest() -> int
     list.push(value)
 
     value.deref = 8
-    list.remove(value, intCmp)
+    list.remove(value)
 
     if list.length != 3:
         return 1
@@ -336,7 +346,7 @@ private fun removeTest() -> int
     if (list.get(2) as pointer<int>).deref != 8:
         return 4
 
-    list.remove(value, intCmp)
+    list.remove(value)
 
     if list.length != 2:
         return 5
@@ -348,7 +358,7 @@ private fun removeTest() -> int
         return 7
 
     value.deref = 42
-    list.remove(value, intCmp)
+    list.remove(value)
 
     if list.length != 2:
         return 8
@@ -357,9 +367,247 @@ private fun removeTest() -> int
 }
 
 
+private fun comparatorTest() -> int
+{
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
+    val valueSpace: blob[sizeof(int)]
+    val value: pointer<int> = valueSpace as pointer<int>
+
+    value.deref = 4
+    list.push(value)
+
+    value.deref = 5
+    list.push(value)
+
+    value.deref = 6
+    list.push(value)
+
+    value.deref = 5
+
+    if list.indexOf(value) != -1:
+        return 1
+
+    if list.contains(value):
+        return 2
+
+    list.remove(value)
+
+    if list.length != 3:
+        return 3
+
+    list.setCmparator(intCmp)
+
+    if list.indexOf(value) != 1:
+        return 4
+
+    if !list.contains(value):
+        return 5
+
+    list.remove(value)
+
+    if list.length != 2:
+        return 6
+
+    if (list.get(0) as pointer<int>).deref != 4:
+        return 7
+
+    if (list.get(1) as pointer<int>).deref != 6:
+        return 8
+
+    value.deref = 6
+
+    val copy: pointer<ArrayList> = list.sublist(0, list.length)
+
+    if copy == null:
+        return 9
+
+    if !copy.contains(value):
+        return 10
+
+    value.deref = 4
+
+    if copy.indexOf(value) != 0:
+        return 11
+
+    val seeded: pointer<ArrayList> = new ArrayList(sizeof(int), 2, 0.75, intCmp)
+
+    value.deref = 12
+    seeded.push(value)
+
+    value.deref = 13
+    seeded.push(value)
+
+    value.deref = 12
+
+    if !seeded.contains(value):
+        return 12
+
+    if seeded.indexOf(value) != 0:
+        return 13
+
+    if !seeded.contains(value):
+        return 14
+
+    return 0
+}
+
+
+private fun sublistTest() -> int
+{
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
+    val valueSpace: blob[sizeof(int)]
+    val value: pointer<int> = valueSpace as pointer<int>
+
+    for (var i = 0; i < 6; i++):
+    {
+        value.deref = i + 1
+        list.push(value)
+    }
+
+    val middle: pointer<ArrayList> = list.sublist(2, 5)
+
+    if middle == null:
+        return 1
+
+    if middle.length != 3:
+        return 2
+
+    if (middle.get(0) as pointer<int>).deref != 3:
+        return 3
+
+    if (middle.get(1) as pointer<int>).deref != 4:
+        return 4
+
+    if (middle.get(2) as pointer<int>).deref != 5:
+        return 5
+
+    val empty: pointer<ArrayList> = list.sublist(6, 6)
+
+    if empty == null:
+        return 6
+
+    if empty.length != 0:
+        return 7
+
+    if list.sublist(-1, 2) != null:
+        return 8
+
+    if list.sublist(4, 3) != null:
+        return 9
+
+    if list.sublist(0, 7) != null:
+        return 10
+
+    value.deref = 99
+    list.set(2, value)
+
+    if (middle.get(0) as pointer<int>).deref != 3:
+        return 11
+
+    value.deref = 88
+    middle.set(1, value)
+
+    if (list.get(3) as pointer<int>).deref != 4:
+        return 12
+
+    return 0
+}
+
+
+private fun peekPopTest() -> int
+{
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
+    val valueSpace: blob[sizeof(int)]
+    val value: pointer<int> = valueSpace as pointer<int>
+
+    if list.peek() != null:
+        return 1
+
+    if list.peekFront() != null:
+        return 2
+
+    if list.pop() != null:
+        return 3
+
+    if list.popFront() != null:
+        return 4
+
+    for (var i = 0; i < 3; i++):
+    {
+        value.deref = i + 1
+        list.push(value)
+    }
+
+    if (list.peek() as pointer<int>).deref != 3:
+        return 5
+
+    if (list.peekFront() as pointer<int>).deref != 1:
+        return 6
+
+    val back: pointer<int> = list.pop() as pointer<int>
+
+    if back == null:
+        return 7
+
+    if back.deref != 3:
+        return 8
+
+    if list.length != 2:
+        return 9
+
+    if (list.peek() as pointer<int>).deref != 2:
+        return 10
+
+    val front: pointer<int> = list.popFront() as pointer<int>
+
+    if front == null:
+        return 11
+
+    if front.deref != 1:
+        return 12
+
+    if list.length != 1:
+        return 13
+
+    if (list.peekFront() as pointer<int>).deref != 2:
+        return 14
+
+    value.deref = 99
+    list.set(0, value)
+
+    if back.deref != 3:
+        return 15
+
+    if front.deref != 1:
+        return 16
+
+    if (list.peek() as pointer<int>).deref != 99:
+        return 17
+
+    val last: pointer<int> = list.pop() as pointer<int>
+
+    if last == null:
+        return 18
+
+    if last.deref != 99:
+        return 19
+
+    if list.length != 0:
+        return 20
+
+    if list.peek() != null:
+        return 21
+
+    if list.peekFront() != null:
+        return 22
+
+    return 0
+}
+
+
 private fun pushFrontTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
@@ -396,7 +644,7 @@ private fun pushFrontTest() -> int
 
 private fun setTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
@@ -432,11 +680,11 @@ private fun setTest() -> int
 
 private fun resizeTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(int), 2, 0.75)
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int), 2, 0.75)
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
-    for (var i = 0; i < 6; i++)
+    for (var i = 0; i < 6; i++):
     {
         value.deref = i * 3 + 1
         list.push(value)
@@ -445,7 +693,7 @@ private fun resizeTest() -> int
     if list.length != 6:
         return 1
 
-    for (var i = 0; i < 6; i++)
+    for (var i = 0; i < 6; i++):
     {
         val expected: int = i * 3 + 1
 
@@ -459,7 +707,7 @@ private fun resizeTest() -> int
 
 private fun pointerElementTest() -> int
 {
-    val list: ArrayList = new ArrayList(sizeof(pointer<char>))
+    val list: pointer<ArrayList> = new ArrayList(sizeof(pointer<char>))
     val sourceSpace: blob[sizeof(pointer<char>)]
     val source: pointer<pointer<char>> = sourceSpace as pointer<pointer<char>>
 

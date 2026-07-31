@@ -42,10 +42,8 @@ import xlang.System
  */
 struct StringBuilder
 {
-    
     // Initial number of character slots allocated for a new builder.
     private static val INIT_CAPACITY: int = 16
-
 
     /**
      * Buffer load threshold used before attempting to grow the buffer.
@@ -55,7 +53,6 @@ struct StringBuilder
      */
     private static val LOAD_FACTOR: double = 0.75
 
-
     /**
      * Number of characters currently stored in the builder.
      *
@@ -63,12 +60,10 @@ struct StringBuilder
      */
     var length: int
 
-
-     /**
+    /**
      * Number of character slots currently allocated in the internal buffer.
      */
     private var capacity: int
-
 
     /**
      * Internal heap-allocated character buffer.
@@ -90,6 +85,27 @@ struct StringBuilder
         this.capacity = INIT_CAPACITY
         this.list = System.allocMemory(this.capacity * sizeof(char))
         this.list.deref = '\0'
+    }
+
+
+    /**
+     * Creates a StringBuilder initialized with a null-terminated string.
+     *
+     * The source string is copied into an owned heap buffer. The builder length
+     * is initialized to the source string length, excluding the null terminator.
+     * Extra capacity is reserved so appending after construction does not
+     * immediately require a reallocation for small strings.
+     *
+     * @param string            initial null-terminated string content
+     */
+    fun __init__(string: pointer<char>)
+    {
+        val strLength: int = String.strlen(string)
+
+        this.length = strLength
+        this.capacity = if strLength * 2 > INIT_CAPACITY: strLength * 2 else: INIT_CAPACITY
+        this.list = System.allocMemory(this.capacity * sizeof(char))
+        String.strcpy(this.list, string)
     }
 
 
@@ -178,6 +194,25 @@ struct StringBuilder
 
 
     /**
+     * Returns the character at the given content index.
+     *
+     * Valid indexes are in the range [0, length). The null terminator is not
+     * considered part of the readable content. If the index is outside the
+     * valid range, this function returns -1 cast to char.
+     *
+     * @param index             zero-based character index to read
+     * @return                  character at index, or -1 as char if invalid
+     */
+    fun get(index: int) -> char
+    {
+        if index < 0 || index >= this.length:
+            return (-1) as char
+
+        return this.list[index]
+    }
+
+
+    /**
      * Copies the builder content into a destination buffer.
      *
      * The copied string is null-terminated. The destination buffer must have
@@ -185,6 +220,6 @@ struct StringBuilder
      *
      * @param dest              pointer to the destination character buffer
      */
-    fun get(dest: pointer<char>):
+    fun toString(dest: pointer<char>):
         String.strcpy(dest, this.list)
 }

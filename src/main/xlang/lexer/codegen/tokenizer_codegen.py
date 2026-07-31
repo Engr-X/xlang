@@ -1,44 +1,44 @@
 from pathlib import Path
 import argparse
 import json
-from typing import Any
+import sys
 
 
-JsonObject = dict[str, Any]
-CodeBlock = str | list[str]
+if __package__ is None or __package__ == "":
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from codegen.util import (
+    CodeBlock,
+    JsonObject,
+    align_to as alignTo,
+    ensure_type,
+    gen_constants as genConstants,
+    gen_file_class as genFileClass,
+    gen_imports as genImports,
+    gen_package as genPackage,
+    get_class_name as getClassName,
+    get_package_name as getPackageName,
+    read_json,
+    write_text,
+)
+
+
 TokenDef = dict[str, str]
 Defs = dict[str, str]
 
 
-SYMBOLS_PATTERN_MACRO = "$symbols"
-SYMBOL_ACTION_MACRO = "$eatSymbol"
+TOKENIZER_RULES_TYPE: str = "tokenizer_rules"
+SYMBOLS_PATTERN_MACRO: str = "$symbols$"
+SYMBOL_ACTION_MACRO: str = "$eatSymbol$"
 
 
 DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.Lex",
-    "xlang.lexer.LexState",
+    "xlang.lexer.TokenizeRule",
+    "xlang.lexer.TokenizeFSM",
     "xlang.lexer.LexPosition",
     "xlang.lexer.Token",
-    "xlang.lexer.TokenizerHelper",
     "xlang.lexer.TokenPosition"}
-
-
-def read_json(path: Path) -> JsonObject:
-    with path.open("r", encoding="utf-8") as file:
-        return json.load(file)
-
-
-def write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
-def getPackageName(rules: JsonObject) -> str:
-    return rules.get("package", rules.get("package: ", ""))
-
-
-def getClassName(rules: JsonObject, dest: Path) -> str:
-    return rules.get("class", rules.get("class_name", dest.stem))
 
 
 def getImports(rules: JsonObject) -> set[str]:
@@ -48,10 +48,6 @@ def getImports(rules: JsonObject) -> set[str]:
         imports.add("xlang.util.string.String")
 
     return imports
-
-
-def alignTo(value: int, alignment: int) -> int:
-    return ((value + alignment - 1) // alignment) * alignment
 
 
 def getTokenDefs(rules: JsonObject) -> list[TokenDef]:
@@ -212,6 +208,16 @@ def expandPattern(pattern: str, defs: Defs, stack: tuple[str, ...] = ()) -> str:
         result.append(expandPattern(defs[key], defs, (*stack, key)))
         i = key_end
 
+        if (
+            i < len(pattern)
+            and pattern[i] == "$"
+            and not (
+                i + 1 < len(pattern)
+                and (pattern[i + 1] == "_" or pattern[i + 1].isalpha())
+            )
+        ):
+            i += 1
+
     return "".join(result)
 
 
@@ -274,42 +280,6 @@ def expandRules(rules: list[JsonObject], symbol_defs: list[TokenDef]) -> list[Js
             })
 
     return result
-
-
-def genFileClass(class_name: str, tabs: int) -> str:
-    indent = " " * (tabs * 4)
-
-    return f'{indent}@file.class("{class_name}")\n'
-
-
-def genPackage(package: str, tabs: int) -> str:
-    indent = " " * (tabs * 4)
-
-    return f"{indent}package {package}\n\n\n"
-
-
-def genImports(imports: set[str], tabs: int) -> str:
-    indent = " " * (tabs * 4)
-
-    return "\n".join(f"{indent}import {item}" for item in sorted(imports)) + "\n\n\n"
-
-
-def genConstants(constants: list[CodeBlock], tabs: int) -> str:
-    if not constants:
-        return ""
-
-    indent = " " * (tabs * 4)
-    lines: list[str] = []
-
-    for item in constants:
-        if isinstance(item, str):
-            lines.append(f"{indent}{item}")
-        elif isinstance(item, list):
-            lines.extend(f"{indent}{line}" for line in item)
-        else:
-            raise TypeError(f"constants item must be string or string list: {item!r}")
-
-    return "\n".join(lines) + "\n\n\n"
 
 
 def genTokenDefs(token_defs: list[TokenDef], token_def_start: int, tabs: int) -> str:
@@ -387,15 +357,15 @@ def genRules(rules: list[JsonObject], defs: Defs, tabs: int) -> str:
 
     lines.append(f"{indent}var tokenizerIsInit: bool = false")
     lines.append(f"{indent}val ruleLength: int = {total_rule_size}")
-    lines.append(f"{indent}val rulesSpace: blob[sizeof(pointer<Rule>) * {total_rule_size}]")
-    lines.append(f"{indent}val rulePtr: pointer<pointer<Rule>> = rulesSpace as pointer<pointer<Rule>>")
+    lines.append(f"{indent}val rulesSpace: blob[sizeof(pointer<TokenizeRule>) * {total_rule_size}]")
+    lines.append(f"{indent}val rulePtr: pointer<pointer<TokenizeRule>> = rulesSpace as pointer<pointer<TokenizeRule>>")
 
     for index, rule in enumerate(rules):
         state = str(rule["state"])
         patterns = getRulePatterns(rule)
         pattern = json.dumps("|".join(expandPattern(pattern, defs) for pattern in patterns))
         action = rule["action"]
-        lines.append(f"{indent}val rule{index}: Rule = Rule({index}, {state}, {pattern}, {action})")
+        lines.append(f"{indent}val rule{index}: pointer<TokenizeRule> = new TokenizeRule({index}, {state}, {pattern}, {action})")
 
     return "\n".join(lines) + "\n\n\n"
 
@@ -423,7 +393,7 @@ def genSymbolEatFunctions(symbol_defs: list[TokenDef]) -> str:
 
     for symbol_def in symbol_defs:
         name = symbol_def["name"]
-        lines.append(f"private fun {symbolActionName(symbol_def)}(input: LexInput, dest: LexState) -> Token =")
+        lines.append(f"private fun {symbolActionName(symbol_def)}(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =")
         lines.append(f"    eatToken(input, {name}, dest)")
         lines.append("")
 
@@ -467,21 +437,41 @@ def genTokenzeFun(tabs: int) -> str:
     indent = " " * (tabs * 4)
     body_indent = " " * ((tabs + 1) * 4)
     nested_indent = " " * ((tabs + 2) * 4)
+    loop_indent = " " * ((tabs + 2) * 4)
+    loop_body_indent = " " * ((tabs + 3) * 4)
     lines: list[str] = [
-        f"{indent}fun tokenize(code: pointer<char>) -> TokenList",
+        f"{indent}fun tokenize(code: pointer<char>) -> pointer<TokenList>",
         f"{indent}{{",
         f"{body_indent}if !tokenizerIsInit:",
         f"{nested_indent}tokenizerInit()",
         "",
+        f"{body_indent}val tokenList: pointer<TokenList> = new TokenList()",
+        f"{body_indent}val lexState: pointer<TokenizeFSM> = new TokenizeFSM(code)",
+        "",
+        f"{body_indent}while true:",
+        f"{body_indent}{{",
+        f"{loop_indent}val token: pointer<Token> = lexState.apply(rulePtr, ruleLength)",
+        "",
+        f"{loop_indent}if token == null:",
+        f"{loop_body_indent}continue",
+        "",
+        f"{loop_indent}tokenList.push(token)",
+        "",
+        f"{loop_indent}if token.kind < 0 || token.isEOF():",
+        f"{loop_body_indent}break",
+        f"{body_indent}}}",
+        "",
+        f"{body_indent}return tokenList",
     ]
 
-    lines.append(f"{body_indent}return TokenizerHelper.tokenize(code, rulePtr, ruleLength)")
     lines.append(f"{indent}}}")
 
     return "\n".join(lines) + "\n\n\n"
 
 
 def codegen(rules: JsonObject, dest: Path) -> str:
+    ensure_type(rules, TOKENIZER_RULES_TYPE, "tokenizer config")
+
     package_name = getPackageName(rules)
     class_name = getClassName(rules, dest)
     imports = getImports(rules)

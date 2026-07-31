@@ -1,4 +1,6 @@
-package xlang.compiler
+fun add(a: int, b: int) {return a + b}
 
-fun test():
-    put("Hello World\r\n")
+a
+=
+{b + 1
+c+2}

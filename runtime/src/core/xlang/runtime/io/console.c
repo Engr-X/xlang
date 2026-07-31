@@ -79,7 +79,7 @@ void xlang_put_bool(const bool value)
  *
  * @param value                 the character value to print
  */
-static void xlang_put_utf8_char(const x_char value)
+void xlang_put_char(const x_char value)
 {
     x_u32 code = (x_u32)value;
 
@@ -111,12 +111,6 @@ static void xlang_put_utf8_char(const x_char value)
     putchar((int)(0x80 | ((code >> 12) & 0x3f)));
     putchar((int)(0x80 | ((code >> 6) & 0x3f)));
     putchar((int)(0x80 | (code & 0x3f)));
-}
-
-
-void xlang_put_char(const x_char value)
-{
-    xlang_put_utf8_char(value);
 }
 
 
@@ -238,7 +232,7 @@ void xlang_put_str(const x_char* const value)
         return;
 
     for (const x_char* ptr = value; *ptr != 0; ptr++)
-        xlang_put_utf8_char(*ptr);
+        xlang_put_char(*ptr);
 }
 
 
@@ -266,7 +260,7 @@ void xlang_putln_bool(const bool value)
  */
 void xlang_putln_char(const x_char value)
 {
-    xlang_put_utf8_char(value);
+    xlang_put_char(value);
     putchar('\n');
 }
 
