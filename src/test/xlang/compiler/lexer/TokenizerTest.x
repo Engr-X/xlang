@@ -23,7 +23,7 @@
  */
 
 @file.class("TokenizerTest")
-package xlang.compiler
+package xlang.compiler.lexer
 
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
@@ -42,9 +42,12 @@ fun genTest() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("xlang.compiler.Tokenizer")
     val tokenizeTC: pointer<TestCase> = new TestCase("tokenize", tokenizeTest)
+    val fullTokenizeTC: pointer<TestCase> = new TestCase("fullTokenize", fullTokenizeTest)
     val tokenizeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, tokenizeTC, null)
+    val fullTokenizeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, fullTokenizeTC, null)
 
     result.addTestUnion(tokenizeUnion)
+    result.addTestUnion(fullTokenizeUnion)
 
     return result
 }
@@ -121,10 +124,24 @@ private fun tokenizeTest() -> int
 }
 
 
-private fun checkTokens(input: pointer<char>, kinds: pointer<int>, texts: pointer<pointer<char>>, length: int) -> int
+private fun fullTokenizeTest() -> int
 {
-    val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
+    var result: int = fullTokenizeSymbolLineTerminatorTest()
 
+    if result != 0:
+        return 1
+
+    result = fullTokenizeRightBraceLineTerminatorTest()
+
+    if result != 0:
+        return 2
+
+    return 0
+}
+
+
+private fun checkTokenList(tokens: pointer<TokenList>, kinds: pointer<int>, texts: pointer<pointer<char>>, length: int) -> int
+{
     if tokens.length() != length:
         return 1
 
@@ -140,6 +157,22 @@ private fun checkTokens(input: pointer<char>, kinds: pointer<int>, texts: pointe
     }
 
     return 0
+}
+
+
+private fun checkTokens(input: pointer<char>, kinds: pointer<int>, texts: pointer<pointer<char>>, length: int) -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
+
+    return checkTokenList(tokens, kinds, texts, length)
+}
+
+
+private fun checkFullTokens(input: pointer<char>, kinds: pointer<int>, texts: pointer<pointer<char>>, length: int) -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(input)
+
+    return checkTokenList(tokens, kinds, texts, length)
 }
 
 
@@ -163,6 +196,54 @@ private fun checkTokenPosition(tokens: pointer<TokenList>, index: int, offset: i
         return 1
 
     return 0
+}
+
+
+private fun fullTokenizeSymbolLineTerminatorTest() -> int
+{
+    val kindsSpace: blob[sizeof(int) * 5]
+    val textsSpace: blob[sizeof(pointer<char>) * 5]
+    val kinds: pointer<int> = kindsSpace as pointer<int>
+    val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
+
+    kinds[0] = Tokenizer.TK_IDENTITY
+    texts[0] = "a"
+    kinds[1] = Tokenizer.PLUS
+    texts[1] = "+"
+    kinds[2] = Tokenizer.TK_IDENTITY
+    texts[2] = "b"
+    kinds[3] = Tokenizer.TK_LINE_TERMINATOR
+    texts[3] = "\n"
+    kinds[4] = Token.EOF_KIND
+    texts[4] = Token.EOF_STRING
+
+    return checkFullTokens("a\n+\nb", kinds, texts, 5)
+}
+
+
+private fun fullTokenizeRightBraceLineTerminatorTest() -> int
+{
+    val kindsSpace: blob[sizeof(int) * 7]
+    val textsSpace: blob[sizeof(pointer<char>) * 7]
+    val kinds: pointer<int> = kindsSpace as pointer<int>
+    val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
+
+    kinds[0] = Tokenizer.TK_IDENTITY
+    texts[0] = "a"
+    kinds[1] = Tokenizer.TK_LINE_TERMINATOR
+    texts[1] = null
+    kinds[2] = Tokenizer.RIGHT_BRACE
+    texts[2] = "}"
+    kinds[3] = Tokenizer.TK_LINE_TERMINATOR
+    texts[3] = null
+    kinds[4] = Tokenizer.TK_IDENTITY
+    texts[4] = "b"
+    kinds[5] = Tokenizer.TK_LINE_TERMINATOR
+    texts[5] = "\n"
+    kinds[6] = Token.EOF_KIND
+    texts[6] = Token.EOF_STRING
+
+    return checkFullTokens("a}b", kinds, texts, 7)
 }
 
 

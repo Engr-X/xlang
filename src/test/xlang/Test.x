@@ -32,8 +32,8 @@ import xlang.test.TestUnion
 
 import xlang.lexer.NormalizeFSMTest
 import xlang.lexer.TokenizeFSMTest
+import xlang.compiler.lexer.TokenizerTest
 import xlang.compiler.lexer.TokenNormalizerTest
-import xlang.compiler.TokenizerTest
 import xlang.util.IO
 import xlang.util.ArrayListTest
 import xlang.util.HashSetTest
