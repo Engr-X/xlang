@@ -33,8 +33,8 @@ from codegen.tokenizer_codegen import (
 )
 
 
-NORMALIZER_RULES_TYPE: str = "normalizer_rules"
-TOKENIZER_RULES_TYPE: str = "tokenizer_rules"
+NORMALIZER_RULES_TYPE: str = "compiler_normalizer_rules"
+TOKENIZER_RULES_TYPE: str = "compiler_tokenizer_rules"
 PatternSpec = dict[str, int | str | None]
 
 DEFAULT_IMPORTS: set[str] = {

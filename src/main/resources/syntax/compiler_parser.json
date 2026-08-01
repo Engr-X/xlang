@@ -1,0 +1,13 @@
+{
+    "type": "compiler_parser_rules",
+
+    "package": "xlang.compiler.parser",
+    "class": "Parser",
+    "imports": [""],
+
+    "rules": [
+        {
+            "type": "ExpressionAtom"
+        }
+    ]
+}

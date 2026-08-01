@@ -571,9 +571,24 @@ private fun endString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> p
 }
 
 
+fun tokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>
+{
+    val tokens: pointer<TokenList> = tokenize(code)
+    tokens.setPath(filePath)
+    return tokens
+}
+
+
 fun fullTokenize(code: pointer<char>) -> pointer<TokenList>
 {
     val tokens: pointer<TokenList> = tokenize(code)
+    return TokenNormalizer.normalize(tokens)
+}
+
+
+fun fullTokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>
+{
+    val tokens: pointer<TokenList> = tokenize(code, filePath)
     return TokenNormalizer.normalize(tokens)
 }
 

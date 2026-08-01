@@ -27,7 +27,7 @@ TokenDef = dict[str, str]
 Defs = dict[str, str]
 
 
-TOKENIZER_RULES_TYPE: str = "tokenizer_rules"
+TOKENIZER_RULES_TYPE: str = "compiler_tokenizer_rules"
 SYMBOLS_PATTERN_MACRO: str = "$symbols$"
 SYMBOL_ACTION_MACRO: str = "$eatSymbol$"
 

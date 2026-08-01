@@ -235,7 +235,7 @@ private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens
 
 fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>
 {
-    val canonical: pointer<TokenList> = new TokenList()
+    val canonical: pointer<TokenList> = new TokenList(tokenlist.filePath)
     var parenthesis: int = 0
     var bracket: int = 0
 
@@ -273,7 +273,7 @@ fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>
         canonical.push(token)
     }
 
-    val result: pointer<TokenList> = new TokenList()
+    val result: pointer<TokenList> = new TokenList(tokenlist.filePath)
 
     for (var i = 0; i < canonical.length(); i++):
     {

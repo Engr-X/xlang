@@ -1,5 +1,5 @@
 {
-    "type: ": "tokenizer_rules",
+    "type": "compiler_tokenizer_rules",
     
     "package": "xlang.compiler.lexer",
     "class": "Tokenizer",
@@ -456,9 +456,24 @@
             "}"
         ],
         [
+            "fun tokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
+            "{",
+            "    val tokens: pointer<TokenList> = tokenize(code)",
+            "    tokens.setPath(filePath)",
+            "    return tokens",
+            "}"
+        ],
+        [
             "fun fullTokenize(code: pointer<char>) -> pointer<TokenList>",
             "{",
             "    val tokens: pointer<TokenList> = tokenize(code)",
+            "    return TokenNormalizer.normalize(tokens)",
+            "}"
+        ],
+        [
+            "fun fullTokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
+            "{",
+            "    val tokens: pointer<TokenList> = tokenize(code, filePath)",
             "    return TokenNormalizer.normalize(tokens)",
             "}"
         ]
