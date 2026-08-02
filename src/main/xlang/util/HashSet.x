@@ -92,7 +92,7 @@ struct HashSet
      * The item bytes are copied into the set. Adding a duplicate leaves the set
      * unchanged.
      *
-     * @return true when a new element was inserted
+     * @return                  true when a new element was inserted
      */
     fun addIfAbsent(item: pointer<*>) -> bool
     {
@@ -122,7 +122,7 @@ struct HashSet
     /**
      * Removes item if an equal element exists.
      *
-     * @return true when an element was removed
+     * @return                  true when an element was removed
      */
     fun remove(item: pointer<*>) -> bool
     {

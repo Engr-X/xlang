@@ -62,7 +62,7 @@
  * the runtime implementation, but it is normally expected to be similar to
  * `true` or `false`.
  *
- * @param value                 the boolean value to print
+ * @param value             the boolean value to print
  */
 void xlang_put_bool(const bool value)
 {
@@ -77,7 +77,7 @@ void xlang_put_bool(const bool value)
  * This function does not add quotes, escaping, or formatting around the
  * character.
  *
- * @param value                 the character value to print
+ * @param value             the character value to print
  */
 void xlang_put_char(const x_char value)
 {
@@ -120,7 +120,7 @@ void xlang_put_char(const x_char value)
  * The integer is converted to its decimal textual representation before being
  * written to standard output.
  *
- * @param value                 the 8-bit signed integer value to print
+ * @param value             the 8-bit signed integer value to print
  */
 void xlang_put_i8(const x_i8 value)
 {
@@ -134,7 +134,7 @@ void xlang_put_i8(const x_i8 value)
  * The integer is converted to its decimal textual representation before being
  * written to standard output.
  *
- * @param value                 the 16-bit signed integer value to print
+ * @param value             the 16-bit signed integer value to print
  */
 void xlang_put_i16(const x_i16 value)
 {
@@ -148,7 +148,7 @@ void xlang_put_i16(const x_i16 value)
  * The integer is converted to its decimal textual representation before being
  * written to standard output.
  *
- * @param value                 the 32-bit signed integer value to print
+ * @param value             the 32-bit signed integer value to print
  */
 void xlang_put_i32(const x_i32 value)
 {
@@ -162,7 +162,7 @@ void xlang_put_i32(const x_i32 value)
  * The integer is converted to its decimal textual representation before being
  * written to standard output.
  *
- * @param value                 the 64-bit signed integer value to print
+ * @param value             the 64-bit signed integer value to print
  */
 void xlang_put_i64(const x_i64 value)
 {
@@ -177,7 +177,7 @@ void xlang_put_i64(const x_i64 value)
  * being written to standard output. The precision and formatting style are
  * defined by the runtime implementation.
  *
- * @param value                 the 32-bit floating-point value to print
+ * @param value             the 32-bit floating-point value to print
  */
 void xlang_put_f32(const x_f32 value)
 {
@@ -192,7 +192,7 @@ void xlang_put_f32(const x_f32 value)
  * being written to standard output. The precision and formatting style are
  * defined by the runtime implementation.
  *
- * @param value                 the 64-bit floating-point value to print
+ * @param value             the 64-bit floating-point value to print
  */
 void xlang_put_f64(const x_f64 value)
 {
@@ -207,7 +207,7 @@ void xlang_put_f64(const x_f64 value)
  * being written to standard output. This function is intended for diagnostics,
  * debugging, and low-level runtime output.
  *
- * @param value                 the pointer value to print
+ * @param value             the pointer value to print
  */
 void xlang_put_p(const void* value)
 {
@@ -224,7 +224,7 @@ void xlang_put_p(const void* value)
  * Passing a null pointer is not guaranteed to be valid unless the runtime
  * implementation explicitly documents null string support.
  *
- * @param value                 the null-terminated string to print
+ * @param value             the null-terminated string to print
  */
 void xlang_put_str(const x_char* const value)
 {
@@ -242,7 +242,7 @@ void xlang_put_str(const x_char* const value)
  * This function has the same value conversion behavior as `xlang_put_bool`,
  * but appends a newline after the textual boolean representation.
  *
- * @param value                 the boolean value to print
+ * @param value             the boolean value to print
  */
 void xlang_putln_bool(const bool value)
 {
@@ -256,7 +256,7 @@ void xlang_putln_bool(const bool value)
  * This function has the same character output behavior as `xlang_put_char`,
  * but appends a newline after the character.
  *
- * @param value                 the character value to print
+ * @param value             the character value to print
  */
 void xlang_putln_char(const x_char value)
 {
@@ -271,7 +271,7 @@ void xlang_putln_char(const x_char value)
  * This function has the same integer conversion behavior as `xlang_put_i8`,
  * but appends a newline after the decimal representation.
  *
- * @param value                 the 8-bit signed integer value to print
+ * @param value             the 8-bit signed integer value to print
  */
 void xlang_putln_i8(const x_i8 value)
 {
@@ -285,7 +285,7 @@ void xlang_putln_i8(const x_i8 value)
  * This function has the same integer conversion behavior as `xlang_put_i16`,
  * but appends a newline after the decimal representation.
  *
- * @param value                 the 16-bit signed integer value to print
+ * @param value             the 16-bit signed integer value to print
  */
 void xlang_putln_i16(const x_i16 value)
 {
@@ -299,7 +299,7 @@ void xlang_putln_i16(const x_i16 value)
  * This function has the same integer conversion behavior as `xlang_put_i32`,
  * but appends a newline after the decimal representation.
  *
- * @param value                 the 32-bit signed integer value to print
+ * @param value             the 32-bit signed integer value to print
  */
 void xlang_putln_i32(const x_i32 value)
 {
@@ -313,7 +313,7 @@ void xlang_putln_i32(const x_i32 value)
  * This function has the same integer conversion behavior as `xlang_put_i64`,
  * but appends a newline after the decimal representation.
  *
- * @param value                 the 64-bit signed integer value to print
+ * @param value             the 64-bit signed integer value to print
  */
 void xlang_putln_i64(const x_i64 value)
 {
@@ -327,7 +327,7 @@ void xlang_putln_i64(const x_i64 value)
  * This function has the same floating-point conversion behavior as
  * `xlang_put_f32`, but appends a newline after the textual representation.
  *
- * @param valuethe              the 32-bit floating-point value to print
+ * @param valuethe          the 32-bit floating-point value to print
  */
 void xlang_putln_f32(const x_f32 value)
 {
@@ -341,7 +341,7 @@ void xlang_putln_f32(const x_f32 value)
  * This function has the same floating-point conversion behavior as
  * `xlang_put_f64`, but appends a newline after the textual representation.
  *
- * @param value                 the 64-bit floating-point value to print
+ * @param value             the 64-bit floating-point value to print
  */
 void xlang_putln_f64(const x_f64 value)
 {
@@ -355,7 +355,7 @@ void xlang_putln_f64(const x_f64 value)
  * This function has the same pointer conversion behavior as `xlang_put_p`,
  * but appends a newline after the address representation.
  *
- * @param value                 the pointer value to print
+ * @param value             the pointer value to print
  */
 void xlang_putln_p(const void* value)
 {
@@ -372,7 +372,7 @@ void xlang_putln_p(const void* value)
  * Passing a null pointer is not guaranteed to be valid unless the runtime
  * implementation explicitly documents null string support.
  *
- * @param value                 the null-terminated string to print
+ * @param value             the null-terminated string to print
  */
 void xlang_putln_str(const x_char* const value)
 {

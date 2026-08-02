@@ -90,8 +90,9 @@
  * non-null `ts` is provided but no timestamp can be retrieved, the function
  * writes zero seconds and zero nanoseconds into `ts`.
  *
- * @param ts output pointer that receives the realtime timestamp
- * @return 1 if a timestamp was retrieved successfully, 0 otherwise
+ * @param ts                output pointer that receives the realtime timestamp
+ *
+ * @return                  1 if a timestamp was retrieved successfully, 0 otherwise
  */
 static int xlang_get_realtime_ts(struct timespec* ts)
 {
@@ -169,7 +170,7 @@ static int xlang_get_realtime_ts(struct timespec* ts)
  * The value should not be used as a monotonic timer. System clock changes may
  * affect the returned value.
  *
- * @return the current system time in seconds
+ * @return                  the current system time in seconds
  */
 x_i64 xlang_now_s()
 {
@@ -192,7 +193,7 @@ x_i64 xlang_now_s()
  * The value should not be treated as strictly monotonic. If the operating
  * system clock is adjusted, the returned value may move forwards or backwards.
  *
- * @return the current system time in milliseconds
+ * @return                  the current system time in milliseconds
  */
 x_i64 xlang_now_ms()
 {
@@ -218,7 +219,7 @@ x_i64 xlang_now_ms()
  * This function should not be used as a monotonic timer unless the
  * implementation explicitly documents monotonic behavior.
  *
- * @return the current system time in nanoseconds
+ * @return                  the current system time in nanoseconds
  */
 x_i64 xlang_now_ns()
 {

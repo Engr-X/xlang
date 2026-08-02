@@ -71,8 +71,9 @@ val LINE_FEED: char = '\n'
  *
  * The returned length does not include the null terminator.
  *
- * @param str pointer to the first character of a null-terminated string
- * @return number of characters before the first null terminator
+ * @param str               pointer to the first character of a null-terminated string
+ *
+ * @return                  number of characters before the first null terminator
  */
 fun strlen(str: pointer<char>) -> int
 {
@@ -93,9 +94,10 @@ fun strlen(str: pointer<char>) -> int
  * Two strings are equal if they contain the same characters in the same order
  * and end at the same position.
  *
- * @param str1                  pointer to the first null-terminated string
- * @param str2                  pointer to the second null-terminated string
- * @return true if both strings are equal, false otherwise
+ * @param str1              pointer to the first null-terminated string
+ * @param str2              pointer to the second null-terminated string
+ *
+ * @return                  true if both strings are equal, false otherwise
  */
 fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
 {
@@ -125,9 +127,10 @@ fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
  * Null is treated as smaller than any non-null string, and two null pointers
  * compare equal.
  *
- * @param str1                  pointer to the first null-terminated string
- * @param str2                  pointer to the second null-terminated string
- * @return                      -1 if str1 < str2, 0 if equal, 1 if str1 > str2
+ * @param str1              pointer to the first null-terminated string
+ * @param str2              pointer to the second null-terminated string
+ *
+ * @return                  -1 if str1 < str2, 0 if equal, 1 if str1 > str2
  */
 fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
 {
@@ -174,8 +177,8 @@ fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
  * The destination buffer must have enough capacity to store the whole source
  * string and its null terminator.
  *
- * @param dest                  pointer to the destination buffer
- * @param src                   pointer to the source null-terminated string
+ * @param dest              pointer to the destination buffer
+ * @param src               pointer to the source null-terminated string
  */
 fun strcpy(dest: pointer<char>, src: pointer<char>)
 {
@@ -198,8 +201,9 @@ fun strcpy(dest: pointer<char>, src: pointer<char>)
  * The returned buffer contains the source string and its null terminator.
  * The caller owns the returned buffer.
  *
- * @param src                   pointer to the source null-terminated string
- * @return                      pointer to the duplicated null-terminated string
+ * @param src               pointer to the source null-terminated string
+ *
+ * @return                  pointer to the duplicated null-terminated string
  */
 fun strdup(src: pointer<char>) -> pointer<char>
 {
@@ -225,10 +229,11 @@ fun strdup(src: pointer<char>) -> pointer<char>
  * The caller must ensure that the destination buffer can hold at least
  * maxCopyLength characters plus the final null terminator.
  *
- * @param                       dest pointer to the destination buffer
- * @param                       src pointer to the source null-terminated string
- * @param                       maxCopyLength maximum number of source characters to copy
- * @return                      number of characters copied, excluding the null terminator
+ * @param dest              pointer to the destination buffer
+ * @param src               pointer to the source null-terminated string
+ * @param maxCopyLength     maximum number of source characters to copy
+ *
+ * @return                  number of characters copied, excluding the null terminator
  */
 fun strncpy(dest: pointer<char>, src: pointer<char>, maxCopyLength: int) -> int
 {
@@ -262,8 +267,8 @@ fun strncpy(dest: pointer<char>, src: pointer<char>, maxCopyLength: int) -> int
  * The destination buffer must have enough capacity to store the original
  * destination content, the source string, and the final null terminator.
  *
- * @param dest                  pointer to the destination null-terminated string buffer
- * @param src                   pointer to the source null-terminated string
+ * @param dest              pointer to the destination null-terminated string buffer
+ * @param src               pointer to the source null-terminated string
  */
 fun strcat(dest: pointer<char>, src: pointer<char>)
 {
@@ -282,11 +287,12 @@ fun strcat(dest: pointer<char>, src: pointer<char>)
  * If start is outside the source string, or length is not positive, the
  * destination becomes an empty string.
  *
- * @param                       dest pointer to the destination buffer
- * @param                       src pointer to the source null-terminated string
- * @param                       start zero-based start index in the source string
- * @param                       length maximum number of characters to copy
- * @return                      number of characters copied, excluding the null terminator
+ * @param dest              pointer to the destination buffer
+ * @param src               pointer to the source null-terminated string
+ * @param start             zero-based start index in the source string
+ * @param length            maximum number of characters to copy
+ *
+ * @return                  number of characters copied, excluding the null terminator
  */
 fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) -> int
 {
@@ -321,9 +327,10 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
  * The native wrapper also handles tokenizer-specific helpers such as top-level
  * pattern alternatives and the standalone EOF pattern "\\0".
  *
- * @param pattern               pointer to the null-terminated regex pattern
- * @param str                   pointer to the null-terminated input string
- * @return                      matched length, or -1 if the pattern does not match
+ * @param pattern           pointer to the null-terminated regex pattern
+ * @param str               pointer to the null-terminated input string
+ *
+ * @return                  matched length, or -1 if the pattern does not match
  */
 @native("regex_match")
 native inline fun strRegMatch(pattern: pointer<char>, str: pointer<char>) -> int

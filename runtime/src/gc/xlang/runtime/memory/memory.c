@@ -54,7 +54,7 @@ static struct memlist list;
  * not guaranteed to be valid unless the implementation explicitly supports
  * reinitialization.
  *
- * @return                      true if the memory manager was initialized successfully, false otherwise
+ * @return                  true if the memory manager was initialized successfully, false otherwise
  */
 bool xlang_minit(void) 
 {
@@ -76,8 +76,9 @@ bool xlang_minit(void)
  * The returned memory is uninitialized unless the implementation explicitly
  * documents otherwise.
  *
- * @param size                  the number of bytes to allocate
- * @return                      a pointer to the allocated memory block, or null if allocation fails
+ * @param size              the number of bytes to allocate
+ *
+ * @return                  a pointer to the allocated memory block, or null if allocation fails
  */
 void* xlang_malloc(const x_i64 size) 
 {
@@ -113,8 +114,9 @@ void* xlang_malloc(const x_i64 size)
  * After this function returns successfully, the pointer must not be
  * dereferenced, reallocated, or freed again.
  *
- * @param ptr                   the tracked memory block to release
- * @return                      true if the memory block was released successfully, false otherwise
+ * @param ptr               the tracked memory block to release
+ *
+ * @return                  true if the memory block was released successfully, false otherwise
  */
 void* xlang_realloc(const void* const ptr, const x_i64 size) 
 {
@@ -154,8 +156,9 @@ void* xlang_realloc(const void* const ptr, const x_i64 size)
  * After this function returns successfully, the pointer must not be
  * dereferenced, reallocated, or freed again.
  *
- * @param ptr                   the tracked memory block to release
- * @return                      true if the memory block was released successfully, false otherwise
+ * @param ptr               the tracked memory block to release
+ *
+ * @return                  true if the memory block was released successfully, false otherwise
  */
 bool xlang_mfree(const void* ptr)  
 {

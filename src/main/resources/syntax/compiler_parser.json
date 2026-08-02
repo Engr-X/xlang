@@ -3,11 +3,38 @@
 
     "package": "xlang.compiler.parser",
     "class": "Parser",
-    "imports": [""],
+    "imports": [
+        "xlang.compiler.lexer.Tokenizer",
+        "xlang.lexer.TokenList"
+    ],
 
     "rules": [
         {
-            "type": "ExpressionAtom"
+            "name": "parseAtom",
+            "class": "Atom",
+            "input": "pointer<TokenList>",
+            "return": "pointer<Atom>",
+            "sub_rules": [
+                {"patterns": [{"kind": "Tokenizer.KW_TRUE"}], "action": "parseBoolAtom"},
+                {"patterns": [{"kind": "Tokenizer.KW_FALSE"}], "action": "parseBoolAtom"}
+            ]
         }
+    ],
+
+    "others": [
+        [
+            "private fun parseBoolAtom(tokens: pointer<TokenList>) -> pointer<Atom>",
+            "{",
+            "    if tokens == null || tokens.length() != 1:",
+            "        return null",
+            "",
+            "    val token = tokens.get(0)",
+            "",
+            "    if token.kind != Tokenizer.KW_TRUE && token.kind != Tokenizer.KW_FALSE:",
+            "        return null",
+            "",
+            "    return new Atom(Atom.BOOL_IMM_KIND, tokens.toArray())",
+            "}"
+        ]
     ]
 }

@@ -24,7 +24,6 @@
 package xlang.lexer
 
 import xlang.System
-import xlang.util.string.String
 import xlang.util.ArrayList
 
 
@@ -36,6 +35,7 @@ import xlang.util.ArrayList
  *
  * @param fsm               the normalization state machine
  * @param tokens            the token window matched by the rule
+ *
  * @return                  always false
  *
  * @note                    Returning false indicates that the rule did not perform
@@ -133,6 +133,7 @@ struct NormalizeReceiver
      * Valid indices begin at zero and end at length minus one.
      *
      * @param index             the index to validate
+     *
      * @return                  true if the index is valid; otherwise false
      */
     private inline fun checkIndex(index: int) -> bool =
@@ -149,6 +150,7 @@ struct NormalizeReceiver
      * An invalid index is ignored.
      *
      * @param index             the zero-based index of the token to delete
+     *
      * @return                  this receiver for chained calls
      *
      * @note                    This function records the deletion but does not immediately
@@ -178,6 +180,7 @@ struct NormalizeReceiver
      *
      * @param index             the zero-based insertion position
      * @param token             the token to insert before the original token
+     *
      * @return                  this receiver for chained calls
      *
      * @note                    Passing null clears the effective insertion at the index.
@@ -208,6 +211,7 @@ struct NormalizeReceiver
      * ensuring that the original and inserted Token objects remain valid.
      *
      * @param list              the original token list
+     *
      * @return                  a newly allocated normalized TokenList, or null if the input list is invalid or has a different length
      *
      * @note                    Token objects are reused rather than deeply copied.
@@ -241,105 +245,9 @@ struct NormalizeReceiver
 
 
 /**
- * Describes one token condition in a normalization rule.
- *
- * A token pattern can match a token by kind, by text pattern or by both.
- * Token.AnyKind may be used to accept any token kind.
- *
- * If pattern is null, only the token kind is checked. Otherwise, the token
- * text must match the regular-expression pattern through String.strRegMatch.
- *
- * The pattern string is stored directly and is not copied. The caller must
- * keep it valid for the lifetime of this TokenPattern.
- */
-struct TokenPattern
-{
-    /**
-     * Stores the required token kind.
-     *
-     * Token.AnyKind allows tokens of any kind to pass the kind check.
-     */
-    var kind: int
-
-    /**
-     * Points to the optional text-matching pattern.
-     *
-     * A null pointer disables text matching.
-     */
-    var pattern: pointer<char>
-
-
-    /**
-     * Initializes a token pattern.
-     *
-     * The kind and pattern pointer are stored directly without validation
-     * or copying.
-     *
-     * The caller must keep a non-null pattern string valid and
-     * null-terminated while this object uses it.
-     *
-     * @param kind              the required token kind or Token.AnyKind
-     * @param pattern           the optional regular-expression pattern
-     *
-     * @warning                 Passing an invalid non-null pattern pointer may cause
-     *                          undefined behavior during matching.
-     */
-    fun __init__(kind: int, pattern: pointer<char>)
-    {
-        this.kind = kind
-        this.pattern = pattern
-    }
-
-
-    /**
-     * Tests whether a token has an accepted kind.
-     *
-     * Token.AnyKind accepts every token kind. Otherwise, the token kind
-     * must exactly equal this pattern's kind.
-     *
-     * @param token             the token to test
-     * @return                  true if the token kind is accepted; otherwise false
-     *
-     * @warning                 The token pointer must be valid and non-null.
-     */
-    private inline fun matchKind(token: pointer<Token>) -> bool =
-        this.kind == Token.AnyKind || this.kind == token.kind
-
-
-    /**
-     * Tests whether a token satisfies this pattern.
-     *
-     * The token kind is checked first. If this pattern has no text pattern,
-     * a successful kind match is sufficient.
-     *
-     * When a text pattern is present, the token must have non-null text and
-     * String.strRegMatch must return a positive value.
-     *
-     * @param token             the token to test
-     * @return                  true if the token satisfies both the kind and text requirements; otherwise false
-     *
-     * @warning                 The token pointer must be valid and non-null.
-     */
-    fun match(token: pointer<Token>) -> bool
-    {
-        if !this.matchKind(token):
-            return false
-
-        if this.pattern == null:
-            return true
-
-        if token.text == null:
-            return false
-
-        return String.strRegMatch(this.pattern, token.text) > 0
-    }
-}
-
-
-/**
  * Defines a token sequence and action used by the normalization FSM.
  *
- * A rule consists of an ordered list of TokenPattern objects, one selected
+ * A rule consists of an ordered PatternList, one selected
  * pivot pattern, a required FSM state and an action function.
  *
  * During matching, currentIndex identifies the token corresponding to the
@@ -348,8 +256,9 @@ struct TokenPattern
  *
  * A rule cannot match until a valid pivot has been selected with setPivot.
  *
- * Pattern strings and action functions are referenced directly. The caller
- * must keep any referenced data valid while the rule is used.
+ * Pattern strings are owned by the internal PatternList. Action functions
+ * are referenced directly, so the caller must keep them valid while the
+ * rule is used.
  */
 struct NormalizeRule
 {
@@ -374,13 +283,6 @@ struct NormalizeRule
     var action: (pointer<NormalizeFSM>, pointer<ArrayList>) -> bool
     
     /**
-     * Points to the TokenPattern selected as the rule's pivot.
-     *
-     * The pointer refers to an element stored inside patterns.
-     */
-    private var pivot: pointer<TokenPattern>
-
-    /**
      * Stores the pivot's zero-based index within the pattern sequence.
      *
      * A value of -1 means that no valid pivot is currently selected.
@@ -388,9 +290,9 @@ struct NormalizeRule
     private var pivotIndex: int
     
     /**
-     * Stores the ordered TokenPattern sequence used by this rule.
+     * Stores the ordered token pattern sequence used by this rule.
      */
-    private var patterns: pointer<ArrayList>
+    private var patterns: pointer<PatternList>
 
 
     /**
@@ -407,9 +309,8 @@ struct NormalizeRule
         this.id = id
         this.state = state
         this.action = noopNormalizeAction
-        this.pivot = null
         this.pivotIndex = -1
-        this.patterns = new ArrayList(sizeof(TokenPattern))
+        this.patterns = new PatternList()
     }
 
 
@@ -434,9 +335,8 @@ struct NormalizeRule
         this.id = id
         this.state = state
         this.action = action
-        this.pivot = null
         this.pivotIndex = -1
-        this.patterns = new ArrayList(sizeof(TokenPattern))
+        this.patterns = new PatternList()
     }
 
 
@@ -447,6 +347,7 @@ struct NormalizeRule
      * may be used to accept any kind.
      *
      * @param kind              the required token kind or Token.AnyKind
+     *
      * @return                  this rule for chained calls
      */
     fun addPattern(kind: int) -> pointer<NormalizeRule> =
@@ -456,26 +357,22 @@ struct NormalizeRule
     /**
      * Appends a token pattern to the rule.
      *
-     * The pattern is added to the end of the matching sequence. The pattern
-     * string pointer is stored in the TokenPattern and is not duplicated.
+     * The pattern is added to the end of the matching sequence. PatternList
+     * owns the concrete pattern storage.
      *
-     * Adding patterns may cause the internal ArrayList to move its storage.
-     * A pivot pointer selected before such a reallocation may become invalid,
-     * depending on the behavior of ArrayList.
-     *
-     * The caller must keep a non-null pattern string valid and
-     * null-terminated while the rule uses it.
+     * PatternList creates the concrete pattern atom and owns any copied
+     * regex string used for matching.
      *
      * @param kind              the required token kind or Token.AnyKind
-     * @param pattern           the optional regular-expression pattern
+     * @param regex             the optional regular expression
+     *
      * @return                  this rule for chained calls
      *
      * @note                    It is safest to call setPivot after all patterns have been added.
      */
-    fun addPattern(kind: int, pattern: pointer<char>) -> pointer<NormalizeRule>
+    fun addPattern(kind: int, regex: pointer<char>) -> pointer<NormalizeRule>
     {
-        val rule: TokenPattern = TokenPattern(kind, pattern)
-        this.patterns.push(rule.ref)
+        this.patterns.push(kind, regex)
         return this
     }
 
@@ -490,22 +387,20 @@ struct NormalizeRule
      * pivotIndex becomes -1.
      *
      * @param pivot             the zero-based index of the pivot pattern
+     *
      * @return                  this rule for chained calls
      *
      * @note                    A rule without a valid pivot cannot match.
      */
     fun setPivot(pivot: int) -> pointer<NormalizeRule>
     {
-        if pivot < 0 || pivot >= this.patterns.length:
+        if pivot < 0 || pivot >= this.patterns.length():
         {
-            this.pivot = null
             this.pivotIndex = -1
             return this
         }
 
-        val patternSlot: pointer<TokenPattern> = this.patterns.get(pivot) as pointer<TokenPattern>
         this.pivotIndex = pivot
-        this.pivot = patternSlot
         return this
     }
 
@@ -517,49 +412,28 @@ struct NormalizeRule
      * the start of the complete pattern sequence and verifies that the whole
      * sequence fits inside the token list.
      *
-     * The pivot is checked first as a fast rejection step. If it matches,
-     * every pattern is compared with its corresponding token.
+     * The complete sequence is matched by TokenList.canMatch.
      *
      * The rule's state is not checked by this function. NormalizeFSM performs
      * that check before calling match.
      *
-     * @param tokens            the token array to inspect
+     * @param tokens            the token list to inspect
      * @param currentIndex      the index aligned with the rule's pivot
+     *
      * @return                  true if the complete pattern sequence matches; otherwise false
      *
      * @note                    A rule with no valid pivot always returns false.
-     * @warning                 The token array must contain valid Token elements.
+     *
+     * @warning                 The token list must contain valid Token elements.
      */
-    fun match(tokens: pointer<ArrayList>, currentIndex: int) -> bool
+    fun match(tokens: pointer<TokenList>, currentIndex: int) -> bool
     {
         if tokens == null || this.pivotIndex < 0:
             return false
 
-        if currentIndex < 0 || currentIndex >= tokens.length:
-            return false
-
-        val current: pointer<Token> = tokens.get(currentIndex) as pointer<Token>
         val start: int = currentIndex - this.pivotIndex
 
-        if start < 0:
-            return false
-
-        if start + this.patterns.length > tokens.length:
-            return false
-
-        if !this.pivot.match(current):
-            return false
-
-        for (var i = 0; i < this.patterns.length; i++):
-        {
-            val pattern: pointer<TokenPattern> = this.patterns.get(i) as pointer<TokenPattern>
-            val token: pointer<Token> = tokens.get(start + i) as pointer<Token>
-
-            if !pattern.match(token):
-                return false
-        }
-
-        return true
+        return tokens.canMatch(start, this.patterns)
     }
 
 
@@ -571,6 +445,7 @@ struct NormalizeRule
      *
      * @param fsm               the active normalization state machine
      * @param tokens            the token window matched by this rule
+     *
      * @return                  the result returned by the action function
      *
      * @warning                 The action function and both pointer arguments must be valid.
@@ -592,7 +467,7 @@ struct NormalizeRule
      *
      * @return                  the pattern sequence length
      */
-    fun getPatternLength() -> int = this.patterns.length
+    fun getPatternLength() -> int = this.patterns.length()
 }
 
 
@@ -760,23 +635,29 @@ struct NormalizeFSM
      * It does not verify the calculated range.
      *
      * The caller should normally call this function only after rule.match
-     * has returned true for the same token array and current index.
+     * has returned true for the same token list and current index.
      *
      * @param rule              the matched normalization rule
-     * @param tokens            the complete token array
+     * @param tokens            the complete token list
      * @param currentIndex      the token index aligned with the rule's pivot
-     * @return                  the matched token sublist, or null if rule or tokens is null
+     *
+     * @return                  the matched token array, or null if rule or tokens is null
      *
      * @warning                 An invalid pivot, current index or pattern length may produce
      *                          an out-of-range sublist request.
      */
-    static fun window(rule: pointer<NormalizeRule>, tokens: pointer<ArrayList>, currentIndex: int) -> pointer<ArrayList>
+    static fun window(rule: pointer<NormalizeRule>, tokens: pointer<TokenList>, currentIndex: int) -> pointer<ArrayList>
     {
         if rule == null || tokens == null:
             return null
 
         val start: int = currentIndex - rule.getPivotIndex()
-        return tokens.sublist(start, start + rule.getPatternLength())
+        val tokenWindow: pointer<TokenList> = tokens.subToken(start, start + rule.getPatternLength())
+
+        if tokenWindow == null:
+            return null
+
+        return tokenWindow.array()
     }
 
 
@@ -814,7 +695,6 @@ struct NormalizeFSM
             return
 
         val tokenLength: int = this.list.length()
-        val tokenList: pointer<ArrayList> = this.list.array()
 
         this.currentIndex = 0
         this.ptr = 0
@@ -831,10 +711,10 @@ struct NormalizeFSM
                 if rule.state != this.state:
                     continue
 
-                if !rule.match(tokenList, this.currentIndex):
+                if !rule.match(this.list, this.currentIndex):
                     continue
 
-                val tokens: pointer<ArrayList> = NormalizeFSM.window(rule, tokenList, this.currentIndex)
+                val tokens: pointer<ArrayList> = NormalizeFSM.window(rule, this.list, this.currentIndex)
 
                 if rule.apply(this, tokens):
                 {
@@ -865,6 +745,7 @@ struct NormalizeFSM
      *
      * @param rules             the array of normalization-rule pointers
      * @param rulesLength       the number of entries in the rule array
+     *
      * @return                  a newly allocated normalized TokenList, or null if receiver application fails
      *
      * @note                    Calling apply multiple times on the same FSM reuses the existing

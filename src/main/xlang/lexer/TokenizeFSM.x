@@ -288,6 +288,7 @@ struct TokenizeFSM
      * @param n                 the number of characters by which to move the cursor
      *
      * @note                    This function does not verify the source-buffer boundaries.
+     *
      * @warning                 Using this function for text containing newlines produces
      *                          incorrect line and column information.
      */
@@ -328,6 +329,7 @@ struct TokenizeFSM
      *
      * @param rules             the ordered array of tokenize-rule pointers
      * @param rulesLength       the number of accessible entries in the rule array
+     *
      * @return                  the value returned by the first matching rule action, or null if no active rule matches
      *
      * @note                    This function does not automatically create an EOF token when

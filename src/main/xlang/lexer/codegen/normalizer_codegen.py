@@ -135,7 +135,7 @@ def getPatternDefs(tokenizer_config: JsonObject) -> dict[str, PatternSpec]:
 
         result[name] = {
             "kind": kind,
-            "pattern": pattern,
+            "regex": pattern,
         }
 
     for index, item in enumerate(token_defs):
@@ -155,14 +155,17 @@ def getPatternGroups(tokenizer_config: JsonObject) -> dict[str, list[PatternSpec
         "symbols": [
             {
                 "kind": symbol_def_start + index,
-                "pattern": regexLiteral(item["pattern"]),
+                "regex": regexLiteral(item["pattern"]),
             }
             for index, item in enumerate(symbol_defs)
         ],
     }
 
 
-def getKindValue(kind: object) -> str:
+def getKindValue(kind: object) -> str | None:
+    if kind is None:
+        return None
+
     if isinstance(kind, str) and kind:
         return kind
 
@@ -180,26 +183,26 @@ def genKindExpr(kind: object) -> str:
 
 
 def getRegexPatternOptions(
-    pattern: str,
+    regex: str,
     pattern_groups: dict[str, list[PatternSpec]],
     regex_defs: dict[str, str],
 ) -> list[str]:
-    name = macroName(pattern)
+    name = macroName(regex)
 
     if name is not None and name in pattern_groups:
         result: list[str] = []
 
         for item in pattern_groups[name]:
-            regex_pattern = item["pattern"]
+            regex_pattern = item["regex"]
 
             if not isinstance(regex_pattern, str):
-                raise TypeError(f"pattern group {name!r} contains non-regex pattern: {item!r}")
+                raise TypeError(f"pattern group {name!r} contains non-regex item: {item!r}")
 
             result.append(regex_pattern)
 
         return result
 
-    return [expandPattern(pattern, regex_defs)]
+    return [expandPattern(regex, regex_defs)]
 
 
 def getRulePatternOptions(
@@ -224,12 +227,25 @@ def getRulePatternOptions(
 
     if isinstance(pattern, dict):
         kind = getKindValue(pattern.get("kind", None))
-        regex_pattern = pattern.get("pattern", None)
+
+        if "pattern" in pattern:
+            raise ValueError(f"use regex instead of pattern in normalizer rule: {pattern!r}")
+
+        if "regx" in pattern:
+            raise ValueError(f"use regex instead of regx in normalizer rule: {pattern!r}")
+
+        regex_pattern = pattern.get("regex", None)
+
+        if kind is None and regex_pattern is None:
+            raise ValueError(f"normalizer pattern must contain kind, regex or both: {pattern!r}")
+
+        if kind is None:
+            kind = "Token.AnyKind"
 
         if regex_pattern is None:
             return [{
                 "kind": kind,
-                "pattern": None,
+                "regex": None,
             }]
 
         if not isinstance(regex_pattern, str):
@@ -238,7 +254,7 @@ def getRulePatternOptions(
         return [
             {
                 "kind": kind,
-                "pattern": item,
+                "regex": item,
             }
             for item in getRegexPatternOptions(regex_pattern, pattern_groups, regex_defs)
         ]
@@ -266,7 +282,10 @@ def getRules(
         state = rule.get("state")
         action_value = rule.get("action", None)
         pivot_index = rule.get("pivot_index", rule.get("pivotIndex", 0))
-        patterns = rule["patterns"] if "patterns" in rule else [rule.get("pattern")]
+        if "pattern" in rule:
+            raise ValueError(f"use patterns instead of pattern in normalizer rule at index {index}: {rule!r}")
+
+        patterns = rule.get("patterns")
 
         if not isinstance(state, str) or not state:
             raise ValueError(f"invalid rule state at index {index}: {state!r}")
@@ -364,12 +383,12 @@ def genNormalizerInitFun(rules: list[JsonObject], tabs: int) -> str:
 
         for pattern in rules[index]["patterns"]:
             kind = genKindExpr(pattern["kind"])
-            regex_pattern = pattern["pattern"]
+            regex = pattern["regex"]
 
-            if regex_pattern is None:
+            if regex is None:
                 rule_expr += f".addPattern({kind})"
             else:
-                rule_expr += f".addPattern({kind}, {json.dumps(regex_pattern)})"
+                rule_expr += f".addPattern({kind}, {json.dumps(regex)})"
 
         rule_expr += f".setPivot({rules[index]['pivot_index']})"
         lines.append(f"{body_indent}rulePtr[{index}] = {rule_expr}")

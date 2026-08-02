@@ -52,7 +52,7 @@ struct LexPosition
      *
      * Callers should allocate an independent position before modifying it.
      *
-     * @warning Modifying this object directly changes the shared start position.
+     * @warning                 Modifying this object directly changes the shared start position.
      */
     static val START_POSITION: pointer<LexPosition> = new LexPosition(0, 1, 1)
 
@@ -116,9 +116,10 @@ struct LexPosition
      * managing the lifetime of the returned object.
      *
      * @param length            the length of the token in characters
+     *
      * @return                  a newly allocated TokenPosition
      *
-     * @note This function does not modify the current LexPosition.
+     * @note                    This function does not modify the current LexPosition.
      */
     inline fun toTokenPosition(length: int) -> pointer<TokenPosition> = 
         new TokenPosition(this.offset, this.line, this.column, length)
@@ -193,7 +194,7 @@ struct LexInput
      * @param text              the source text buffer
      * @param textLength        the accessible length of the source text
      *
-     * @warning An incorrect text length may cause out-of-bounds memory access.
+     * @warning                 An incorrect text length may cause out-of-bounds memory access.
      */
     fun __init__(pos: pointer<LexPosition>, prevChar: char, text: pointer<char>, textLength: int)
     {
@@ -220,6 +221,7 @@ struct LexInput
      * @param length            the length of the token in characters
      *
      * @note                    This function does not modify the current LexPosition.
+     *
      * @warning                 Passing an invalid or null destination pointer causes undefined behavior.
      */
     fun toTokenPosition(dest: pointer<TokenPosition>, length: int)

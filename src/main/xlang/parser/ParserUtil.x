@@ -55,10 +55,11 @@ import xlang.util.string.String
  * Invalid escape forms return (-1) as char. The caller is responsible for
  * treating that sentinel as an error.
  *
- * @param string                character literal body without surrounding quotes.
- * @return                      decoded character, or (-1) as char for invalid input.
+ * @param string            character literal body without surrounding quotes.
  *
- * @warning                     Passing a null or invalid string pointer may cause undefined
+ * @return                  decoded character, or (-1) as char for invalid input.
+ *
+ * @warning                 Passing a null or invalid string pointer may cause undefined
  *                              behavior in String.strlen or indexed access.
  */
 fun unescapeChar(string: pointer<char>) -> char
@@ -97,11 +98,12 @@ fun unescapeChar(string: pointer<char>) -> char
  * The caller must provide a valid TokenList when pos is non-null and is
  * responsible for managing the returned SourceLocation.
  *
- * @param tokens                the token list that provides the source file path.
- * @param pos                   the token position to convert.
- * @return                      a newly allocated SourceLocation, or null if pos is null.
+ * @param tokens            the token list that provides the source file path.
+ * @param pos               the token position to convert.
  *
- * @warning                     Passing a null or invalid tokens pointer while pos is non-null
+ * @return                  a newly allocated SourceLocation, or null if pos is null.
+ *
+ * @warning                 Passing a null or invalid tokens pointer while pos is non-null
  *                              may cause undefined behavior.
  */
 private fun sourceLocation(tokens: pointer<TokenList>, pos: pointer<TokenPosition>) -> pointer<SourceLocation>
@@ -125,13 +127,14 @@ private fun sourceLocation(tokens: pointer<TokenList>, pos: pointer<TokenPositio
  * The caller must provide a valid TokenList when token and token.pos are
  * non-null.
  *
- * @param tokens                the token list that provides source-file information.
- * @param token                 the token associated with the error, or null.
- * @param code                  the diagnostic error code.
- * @param message               the null-terminated diagnostic message.
- * @return                      the error diagnostic created by Diagnostic.makeError.
+ * @param tokens            the token list that provides source-file information.
+ * @param token             the token associated with the error, or null.
+ * @param code              the diagnostic error code.
+ * @param message           the null-terminated diagnostic message.
  *
- * @warning                     Passing an invalid message pointer may cause undefined behavior,
+ * @return                  the error diagnostic created by Diagnostic.makeError.
+ *
+ * @warning                 Passing an invalid message pointer may cause undefined behavior,
  *                              depending on the implementation of Diagnostic.makeError.
  */
 private fun tokenError(
@@ -159,11 +162,12 @@ private fun tokenError(
  * The caller must provide a valid bracket-pair table and an index within
  * its accessible range.
  *
- * @param bracketPairs          the bracket-pair table.
- * @param index                 the zero-based index of the kind to read.
- * @return                      the stored token kind, or Token.AnyKind if the slot is null.
+ * @param bracketPairs      the bracket-pair table.
+ * @param index             the zero-based index of the kind to read.
  *
- * @warning                     An invalid array pointer or out-of-range index may cause
+ * @return                  the stored token kind, or Token.AnyKind if the slot is null.
+ *
+ * @warning                 An invalid array pointer or out-of-range index may cause
  *                              undefined behavior.
  */
 private inline fun bracketKindAt(bracketPairs: pointer<ArrayList>, index: int) -> int
@@ -191,12 +195,13 @@ private inline fun bracketKindAt(bracketPairs: pointer<ArrayList>, index: int) -
  *
  * The caller must provide a valid table containing an even number of entries.
  *
- * @param openKind              the opening-bracket token kind to search for.
- * @param bracketPairs          the ordered open-close bracket-pair table.
- * @return                      the corresponding closing-bracket kind, or Token.AnyKind if no
+ * @param openKind          the opening-bracket token kind to search for.
+ * @param bracketPairs      the ordered open-close bracket-pair table.
+ *
+ * @return                  the corresponding closing-bracket kind, or Token.AnyKind if no
  *                              pair is found.
  *
- * @warning                     A null bracketPairs pointer causes undefined behavior.
+ * @warning                 A null bracketPairs pointer causes undefined behavior.
  */
 private fun findCloseKind(openKind: int, bracketPairs: pointer<ArrayList>) -> int
 {
@@ -228,12 +233,13 @@ private fun findCloseKind(openKind: int, bracketPairs: pointer<ArrayList>) -> in
  *
  * The caller must provide a valid table containing an even number of entries.
  *
- * @param closeKind             the closing-bracket token kind to search for.
- * @param bracketPairs          the ordered open-close bracket-pair table.
- * @return                      the corresponding opening-bracket kind, or Token.AnyKind if no
+ * @param closeKind         the closing-bracket token kind to search for.
+ * @param bracketPairs      the ordered open-close bracket-pair table.
+ *
+ * @return                  the corresponding opening-bracket kind, or Token.AnyKind if no
  *                              pair is found.
  *
- * @warning                     A null bracketPairs pointer causes undefined behavior.
+ * @warning                 A null bracketPairs pointer causes undefined behavior.
  */
 private fun findOpenKind(closeKind: int, bracketPairs: pointer<ArrayList>) -> int
 {
@@ -282,13 +288,15 @@ private fun findOpenKind(closeKind: int, bracketPairs: pointer<ArrayList>) -> in
  * The caller must provide a valid TokenList and ensure that the bracket-pair
  * table contains integer token kinds in open-close order.
  *
- * @param tokens                the token list to scan.
- * @param bracketPairs          the ordered open-close bracket-pair table.
- * @return                      the first bracket diagnostic found, or null when all configured
+ * @param tokens            the token list to scan.
+ * @param bracketPairs      the ordered open-close bracket-pair table.
+ *
+ * @return                  the first bracket diagnostic found, or null when all configured
  *                              brackets are balanced and correctly nested.
  *
- * @note                        This function validates nesting order as well as bracket counts.
- * @warning                     A null or invalid tokens pointer may cause undefined behavior.
+ * @note                    This function validates nesting order as well as bracket counts.
+ *
+ * @warning                 A null or invalid tokens pointer may cause undefined behavior.
  */
 fun checkBrackets(tokens: pointer<TokenList>, bracketPairs: pointer<ArrayList>) -> pointer<Diagnostic>
 {
@@ -364,7 +372,7 @@ fun checkBrackets(tokens: pointer<TokenList>, bracketPairs: pointer<ArrayList>) 
  *
  * The caller is responsible for managing the returned table.
  *
- * @return                      a newly allocated ArrayList containing the default bracket pairs.
+ * @return                  a newly allocated ArrayList containing the default bracket pairs.
  */
 private fun defaultBracketPairs() -> pointer<ArrayList>
 {
@@ -402,12 +410,14 @@ private fun defaultBracketPairs() -> pointer<ArrayList>
  *
  * The caller must provide a valid TokenList.
  *
- * @param tokens                the token list to scan.
- * @return                      the first bracket diagnostic found, or null when all default
+ * @param tokens            the token list to scan.
+ *
+ * @return                  the first bracket diagnostic found, or null when all default
  *                              brackets are balanced and correctly nested.
  *
- * @note                        This overload creates a new default bracket table for every call.
- * @warning                     A null or invalid tokens pointer may cause undefined behavior.
+ * @note                    This overload creates a new default bracket table for every call.
+ *
+ * @warning                 A null or invalid tokens pointer may cause undefined behavior.
  */
 fun checkBrackets(tokens: pointer<TokenList>) -> pointer<Diagnostic> =
     checkBrackets(tokens, defaultBracketPairs())

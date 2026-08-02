@@ -30,9 +30,8 @@ import xlang.lexer.TokenList
 /**
  * Represents a parsed fragment of source tokens.
  *
- * ParsedObject is a lightweight parser result container. It records the
- * parser-defined kind of the fragment and the tokens covered by that
- * fragment.
+ * ParsedObject is a lightweight parser executor and result container. It
+ * records the tokens consumed by one parse function.
  *
  * The token list is stored as a TokenList pointer. Token objects inside
  * the list are still referenced by pointer and are not deeply copied.
@@ -40,56 +39,39 @@ import xlang.lexer.TokenList
 struct ParsedObject
 {
     /**
-     * Identifies an object whose parser kind has not been assigned yet.
-     */
-    static val UNKNOWNKIND: int = -1
-    
-
-    /**
-     * Stores the parser-defined kind of this object.
-     *
-     * The meaning of the value is owned by the parser layer.
-     */
-    var kind: int
-
-    /**
      * Stores the tokens covered by this parsed object.
      */
-    var tokens: pointer<TokenList>
+    private var tokens: pointer<TokenList>
 
     /**
-     * Computes how many tokens this parsed object consumes.
+     * Parses the token prefix covered by this object.
      *
-     * The function receives a TokenList pointer and returns the number
-     * of tokens that should be eaten by the parser.
+     * The function receives a TokenList pointer and returns the token prefix
+     * that should be eaten by the parser. A null result means parse failure.
      */
-    var parseFunction: (pointer<TokenList>) -> int
+    private var parseFunction: (pointer<TokenList>) -> pointer<TokenList>
 
 
     /**
-     * Initializes a parsed object with a kind and parse function.
+     * Initializes a parsed object with a parse function.
      *
-     * @param kind              parser-defined object kind
-     * @param parseFunction     function that returns how many tokens to consume
+     * @param parseFunction     function that returns the token prefix to consume
      */
-    fun __init__(kind: int, parseFunction: (pointer<TokenList>) -> int)
+    fun __init__(parseFunction: (pointer<TokenList>) -> pointer<TokenList>)
     {
-        this.kind = kind
         this.tokens = new TokenList()
         this.parseFunction = parseFunction
     }
 
 
     /**
-     * Initializes a parsed object with a kind, token list and parse function.
+     * Initializes a parsed object with a token list and parse function.
      *
-     * @param kind              parser-defined object kind
      * @param tokens            tokens covered by this parsed object
-     * @param parseFunction     function that returns how many tokens to consume
+     * @param parseFunction     function that returns the token prefix to consume
      */
-    fun __init__(kind: int, tokens: pointer<TokenList>, parseFunction: (pointer<TokenList>) -> int)
+    fun __init__(tokens: pointer<TokenList>, parseFunction: (pointer<TokenList>) -> pointer<TokenList>)
     {
-        this.kind = kind
         this.tokens = tokens
         this.parseFunction = parseFunction
     }
@@ -101,6 +83,7 @@ struct ParsedObject
      * The token object is referenced directly by the TokenList.
      *
      * @param token             token to append
+     *
      * @return                  this object for chained calls
      */
     fun push(token: pointer<Token>) -> pointer<ParsedObject>
@@ -113,27 +96,28 @@ struct ParsedObject
     /**
      * Parses from a token list and stores the consumed token prefix.
      *
-     * The parse function is called first. Its result is treated as the
-     * number of tokens to consume from the beginning of input. The consumed
-     * tokens are copied into this object's TokenList.
+     * The parse function is called first. Its returned TokenList is treated
+     * as the consumed prefix. The prefix length decides how many source tokens
+     * are removed from input.
      *
      * Token objects are not deeply copied. The destination list stores
      * copies of Token values that reference the same token text and position
      * data as the source tokens.
      *
      * @param input             source token list
+     *
      * @return                  consumed token count, or -1 if the count is invalid
      */
     fun doParse(input: pointer<TokenList>) -> int
     {
-        val index: int = this.parseFunction(input)
-
-        if index < 0 || index > input.length():
-            return -1
-
-        val tokens: pointer<TokenList> = input.subToken(0, index)
+        val tokens: pointer<TokenList> = this.parseFunction(input)
 
         if tokens == null:
+            return -1
+
+        val index: int = tokens.length()
+
+        if index < 0 || index > input.length():
             return -1
 
         this.tokens = tokens

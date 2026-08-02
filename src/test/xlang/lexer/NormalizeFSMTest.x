@@ -309,7 +309,6 @@ private fun editChangeTest() -> int
 private fun ruleWindowTest() -> int
 {
     val list: pointer<TokenList> = makeABCList()
-    val tokenArray: pointer<ArrayList> = list.toArray()
     val rule: pointer<NormalizeRule> = new NormalizeRule(
         1,
         NormalizeFSM.DEFAULT,
@@ -320,13 +319,13 @@ private fun ruleWindowTest() -> int
     rule.addPattern(TOKEN_KIND_C, "c")
     rule.setPivot(1)
 
-    if !rule.match(tokenArray, 1):
+    if !rule.match(list, 1):
         return 1
 
-    if rule.match(tokenArray, 2):
+    if rule.match(list, 2):
         return 2
 
-    val window: pointer<ArrayList> = NormalizeFSM.window(rule, tokenArray, 1)
+    val window: pointer<ArrayList> = NormalizeFSM.window(rule, list, 1)
 
     if window == null:
         return 3
@@ -350,7 +349,6 @@ private fun ruleWindowTest() -> int
 private fun anyKindTest() -> int
 {
     val list: pointer<TokenList> = makeABCList()
-    val tokenArray: pointer<ArrayList> = list.toArray()
     val exactRule: pointer<NormalizeRule> = new NormalizeRule(
         1,
         NormalizeFSM.DEFAULT,
@@ -363,16 +361,16 @@ private fun anyKindTest() -> int
     exactRule.addPattern(TOKEN_KIND_A, "b")
     exactRule.setPivot(0)
 
-    if exactRule.match(tokenArray, 1):
+    if exactRule.match(list, 1):
         return 1
 
     anyRule.addPattern(Token.AnyKind, "b")
     anyRule.setPivot(0)
 
-    if !anyRule.match(tokenArray, 1):
+    if !anyRule.match(list, 1):
         return 2
 
-    if anyRule.match(tokenArray, 0):
+    if anyRule.match(list, 0):
         return 3
 
     return 0

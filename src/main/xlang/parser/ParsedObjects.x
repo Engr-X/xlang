@@ -31,9 +31,8 @@ import xlang.util.ArrayList
 /**
  * Represents a parsed fragment made of multiple token-list groups.
  *
- * ParsedObjects is the plural form of ParsedObject. The main difference is
- * that tokens stores an array of TokenList values instead of one TokenList
- * pointer.
+ * ParsedObjects is the plural form of ParsedObject. It repeatedly applies one
+ * parse function and stores each consumed token-list group.
  *
  * The array is represented by ArrayList until the language has a generic
  * Array<TokenList> type. Each stored element is a byte copy of a TokenList
@@ -42,38 +41,27 @@ import xlang.util.ArrayList
 struct ParsedObjects
 {
     /**
-     * Identifies an object whose parser kind has not been assigned yet.
-     */
-    static val UNKNOWNKIND: int = -1
-
-
-    /**
-     * Stores the parser-defined kind of this object group.
-     */
-    var kind: int
-
-    /**
      * Stores token-list groups covered by this parsed object group.
      *
      * This ArrayList stores TokenList values, not pointer<TokenList> slots.
      */
-    var tokens: pointer<ArrayList>
+    private var tokens: pointer<ArrayList>
 
     /**
-     * Computes how many tokens this parsed object group consumes.
-     */
-    var parseFunction: (pointer<TokenList>) -> int
-
-
-    /**
-     * Initializes a parsed object group with a kind and parse function.
+     * Parses one token-list group from the input prefix.
      *
-     * @param kind              parser-defined object kind
-     * @param parseFunction     function that returns how many tokens to consume
+     * A null result means there is no next group.
      */
-    fun __init__(kind: int, parseFunction: (pointer<TokenList>) -> int)
+    private var parseFunction: (pointer<TokenList>) -> pointer<TokenList>
+
+
+    /**
+     * Initializes a parsed object group with a parse function.
+     *
+     * @param parseFunction     function that returns the next token-list group
+     */
+    fun __init__(parseFunction: (pointer<TokenList>) -> pointer<TokenList>)
     {
-        this.kind = kind
         this.tokens = new ArrayList(sizeof(TokenList))
         this.parseFunction = parseFunction
     }
@@ -85,6 +73,7 @@ struct ParsedObjects
      * The TokenList value is copied into the backing ArrayList.
      *
      * @param tokens            token-list group to append
+     *
      * @return                  this object group for chained calls
      */
     fun push(tokens: pointer<TokenList>) -> pointer<ParsedObjects>
@@ -98,6 +87,7 @@ struct ParsedObjects
      * Returns a token-list group by index.
      *
      * @param index             zero-based group index
+     *
      * @return                  token-list group pointer, or null for an invalid index
      */
     fun get(index: int) -> pointer<TokenList> =
@@ -108,18 +98,18 @@ struct ParsedObjects
      * Parses token-list groups from a token list.
      *
      * The parse function is called repeatedly on the current input.
-     * Each positive result creates one TokenList group from the input prefix,
-     * appends that group to tokens, and immediately removes the same prefix
-     * from input.
+     * Each non-null result is treated as one consumed token-list group,
+     * appended to tokens, and immediately removed from input by group length.
      *
      * The parse function must not mutate input. This function owns the input
      * cursor movement through remove().
      *
-     * A -1 result means the repeated parse is finished. Other negative values,
-     * zero, or ranges larger than the remaining input are treated as invalid.
+     * A null result means the repeated parse is finished. Empty groups or
+     * groups larger than the remaining input are treated as invalid.
      *
      * @param input             source token list
-     * @return                  total consumed token count, or -1 if a count is invalid
+     *
+     * @return                  total consumed token count, or -1 if a group is invalid
      */
     fun doParse(input: pointer<TokenList>) -> int
     {
@@ -128,17 +118,14 @@ struct ParsedObjects
 
         while input.length() > 0:
         {
-            val index: int = this.parseFunction(input)
-
-            if index == -1:
-                break
-
-            if index <= 0 || index > input.length():
-                return -1
-
-            val tokens: pointer<TokenList> = input.subToken(0, index)
+            val tokens: pointer<TokenList> = this.parseFunction(input)
 
             if tokens == null:
+                break
+
+            val index: int = tokens.length()
+
+            if index <= 0 || index > input.length():
                 return -1
 
             this.tokens.push(tokens)
@@ -155,6 +142,5 @@ struct ParsedObjects
      *
      * @return                  token-list group count
      */
-    fun length() -> int =
-        this.tokens.length
+    fun length() -> int = this.tokens.length
 }

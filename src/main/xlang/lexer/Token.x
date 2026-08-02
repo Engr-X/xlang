@@ -127,7 +127,7 @@ struct Token
      *
      * This value is the minimum representable 32-bit signed integer.
      *
-     * @note This constant is intended for matching and lookup operations,
+     * @note                    This constant is intended for matching and lookup operations,
      * not for ordinary lexer output.
      */
     static val AnyKind: int = -2147483647 - 1
@@ -137,7 +137,7 @@ struct Token
      *
      * EOF tokens reference this string directly.
      *
-     * @warning This shared string must not be modified or released by callers.
+     * @warning                 This shared string must not be modified or released by callers.
      */
     static val EOF_STRING: pointer<char> = "<EOF>"
 
@@ -185,8 +185,9 @@ struct Token
      * @param pos               the source position of the token
      * @param text              the null-terminated token text
      *
-     * @note The position object is not copied.
-     * @warning Passing an invalid text pointer to a non-EOF token may cause undefined behavior.
+     * @note                    The position object is not copied.
+     *
+     * @warning                 Passing an invalid text pointer to a non-EOF token may cause undefined behavior.
      */
     fun __init__(kind: int, pos: pointer<TokenPosition>, text: pointer<char>)
     {
@@ -222,6 +223,7 @@ struct Token
      * @param errorInfo         the null-terminated diagnostic message
      *
      * @note                    The position object is not copied.
+     *
      * @warning                 Passing an invalid string pointer to a non-EOF token may cause undefined behavior.
      */
     fun __init__(kind: int, pos: pointer<TokenPosition>, text: pointer<char>, errorInfo: pointer<char>)
@@ -312,6 +314,7 @@ struct TokenList
      * The supplied path is duplicated. A null path clears the path.
      *
      * @param path              the new source path
+     *
      * @return                  this token list for chained calls
      */
     fun setPath(path: pointer<char>) -> pointer<TokenList>
@@ -327,6 +330,7 @@ struct TokenList
      * This is the explicit-name alias of setPath.
      *
      * @param filePath          the new source file path
+     *
      * @return                  this token list for chained calls
      */
     fun setFilePath(filePath: pointer<char>) -> pointer<TokenList> =
@@ -369,11 +373,79 @@ struct TokenList
      * The caller is responsible for ensuring that the index is valid.
      *
      * @param index             the zero-based token index
+     *
      * @return                  a pointer to the token at the specified index
      *
-     * @warning An out-of-range index may cause undefined behavior.
+     * @warning                 An out-of-range index may cause undefined behavior.
      */
     fun get(index: int) -> pointer<Token> = this.tokens.get(index) as pointer<Token>
+
+
+    /**
+     * Returns the longest PatternList prefix matched at an index.
+     *
+     * Matching starts at this token list's index. A complete match means the
+     * returned value equals patternList.length().
+     *
+     * A null pattern list never matches and returns zero.
+     *
+     * @param index             the zero-based token index at which matching begins
+     * @param patternList       the pattern sequence to match
+     *
+     * @return                  the number of consecutive pattern atoms that matched
+     */
+    fun maxMatchLength(index: int, patternList: pointer<PatternList>) -> int
+    {
+        if patternList == null:
+            return 0
+
+        return patternList.maxMatchLength(this, index)
+    }
+
+
+    /**
+     * Returns the longest PatternList prefix matched at the beginning.
+     *
+     * This overload uses index zero.
+     *
+     * @param patternList       the pattern sequence to match
+     *
+     * @return                  the number of consecutive pattern atoms that matched
+     */
+    fun maxMatchLength(patternList: pointer<PatternList>) -> int =
+        this.maxMatchLength(0, patternList)
+
+
+    /**
+     * Tests whether a complete PatternList matches at an index.
+     *
+     * This is the boolean form of maxMatchLength.
+     *
+     * @param index             the zero-based token index at which matching begins
+     * @param patternList       the pattern sequence to match
+     *
+     * @return                  true if every pattern atom matched; otherwise false
+     */
+    fun canMatch(index: int, patternList: pointer<PatternList>) -> bool
+    {
+        if patternList == null:
+            return false
+
+        return this.maxMatchLength(index, patternList) == patternList.length()
+    }
+
+
+    /**
+     * Tests whether a complete PatternList matches at the beginning.
+     *
+     * This overload uses index zero.
+     *
+     * @param patternList       the pattern sequence to match
+     *
+     * @return                  true if every pattern atom matched; otherwise false
+     */
+    fun canMatch(patternList: pointer<PatternList>) -> bool =
+        this.canMatch(0, patternList)
 
 
     /**
@@ -388,6 +460,7 @@ struct TokenList
      * @return                  the internal mutable ArrayList
      *
      * @note                    Use toArray when an independent collection is required.
+     *
      * @warning                 Direct modification may break TokenList invariants.
      */
     fun array() -> pointer<ArrayList> = this.tokens
@@ -428,6 +501,7 @@ struct TokenList
      *
      * @param from              inclusive start index
      * @param to                exclusive end index
+     *
      * @return                  copied token list, or null for an invalid range
      */
     fun subToken(from: int, to: int) -> pointer<TokenList>
@@ -508,6 +582,7 @@ struct TokenList
      * newlines and is responsible for managing the returned StringBuilder.
      *
      * @param newlineKind       the token kind that should produce a newline
+     *
      * @return                  a newly allocated StringBuilder containing the formatted tokens
      *
      * @note                    This method creates a readable representation and does not

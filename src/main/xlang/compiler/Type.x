@@ -58,7 +58,7 @@ struct Type
      *
      * Examples include `int`, `Token` and `ArrayList`.
      */
-    val typeName: pointer<char>
+    private val typeName: pointer<char>
 
     /**
      * Points to the null-terminated package name.
@@ -66,7 +66,7 @@ struct Type
      * This value may be null for built-in types, unresolved package names or
      * types where only the simple name is needed.
      */
-    val packageName: pointer<char>
+    private val packageName: pointer<char>
 
     /**
      * Stores nested type arguments.
@@ -75,7 +75,7 @@ struct Type
      * addTypeArgument() is called, so callers may pass stack or heap Type
      * objects.
      */
-    val typeArguments: pointer<ArrayList>
+    private val typeArguments: pointer<ArrayList>
 
     /**
      * Stores the number of nested type arguments.
@@ -100,10 +100,10 @@ struct Type
      * Both packageName and typeName are duplicated. The caller may still pass
      * null for packageName when a package is intentionally absent.
      *
-     * @param                   type the numeric type kind.
-     * @param                   packageName the null-terminated package name.
-     * @param                   typeName the null-terminated simple type name.
-     * @param                   memSize the runtime memory size in bytes.
+     * @param type              the numeric type kind.
+     * @param packageName       the null-terminated package name.
+     * @param typeName          the null-terminated simple type name.
+     * @param memSize           the runtime memory size in bytes.
      */
     fun __init__(type: int, packageName: pointer<char>, typeName: pointer<char>, memSize: int)
     {
@@ -125,7 +125,8 @@ struct Type
      *
      * Null arguments are ignored.
      *
-     * @param                   typeArgument type argument to append
+     * @param typeArgument      type argument to append
+     *
      * @return                  this Type for chained construction
      */
     fun addTypeArgument(typeArgument: pointer<Type>) -> pointer<Type>
@@ -141,14 +142,67 @@ struct Type
 
 
     /**
+     * Creates an independent copy of this Type.
+     *
+     * The copied Type duplicates pointer fields instead of sharing this Type's
+     * internal strings or type argument list.
+     *
+     * @return                  copied Type
+     */
+    fun copy() -> pointer<Type>
+    {
+        val result: pointer<Type> = new Type(this.type, this.packageName, this.typeName, this.memSize)
+
+        for (var i: int = 0; i < this.length; i++):
+        {
+            val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
+
+            if typeArgument != null:
+            {
+                val copiedArgument: pointer<Type> = typeArgument.copy()
+                result.addTypeArgument(copiedArgument)
+            }
+        }
+
+        return result
+    }
+
+
+    /**
+     * Returns a copy of the simple type name.
+     *
+     * @return                  copied null-terminated simple type name
+     */
+    fun getTypeName() -> pointer<char> =
+        String.strdup(this.typeName)
+
+
+    /**
+     * Returns a copy of the package name.
+     *
+     * @return                  copied null-terminated package name, or null when absent
+     */
+    fun getPackageName() -> pointer<char> =
+        String.strdup(this.packageName)
+
+
+    /**
      * Returns the nested type argument at index.
      *
-     * The returned pointer belongs to the internal ArrayList storage and may be
-     * invalidated if later addTypeArgument() calls resize the list.
+     * The returned Type is an independent copy. Mutating it does not modify the
+     * Type stored inside this object's internal type argument list.
      *
-     * @param                   index type argument index
-     * @return                  stored Type pointer, or null when index is invalid
+     * @param index             type argument index
+     *
+     * @return                  copied Type pointer, or null when index is invalid
      */
-    fun getTypeArgument(index: int) -> pointer<Type> =
-        this.typeArguments.get(index) as pointer<Type>
+    fun getTypeArgument(index: int) -> pointer<Type>
+    {
+        val typeArgument: pointer<Type> = this.typeArguments.get(index) as pointer<Type>
+
+        if typeArgument == null:
+            return null
+
+        return typeArgument.copy()
+    }
 }

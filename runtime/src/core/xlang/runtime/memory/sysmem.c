@@ -38,8 +38,9 @@
  * the source file explicitly handles it. Higher-level callers should normally
  * reject non-positive allocation sizes before calling this function.
  *
- * @param size                  the number of bytes to allocate
- * @return                      a pointer to the allocated memory block, or null if allocation fails
+ * @param size              the number of bytes to allocate
+ *
+ * @return                  a pointer to the allocated memory block, or null if allocation fails
  */
 void* xlang_sys_alloc(const x_i64 size) 
 {
@@ -66,9 +67,10 @@ void* xlang_sys_alloc(const x_i64 size)
  * Runtime memory managers must update their own bookkeeping after a successful
  * reallocation.
  *
- * @param memory                the memory block to resize, or null to allocate a new block
- * @param size                  the requested new size in bytes
- * @return                      a pointer to the resized memory block, or null if reallocation fails
+ * @param memory            the memory block to resize, or null to allocate a new block
+ * @param size              the requested new size in bytes
+ *
+ * @return                  a pointer to the resized memory block, or null if reallocation fails
  */
 void* xlang_sys_realloc(const void* const memory, const x_i64 size)
 {
@@ -98,7 +100,7 @@ void* xlang_sys_realloc(const void* const memory, const x_i64 size)
  * After this function returns, the pointer must not be dereferenced or passed
  * to another free operation.
  *
- * @param ptr                   the memory block to release
+ * @param ptr               the memory block to release
  */
 void xlang_sys_free(const void* const ptr) 
 {

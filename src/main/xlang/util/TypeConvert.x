@@ -61,8 +61,9 @@ private val MAX_RADIX: int = 36
  * This function assumes that the input character is between '0' and '9'.
  * No validation is performed.
  *
- * @param ch                    ASCII digit character
- * @return                      integer value represented by the digit
+ * @param ch                ASCII digit character
+ *
+ * @return                  integer value represented by the digit
  */
 inline fun charToInt(ch: char) -> int = (ch - '0') as int
 
@@ -73,8 +74,9 @@ inline fun charToInt(ch: char) -> int = (ch - '0') as int
  * This function assumes that the input value is between 0 and 9.
  * No validation is performed.
  *
- * @param v                     decimal digit value
- * @return                      ASCII digit character
+ * @param v                 decimal digit value
+ *
+ * @return                  ASCII digit character
  */
 inline fun intToChar(v: int) -> char = v + '0'
 
@@ -84,8 +86,9 @@ inline fun intToChar(v: int) -> char = v + '0'
  *
  * Supported radices are 2 through 36.
  *
- * @param radix                 numeric base to validate
- * @return                      true when the radix is supported
+ * @param radix             numeric base to validate
+ *
+ * @return                  true when the radix is supported
  */
 inline fun checkRadix(radix: int) -> bool = MIN_RADIX <= radix && radix <= MAX_RADIX
 
@@ -99,8 +102,9 @@ inline fun checkRadix(radix: int) -> bool = MIN_RADIX <= radix && radix <= MAX_R
  * This function assumes that the input value is already in the range allowed
  * by the caller's radix.
  *
- * @param v                     digit value to convert
- * @return                      character representation of the digit
+ * @param v                 digit value to convert
+ *
+ * @return                  character representation of the digit
  */
 private fun intToRadixChar(v: int) -> char
 {
@@ -135,10 +139,11 @@ private fun radixCharToInt(ch: char) -> int
  * This function returns 0L when the radix is invalid or a digit does not fit
  * the radix. Overflow is not checked.
  *
- * @param text                  raw digit sequence
- * @param radix                 numeric base used for conversion
- * @param length                number of characters to parse
- * @return                      parsed long value
+ * @param text              raw digit sequence
+ * @param radix             numeric base used for conversion
+ * @param length            number of characters to parse
+ *
+ * @return                  parsed long value
  */
 private fun rawStringToLong(text: pointer<char>, radix: int, length: int) -> long
 {
@@ -171,8 +176,9 @@ private fun rawStringToLong(text: pointer<char>, radix: int, length: int) -> lon
  * This function returns 0L when the input cannot be parsed. Overflow is not
  * checked.
  *
- * @param text                  integer string to parse
- * @return                      parsed long value
+ * @param text              integer string to parse
+ *
+ * @return                  parsed long value
  */
 fun stringToLong(mut text: pointer<char>) -> long
 {
@@ -234,9 +240,9 @@ fun stringToLong(mut text: pointer<char>) -> long
  * INT_MIN is not supported because negating INT_MIN overflows in two's
  * complement integer representation.
  *
- * @param dest                  pointer to the destination character buffer
- * @param value                 integer value to convert
- * @param radix                 numeric base used for conversion
+ * @param dest              pointer to the destination character buffer
+ * @param value             integer value to convert
+ * @param radix             numeric base used for conversion
  */
 fun intToString(mut dest: pointer<char>, mut value: int, radix: int)
 {

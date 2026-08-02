@@ -64,7 +64,7 @@
  * The value should not be used as a monotonic timer. System clock changes may
  * affect the returned value.
  *
- * @return the current system time in seconds
+ * @return                  the current system time in seconds
  */
 extern x_i64 xlang_now_s();
 
@@ -82,7 +82,7 @@ extern x_i64 xlang_now_s();
  * The value should not be treated as strictly monotonic. If the operating
  * system clock is adjusted, the returned value may move forwards or backwards.
  *
- * @return the current system time in milliseconds
+ * @return                  the current system time in milliseconds
  */
 extern x_i64 xlang_now_ms();
 
@@ -101,7 +101,7 @@ extern x_i64 xlang_now_ms();
  * This function should not be used as a monotonic timer unless the
  * implementation explicitly documents monotonic behavior.
  *
- * @return the current system time in nanoseconds
+ * @return                  the current system time in nanoseconds
  */
 extern x_i64 xlang_now_ns();
 

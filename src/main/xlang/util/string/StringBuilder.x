@@ -172,7 +172,7 @@ struct StringBuilder
      *
      * The source pointer must point to a valid null-terminated string.
      *
-     * @param str pointer to the null-terminated string to append
+     * @param str               pointer to the null-terminated string to append
      */
     fun append(str: pointer<char>)
     {
@@ -201,6 +201,7 @@ struct StringBuilder
      * valid range, this function returns -1 cast to char.
      *
      * @param index             zero-based character index to read
+     *
      * @return                  character at index, or -1 as char if invalid
      */
     fun get(index: int) -> char

@@ -158,6 +158,7 @@ struct Diagnostic
      * @param code              the machine-readable diagnostic code
      * @param location          the optional source location
      * @param message           the human-readable diagnostic message
+     *
      * @return                  a newly allocated error diagnostic
      */
     static fun makeError(code: int, location: pointer<SourceLocation>, message: pointer<char>) -> pointer<Diagnostic> =
@@ -170,6 +171,7 @@ struct Diagnostic
      * @param code              the machine-readable diagnostic code
      * @param location          the optional source location
      * @param message           the human-readable diagnostic message
+     *
      * @return                  a newly allocated warning diagnostic
      */
     static fun makeWarning(code: int, location: pointer<SourceLocation>, message: pointer<char>) -> pointer<Diagnostic> =
@@ -186,6 +188,7 @@ struct Diagnostic
      * @param column            the starting column number
      * @param length            the source range length in characters
      * @param message           the human-readable diagnostic message
+     *
      * @return                  a newly allocated error diagnostic
      */
     static fun makeError(
@@ -209,6 +212,7 @@ struct Diagnostic
      * @param column            the starting column number
      * @param length            the source range length in characters
      * @param message           the human-readable diagnostic message
+     *
      * @return                  a newly allocated warning diagnostic
      */
     static fun makeWarning(

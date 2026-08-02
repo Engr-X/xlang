@@ -49,8 +49,9 @@ import xlang.System
  * It reads the file size in binary mode so the result matches the number of
  * bytes that readFileToBuffer expects to copy.
  *
- * @param path                  pointer to the null-terminated file path
- * @return                      file size in bytes, or a negative native error code
+ * @param path              pointer to the null-terminated file path
+ *
+ * @return                  file size in bytes, or a negative native error code
  */
 @native("filesize")
 private native inline fun filesize(path: pointer<char>) -> int;
@@ -64,9 +65,10 @@ private native inline fun filesize(path: pointer<char>) -> int;
  * slots because the native implementation widens each file byte into one
  * char element and appends a final null terminator.
  *
- * @param dest                  pointer to the destination character buffer
- * @param path                  pointer to the null-terminated file path
- * @return                      number of bytes read, or a negative native error code
+ * @param dest              pointer to the destination character buffer
+ * @param path              pointer to the null-terminated file path
+ *
+ * @return                  number of bytes read, or a negative native error code
  */
 @native("read")
 private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<char>) -> int;
@@ -82,8 +84,9 @@ private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<ch
  *
  * Empty files, invalid paths, and allocation failures return null.
  *
- * @param path                  pointer to the null-terminated file path
- * @return                      newly allocated file content buffer, or null on failure
+ * @param path              pointer to the null-terminated file path
+ *
+ * @return                  newly allocated file content buffer, or null on failure
  */
 fun readFile(path: pointer<char>) -> pointer<char>
 {
@@ -109,7 +112,7 @@ fun readFile(path: pointer<char>) -> pointer<char>
  * return success without changing anything. On platforms that require explicit
  * setup, the native runtime performs the required initialization.
  *
- * @return native status code, usually 0 on success
+ * @return                  native status code, usually 0 on success
  */
 @native("enable_ansi_color")
 native inline fun enableANSIColor() -> int;
@@ -123,10 +126,11 @@ native inline fun enableANSIColor() -> int;
  * including any ANSI escape sequences inserted by the native runtime and the
  * final null terminator.
  *
- * @param dest                  pointer to the destination character buffer
- * @param value                 pointer to the null-terminated string to format
- * @param color                 color code used by the native runtime
- * @return                      number of characters written
+ * @param dest              pointer to the destination character buffer
+ * @param value             pointer to the null-terminated string to format
+ * @param color             color code used by the native runtime
+ *
+ * @return                  number of characters written
  */
 @native("colored_sprint")
 native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color: int) -> int;
@@ -139,10 +143,11 @@ native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color
  * the line feed, any ANSI escape sequences inserted by the native runtime, and
  * the final null terminator.
  *
- * @param dest                  pointer to the destination character buffer
- * @param value                 pointer to the null-terminated string to format
- * @param color                 color code used by the native runtime
- * @return                      number of characters written
+ * @param dest              pointer to the destination character buffer
+ * @param value             pointer to the null-terminated string to format
+ * @param color             color code used by the native runtime
+ *
+ * @return                  number of characters written
  */
 @native("colored_sprintln")
 native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, color: int) -> int;

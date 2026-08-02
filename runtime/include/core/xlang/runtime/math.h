@@ -60,8 +60,9 @@
  * The input angle is interpreted in radians. The result is the sine of the
  * given angle, using the behavior of the underlying native math backend.
  *
- * @param x                     the input angle, in radians
- * @return                      the sine of x
+ * @param x                 the input angle, in radians
+ *
+ * @return                  the sine of x
  */
 extern x_f64 xlang_sin(x_f64 x);
 
@@ -72,8 +73,9 @@ extern x_f64 xlang_sin(x_f64 x);
  * The input angle is interpreted in radians. The result is the cosine of the
  * given angle, using the behavior of the underlying native math backend.
  *
- * @param x                     the input angle, in radians
- * @return                      the cosine of x
+ * @param x                 the input angle, in radians
+ *
+ * @return                  the cosine of x
  */
 extern x_f64 xlang_cos(x_f64 x);
 
@@ -84,8 +86,9 @@ extern x_f64 xlang_cos(x_f64 x);
  * The input angle is interpreted in radians. The result is the tangent of the
  * given angle, using the behavior of the underlying native math backend.
  *
- * @param x                     the input angle, in radians
- * @return                      the tangent of x
+ * @param x                 the input angle, in radians
+ *
+ * @return                  the tangent of x
  */
 extern x_f64 xlang_tan(x_f64 x);
 
@@ -98,8 +101,9 @@ extern x_f64 xlang_tan(x_f64 x);
  * follow the behavior of the underlying native math backend, usually producing
  * NaN for standard IEEE-style implementations.
  *
- * @param x                     the input value
- * @return                      the arc sine of x, in radians
+ * @param x                 the input value
+ *
+ * @return                  the arc sine of x, in radians
  */
 extern x_f64 xlang_asin(x_f64 x);
 
@@ -112,8 +116,9 @@ extern x_f64 xlang_asin(x_f64 x);
  * follow the behavior of the underlying native math backend, usually producing
  * NaN for standard IEEE-style implementations.
  *
- * @param x                     the input value
- * @return                      the arc cosine of x, in radians
+ * @param x                 the input value
+ *
+ * @return                  the arc cosine of x, in radians
  */
 extern x_f64 xlang_acos(x_f64 x);
 
@@ -124,8 +129,9 @@ extern x_f64 xlang_acos(x_f64 x);
  * The result is expressed in radians. The returned angle is determined by the
  * behavior of the underlying native math backend.
  *
- * @param x                     the input value
- * @return                      the arc tangent of x, in radians
+ * @param x                 the input value
+ *
+ * @return                  the arc tangent of x, in radians
  */
 extern x_f64 xlang_atan(x_f64 x);
 
@@ -136,8 +142,9 @@ extern x_f64 xlang_atan(x_f64 x);
  * This function computes e^x, where e is Euler's number. Overflow, underflow,
  * NaN, and infinity behavior follow the underlying native math backend.
  *
- * @param x                     the exponent
- * @return                      e raised to the power of x
+ * @param x                 the exponent
+ *
+ * @return                  e raised to the power of x
  */
 extern x_f64 xlang_exp(x_f64 x);
 
@@ -150,8 +157,9 @@ extern x_f64 xlang_exp(x_f64 x);
  * negative inputs, zero, NaN, and infinity follow the behavior of the
  * underlying native math backend.
  *
- * @param x                     the input value
- * @return                      the natural logarithm of x
+ * @param x                 the input value
+ *
+ * @return                  the natural logarithm of x
  */
 extern x_f64 xlang_ln(x_f64 x);
 
@@ -164,8 +172,9 @@ extern x_f64 xlang_ln(x_f64 x);
  * negative inputs, zero, NaN, and infinity follow the behavior of the
  * underlying native math backend.
  *
- * @param x                     the input value
- * @return                      the base-10 logarithm of x
+ * @param x                 the input value
+ *
+ * @return                  the base-10 logarithm of x
  */
 extern x_f64 xlang_log10(x_f64 x);
 
@@ -177,8 +186,9 @@ extern x_f64 xlang_log10(x_f64 x);
  * or equal to zero. Negative inputs, NaN, and infinity follow the behavior of
  * the underlying native math backend.
  *
- * @param x                     the input value
- * @return                      the square root of x
+ * @param x                 the input value
+ *
+ * @return                  the square root of x
  */
 extern x_f64 xlang_sqrt(x_f64 x);
 
@@ -189,8 +199,9 @@ extern x_f64 xlang_sqrt(x_f64 x);
  * This function computes the real cube root of x. Unlike square root, cube root
  * is defined for negative real values as well as positive real values.
  *
- * @param x                     the input value
- * @return                      the cube root of x
+ * @param x                 the input value
+ *
+ * @return                  the cube root of x
  */
 extern x_f64 xlang_cbrt(x_f64 x);
 
@@ -205,9 +216,10 @@ extern x_f64 xlang_cbrt(x_f64 x);
  * Division by zero, NaN, infinity, and signed-zero behavior follow the
  * underlying native math backend.
  *
- * @param x                     the dividend
- * @param y                     the divisor
- * @return                      the IEEE-style floating-point remainder of x divided by y
+ * @param x                 the dividend
+ * @param y                 the divisor
+ *
+ * @return                  the IEEE-style floating-point remainder of x divided by y
  */
 extern x_f64 xlang_IEEEremainder(x_f64 x, x_f64 y);
 

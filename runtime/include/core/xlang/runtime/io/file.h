@@ -57,22 +57,22 @@ int file_size(const x_char* const path, int* const result);
  * This function relies on `fseek` and `ftell`, so it may not work for
  * non-seekable streams or for files whose sizes cannot be represented by `long`.
  *
- * @param path                  pointer to a valid null-terminated file path
- * @param dest                  pointer to the buffer that receives the file contents and trailing null terminator 
+ * @param path              pointer to a valid null-terminated file path
+ * @param dest              pointer to the buffer that receives the file contents and trailing null terminator
  * 
- * @return                      the number of file bytes written to `dest` on success, excluding
+ * @return                  the number of file bytes written to `dest` on success, excluding
  *                              the trailing null terminator.
- * @return                      `-1` if `path` or `dest` is null.
- * @return                      `-2` if the file cannot be opened.
- * @return                      `-3` if seeking to the end of the file fails.
- * @return                      `-4` if obtaining the file position fails.
- * @return                      `-5` if the file is too large for the return type or for the * trailing null terminator.
- * @return                      `-6` if seeking back to the beginning of the file fails.
- * @return                      `-7` if the complete file contents cannot be read. 
+ * @return                  `-1` if `path` or `dest` is null.
+ * @return                  `-2` if the file cannot be opened.
+ * @return                  `-3` if seeking to the end of the file fails.
+ * @return                  `-4` if obtaining the file position fails.
+ * @return                  `-5` if the file is too large for the return type or for the * trailing null terminator.
+ * @return                  `-6` if seeking back to the beginning of the file fails.
+ * @return                  `-7` if the complete file contents cannot be read.
  *
- * @warning                     `path` must point to a valid null-terminated string.
- * @warning                     `dest` must point to writable memory containing at least `file_size + 1` bytes.
- * @warning                     The function does not receive the capacity of `dest`; passing an * undersized buffer causes undefined behavior.
+ * @warning                 `path` must point to a valid null-terminated string.
+ * @warning                 `dest` must point to writable memory containing at least `file_size + 1` bytes.
+ * @warning                 The function does not receive the capacity of `dest`; passing an * undersized buffer causes undefined behavior.
  */
 int read_file(const x_char* const path, x_char* const dest);
 

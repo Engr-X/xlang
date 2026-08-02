@@ -174,9 +174,9 @@ struct ArrayList
      * - capacity == initialCapacity.
      * - data points to initialCapacity * tsize bytes of storage.
      *
-     * @param tsize            size in bytes of one element
-     * @param initialCapacity  number of element slots to allocate initially
-     * @param loadFactor       resize threshold as a ratio of capacity
+     * @param tsize             size in bytes of one element
+     * @param initialCapacity   number of element slots to allocate initially
+     * @param loadFactor        resize threshold as a ratio of capacity
      */
     fun __init__(tsize: int, initialCapacity: int, loadFactor: double)
     {
@@ -576,7 +576,7 @@ struct ArrayList
      * cmp(slot, item), where slot is the address of the stored element slot and
      * item is the caller-provided search value. A cmp result of 0 means equal.
      *
-     * @return first matching index, or -1 when no element matches
+     * @return                  first matching index, or -1 when no element matches
      */
     fun indexOf(item: pointer<*>) -> int
     {
@@ -666,6 +666,7 @@ struct ArrayList
      *
      * @param from              inclusive start index
      * @param to                exclusive end index
+     *
      * @return                  copied sublist, or null for an invalid range
      */
     fun sublist(from: int, to: int) -> pointer<ArrayList>

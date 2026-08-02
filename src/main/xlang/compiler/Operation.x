@@ -105,7 +105,7 @@ struct Operation
      *
      * The constructor creates an independent copy of the supplied string.
      */
-    val symbol: pointer<char>
+    private val symbol: pointer<char>
 
     /**
      * Points to the null-terminated function name used when lowering this
@@ -117,7 +117,7 @@ struct Operation
      * The value may be null when the operator has not been assigned a lowering
      * function name or must be handled by special semantic logic.
      */
-    val functionName: pointer<char>
+    private val functionName: pointer<char>
 
     /**
      * Stores the position of the operator relative to its operands.
@@ -155,12 +155,12 @@ struct Operation
      * The function name is intended for semantic or lowering stages that map
      * operator syntax onto call-like forms.
      *
-     * @param                   id the unique operator identifier.
-     * @param                   symbol the null-terminated operator symbol.
-     * @param                   fixity the operator position relative to its operands.
-     * @param                   associativity the grouping direction for equal-priority operators.
-     * @param                   priority the precedence priority of the operator.
-     * @param                   functionName the null-terminated lowering function name.
+     * @param id                the unique operator identifier.
+     * @param symbol            the null-terminated operator symbol.
+     * @param fixity            the operator position relative to its operands.
+     * @param associativity     the grouping direction for equal-priority operators.
+     * @param priority          the precedence priority of the operator.
+     * @param functionName      the null-terminated lowering function name.
      *
      * @note                    The created Operation owns independent copies of
      *                          symbol and functionName.
@@ -182,4 +182,22 @@ struct Operation
         this.priority = priority
         this.associativity = associativity
     }
+
+
+    /**
+     * Returns a copy of the textual operator symbol.
+     *
+     * @return                  copied null-terminated operator symbol
+     */
+    fun getSymbol() -> pointer<char> =
+        String.strdup(this.symbol)
+
+
+    /**
+     * Returns a copy of the lowering function name for this operator.
+     *
+     * @return                  copied null-terminated function name, or null when absent
+     */
+    fun getFunctionName() -> pointer<char> =
+        String.strdup(this.functionName)
 }
