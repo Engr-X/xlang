@@ -53,9 +53,7 @@ struct TokenizeRule
      */
     var id: int
 
-    /**
-     * Stores the FSM state in which this rule is active.
-     */
+    // Stores the FSM state in which this rule is active.
     var state: int
 
     /**

@@ -1,8 +1,8 @@
-from pathlib import Path
 import argparse
-from itertools import product
 import json
 import sys
+from itertools import product
+from pathlib import Path
 
 
 if __package__ is None or __package__ == "":
@@ -39,10 +39,10 @@ PatternSpec = dict[str, int | str | None]
 
 DEFAULT_IMPORTS: set[str] = {
     "xlang.System",
-    "xlang.lexer.Token",
-    "xlang.lexer.TokenList",
     "xlang.lexer.NormalizeFSM",
     "xlang.lexer.NormalizeRule",
+    "xlang.lexer.Token",
+    "xlang.lexer.TokenList",
     "xlang.util.ArrayList",
 }
 

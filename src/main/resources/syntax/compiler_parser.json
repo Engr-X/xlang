@@ -5,6 +5,7 @@
     "class": "Parser",
     "imports": [
         "xlang.compiler.lexer.Tokenizer",
+        "xlang.lexer.Token",
         "xlang.lexer.TokenList"
     ],
 
@@ -28,7 +29,7 @@
             "    if tokens == null || tokens.length() != 1:",
             "        return null",
             "",
-            "    val token = tokens.get(0)",
+            "    val token: pointer<Token> = tokens.get(0)",
             "",
             "    if token.kind != Tokenizer.KW_TRUE && token.kind != Tokenizer.KW_FALSE:",
             "        return null",

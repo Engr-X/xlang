@@ -35,6 +35,8 @@ import xlang.lexer.TokenPatternTest
 import xlang.lexer.TokenizeFSMTest
 import xlang.compiler.lexer.TokenizerTest
 import xlang.compiler.lexer.TokenNormalizerTest
+import xlang.parser.ParsedObjectTest
+import xlang.parser.ParsedObjectsTest
 import xlang.parser.ParserUtilTest
 import xlang.util.IO
 import xlang.util.ArrayListTest
@@ -48,7 +50,7 @@ private fun getTestGroup() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("xlang")
     val testGroupSpace: blob[sizeof(pointer<TestGroup>) * 100]
-    val testGroupLength: int = 11
+    val testGroupLength: int = 13
     val testGroups: pointer<pointer<TestGroup>> = testGroupSpace as pointer<pointer<TestGroup>>
 
     testGroups[0] = StringTest.TEST_GROUP
@@ -61,7 +63,9 @@ private fun getTestGroup() -> pointer<TestGroup>
     testGroups[7] = NormalizeFSMTest.TEST_GROUP
     testGroups[8] = TokenizerTest.TEST_GROUP
     testGroups[9] = TokenNormalizerTest.TEST_GROUP
-    testGroups[10] = ParserUtilTest.TEST_GROUP
+    testGroups[10] = ParsedObjectTest.TEST_GROUP
+    testGroups[11] = ParsedObjectsTest.TEST_GROUP
+    testGroups[12] = ParserUtilTest.TEST_GROUP
 
     for (var i = 0; i < testGroupLength; i++):
     {

@@ -144,9 +144,12 @@ private fun tokenError(
     message: pointer<char>) -> pointer<Diagnostic>
 {
     if token == null:
-        return Diagnostic.makeError(code, null as pointer<SourceLocation>, message)
+        return Diagnostic.makeError(code, new ArrayList(sizeof(SourceLocation)), message)
 
-    return Diagnostic.makeError(code, sourceLocation(tokens, token.pos), message)
+    val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+    locations.push(sourceLocation(tokens, token.pos))
+
+    return Diagnostic.makeError(code, locations, message)
 }
 
 
@@ -273,13 +276,13 @@ private fun findOpenKind(closeKind: int, bracketPairs: pointer<ArrayList>) -> in
  * are also ignored.
  *
  * The function stops at the first error and returns one of the following:
- * - DIAG_INVALID_BRACKET_PAIR_TABLE when the pair table is null or has
+ * - INVALID_BRACKET_PAIR_TABLE when the pair table is null or has
  *   an odd number of entries.
- * - DIAG_UNEXPECTED_CLOSE_BRACKET when a closing bracket has no matching
+ * - UNEXPECTED_CLOSE_BRACKET when a closing bracket has no matching
  *   opening bracket.
- * - DIAG_MISMATCHED_CLOSE_BRACKET when a closing bracket does not match
+ * - MISMATCHED_CLOSE_BRACKET when a closing bracket does not match
  *   the most recently opened bracket.
- * - DIAG_UNCLOSED_OPEN_BRACKET when an opening bracket remains after the
+ * - UNCLOSED_OPEN_BRACKET when an opening bracket remains after the
  *   complete token list has been scanned.
  *
  * If multiple opening brackets remain unclosed, the most recently opened
@@ -302,8 +305,8 @@ fun checkBrackets(tokens: pointer<TokenList>, bracketPairs: pointer<ArrayList>) 
 {
     if bracketPairs == null || bracketPairs.length % 2 != 0:
         return Diagnostic.makeError(
-            Diagnostic.DIAG_INVALID_BRACKET_PAIR_TABLE,
-            null as pointer<SourceLocation>,
+            Diagnostic.INVALID_BRACKET_PAIR_TABLE,
+            new ArrayList(sizeof(SourceLocation)),
             Diagnostic.INVALID_BRACKET_PAIR_TABLE_MSG)
 
     val stack: pointer<ArrayList> = new ArrayList(sizeof(Token))
@@ -333,14 +336,14 @@ fun checkBrackets(tokens: pointer<TokenList>, bracketPairs: pointer<ArrayList>) 
                 return tokenError(
                     tokens,
                     token,
-                    Diagnostic.DIAG_UNEXPECTED_CLOSE_BRACKET,
+                    Diagnostic.UNEXPECTED_CLOSE_BRACKET,
                     Diagnostic.UNEXPECTED_CLOSE_BRACKET_MSG)
 
             if openToken.kind != expectedOpenKind:
                 return tokenError(
                     tokens,
                     token,
-                    Diagnostic.DIAG_MISMATCHED_CLOSE_BRACKET,
+                    Diagnostic.MISMATCHED_CLOSE_BRACKET,
                     Diagnostic.MISMATCHED_CLOSE_BRACKET_MSG)
 
             stack.removeAt(stack.length - 1)
@@ -353,7 +356,7 @@ fun checkBrackets(tokens: pointer<TokenList>, bracketPairs: pointer<ArrayList>) 
         return tokenError(
             tokens,
             unclosedToken,
-            Diagnostic.DIAG_UNCLOSED_OPEN_BRACKET,
+            Diagnostic.UNCLOSED_OPEN_BRACKET,
             Diagnostic.UNCLOSED_OPEN_BRACKET_MSG)
 
     return null

@@ -25,6 +25,7 @@
 
 package xlang
 
+import xlang.util.ArrayList
 import xlang.util.string.String
 
 
@@ -102,66 +103,89 @@ struct SourceLocation
  */
 struct Diagnostic
 {
-    /**
-     * Diagnostic severity for errors.
-     */
+    // Diagnostic severity for normal messages.
+    static val NORMAL_LEVEL: int = 0
+
+    // Diagnostic severity for errors.
     static val ERROR_LEVEL: int = 1
 
-    /**
-     * Diagnostic severity for warnings.
-     */
+    // Diagnostic severity for warnings.
     static val WARNING_LEVEL: int = 2
 
-    /**
-     * Diagnostic code for an invalid bracket pair table.
-     */
-    static val DIAG_INVALID_BRACKET_PAIR_TABLE: int = 1
+    // Diagnostic severity for compiler internal errors.
+    static val INTERNAL_ERROR_LEVEL: int = 3
 
-    /**
-     * Diagnostic code for a closing bracket without a matching opener.
-     */
-    static val DIAG_UNEXPECTED_CLOSE_BRACKET: int = 2
 
-    /**
-     * Diagnostic code for a closing bracket that does not match the current opener.
-     */
-    static val DIAG_MISMATCHED_CLOSE_BRACKET: int = 3
 
-    /**
-     * Diagnostic code for an opening bracket that is never closed.
-     */
-    static val DIAG_UNCLOSED_OPEN_BRACKET: int = 4
+    // Diagnostic code for an invalid bracket pair table.
+    static val INVALID_BRACKET_PAIR_TABLE: int = 1
 
-    /**
-     * Message for an invalid bracket pair table.
-     */
+    // Diagnostic code for a closing bracket without a matching opener.
+    static val UNEXPECTED_CLOSE_BRACKET: int = 2
+
+    // Diagnostic code for a closing bracket that does not match the current opener.
+    static val MISMATCHED_CLOSE_BRACKET: int = 3
+
+    // Diagnostic code for an opening bracket that is never closed.
+    static val UNCLOSED_OPEN_BRACKET: int = 4
+
+    // Diagnostic code for a token that does not match the expected parser rule.
+    static val UNEXPECTED_TOKEN: int = 5
+
+    // Diagnostic code for a null parser input.
+    static val NULL_INPUT: int = 6
+
+    // Diagnostic code for an empty parser input.
+    static val EMPTY_INPUT: int = 7
+    
+
+    // Message for an invalid bracket pair table.
     static val INVALID_BRACKET_PAIR_TABLE_MSG: pointer<char> = "invalid bracket pair table"
 
-    /**
-     * Message for a closing bracket without a matching opener.
-     */
+    // Message for a closing bracket without a matching opener.
     static val UNEXPECTED_CLOSE_BRACKET_MSG: pointer<char> = "unexpected closing bracket"
 
-    /**
-     * Message for a closing bracket that does not match the current opener.
-     */
+    // Message for a closing bracket that does not match the current opener.
     static val MISMATCHED_CLOSE_BRACKET_MSG: pointer<char> = "mismatched closing bracket"
 
-    /**
-     * Message for an opening bracket that is never closed.
-     */
+    // Message for an opening bracket that is never closed.
     static val UNCLOSED_OPEN_BRACKET_MSG: pointer<char> = "unclosed opening bracket"
 
+    // Message for a token that does not match the expected parser rule.
+    static val UNEXPECTED_TOKEN_MSG: pointer<char> = "unexpected token"
+
+    // Message for a null parser input.
+    static val NULL_INPUT_MSG: pointer<char> = "internal error: null input"
+
+    // Message for an empty parser input.
+    static val EMPTY_INPUT_MSG: pointer<char> = "internal error: empty input"
+
+
     /**
-     * Creates an error diagnostic with an existing source location.
-     *
-     * @param code              the machine-readable diagnostic code
-     * @param location          the optional source location
-     * @param message           the human-readable diagnostic message
-     *
-     * @return                  a newly allocated error diagnostic
-     */
-    static fun makeError(code: int, location: pointer<SourceLocation>, message: pointer<char>) -> pointer<Diagnostic> =
+    * Creates an error diagnostic with an existing source location.
+    *
+    * The returned Diagnostic uses ERROR_LEVEL as its severity level.
+    * The supplied diagnostic code, source location and message are passed
+    * directly to the Diagnostic constructor.
+    *
+    * location may be null when the error cannot be associated with a specific
+    * source range. This function does not copy or validate the location list.
+    *
+    * The caller must provide a valid null-terminated message and is responsible
+    * for managing the lifetime of the returned Diagnostic.
+    *
+    * @param code               the machine-readable diagnostic code.
+    * @param location           the optional source location list, or null if unavailable.
+    * @param message            the human-readable diagnostic message.
+    *
+    * @return                   a newly allocated error diagnostic.
+    *
+    * @note                     The returned diagnostic always has ERROR_LEVEL severity.
+    *
+    * @warning                  Passing an invalid message or location pointer may cause
+    *                           undefined behavior, depending on the Diagnostic constructor.
+    */
+    static fun makeError(code: int, location: pointer<ArrayList>, message: pointer<char>) -> pointer<Diagnostic> =
         new Diagnostic(ERROR_LEVEL, code, location, message)
 
 
@@ -169,62 +193,48 @@ struct Diagnostic
      * Creates a warning diagnostic with an existing source location.
      *
      * @param code              the machine-readable diagnostic code
-     * @param location          the optional source location
+     * @param location          the optional source location list
      * @param message           the human-readable diagnostic message
      *
      * @return                  a newly allocated warning diagnostic
      */
-    static fun makeWarning(code: int, location: pointer<SourceLocation>, message: pointer<char>) -> pointer<Diagnostic> =
+    static fun makeWarning(code: int, location: pointer<ArrayList>, message: pointer<char>) -> pointer<Diagnostic> =
         new Diagnostic(WARNING_LEVEL, code, location, message)
 
 
     /**
-     * Creates an error diagnostic and constructs its source location inline.
+     * Creates an internal-error diagnostic with an existing source location.
      *
-     * @param code              the machine-readable diagnostic code
-     * @param filePath          the source file path
-     * @param offset            the absolute character offset
-     * @param line              the starting line number
-     * @param column            the starting column number
-     * @param length            the source range length in characters
-     * @param message           the human-readable diagnostic message
+     * The returned Diagnostic uses INTERNAL_ERROR_LEVEL as its severity level.
+     * Internal errors normally represent compiler failures, invalid internal
+     * states or conditions that should not be caused by ordinary source code.
      *
-     * @return                  a newly allocated error diagnostic
+     * The supplied diagnostic code, source location and message are passed
+     * directly to the Diagnostic constructor.
+     *
+     * location may be null when the internal error cannot be associated with a
+     * specific source range. This function does not copy or validate the
+     * location list.
+     *
+     * The caller must provide a valid null-terminated message and is responsible
+     * for managing the lifetime of the returned Diagnostic.
+     *
+     * @param code              the machine-readable diagnostic code.
+     * @param location          the optional source location list, or null if unavailable.
+     * @param message           the human-readable internal-error message.
+     *
+     * @return                  a newly allocated internal-error diagnostic.
+     *
+     * @note                    The returned diagnostic always has INTERNAL_ERROR_LEVEL severity.
+     *
+     * @warning                 Internal errors should not be used for invalid user input that
+     *                          can be reported as a normal error diagnostic.
+     * @warning                 Passing an invalid message or location pointer may cause
+     *                          undefined behavior, depending on the Diagnostic constructor.
      */
-    static fun makeError(
-        code: int,
-        filePath: pointer<char>,
-        offset: int,
-        line: int,
-        column: int,
-        length: int,
-        message: pointer<char>) -> pointer<Diagnostic> =
-        new Diagnostic(ERROR_LEVEL, code, filePath, offset, line, column, length, message)
-
-
-    /**
-     * Creates a warning diagnostic and constructs its source location inline.
-     *
-     * @param code              the machine-readable diagnostic code
-     * @param filePath          the source file path
-     * @param offset            the absolute character offset
-     * @param line              the starting line number
-     * @param column            the starting column number
-     * @param length            the source range length in characters
-     * @param message           the human-readable diagnostic message
-     *
-     * @return                  a newly allocated warning diagnostic
-     */
-    static fun makeWarning(
-        code: int,
-        filePath: pointer<char>,
-        offset: int,
-        line: int,
-        column: int,
-        length: int,
-        message: pointer<char>) -> pointer<Diagnostic> =
-        new Diagnostic(WARNING_LEVEL, code, filePath, offset, line, column, length, message)
-
+    static fun makeInternalError(code: int, location: pointer<ArrayList>, message: pointer<char>) -> pointer<Diagnostic> =
+        new Diagnostic(INTERNAL_ERROR_LEVEL, code, location, message)
+        
 
     /**
      * Stores the diagnostic severity.
@@ -237,12 +247,12 @@ struct Diagnostic
     var code: int
 
     /**
-     * Points to the source location associated with this diagnostic.
+     * Points to the source locations associated with this diagnostic.
      *
-     * A null location means the diagnostic is not tied to a specific file
-     * range.
+     * The ArrayList stores SourceLocation values. An empty list means the
+     * diagnostic is not tied to a specific file range.
      */
-    var location: pointer<SourceLocation>
+    var location: pointer<ArrayList>
 
     /**
      * Points to the human-readable diagnostic message.
@@ -254,16 +264,33 @@ struct Diagnostic
 
 
     /**
-     * Initializes a diagnostic with an existing source location.
+     * Initializes a diagnostic with an existing source location list.
      *
-     * The location pointer is stored directly. The message is duplicated.
+     * The severity level and diagnostic code are stored directly without
+     * validation. The location list pointer is also stored directly and is not
+     * copied.
      *
-     * @param level             the diagnostic severity
-     * @param code              the machine-readable diagnostic code
-     * @param location          the optional source location
-     * @param message           the human-readable diagnostic message
+     * The message is duplicated with String.strdup, so later modifications to
+     * the original message do not affect this Diagnostic.
+     *
+     * location may be null when the diagnostic cannot be associated with a
+     * specific source range.
+     *
+     * The caller must provide a valid null-terminated message and keep a non-null
+     * SourceLocation list valid for as long as this Diagnostic uses it.
+     *
+     * @param level             the diagnostic severity level.
+     * @param code              the machine-readable diagnostic code.
+     * @param location          the optional source location list, or null if unavailable.
+     * @param message           the human-readable diagnostic message.
+     *
+     * @note                    This constructor does not verify that level is one of the defined
+     *                          diagnostic-level constants.
+     *
+     * @warning                 Passing a null or invalid message pointer may cause undefined
+     *                          behavior in String.strdup.
      */
-    fun __init__(level: int, code: int, location: pointer<SourceLocation>, message: pointer<char>)
+    fun __init__(level: int, code: int, location: pointer<ArrayList>, message: pointer<char>)
     {
         this.level = level
         this.code = code
@@ -271,42 +298,24 @@ struct Diagnostic
         this.message = String.strdup(message)
     }
 
-
     /**
-     * Initializes a diagnostic and creates its source location inline.
+     * Tests whether this diagnostic is a normal informational message.
      *
-     * The file path and message are duplicated.
+     * The diagnostic is considered normal only when its level exactly equals
+     * NORMAL_LEVEL.
      *
-     * @param level             the diagnostic severity
-     * @param code              the machine-readable diagnostic code
-     * @param filePath          the source file path
-     * @param offset            the absolute character offset
-     * @param line              the starting line number
-     * @param column            the starting column number
-     * @param length            the source range length in characters
-     * @param message           the human-readable diagnostic message
+     * @return                  true if the diagnostic level is NORMAL_LEVEL; otherwise false.
      */
-    fun __init__(
-        level: int,
-        code: int,
-        filePath: pointer<char>,
-        offset: int,
-        line: int,
-        column: int,
-        length: int,
-        message: pointer<char>)
-    {
-        this.level = level
-        this.code = code
-        this.location = new SourceLocation(filePath, offset, line, column, length)
-        this.message = String.strdup(message)
-    }
+    fun isNormal() -> bool = this.level == NORMAL_LEVEL
 
 
     /**
      * Tests whether this diagnostic is an error.
      *
-     * @return                  true if level is ERROR_LEVEL; otherwise false
+     * The diagnostic is considered an error only when its level exactly equals
+     * ERROR_LEVEL. Internal errors are not included by this check.
+     *
+     * @return                  true if the diagnostic level is ERROR_LEVEL; otherwise false.
      */
     fun isError() -> bool = this.level == ERROR_LEVEL
 
@@ -314,7 +323,29 @@ struct Diagnostic
     /**
      * Tests whether this diagnostic is a warning.
      *
-     * @return                  true if level is WARNING_LEVEL; otherwise false
+     * The diagnostic is considered a warning only when its level exactly equals
+     * WARNING_LEVEL.
+     *
+     * @return                  true if the diagnostic level is WARNING_LEVEL; otherwise false.
      */
     fun isWarning() -> bool = this.level == WARNING_LEVEL
+
+
+    /**
+     * Tests whether this diagnostic represents an internal compiler error.
+     *
+     * Internal errors normally indicate an invalid compiler state, a violated
+     * internal invariant or another failure that should not result from ordinary
+     * user input.
+     *
+     * The diagnostic is considered an internal error only when its level exactly
+     * equals INTERNAL_ERROR_LEVEL.
+     *
+     * @return                  true if the diagnostic level is INTERNAL_ERROR_LEVEL;
+     *                          otherwise false.
+     *
+     * @note                    Internal errors are intentionally distinct from normal source-code
+     *                          errors reported by isError.
+     */
+    fun isInternalError() -> bool = this.level == INTERNAL_ERROR_LEVEL
 }

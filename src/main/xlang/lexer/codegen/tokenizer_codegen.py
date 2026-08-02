@@ -1,7 +1,7 @@
-from pathlib import Path
 import argparse
 import json
 import sys
+from pathlib import Path
 
 
 if __package__ is None or __package__ == "":
@@ -34,11 +34,12 @@ SYMBOL_ACTION_MACRO: str = "$eatSymbol$"
 
 DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.Lex",
-    "xlang.lexer.TokenizeRule",
-    "xlang.lexer.TokenizeFSM",
     "xlang.lexer.LexPosition",
     "xlang.lexer.Token",
-    "xlang.lexer.TokenPosition"}
+    "xlang.lexer.TokenPosition",
+    "xlang.lexer.TokenizeFSM",
+    "xlang.lexer.TokenizeRule",
+}
 
 
 def getImports(rules: JsonObject) -> set[str]:
