@@ -23,6 +23,8 @@
 
 package xlang.lexer
 
+import xlang.parser.ParsedObject
+import xlang.parser.ParsedObjects
 import xlang.util.ArrayList
 import xlang.util.string.String
 
@@ -60,6 +62,11 @@ struct PatternAtom
     private var regex: pointer<char>
 
 
+    var refParser: pointer<ParsedObject>
+
+    var refsParser: pointer<ParsedObjects>
+
+
     /**
      * Initializes a token pattern atom.
      *
@@ -86,66 +93,61 @@ struct PatternAtom
     {
         this.kind = kind
         this.regex = String.strdup(regex)
+        this.refParser = null
+        this.refsParser = null
     }
 
 
-    /**
-     * Tests whether a token has an accepted kind.
-     *
-     * The token matches when this atom uses Token.AnyKind or when the token's
-     * kind exactly equals the stored kind.
-     *
-     * The caller must provide a valid, non-null token pointer.
-     *
-     * @param token             the token whose kind should be tested.
-     *
-     * @return                  true if the token kind is accepted; otherwise false.
-     *
-     * @warning                 Passing a null or invalid token pointer causes undefined
-     *                          behavior.
-     */
-    private inline fun matchKind(token: pointer<Token>) -> bool =
-        this.kind == Token.AnyKind || this.kind == token.kind
-
-
-    /**
-     * Tests whether a token satisfies this pattern atom.
-     *
-     * A null token never matches. The token kind is checked first. If the
-     * kind does not match, the function returns false without inspecting
-     * the token text.
-     *
-     * If regex is null, a successful kind match is sufficient. Otherwise,
-     * token.text must be non-null and String.strRegMatch must return a
-     * positive match length.
-     *
-     * A zero-length regular-expression match is currently treated as a
-     * failed match because the result must be greater than zero.
-     *
-     * @param token             the token to test.
-     *
-     * @return                  true if the token satisfies all enabled conditions;
-     *                          otherwise false.
-     *
-     * @note                    Token.AnyKind combined with a null regex accepts every
-     *                          non-null token.
-     */
-    fun match(token: pointer<Token>) -> bool
+    fun __init__(refParser: pointer<ParsedObject>)
     {
-        if token == null:
-            return false
+        this.kind = Token.AnyKind
+        this.regex = null
+        this.refParser = refParser
+        this.refsParser = null
+    }
+
+
+    fun __init__(refsParser: pointer<ParsedObjects>)
+    {
+        this.kind = Token.AnyKind
+        this.regex = null
+        this.refParser = null
+        this.refsParser = refsParser
+    }
+
+
+    fun matchRegex(tokens: pointer<TokenList>, index: int) -> int
+    {
+        if !this.isRegex() || tokens == null || index < 0 || index >= tokens.length():
+            return -1
+
+        val token: pointer<Token> = tokens.get(index)
 
         if this.kind != Token.AnyKind && this.kind != token.kind:
-            return false
+            return -1
 
         if this.regex == null:
-            return true
+            return 1
 
         if token.text == null:
-            return false
+            return -1
 
-        return String.strRegMatch(this.regex, token.text) > 0
+        return if String.strRegMatch(this.regex, token.text) > 0:
+                1
+            else:
+                -1
     }
+
+
+    inline fun isRegex() -> bool = this.refParser == null && this.refsParser == null
+
+    inline fun isRef() -> bool = this.refParser != null
+
+    inline fun isRefs() -> bool = this.refsParser != null
+
+    inline fun getRefParser() -> pointer<ParsedObject> = this.refParser
+
+    inline fun getRefsParser() -> pointer<ParsedObjects> = this.refsParser
 }
 
 
@@ -192,8 +194,8 @@ struct PatternList
      *
      * @return                  this PatternList for chained calls.
      */
-    inline fun push(kind: int) -> pointer<PatternList> =
-        this.push(kind, null)
+    inline fun pushRegex(kind: int) -> pointer<PatternList> =
+        this.pushRegex(kind, null)
 
 
     /**
@@ -213,8 +215,8 @@ struct PatternList
      * @warning                 Passing null may create an unrestricted pattern or cause
      *                          undefined behavior, depending on String.strdup.
      */
-    inline fun push(regex: pointer<char>) -> pointer<PatternList> =
-        this.push(Token.AnyKind, regex)
+    inline fun pushRegex(regex: pointer<char>) -> pointer<PatternList> =
+        this.pushRegex(Token.AnyKind, regex)
 
 
     /**
@@ -235,9 +237,25 @@ struct PatternList
      *
      * @return                  this PatternList for chained calls.
      */
-    inline fun push(kind: int, regex: pointer<char>) -> pointer<PatternList>
+    inline fun pushRegex(kind: int, regex: pointer<char>) -> pointer<PatternList>
     {
         val pattern: PatternAtom = PatternAtom(kind, regex)
+        this.patterns.push(pattern.ref)
+        return this
+    }
+
+
+    inline fun pushRef(refParser: pointer<ParsedObject>) -> pointer<PatternList>
+    {
+        val pattern: PatternAtom = PatternAtom(refParser)
+        this.patterns.push(pattern.ref)
+        return this
+    }
+
+
+    inline fun pushRefs(refsParser: pointer<ParsedObjects>) -> pointer<PatternList>
+    {
+        val pattern: PatternAtom = PatternAtom(refsParser)
         this.patterns.push(pattern.ref)
         return this
     }
@@ -276,70 +294,46 @@ struct PatternList
 
 
     /**
-     * Returns the longest matched prefix length at a token-list position.
-     *
-     * Matching begins at index. Pattern atom zero is compared with
-     * tokens[index], atom one with tokens[index + 1], and so on. The function
-     * stops at the first failed pattern, null PatternAtom, invalid token-list
-     * range or end of input.
-     *
-     * The returned value is the number of pattern atoms that matched
-     * consecutively. A complete match is therefore:
-     *     maxMatchLength(tokens, index) == length()
-     *
-     * When the value is smaller than length(), the value also identifies the
-     * first failing pattern position, which is useful for precise parser or
-     * normalizer diagnostics.
-     *
-     * @param tokens            the token list to inspect.
-     * @param index             the zero-based token index at which matching begins.
-     *
-     * @return                  the number of consecutive pattern atoms that matched.
-     */
-    fun maxMatchLength(tokens: pointer<TokenList>, index: int) -> int
-    {
-        var count: int = 0
-
-        if tokens == null:
-            return 0
-
-        if index < 0:
-            return 0
-
-        while count < this.patterns.length:
-        {
-            val tokenIndex: int = index + count
-
-            if tokenIndex >= tokens.length():
-                break
-
-            val pattern: pointer<PatternAtom> = this.get(count)
-            val token: pointer<Token> = tokens.get(tokenIndex)
-
-            if pattern == null:
-                break
-
-            if !pattern.match(token):
-                break
-
-            count++
-        }
-
-        return count
-    }
-
-
-    /**
      * Tests whether the full pattern sequence matches at a token-list index.
      *
-     * This is the boolean form of maxMatchLength. It returns true only when
-     * every pattern atom in this list matches consecutively.
+     * This is the boolean form of match. It returns true only when every
+     * pattern atom in this list matches consecutively.
      *
      * @param tokens            the token list to inspect.
      * @param index             the zero-based token index at which matching begins.
      *
      * @return                  true if the complete pattern sequence matches.
      */
-    inline fun canMatch(tokens: pointer<TokenList>, index: int) -> bool = 
-        (this.maxMatchLength(tokens, index) == this.length())
+    fun canMatch(tokens: pointer<TokenList>, index: int) -> bool
+    {
+        var patternIndex: int = 0
+        var consumed: int = 0
+
+        if tokens == null:
+            return false
+
+        if index < 0:
+            return false
+
+        while patternIndex < this.patterns.length:
+        {
+            val pattern: pointer<PatternAtom> = this.get(patternIndex)
+
+            if pattern == null:
+                return false
+
+            if !pattern.isRegex():
+                return false
+
+            val length: int = pattern.matchRegex(tokens, index + consumed)
+
+            if length < 0:
+                return false
+
+            consumed += length
+            patternIndex++
+        }
+
+        return true
+    }
 }

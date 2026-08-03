@@ -162,6 +162,28 @@ struct Diagnostic
 
 
     /**
+    * Creates a normal diagnostic result.
+    *
+    * The returned Diagnostic uses NORMAL_LEVEL as its severity level and does
+    * not contain an error code, source location or diagnostic message.
+    *
+    * This function may be used when an operation completes successfully but
+    * still requires a Diagnostic object as its result.
+    *
+    * The returned Diagnostic is newly allocated, and the caller is responsible
+    * for managing its lifetime.
+    *
+    * @return a newly allocated normal diagnostic.
+    *
+    * @note The returned diagnostic uses code 0, a null source-location list
+    * and an empty message.
+    * @note The returned diagnostic always has NORMAL_LEVEL severity.
+    */
+    static fun makeNormal() -> pointer<Diagnostic> =
+        new Diagnostic(NORMAL_LEVEL, 0, new ArrayList(sizeof(SourceLocation)), "")
+        
+
+    /**
     * Creates an error diagnostic with an existing source location.
     *
     * The returned Diagnostic uses ERROR_LEVEL as its severity level.

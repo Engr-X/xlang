@@ -372,7 +372,7 @@ struct NormalizeRule
      */
     fun addPattern(kind: int, regex: pointer<char>) -> pointer<NormalizeRule>
     {
-        this.patterns.push(kind, regex)
+        this.patterns.pushRegex(kind, regex)
         return this
     }
 

@@ -382,44 +382,7 @@ struct TokenList
 
 
     /**
-     * Returns the longest PatternList prefix matched at an index.
-     *
-     * Matching starts at this token list's index. A complete match means the
-     * returned value equals patternList.length().
-     *
-     * A null pattern list never matches and returns zero.
-     *
-     * @param index             the zero-based token index at which matching begins
-     * @param patternList       the pattern sequence to match
-     *
-     * @return                  the number of consecutive pattern atoms that matched
-     */
-    fun maxMatchLength(index: int, patternList: pointer<PatternList>) -> int
-    {
-        if patternList == null:
-            return 0
-
-        return patternList.maxMatchLength(this, index)
-    }
-
-
-    /**
-     * Returns the longest PatternList prefix matched at the beginning.
-     *
-     * This overload uses index zero.
-     *
-     * @param patternList       the pattern sequence to match
-     *
-     * @return                  the number of consecutive pattern atoms that matched
-     */
-    fun maxMatchLength(patternList: pointer<PatternList>) -> int =
-        this.maxMatchLength(0, patternList)
-
-
-    /**
      * Tests whether a complete PatternList matches at an index.
-     *
-     * This is the boolean form of maxMatchLength.
      *
      * @param index             the zero-based token index at which matching begins
      * @param patternList       the pattern sequence to match
@@ -431,7 +394,7 @@ struct TokenList
         if patternList == null:
             return false
 
-        return this.maxMatchLength(index, patternList) == patternList.length()
+        return patternList.canMatch(this, index)
     }
 
 

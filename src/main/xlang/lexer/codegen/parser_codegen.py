@@ -29,6 +29,7 @@ DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.PatternList",
     "xlang.lexer.TokenList",
     "xlang.parser.ParsedObject",
+    "xlang.util.ArrayList",
 }
 
 
@@ -86,7 +87,7 @@ def genKindExpr(kind: object) -> str | None:
 
 def genPatternPush(pattern: object) -> str:
     if isinstance(pattern, str):
-        return f".push({json.dumps(pattern)})"
+        return f".pushRegex({json.dumps(pattern)})"
 
     if not isinstance(pattern, dict):
         raise TypeError(f"parser pattern must be string or object: {pattern!r}")
@@ -104,12 +105,12 @@ def genPatternPush(pattern: object) -> str:
         raise ValueError(f"parser pattern must contain kind, regex or both: {pattern!r}")
 
     if kind is None:
-        return f".push({regex})"
+        return f".pushRegex({regex})"
 
     if regex is None:
-        return f".push({kind})"
+        return f".pushRegex({kind})"
 
-    return f".push({kind}, {regex})"
+    return f".pushRegex({kind}, {regex})"
 
 
 def getRules(config: JsonObject) -> list[JsonObject]:
@@ -300,8 +301,8 @@ def genParserResultConstructors(rules: list[JsonObject], tabs: int) -> str:
     for index, rule in enumerate(rules):
         constructor = getResultConstructor(rule)
         lines.extend([
-            f"{indent}private fun parserResultConstructor{index}(tokens: pointer<TokenList>) -> pointer<*> =",
-            f"{body_indent}{constructor}(tokens) as pointer<*>",
+            f"{indent}private fun parserResultConstructor{index}(results: pointer<ArrayList>) -> pointer<*> =",
+            f"{body_indent}{constructor}(results) as pointer<*>",
             "",
         ])
 
@@ -354,7 +355,7 @@ def genParserRule(rule: JsonObject, tabs: int) -> str:
         "",
         f"{body_indent}val parser: pointer<ParsedObject> = {parser_name}",
         "",
-        f"{body_indent}if parser.doParse(tokens) <= 0:",
+        f"{body_indent}if parser.parse(tokens, 0) <= 0:",
         f"{nested_indent}return null",
         "",
         f"{body_indent}return parser.getResult() as {return_type}",

@@ -16,25 +16,47 @@
             "input": "pointer<TokenList>",
             "return": "pointer<Atom>",
             "sub_rules": [
-                {"patterns": [{"kind": "Tokenizer.KW_TRUE"}], "action": "parseBoolAtom"},
-                {"patterns": [{"kind": "Tokenizer.KW_FALSE"}], "action": "parseBoolAtom"}
+                {"patterns": [{"kind": "Tokenizer.KW_NULL"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.KW_TRUE"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.KW_FALSE"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_CHAR"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_STRING"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_INTEGER"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_LONG"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_FLOAT"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_DOUBLE"}], "action": "parseAtom"},
+                {"patterns": [{"kind": "Tokenizer.TK_LONG_DOUBLE"}], "action": "parseAtom"}
             ]
         }
     ],
 
     "others": [
         [
-            "private fun parseBoolAtom(tokens: pointer<TokenList>) -> pointer<Atom>",
+            "private fun parseAtom(results: pointer<ArrayList>) -> pointer<Atom>",
             "{",
-            "    if tokens == null || tokens.length() != 1:",
-            "        return null",
+            "    val slot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val token: pointer<Token> = slot.deref as pointer<Token>",
             "",
-            "    val token: pointer<Token> = tokens.get(0)",
-            "",
-            "    if token.kind != Tokenizer.KW_TRUE && token.kind != Tokenizer.KW_FALSE:",
-            "        return null",
-            "",
-            "    return new Atom(Atom.BOOL_IMM_KIND, tokens.toArray())",
+            "    return if token.kind == Tokenizer.KW_NULL:",
+            "           new Atom(Atom.NULL_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.KW_TRUE || token.kind == Tokenizer.KW_FALSE:",
+            "           new Atom(Atom.BOOL_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_CHAR:",
+            "           new Atom(Atom.CHAR_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_STRING:",
+            "           new Atom(Atom.STRING_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_INTEGER:",
+            "           new Atom(Atom.INTEGER_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_LONG:",
+            "           new Atom(Atom.LONG_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_FLOAT:",
+            "           new Atom(Atom.FLOAT_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_DOUBLE:",
+            "           new Atom(Atom.DOUBLE_IMM_KIND, results)",
+            "       elif token.kind == Tokenizer.TK_LONG_DOUBLE:",
+            "           new Atom(Atom.LONG_DOUBLE_IMM_KIND, results)",
+            "       else:",
+            "           null",
             "}"
         ]
     ]
