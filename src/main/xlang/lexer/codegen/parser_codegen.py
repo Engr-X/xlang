@@ -27,7 +27,6 @@ PARSER_RULES_TYPE: str = "compiler_parser_rules"
 
 DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.PatternList",
-    "xlang.lexer.TokenList",
     "xlang.parser.ParsedObject",
     "xlang.util.ArrayList",
 }
@@ -158,36 +157,27 @@ def upperSnake(value: str) -> str:
     return "".join(result)
 
 
-def getRuleName(rule: JsonObject) -> str:
-    name = rule.get("name")
-
-    if not isinstance(name, str) or not name:
-        raise ValueError(f"parser rule must have a non-empty name: {rule!r}")
-
-    return name
-
-
-def getRuleInputType(rule: JsonObject) -> str:
-    input_type = rule.get("input", "pointer<TokenList>")
-
-    if not isinstance(input_type, str) or not input_type:
-        raise ValueError(f"parser rule input must be a non-empty string: {rule!r}")
-
-    return input_type
-
-
-def getRuleReturnType(rule: JsonObject) -> str:
-    return_type = rule.get("return")
-
-    if isinstance(return_type, str) and return_type:
-        return return_type
-
+def getRuleClass(rule: JsonObject) -> str:
     class_name = rule.get("class")
 
     if not isinstance(class_name, str) or not class_name:
-        raise ValueError(f"parser rule must have return or class: {rule!r}")
+        raise ValueError(f"parser rule must have a non-empty class: {rule!r}")
 
-    return f"pointer<{class_name}>"
+    return class_name
+
+
+def getRuleLabel(rule: JsonObject) -> str:
+    parser_name = rule.get("parser", rule.get("parser_name", rule.get("parserName", None)))
+
+    if isinstance(parser_name, str) and parser_name:
+        return parser_name
+
+    class_name = rule.get("class")
+
+    if isinstance(class_name, str) and class_name:
+        return class_name
+
+    return repr(rule)
 
 
 def getParserName(rule: JsonObject) -> str:
@@ -199,17 +189,16 @@ def getParserName(rule: JsonObject) -> str:
 
         return value
 
-    class_name = rule.get("class", None)
+    return f"{upperSnake(getRuleClass(rule))}_PARSER"
 
-    if isinstance(class_name, str) and class_name:
-        return f"{upperSnake(class_name)}_PARSER"
 
-    name = getRuleName(rule)
+def getRuleValueName(rule: JsonObject, index: int) -> str:
+    parser_name = getParserName(rule)
 
-    if name.startswith("parse") and len(name) > 5:
-        name = name[5:]
+    if parser_name.endswith("_PARSER"):
+        return f"{parser_name[:-7]}_RULE{index}"
 
-    return f"{upperSnake(name)}_PARSER"
+    return f"{parser_name}_RULE{index}"
 
 
 def getSubRuleAction(sub_rule: JsonObject) -> str | None:
@@ -255,7 +244,7 @@ def getResultConstructor(rule: JsonObject) -> str:
 
     raise ValueError(
         "ParsedObject parser rules require one shared result constructor; "
-        f"got multiple actions for {getRuleName(rule)!r}: {actions!r}"
+        f"got multiple actions for {getRuleLabel(rule)!r}: {actions!r}"
     )
 
 
@@ -279,97 +268,34 @@ def genPatternListExpr(patterns: list[object]) -> str:
 
 def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     indent = " " * (tabs * 4)
-    lines: list[str] = [
-        f"{indent}var parserIsInit: bool = false",
-    ]
-
-    for index, rule in enumerate(rules):
-        parser_name = getParserName(rule)
-        constructor = f"parserResultConstructor{index}"
-        lines.append(
-            f"{indent}val {parser_name}: pointer<ParsedObject> = new ParsedObject({constructor})"
-        )
-
-    return "\n".join(lines) + "\n\n\n"
-
-
-def genParserResultConstructors(rules: list[JsonObject], tabs: int) -> str:
-    indent = " " * (tabs * 4)
-    body_indent = " " * ((tabs + 1) * 4)
     lines: list[str] = []
 
     for index, rule in enumerate(rules):
-        constructor = getResultConstructor(rule)
-        lines.extend([
-            f"{indent}private fun parserResultConstructor{index}(results: pointer<ArrayList>) -> pointer<*> =",
-            f"{body_indent}{constructor}(results) as pointer<*>",
-            "",
-        ])
+        sub_rules = getSubRules(rule)
 
-    return "\n".join(lines).rstrip() + "\n\n\n" if lines else ""
+        if not sub_rules:
+            raise ValueError(f"parser rule must have at least one sub_rule: {rule!r}")
 
-
-def genParserInitFun(rules: list[JsonObject], tabs: int) -> str:
-    indent = " " * (tabs * 4)
-    body_indent = " " * ((tabs + 1) * 4)
-    lines: list[str] = [
-        f"{indent}private fun parserInit()",
-        f"{indent}{{",
-    ]
-
-    for index, rule in enumerate(rules):
-        parser_name = getParserName(rule)
-        local_parser_name = f"parser{index}"
-        lines.append(f"{body_indent}val {local_parser_name}: pointer<ParsedObject> = {parser_name}")
-
-        for sub_rule in getSubRules(rule):
+        for sub_rule_index, sub_rule in enumerate(sub_rules):
             if not isinstance(sub_rule, dict):
                 raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
 
+            rule_name = getRuleValueName(rule, sub_rule_index)
             pattern_expr = genPatternListExpr(validateSubRulePatterns(rule, sub_rule))
-            lines.append(f"{body_indent}{local_parser_name}.addRule({pattern_expr})")
+            lines.append(f"{indent}val {rule_name}: pointer<PatternList> = {pattern_expr}")
 
-    lines.append(f"{body_indent}parserIsInit = true")
-    lines.append(f"{indent}}}")
+        parser_name = getParserName(rule)
+        constructor = getResultConstructor(rule)
+        parser_expr = f"new ParsedObject({constructor})"
 
-    return "\n".join(lines) + "\n\n\n"
+        for sub_rule_index, _ in enumerate(sub_rules):
+            parser_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
 
-
-def genParserRule(rule: JsonObject, tabs: int) -> str:
-    indent = " " * (tabs * 4)
-    body_indent = " " * ((tabs + 1) * 4)
-    nested_indent = " " * ((tabs + 2) * 4)
-    name = getRuleName(rule)
-    input_type = getRuleInputType(rule)
-    return_type = getRuleReturnType(rule)
-    parser_name = getParserName(rule)
-
-    lines: list[str] = [
-        f"{indent}fun {name}(tokens: {input_type}) -> {return_type}",
-        f"{indent}{{",
-        f"{body_indent}if !parserIsInit:",
-        f"{nested_indent}parserInit()",
-        "",
-        f"{body_indent}if tokens == null:",
-        f"{nested_indent}return null",
-        "",
-        f"{body_indent}val parser: pointer<ParsedObject> = {parser_name}",
-        "",
-        f"{body_indent}if parser.parse(tokens, 0) <= 0:",
-        f"{nested_indent}return null",
-        "",
-        f"{body_indent}return parser.getResult() as {return_type}",
-    ]
-
-    lines.extend([
-        f"{indent}}}",
-    ])
+        lines.append(
+            f"{indent}val {parser_name}: pointer<ParsedObject> = {parser_expr}"
+        )
 
     return "\n".join(lines) + "\n\n\n"
-
-
-def genParserRules(rules: list[JsonObject], tabs: int) -> str:
-    return "".join(genParserRule(rule, tabs) for rule in rules)
 
 
 def codegen(config: JsonObject, dest: Path) -> str:
@@ -385,10 +311,7 @@ def codegen(config: JsonObject, dest: Path) -> str:
         genImports(imports, 0),
         genConstants(getCodeBlocks(config, "constants"), 0),
         genBlocks(getCodeBlocks(config, "others")),
-        genParserResultConstructors(getRules(config), 0),
         genParserDecls(getRules(config), 0),
-        genParserInitFun(getRules(config), 0),
-        genParserRules(getRules(config), 0),
     ]
 
     return "".join(section for section in sections if section != "")
