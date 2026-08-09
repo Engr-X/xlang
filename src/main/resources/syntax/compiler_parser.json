@@ -8,9 +8,19 @@
         "xlang.lexer.Token"
     ],
 
+    "operations": [
+        {"symbol": "$paren", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": -1},
+        {"symbol": "+", "function_name": "plus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 10},
+        {"symbol": "-", "function_name": "minus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 10},
+        {"symbol": "*", "function_name": "times", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20},
+        {"symbol": "/", "function_name": "div", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20},
+        {"symbol": "%", "function_name": "mod", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20}
+    ],
+
     "rules": [
         {
             "class": "Atom",
+            "parser": "recursively-down",
             "sub_rules": [
                 {"patterns": [{"kind": "Tokenizer.KW_NULL"}], "action": "makeAtom"},
                 {"patterns": [{"kind": "Tokenizer.KW_TRUE"}], "action": "makeAtom"},
@@ -22,6 +32,18 @@
                 {"patterns": [{"kind": "Tokenizer.TK_FLOAT"}], "action": "makeAtom"},
                 {"patterns": [{"kind": "Tokenizer.TK_DOUBLE"}], "action": "makeAtom"},
                 {"patterns": [{"kind": "Tokenizer.TK_LONG_DOUBLE"}], "action": "makeAtom"}
+            ]
+        },
+        {
+            "class": "Expression",
+            "parser": "pratt",
+            "sub_rules": [
+                {"patterns": [{"kind": "$Atom"}], "action": "makeExpressionFromAtom"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.PLUS"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.MINUS"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.STAR"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.SLASH"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.PERCENT"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"}
             ]
         }
     ],
@@ -58,6 +80,57 @@
             "        return new Atom(Atom.DOUBLE_IMM_KIND, results)",
             "",
             "    return null",
+            "}"
+        ],
+        [
+            "private fun makeExpressionFromAtom(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val slot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val atom: pointer<Atom> = slot.deref as pointer<Atom>",
+            "",
+            "    return Expression.fromAtom(atom)",
+            "}"
+        ],
+        [
+            "private fun operationFromToken(token: pointer<Token>) -> pointer<Operation>",
+            "{",
+            "    if token == null:",
+            "        return null",
+            "",
+            "    if token.kind == Tokenizer.PLUS:",
+            "        return OPERATION1",
+            "",
+            "    if token.kind == Tokenizer.MINUS:",
+            "        return OPERATION2",
+            "",
+            "    if token.kind == Tokenizer.STAR:",
+            "        return OPERATION3",
+            "",
+            "    if token.kind == Tokenizer.SLASH:",
+            "        return OPERATION4",
+            "",
+            "    if token.kind == Tokenizer.PERCENT:",
+            "        return OPERATION5",
+            "",
+            "    return null",
+            "}"
+        ],
+        [
+            "private fun makeExpressionFromBinary(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val rightSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "",
+            "    val left: pointer<Expression> = leftSlot.deref as pointer<Expression>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val right: pointer<Expression> = rightSlot.deref as pointer<Expression>",
+            "    val op: pointer<Operation> = operationFromToken(opToken)",
+            "",
+            "    if op == null:",
+            "        return null",
+            "",
+            "    return Expression.fromBinary(op, left, right)",
             "}"
         ]
     ]

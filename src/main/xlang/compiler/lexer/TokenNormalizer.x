@@ -26,16 +26,16 @@ private fun tokenKindCmp(left: pointer<*>, right: pointer<*>) -> int
 }
 private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashSet>
 {
-    val kindSpace: blob[sizeof(int)]
-    val kindPtr: pointer<int> = kindSpace as pointer<int>
+    var kindSpace: int = kind
+    val kindPtr: pointer<int> = kindSpace.ref
 
-    kindPtr.deref = kind
     return set.add(kindPtr)
 }
 private fun addCommonBanKinds(set: pointer<HashSet>)
 {
     addBanKind(set, Tokenizer.DOUBLE_LESS_EQUAL)
     addBanKind(set, Tokenizer.DOUBLE_GREATER_EQUAL)
+    addBanKind(set, Tokenizer.TRIPLE_GREATER_EQUAL)
     addBanKind(set, Tokenizer.BANG_CARET_EQUAL)
     addBanKind(set, Tokenizer.DOUBLE_STAR_EQUAL)
     addBanKind(set, Tokenizer.QUESTION_ARROW)
@@ -156,10 +156,7 @@ private inline fun deleteCursor(fsm: pointer<NormalizeFSM>, tokens: pointer<Arra
 
 private fun insertLineTerminatorAroundRightBrace(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool
 {
-    if tokens == null:
-        return false
-
-    if tokens.length != 3:
+    if tokens == null || tokens.length != 3:
         return false
 
     val previous: pointer<Token> = tokens.get(0) as pointer<Token>
@@ -186,25 +183,18 @@ private fun insertLineTerminatorAroundRightBrace(fsm: pointer<NormalizeFSM>, tok
 
 private fun isBanToken(set: pointer<HashSet>, token: pointer<Token>) -> bool
 {
-    if set == null:
+    if set == null || token == null:
         return false
 
-    if token == null:
-        return false
+    var kindSpace: int = token.kind
+    val kindPtr: pointer<int> = kindSpace.ref
 
-    val kindSpace: blob[sizeof(int)]
-    val kindPtr: pointer<int> = kindSpace as pointer<int>
-
-    kindPtr.deref = token.kind
     return set.contains(kindPtr)
 }
 
 private fun deleteLineTerminatorBeforeBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool
 {
-    if tokens == null:
-        return false
-
-    if tokens.length != 2:
+    if tokens == null || tokens.length != 2:
         return false
 
     val next: pointer<Token> = tokens.get(1) as pointer<Token>
@@ -218,10 +208,7 @@ private fun deleteLineTerminatorBeforeBanToken(fsm: pointer<NormalizeFSM>, token
 
 private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool
 {
-    if tokens == null:
-        return false
-
-    if tokens.length != 2:
+    if tokens == null || tokens.length != 2:
         return false
 
     val previous: pointer<Token> = tokens.get(0) as pointer<Token>

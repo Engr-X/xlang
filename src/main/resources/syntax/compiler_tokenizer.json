@@ -59,6 +59,7 @@
         {"name": "KW_LONG", "pattern": "long"},
         {"name": "KW_FLOAT", "pattern": "float"},
         {"name": "KW_DOUBLE", "pattern": "double"},
+        {"name": "KW_VOID", "pattern": "void"},
 
         {"name": "KW_NEW", "pattern": "new"},
         {"name": "KW_AS", "pattern": "as"},
@@ -100,6 +101,8 @@
     [
         {"name": "DOUBLE_LESS_EQUAL", "pattern": "<<="},
         {"name": "DOUBLE_GREATER_EQUAL", "pattern": ">>="},
+        {"name": "TRIPLE_GREATER_EQUAL", "pattern": ">>>="},
+        {"name": "TRIPLE_GREATER", "pattern": ">>>"},
         {"name": "BANG_CARET_EQUAL", "pattern": "!^="},
         {"name": "DOUBLE_STAR_EQUAL", "pattern": "**="},
         {"name": "QUESTION_ARROW", "pattern": "?->"},

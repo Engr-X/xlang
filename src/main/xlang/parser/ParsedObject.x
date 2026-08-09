@@ -117,11 +117,9 @@ struct ParsedObject
 
     private fun pushResult(results: pointer<ArrayList>, item: pointer<*>)
     {
-        val resultSpace: blob[sizeof(pointer<*>)]
-        val resultSlot: pointer<pointer<*>> = resultSpace as pointer<pointer<*>>
+        var resultSlot: pointer<*> = item
 
-        resultSlot.deref = item
-        results.push(resultSlot)
+        results.push(resultSlot.ref)
     }
 
 

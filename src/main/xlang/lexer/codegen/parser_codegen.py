@@ -24,6 +24,8 @@ from codegen.util import (
 
 
 PARSER_RULES_TYPE: str = "compiler_parser_rules"
+RECURSIVELY_DOWN_PARSER: str = "recursively-down"
+PRATT_PARSER: str = "pratt"
 
 DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.PatternList",
@@ -33,7 +35,12 @@ DEFAULT_IMPORTS: set[str] = {
 
 
 def getImports(config: JsonObject) -> set[str]:
-    return DEFAULT_IMPORTS | set(item for item in config.get("imports", []) if item)
+    imports = DEFAULT_IMPORTS | set(item for item in config.get("imports", []) if item)
+
+    if getOperations(config):
+        imports.add("xlang.compiler.Operation")
+
+    return imports
 
 
 def getCodeBlocks(config: JsonObject, name: str) -> list[CodeBlock]:
@@ -121,6 +128,85 @@ def getRules(config: JsonObject) -> list[JsonObject]:
     return rules
 
 
+def getOperations(config: JsonObject) -> list[JsonObject]:
+    operations = config.get("operations", [])
+
+    if not isinstance(operations, list):
+        raise TypeError("operations must be a list")
+
+    for operation in operations:
+        if not isinstance(operation, dict):
+            raise TypeError(f"operations item must be object: {operation!r}")
+
+    return operations
+
+
+def getOperationSymbol(operation: JsonObject) -> str:
+    symbol = operation.get("symbol")
+
+    if not isinstance(symbol, str) or not symbol:
+        raise ValueError(f"operation must have a non-empty symbol: {operation!r}")
+
+    return symbol
+
+
+def genOperationFunctionName(operation: JsonObject) -> str:
+    value = operation.get(
+        "function_name",
+        operation.get("functionName", operation.get("lowering_name", None)),
+    )
+
+    if value is None:
+        return "null"
+
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"operation function_name must be a non-empty string or null: {operation!r}")
+
+    return json.dumps(value)
+
+
+def genOperationExpr(value: object, name: str, operation: JsonObject) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"operation {name} must be a non-empty xlang expression: {operation!r}")
+
+    return value
+
+
+def genOperationPriority(operation: JsonObject) -> int:
+    priority = operation.get("priority")
+
+    if not isinstance(priority, int):
+        raise TypeError(f"operation priority must be an int: {operation!r}")
+
+    return priority
+
+
+def genOperationValueName(index: int) -> str:
+    return f"OPERATION{index}"
+
+
+def genOperationDecls(operations: list[JsonObject], tabs: int) -> str:
+    if not operations:
+        return ""
+
+    indent = " " * (tabs * 4)
+    lines: list[str] = []
+
+    for index, operation in enumerate(operations):
+        lines.append(
+            f"{indent}val {genOperationValueName(index)}: pointer<Operation> = "
+            f"new Operation("
+            f"{index}, "
+            f"{json.dumps(getOperationSymbol(operation))}, "
+            f"{genOperationExpr(operation.get('fixity'), 'fixity', operation)}, "
+            f"{genOperationExpr(operation.get('associativity'), 'associativity', operation)}, "
+            f"{genOperationPriority(operation)}, "
+            f"{genOperationFunctionName(operation)})"
+        )
+
+    return "\n".join(lines) + "\n\n\n"
+
+
 def getSubRules(rule: JsonObject) -> list[JsonObject]:
     sub_rules = rule.get("sub_rules", rule.get("subRules", []))
 
@@ -167,7 +253,7 @@ def getRuleClass(rule: JsonObject) -> str:
 
 
 def getRuleLabel(rule: JsonObject) -> str:
-    parser_name = rule.get("parser", rule.get("parser_name", rule.get("parserName", None)))
+    parser_name = rule.get("parser_name", rule.get("parserName", None))
 
     if isinstance(parser_name, str) and parser_name:
         return parser_name
@@ -181,7 +267,7 @@ def getRuleLabel(rule: JsonObject) -> str:
 
 
 def getParserName(rule: JsonObject) -> str:
-    value = rule.get("parser", rule.get("parser_name", rule.get("parserName", None)))
+    value = rule.get("parser_name", rule.get("parserName", None))
 
     if value is not None:
         if not isinstance(value, str) or not value:
@@ -190,6 +276,15 @@ def getParserName(rule: JsonObject) -> str:
         return value
 
     return f"{upperSnake(getRuleClass(rule))}_PARSER"
+
+
+def getParserType(rule: JsonObject) -> str:
+    parser_type = rule.get("parser", RECURSIVELY_DOWN_PARSER)
+
+    if not isinstance(parser_type, str) or not parser_type:
+        raise ValueError(f"parser type must be a non-empty string: {rule!r}")
+
+    return parser_type
 
 
 def getRuleValueName(rule: JsonObject, index: int) -> str:
@@ -271,6 +366,14 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     lines: list[str] = []
 
     for index, rule in enumerate(rules):
+        parser_type = getParserType(rule)
+
+        if parser_type == PRATT_PARSER:
+            continue
+
+        if parser_type != RECURSIVELY_DOWN_PARSER:
+            raise ValueError(f"unsupported parser type for {getRuleLabel(rule)!r}: {parser_type!r}")
+
         sub_rules = getSubRules(rule)
 
         if not sub_rules:
@@ -310,6 +413,7 @@ def codegen(config: JsonObject, dest: Path) -> str:
         genPackage(package_name, 0),
         genImports(imports, 0),
         genConstants(getCodeBlocks(config, "constants"), 0),
+        genOperationDecls(getOperations(config), 0),
         genBlocks(getCodeBlocks(config, "others")),
         genParserDecls(getRules(config), 0),
     ]

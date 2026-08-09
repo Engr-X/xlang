@@ -465,8 +465,8 @@ private fun forLoopTest() -> int
 
 private fun symbolsTest() -> int
 {
-    val kindsSpace: blob[sizeof(int) * 24]
-    val textsSpace: blob[sizeof(pointer<char>) * 24]
+    val kindsSpace: blob[sizeof(int) * 28]
+    val textsSpace: blob[sizeof(pointer<char>) * 28]
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
@@ -516,10 +516,18 @@ private fun symbolsTest() -> int
     texts[21] = "==="
     kinds[22] = Tokenizer.TK_IDENTITY
     texts[22] = "h"
-    kinds[23] = Token.EOF_KIND
-    texts[23] = Token.EOF_STRING
+    kinds[23] = Tokenizer.SEMICOLON
+    texts[23] = ";"
+    kinds[24] = Tokenizer.TK_IDENTITY
+    texts[24] = "i"
+    kinds[25] = Tokenizer.TRIPLE_GREATER
+    texts[25] = ">>>"
+    kinds[26] = Tokenizer.TK_IDENTITY
+    texts[26] = "j"
+    kinds[27] = Token.EOF_KIND
+    texts[27] = Token.EOF_STRING
 
-    return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e?->f; g===h", kinds, texts, 24)
+    return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e?->f; g===h; i>>>j", kinds, texts, 28)
 }
 
 

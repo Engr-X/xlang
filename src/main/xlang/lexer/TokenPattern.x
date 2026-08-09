@@ -304,25 +304,18 @@ struct PatternList
      *
      * @return                  true if the complete pattern sequence matches.
      */
-    fun canMatch(tokens: pointer<TokenList>, index: int) -> bool
+    fun regMatch(tokens: pointer<TokenList>, index: int) -> bool
     {
-        var patternIndex: int = 0
         var consumed: int = 0
 
-        if tokens == null:
+        if tokens == null || index < 0 || index >= tokens.length():
             return false
 
-        if index < 0:
-            return false
-
-        while patternIndex < this.patterns.length:
+        for (var patternIndex = 0; patternIndex < this.length(); patternIndex++):
         {
             val pattern: pointer<PatternAtom> = this.get(patternIndex)
 
-            if pattern == null:
-                return false
-
-            if !pattern.isRegex():
+            if pattern == null || !pattern.isRegex():
                 return false
 
             val length: int = pattern.matchRegex(tokens, index + consumed)
@@ -331,7 +324,6 @@ struct PatternList
                 return false
 
             consumed += length
-            patternIndex++
         }
 
         return true

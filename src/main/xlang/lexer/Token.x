@@ -389,13 +389,8 @@ struct TokenList
      *
      * @return                  true if every pattern atom matched; otherwise false
      */
-    fun canMatch(index: int, patternList: pointer<PatternList>) -> bool
-    {
-        if patternList == null:
-            return false
-
-        return patternList.canMatch(this, index)
-    }
+    fun canMatch(index: int, patternList: pointer<PatternList>) -> bool =
+        patternList.regMatch(this, index)
 
 
     /**

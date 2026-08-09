@@ -85,14 +85,15 @@ val KW_UNTIL: int = 147
 val KW_USHR: int = 148
 val KW_VAL: int = 149
 val KW_VAR: int = 150
-val KW_WHILE: int = 151
-val KW_XNOR: int = 152
-val KW_XOR: int = 153
+val KW_VOID: int = 151
+val KW_WHILE: int = 152
+val KW_XNOR: int = 153
+val KW_XOR: int = 154
 
 
-val keywordListLength: int = 54
+val keywordListLength: int = 55
 val keywordListSlotSize: int = 16
-val keywordTextSpace: blob[864 * sizeof(char)]
+val keywordTextSpace: blob[880 * sizeof(char)]
 val keywordTextList: pointer<char> = keywordTextSpace as pointer<char>
 
 
@@ -153,73 +154,78 @@ private fun keywordListInit()
     String.strcpy(getKeywordText(48), "ushr")
     String.strcpy(getKeywordText(49), "val")
     String.strcpy(getKeywordText(50), "var")
-    String.strcpy(getKeywordText(51), "while")
-    String.strcpy(getKeywordText(52), "xnor")
-    String.strcpy(getKeywordText(53), "xor")
+    String.strcpy(getKeywordText(51), "void")
+    String.strcpy(getKeywordText(52), "while")
+    String.strcpy(getKeywordText(53), "xnor")
+    String.strcpy(getKeywordText(54), "xor")
 }
 
 
 val symbolDefStart: int = 1000
 val DOUBLE_LESS_EQUAL: int = 1000
 val DOUBLE_GREATER_EQUAL: int = 1001
-val BANG_CARET_EQUAL: int = 1002
-val DOUBLE_STAR_EQUAL: int = 1003
-val QUESTION_ARROW: int = 1004
-val BANG_DOUBLE_AMPERSAND: int = 1005
-val BANG_DOUBLE_PIPE: int = 1006
-val NOT_ARROW: int = 1007
-val DOUBLE_ARROW: int = 1008
-val TRIPLE_EQUAL: int = 1009
-val PIPE_EQUAL: int = 1010
-val CARET_EQUAL: int = 1011
-val PLUS_EQUAL: int = 1012
-val MINUS_EQUAL: int = 1013
-val STAR_EQUAL: int = 1014
-val SLASH_EQUAL: int = 1015
-val PERCENT_EQUAL: int = 1016
-val DOUBLE_EQUAL: int = 1017
-val BANG_EQUAL: int = 1018
-val GREATER_EQUAL: int = 1019
-val LESS_EQUAL: int = 1020
-val DOUBLE_GREATER: int = 1021
-val DOUBLE_LESS: int = 1022
-val DOUBLE_PIPE: int = 1023
-val DOUBLE_AMPERSAND: int = 1024
-val DOUBLE_STAR: int = 1025
-val DOUBLE_PLUS: int = 1026
-val DOUBLE_MINUS: int = 1027
-val DOUBLE_DOT: int = 1028
-val ARROW: int = 1029
-val FAT_ARROW: int = 1030
-val DOUBLE_COLON: int = 1031
-val EQUAL: int = 1032
-val GREATER: int = 1033
-val LESS: int = 1034
-val CARET: int = 1035
-val BANG: int = 1036
-val PLUS: int = 1037
-val MINUS: int = 1038
-val STAR: int = 1039
-val SLASH: int = 1040
-val PERCENT: int = 1041
-val AT: int = 1042
-val DOLLAR: int = 1043
-val LEFT_PAREN: int = 1044
-val RIGHT_PAREN: int = 1045
-val LEFT_BRACKET: int = 1046
-val RIGHT_BRACKET: int = 1047
-val LEFT_BRACE: int = 1048
-val RIGHT_BRACE: int = 1049
-val SEMICOLON: int = 1050
-val COMMA: int = 1051
-val QUESTION: int = 1052
-val COLON: int = 1053
-val DOT: int = 1054
-val BACKSLASH: int = 1055
+val TRIPLE_GREATER_EQUAL: int = 1002
+val TRIPLE_GREATER: int = 1003
+val BANG_CARET_EQUAL: int = 1004
+val DOUBLE_STAR_EQUAL: int = 1005
+val QUESTION_ARROW: int = 1006
+val BANG_DOUBLE_AMPERSAND: int = 1007
+val BANG_DOUBLE_PIPE: int = 1008
+val NOT_ARROW: int = 1009
+val DOUBLE_ARROW: int = 1010
+val TRIPLE_EQUAL: int = 1011
+val PIPE_EQUAL: int = 1012
+val CARET_EQUAL: int = 1013
+val PLUS_EQUAL: int = 1014
+val MINUS_EQUAL: int = 1015
+val STAR_EQUAL: int = 1016
+val SLASH_EQUAL: int = 1017
+val PERCENT_EQUAL: int = 1018
+val DOUBLE_EQUAL: int = 1019
+val BANG_EQUAL: int = 1020
+val GREATER_EQUAL: int = 1021
+val LESS_EQUAL: int = 1022
+val DOUBLE_GREATER: int = 1023
+val DOUBLE_LESS: int = 1024
+val DOUBLE_PIPE: int = 1025
+val DOUBLE_AMPERSAND: int = 1026
+val DOUBLE_STAR: int = 1027
+val DOUBLE_PLUS: int = 1028
+val DOUBLE_MINUS: int = 1029
+val DOUBLE_DOT: int = 1030
+val ARROW: int = 1031
+val FAT_ARROW: int = 1032
+val DOUBLE_COLON: int = 1033
+val EQUAL: int = 1034
+val GREATER: int = 1035
+val LESS: int = 1036
+val CARET: int = 1037
+val BANG: int = 1038
+val PLUS: int = 1039
+val MINUS: int = 1040
+val STAR: int = 1041
+val SLASH: int = 1042
+val PERCENT: int = 1043
+val AT: int = 1044
+val DOLLAR: int = 1045
+val LEFT_PAREN: int = 1046
+val RIGHT_PAREN: int = 1047
+val LEFT_BRACKET: int = 1048
+val RIGHT_BRACKET: int = 1049
+val LEFT_BRACE: int = 1050
+val RIGHT_BRACE: int = 1051
+val SEMICOLON: int = 1052
+val COMMA: int = 1053
+val QUESTION: int = 1054
+val COLON: int = 1055
+val DOT: int = 1056
+val BACKSLASH: int = 1057
 
 
 val DOUBLE_LESS_EQUAL_PATTERN: pointer<char> = "<<="
 val DOUBLE_GREATER_EQUAL_PATTERN: pointer<char> = ">>="
+val TRIPLE_GREATER_EQUAL_PATTERN: pointer<char> = ">>>="
+val TRIPLE_GREATER_PATTERN: pointer<char> = ">>>"
 val BANG_CARET_EQUAL_PATTERN: pointer<char> = "!^="
 val DOUBLE_STAR_EQUAL_PATTERN: pointer<char> = "**="
 val QUESTION_ARROW_PATTERN: pointer<char> = "?->"
@@ -277,8 +283,8 @@ val BACKSLASH_PATTERN: pointer<char> = "\\"
 
 
 var tokenizerIsInit: bool = false
-val ruleLength: int = 89
-val rulesSpace: blob[sizeof(pointer<TokenizeRule>) * 89]
+val ruleLength: int = 91
+val rulesSpace: blob[sizeof(pointer<TokenizeRule>) * 91]
 val rulePtr: pointer<pointer<TokenizeRule>> = rulesSpace as pointer<pointer<TokenizeRule>>
 val rule0: pointer<TokenizeRule> = new TokenizeRule(0, TokenizeFSM.DEFAULT, "\\0", eatEOF)
 val rule1: pointer<TokenizeRule> = new TokenizeRule(1, TokenizeFSM.DEFAULT, "//", begainLineComment)
@@ -296,79 +302,81 @@ val rule12: pointer<TokenizeRule> = new TokenizeRule(12, TokenizeFSM.DEFAULT, "[
 val rule13: pointer<TokenizeRule> = new TokenizeRule(13, TokenizeFSM.DEFAULT, "[0-9]+", eatIntLit)
 val rule14: pointer<TokenizeRule> = new TokenizeRule(14, TokenizeFSM.DEFAULT, "<<=", eatDoubleLessEqual)
 val rule15: pointer<TokenizeRule> = new TokenizeRule(15, TokenizeFSM.DEFAULT, ">>=", eatDoubleGreaterEqual)
-val rule16: pointer<TokenizeRule> = new TokenizeRule(16, TokenizeFSM.DEFAULT, "!\\^=", eatBangCaretEqual)
-val rule17: pointer<TokenizeRule> = new TokenizeRule(17, TokenizeFSM.DEFAULT, "\\*\\*=", eatDoubleStarEqual)
-val rule18: pointer<TokenizeRule> = new TokenizeRule(18, TokenizeFSM.DEFAULT, "\\?->", eatQuestionArrow)
-val rule19: pointer<TokenizeRule> = new TokenizeRule(19, TokenizeFSM.DEFAULT, "!&&", eatBangDoubleAmpersand)
-val rule20: pointer<TokenizeRule> = new TokenizeRule(20, TokenizeFSM.DEFAULT, "!\\|\\|", eatBangDoublePipe)
-val rule21: pointer<TokenizeRule> = new TokenizeRule(21, TokenizeFSM.DEFAULT, "!->", eatNotArrow)
-val rule22: pointer<TokenizeRule> = new TokenizeRule(22, TokenizeFSM.DEFAULT, "<->", eatDoubleArrow)
-val rule23: pointer<TokenizeRule> = new TokenizeRule(23, TokenizeFSM.DEFAULT, "===", eatTripleEqual)
-val rule24: pointer<TokenizeRule> = new TokenizeRule(24, TokenizeFSM.DEFAULT, "\\|=", eatPipeEqual)
-val rule25: pointer<TokenizeRule> = new TokenizeRule(25, TokenizeFSM.DEFAULT, "\\^=", eatCaretEqual)
-val rule26: pointer<TokenizeRule> = new TokenizeRule(26, TokenizeFSM.DEFAULT, "\\+=", eatPlusEqual)
-val rule27: pointer<TokenizeRule> = new TokenizeRule(27, TokenizeFSM.DEFAULT, "-=", eatMinusEqual)
-val rule28: pointer<TokenizeRule> = new TokenizeRule(28, TokenizeFSM.DEFAULT, "\\*=", eatStarEqual)
-val rule29: pointer<TokenizeRule> = new TokenizeRule(29, TokenizeFSM.DEFAULT, "/=", eatSlashEqual)
-val rule30: pointer<TokenizeRule> = new TokenizeRule(30, TokenizeFSM.DEFAULT, "%=", eatPercentEqual)
-val rule31: pointer<TokenizeRule> = new TokenizeRule(31, TokenizeFSM.DEFAULT, "==", eatDoubleEqual)
-val rule32: pointer<TokenizeRule> = new TokenizeRule(32, TokenizeFSM.DEFAULT, "!=", eatBangEqual)
-val rule33: pointer<TokenizeRule> = new TokenizeRule(33, TokenizeFSM.DEFAULT, ">=", eatGreaterEqual)
-val rule34: pointer<TokenizeRule> = new TokenizeRule(34, TokenizeFSM.DEFAULT, "<=", eatLessEqual)
-val rule35: pointer<TokenizeRule> = new TokenizeRule(35, TokenizeFSM.DEFAULT, ">>", eatDoubleGreater)
-val rule36: pointer<TokenizeRule> = new TokenizeRule(36, TokenizeFSM.DEFAULT, "<<", eatDoubleLess)
-val rule37: pointer<TokenizeRule> = new TokenizeRule(37, TokenizeFSM.DEFAULT, "\\|\\|", eatDoublePipe)
-val rule38: pointer<TokenizeRule> = new TokenizeRule(38, TokenizeFSM.DEFAULT, "&&", eatDoubleAmpersand)
-val rule39: pointer<TokenizeRule> = new TokenizeRule(39, TokenizeFSM.DEFAULT, "\\*\\*", eatDoubleStar)
-val rule40: pointer<TokenizeRule> = new TokenizeRule(40, TokenizeFSM.DEFAULT, "\\+\\+", eatDoublePlus)
-val rule41: pointer<TokenizeRule> = new TokenizeRule(41, TokenizeFSM.DEFAULT, "--", eatDoubleMinus)
-val rule42: pointer<TokenizeRule> = new TokenizeRule(42, TokenizeFSM.DEFAULT, "\\.\\.", eatDoubleDot)
-val rule43: pointer<TokenizeRule> = new TokenizeRule(43, TokenizeFSM.DEFAULT, "->", eatArrow)
-val rule44: pointer<TokenizeRule> = new TokenizeRule(44, TokenizeFSM.DEFAULT, "=>", eatFatArrow)
-val rule45: pointer<TokenizeRule> = new TokenizeRule(45, TokenizeFSM.DEFAULT, "::", eatDoubleColon)
-val rule46: pointer<TokenizeRule> = new TokenizeRule(46, TokenizeFSM.DEFAULT, "=", eatEqual)
-val rule47: pointer<TokenizeRule> = new TokenizeRule(47, TokenizeFSM.DEFAULT, ">", eatGreater)
-val rule48: pointer<TokenizeRule> = new TokenizeRule(48, TokenizeFSM.DEFAULT, "<", eatLess)
-val rule49: pointer<TokenizeRule> = new TokenizeRule(49, TokenizeFSM.DEFAULT, "\\^", eatCaret)
-val rule50: pointer<TokenizeRule> = new TokenizeRule(50, TokenizeFSM.DEFAULT, "!", eatBang)
-val rule51: pointer<TokenizeRule> = new TokenizeRule(51, TokenizeFSM.DEFAULT, "\\+", eatPlus)
-val rule52: pointer<TokenizeRule> = new TokenizeRule(52, TokenizeFSM.DEFAULT, "-", eatMinus)
-val rule53: pointer<TokenizeRule> = new TokenizeRule(53, TokenizeFSM.DEFAULT, "\\*", eatStar)
-val rule54: pointer<TokenizeRule> = new TokenizeRule(54, TokenizeFSM.DEFAULT, "/", eatSlash)
-val rule55: pointer<TokenizeRule> = new TokenizeRule(55, TokenizeFSM.DEFAULT, "%", eatPercent)
-val rule56: pointer<TokenizeRule> = new TokenizeRule(56, TokenizeFSM.DEFAULT, "@", eatAt)
-val rule57: pointer<TokenizeRule> = new TokenizeRule(57, TokenizeFSM.DEFAULT, "\\$", eatDollar)
-val rule58: pointer<TokenizeRule> = new TokenizeRule(58, TokenizeFSM.DEFAULT, "\\(", eatLeftParen)
-val rule59: pointer<TokenizeRule> = new TokenizeRule(59, TokenizeFSM.DEFAULT, "\\)", eatRightParen)
-val rule60: pointer<TokenizeRule> = new TokenizeRule(60, TokenizeFSM.DEFAULT, "\\[", eatLeftBracket)
-val rule61: pointer<TokenizeRule> = new TokenizeRule(61, TokenizeFSM.DEFAULT, "\\]", eatRightBracket)
-val rule62: pointer<TokenizeRule> = new TokenizeRule(62, TokenizeFSM.DEFAULT, "\\{", eatLeftBrace)
-val rule63: pointer<TokenizeRule> = new TokenizeRule(63, TokenizeFSM.DEFAULT, "\\}", eatRightBrace)
-val rule64: pointer<TokenizeRule> = new TokenizeRule(64, TokenizeFSM.DEFAULT, ";", eatSemicolon)
-val rule65: pointer<TokenizeRule> = new TokenizeRule(65, TokenizeFSM.DEFAULT, ",", eatComma)
-val rule66: pointer<TokenizeRule> = new TokenizeRule(66, TokenizeFSM.DEFAULT, "\\?", eatQuestion)
-val rule67: pointer<TokenizeRule> = new TokenizeRule(67, TokenizeFSM.DEFAULT, ":", eatColon)
-val rule68: pointer<TokenizeRule> = new TokenizeRule(68, TokenizeFSM.DEFAULT, "\\.", eatDot)
-val rule69: pointer<TokenizeRule> = new TokenizeRule(69, TokenizeFSM.DEFAULT, "\\\\", eatBackslash)
-val rule70: pointer<TokenizeRule> = new TokenizeRule(70, TokenizeFSM.DEFAULT, "[a-zA-Z_][a-zA-Z0-9_]*", eatIdent)
-val rule71: pointer<TokenizeRule> = new TokenizeRule(71, TokenizeFSM.DEFAULT, ".", defaultError)
-val rule72: pointer<TokenizeRule> = new TokenizeRule(72, LINE_COMMENT_STATE, "\\0", eatEOF)
-val rule73: pointer<TokenizeRule> = new TokenizeRule(73, LINE_COMMENT_STATE, "\\r?\\n", endLineComment)
-val rule74: pointer<TokenizeRule> = new TokenizeRule(74, LINE_COMMENT_STATE, ".", skip)
-val rule75: pointer<TokenizeRule> = new TokenizeRule(75, BLOCK_COMMENT_STATE, "\\0", unterminatedBlockCommentError)
-val rule76: pointer<TokenizeRule> = new TokenizeRule(76, BLOCK_COMMENT_STATE, "\\*/", endBlockComment)
-val rule77: pointer<TokenizeRule> = new TokenizeRule(77, BLOCK_COMMENT_STATE, "\\r?\\n", skipNewLine)
-val rule78: pointer<TokenizeRule> = new TokenizeRule(78, BLOCK_COMMENT_STATE, ".", skip)
-val rule79: pointer<TokenizeRule> = new TokenizeRule(79, CHAR_STATE, "\\0", unterminatedCharError)
-val rule80: pointer<TokenizeRule> = new TokenizeRule(80, CHAR_STATE, "\\r?\\n", unterminatedCharError)
-val rule81: pointer<TokenizeRule> = new TokenizeRule(81, CHAR_STATE, "\\\\.", eatChar)
-val rule82: pointer<TokenizeRule> = new TokenizeRule(82, CHAR_STATE, "\\'", endChar)
-val rule83: pointer<TokenizeRule> = new TokenizeRule(83, CHAR_STATE, ".", eatChar)
-val rule84: pointer<TokenizeRule> = new TokenizeRule(84, STRING_STATE, "\\0", unterminatedStringError)
-val rule85: pointer<TokenizeRule> = new TokenizeRule(85, STRING_STATE, "\\r?\\n", unterminatedStringError)
-val rule86: pointer<TokenizeRule> = new TokenizeRule(86, STRING_STATE, "\\\\.", eatChar)
-val rule87: pointer<TokenizeRule> = new TokenizeRule(87, STRING_STATE, "\"", endString)
-val rule88: pointer<TokenizeRule> = new TokenizeRule(88, STRING_STATE, ".", eatChar)
+val rule16: pointer<TokenizeRule> = new TokenizeRule(16, TokenizeFSM.DEFAULT, ">>>=", eatTripleGreaterEqual)
+val rule17: pointer<TokenizeRule> = new TokenizeRule(17, TokenizeFSM.DEFAULT, ">>>", eatTripleGreater)
+val rule18: pointer<TokenizeRule> = new TokenizeRule(18, TokenizeFSM.DEFAULT, "!\\^=", eatBangCaretEqual)
+val rule19: pointer<TokenizeRule> = new TokenizeRule(19, TokenizeFSM.DEFAULT, "\\*\\*=", eatDoubleStarEqual)
+val rule20: pointer<TokenizeRule> = new TokenizeRule(20, TokenizeFSM.DEFAULT, "\\?->", eatQuestionArrow)
+val rule21: pointer<TokenizeRule> = new TokenizeRule(21, TokenizeFSM.DEFAULT, "!&&", eatBangDoubleAmpersand)
+val rule22: pointer<TokenizeRule> = new TokenizeRule(22, TokenizeFSM.DEFAULT, "!\\|\\|", eatBangDoublePipe)
+val rule23: pointer<TokenizeRule> = new TokenizeRule(23, TokenizeFSM.DEFAULT, "!->", eatNotArrow)
+val rule24: pointer<TokenizeRule> = new TokenizeRule(24, TokenizeFSM.DEFAULT, "<->", eatDoubleArrow)
+val rule25: pointer<TokenizeRule> = new TokenizeRule(25, TokenizeFSM.DEFAULT, "===", eatTripleEqual)
+val rule26: pointer<TokenizeRule> = new TokenizeRule(26, TokenizeFSM.DEFAULT, "\\|=", eatPipeEqual)
+val rule27: pointer<TokenizeRule> = new TokenizeRule(27, TokenizeFSM.DEFAULT, "\\^=", eatCaretEqual)
+val rule28: pointer<TokenizeRule> = new TokenizeRule(28, TokenizeFSM.DEFAULT, "\\+=", eatPlusEqual)
+val rule29: pointer<TokenizeRule> = new TokenizeRule(29, TokenizeFSM.DEFAULT, "-=", eatMinusEqual)
+val rule30: pointer<TokenizeRule> = new TokenizeRule(30, TokenizeFSM.DEFAULT, "\\*=", eatStarEqual)
+val rule31: pointer<TokenizeRule> = new TokenizeRule(31, TokenizeFSM.DEFAULT, "/=", eatSlashEqual)
+val rule32: pointer<TokenizeRule> = new TokenizeRule(32, TokenizeFSM.DEFAULT, "%=", eatPercentEqual)
+val rule33: pointer<TokenizeRule> = new TokenizeRule(33, TokenizeFSM.DEFAULT, "==", eatDoubleEqual)
+val rule34: pointer<TokenizeRule> = new TokenizeRule(34, TokenizeFSM.DEFAULT, "!=", eatBangEqual)
+val rule35: pointer<TokenizeRule> = new TokenizeRule(35, TokenizeFSM.DEFAULT, ">=", eatGreaterEqual)
+val rule36: pointer<TokenizeRule> = new TokenizeRule(36, TokenizeFSM.DEFAULT, "<=", eatLessEqual)
+val rule37: pointer<TokenizeRule> = new TokenizeRule(37, TokenizeFSM.DEFAULT, ">>", eatDoubleGreater)
+val rule38: pointer<TokenizeRule> = new TokenizeRule(38, TokenizeFSM.DEFAULT, "<<", eatDoubleLess)
+val rule39: pointer<TokenizeRule> = new TokenizeRule(39, TokenizeFSM.DEFAULT, "\\|\\|", eatDoublePipe)
+val rule40: pointer<TokenizeRule> = new TokenizeRule(40, TokenizeFSM.DEFAULT, "&&", eatDoubleAmpersand)
+val rule41: pointer<TokenizeRule> = new TokenizeRule(41, TokenizeFSM.DEFAULT, "\\*\\*", eatDoubleStar)
+val rule42: pointer<TokenizeRule> = new TokenizeRule(42, TokenizeFSM.DEFAULT, "\\+\\+", eatDoublePlus)
+val rule43: pointer<TokenizeRule> = new TokenizeRule(43, TokenizeFSM.DEFAULT, "--", eatDoubleMinus)
+val rule44: pointer<TokenizeRule> = new TokenizeRule(44, TokenizeFSM.DEFAULT, "\\.\\.", eatDoubleDot)
+val rule45: pointer<TokenizeRule> = new TokenizeRule(45, TokenizeFSM.DEFAULT, "->", eatArrow)
+val rule46: pointer<TokenizeRule> = new TokenizeRule(46, TokenizeFSM.DEFAULT, "=>", eatFatArrow)
+val rule47: pointer<TokenizeRule> = new TokenizeRule(47, TokenizeFSM.DEFAULT, "::", eatDoubleColon)
+val rule48: pointer<TokenizeRule> = new TokenizeRule(48, TokenizeFSM.DEFAULT, "=", eatEqual)
+val rule49: pointer<TokenizeRule> = new TokenizeRule(49, TokenizeFSM.DEFAULT, ">", eatGreater)
+val rule50: pointer<TokenizeRule> = new TokenizeRule(50, TokenizeFSM.DEFAULT, "<", eatLess)
+val rule51: pointer<TokenizeRule> = new TokenizeRule(51, TokenizeFSM.DEFAULT, "\\^", eatCaret)
+val rule52: pointer<TokenizeRule> = new TokenizeRule(52, TokenizeFSM.DEFAULT, "!", eatBang)
+val rule53: pointer<TokenizeRule> = new TokenizeRule(53, TokenizeFSM.DEFAULT, "\\+", eatPlus)
+val rule54: pointer<TokenizeRule> = new TokenizeRule(54, TokenizeFSM.DEFAULT, "-", eatMinus)
+val rule55: pointer<TokenizeRule> = new TokenizeRule(55, TokenizeFSM.DEFAULT, "\\*", eatStar)
+val rule56: pointer<TokenizeRule> = new TokenizeRule(56, TokenizeFSM.DEFAULT, "/", eatSlash)
+val rule57: pointer<TokenizeRule> = new TokenizeRule(57, TokenizeFSM.DEFAULT, "%", eatPercent)
+val rule58: pointer<TokenizeRule> = new TokenizeRule(58, TokenizeFSM.DEFAULT, "@", eatAt)
+val rule59: pointer<TokenizeRule> = new TokenizeRule(59, TokenizeFSM.DEFAULT, "\\$", eatDollar)
+val rule60: pointer<TokenizeRule> = new TokenizeRule(60, TokenizeFSM.DEFAULT, "\\(", eatLeftParen)
+val rule61: pointer<TokenizeRule> = new TokenizeRule(61, TokenizeFSM.DEFAULT, "\\)", eatRightParen)
+val rule62: pointer<TokenizeRule> = new TokenizeRule(62, TokenizeFSM.DEFAULT, "\\[", eatLeftBracket)
+val rule63: pointer<TokenizeRule> = new TokenizeRule(63, TokenizeFSM.DEFAULT, "\\]", eatRightBracket)
+val rule64: pointer<TokenizeRule> = new TokenizeRule(64, TokenizeFSM.DEFAULT, "\\{", eatLeftBrace)
+val rule65: pointer<TokenizeRule> = new TokenizeRule(65, TokenizeFSM.DEFAULT, "\\}", eatRightBrace)
+val rule66: pointer<TokenizeRule> = new TokenizeRule(66, TokenizeFSM.DEFAULT, ";", eatSemicolon)
+val rule67: pointer<TokenizeRule> = new TokenizeRule(67, TokenizeFSM.DEFAULT, ",", eatComma)
+val rule68: pointer<TokenizeRule> = new TokenizeRule(68, TokenizeFSM.DEFAULT, "\\?", eatQuestion)
+val rule69: pointer<TokenizeRule> = new TokenizeRule(69, TokenizeFSM.DEFAULT, ":", eatColon)
+val rule70: pointer<TokenizeRule> = new TokenizeRule(70, TokenizeFSM.DEFAULT, "\\.", eatDot)
+val rule71: pointer<TokenizeRule> = new TokenizeRule(71, TokenizeFSM.DEFAULT, "\\\\", eatBackslash)
+val rule72: pointer<TokenizeRule> = new TokenizeRule(72, TokenizeFSM.DEFAULT, "[a-zA-Z_][a-zA-Z0-9_]*", eatIdent)
+val rule73: pointer<TokenizeRule> = new TokenizeRule(73, TokenizeFSM.DEFAULT, ".", defaultError)
+val rule74: pointer<TokenizeRule> = new TokenizeRule(74, LINE_COMMENT_STATE, "\\0", eatEOF)
+val rule75: pointer<TokenizeRule> = new TokenizeRule(75, LINE_COMMENT_STATE, "\\r?\\n", endLineComment)
+val rule76: pointer<TokenizeRule> = new TokenizeRule(76, LINE_COMMENT_STATE, ".", skip)
+val rule77: pointer<TokenizeRule> = new TokenizeRule(77, BLOCK_COMMENT_STATE, "\\0", unterminatedBlockCommentError)
+val rule78: pointer<TokenizeRule> = new TokenizeRule(78, BLOCK_COMMENT_STATE, "\\*/", endBlockComment)
+val rule79: pointer<TokenizeRule> = new TokenizeRule(79, BLOCK_COMMENT_STATE, "\\r?\\n", skipNewLine)
+val rule80: pointer<TokenizeRule> = new TokenizeRule(80, BLOCK_COMMENT_STATE, ".", skip)
+val rule81: pointer<TokenizeRule> = new TokenizeRule(81, CHAR_STATE, "\\0", unterminatedCharError)
+val rule82: pointer<TokenizeRule> = new TokenizeRule(82, CHAR_STATE, "\\r?\\n", unterminatedCharError)
+val rule83: pointer<TokenizeRule> = new TokenizeRule(83, CHAR_STATE, "\\\\.", eatChar)
+val rule84: pointer<TokenizeRule> = new TokenizeRule(84, CHAR_STATE, "\\'", endChar)
+val rule85: pointer<TokenizeRule> = new TokenizeRule(85, CHAR_STATE, ".", eatChar)
+val rule86: pointer<TokenizeRule> = new TokenizeRule(86, STRING_STATE, "\\0", unterminatedStringError)
+val rule87: pointer<TokenizeRule> = new TokenizeRule(87, STRING_STATE, "\\r?\\n", unterminatedStringError)
+val rule88: pointer<TokenizeRule> = new TokenizeRule(88, STRING_STATE, "\\\\.", eatChar)
+val rule89: pointer<TokenizeRule> = new TokenizeRule(89, STRING_STATE, "\"", endString)
+val rule90: pointer<TokenizeRule> = new TokenizeRule(90, STRING_STATE, ".", eatChar)
 
 
 private inline fun eatEOF(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
@@ -600,6 +608,12 @@ private fun eatDoubleLessEqual(input: pointer<LexInput>, dest: pointer<TokenizeF
 
 private fun eatDoubleGreaterEqual(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
     eatToken(input, DOUBLE_GREATER_EQUAL, dest)
+
+private fun eatTripleGreaterEqual(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
+    eatToken(input, TRIPLE_GREATER_EQUAL, dest)
+
+private fun eatTripleGreater(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
+    eatToken(input, TRIPLE_GREATER, dest)
 
 private fun eatBangCaretEqual(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
     eatToken(input, BANG_CARET_EQUAL, dest)
@@ -855,6 +869,8 @@ private fun tokenizerInit()
     rulePtr[86] = rule86
     rulePtr[87] = rule87
     rulePtr[88] = rule88
+    rulePtr[89] = rule89
+    rulePtr[90] = rule90
     keywordListInit()
     tokenizerIsInit = true
 }

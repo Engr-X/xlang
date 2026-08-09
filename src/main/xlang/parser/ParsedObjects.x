@@ -109,11 +109,9 @@ struct ParsedObjects
             if innerConsumed <= 0 || !this.parser.lastTrySuccess():
                 break
 
-            val resultSpace: blob[sizeof(pointer<*>)]
-            val resultSlot: pointer<pointer<*>> = resultSpace as pointer<pointer<*>>
+            var resultSlot: pointer<*> = this.parser.getResult()
 
-            resultSlot.deref = this.parser.getResult()
-            this.results.push(resultSlot)
+            this.results.push(resultSlot.ref)
             consumed += innerConsumed
         }
 
