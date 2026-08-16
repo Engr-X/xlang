@@ -23,8 +23,8 @@
 
 package xlang.lexer
 
-import xlang.parser.ParsedObject
-import xlang.parser.ParsedObjects
+import xlang.parser.Parser
+import xlang.parser.Parsers
 import xlang.util.ArrayList
 import xlang.util.string.String
 
@@ -62,9 +62,9 @@ struct PatternAtom
     private var regex: pointer<char>
 
 
-    var refParser: pointer<ParsedObject>
+    var refParser: pointer<Parser>
 
-    var refsParser: pointer<ParsedObjects>
+    var refsParser: pointer<Parsers>
 
 
     /**
@@ -98,7 +98,7 @@ struct PatternAtom
     }
 
 
-    fun __init__(refParser: pointer<ParsedObject>)
+    fun __init__(refParser: pointer<Parser>)
     {
         this.kind = Token.AnyKind
         this.regex = null
@@ -107,7 +107,7 @@ struct PatternAtom
     }
 
 
-    fun __init__(refsParser: pointer<ParsedObjects>)
+    fun __init__(refsParser: pointer<Parsers>)
     {
         this.kind = Token.AnyKind
         this.regex = null
@@ -145,9 +145,9 @@ struct PatternAtom
 
     inline fun isRefs() -> bool = this.refsParser != null
 
-    inline fun getRefParser() -> pointer<ParsedObject> = this.refParser
+    inline fun getRefParser() -> pointer<Parser> = this.refParser
 
-    inline fun getRefsParser() -> pointer<ParsedObjects> = this.refsParser
+    inline fun getRefsParser() -> pointer<Parsers> = this.refsParser
 }
 
 
@@ -245,7 +245,7 @@ struct PatternList
     }
 
 
-    inline fun pushRef(refParser: pointer<ParsedObject>) -> pointer<PatternList>
+    inline fun pushRef(refParser: pointer<Parser>) -> pointer<PatternList>
     {
         val pattern: PatternAtom = PatternAtom(refParser)
         this.patterns.push(pattern.ref)
@@ -253,7 +253,7 @@ struct PatternList
     }
 
 
-    inline fun pushRefs(refsParser: pointer<ParsedObjects>) -> pointer<PatternList>
+    inline fun pushRefs(refsParser: pointer<Parsers>) -> pointer<PatternList>
     {
         val pattern: PatternAtom = PatternAtom(refsParser)
         this.patterns.push(pattern.ref)

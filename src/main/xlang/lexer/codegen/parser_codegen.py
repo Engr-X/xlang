@@ -29,7 +29,9 @@ PRATT_PARSER: str = "pratt"
 
 DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.PatternList",
-    "xlang.parser.ParsedObject",
+    "xlang.lexer.TokenList",
+    "xlang.parser.Parser",
+    "xlang.parser.RecursiveParser",
     "xlang.util.ArrayList",
 }
 
@@ -37,7 +39,7 @@ DEFAULT_IMPORTS: set[str] = {
 def getImports(config: JsonObject) -> set[str]:
     imports = DEFAULT_IMPORTS | set(item for item in config.get("imports", []) if item)
 
-    if getOperations(config):
+    if hasOperations(config):
         imports.add("xlang.compiler.Operation")
 
     return imports
@@ -110,6 +112,13 @@ def genPatternPush(pattern: object) -> str:
     if kind is None and regex is None:
         raise ValueError(f"parser pattern must contain kind, regex or both: {pattern!r}")
 
+    if kind is not None and kind.startswith("$"):
+        if regex is not None:
+            raise ValueError(f"parser reference pattern cannot also contain regex: {pattern!r}")
+
+        parser_name = f"{upperSnake(kind[1:])}_PARSER"
+        return f".pushRef({parser_name})"
+
     if kind is None:
         return f".pushRegex({regex})"
 
@@ -139,6 +148,46 @@ def getOperations(config: JsonObject) -> list[JsonObject]:
             raise TypeError(f"operations item must be object: {operation!r}")
 
     return operations
+
+
+def getRuleOperations(rule: JsonObject) -> list[JsonObject]:
+    operations = rule.get("operations", [])
+
+    if not isinstance(operations, list):
+        raise TypeError(f"rule operations must be a list: {rule!r}")
+
+    for operation in operations:
+        if not isinstance(operation, dict):
+            raise TypeError(f"rule operations item must be object: {operation!r}")
+
+    return operations
+
+
+def getSubRuleOperation(sub_rule: JsonObject) -> object:
+    return sub_rule.get("operation", sub_rule.get("operator", None))
+
+
+def hasOperations(config: JsonObject) -> bool:
+    if getOperations(config):
+        return True
+
+    for rule in getRules(config):
+        if getRuleOperations(rule):
+            return True
+
+        if getParserType(rule) != PRATT_PARSER:
+            continue
+
+        sub_rules = rule.get("sub_rules", rule.get("subRules", []))
+
+        if not isinstance(sub_rules, list):
+            continue
+
+        for sub_rule in sub_rules:
+            if isinstance(sub_rule, dict) and getSubRuleOperation(sub_rule) is not None:
+                return True
+
+    return False
 
 
 def getOperationSymbol(operation: JsonObject) -> str:
@@ -181,8 +230,53 @@ def genOperationPriority(operation: JsonObject) -> int:
     return priority
 
 
+def genOperationId(operation: JsonObject, default_id: int) -> int:
+    value = operation.get("id", default_id)
+
+    if not isinstance(value, int):
+        raise TypeError(f"operation id must be an int: {operation!r}")
+
+    return value
+
+
 def genOperationValueName(index: int) -> str:
     return f"OPERATION{index}"
+
+
+def genPrattOperationValueName(rule: JsonObject, index: int) -> str:
+    parser_name = getParserName(rule)
+
+    if parser_name.endswith("_PARSER"):
+        return f"{parser_name[:-7]}_OPERATION{index}"
+
+    return f"{parser_name}_OPERATION{index}"
+
+
+def getOperationValueName(operation: JsonObject, default_name: str) -> str:
+    value = operation.get("name", operation.get("value_name", operation.get("valueName", None)))
+
+    if value is None:
+        return default_name
+
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"operation name must be a non-empty string: {operation!r}")
+
+    return value
+
+
+def genOperationDecl(name: str, operation: JsonObject, default_id: int, tabs: int) -> str:
+    indent = " " * (tabs * 4)
+
+    return (
+        f"{indent}val {name}: pointer<Operation> = "
+        f"new Operation("
+        f"{genOperationId(operation, default_id)}, "
+        f"{json.dumps(getOperationSymbol(operation))}, "
+        f"{genOperationExpr(operation.get('fixity'), 'fixity', operation)}, "
+        f"{genOperationExpr(operation.get('associativity'), 'associativity', operation)}, "
+        f"{genOperationPriority(operation)}, "
+        f"{genOperationFunctionName(operation)})"
+    )
 
 
 def genOperationDecls(operations: list[JsonObject], tabs: int) -> str:
@@ -193,16 +287,8 @@ def genOperationDecls(operations: list[JsonObject], tabs: int) -> str:
     lines: list[str] = []
 
     for index, operation in enumerate(operations):
-        lines.append(
-            f"{indent}val {genOperationValueName(index)}: pointer<Operation> = "
-            f"new Operation("
-            f"{index}, "
-            f"{json.dumps(getOperationSymbol(operation))}, "
-            f"{genOperationExpr(operation.get('fixity'), 'fixity', operation)}, "
-            f"{genOperationExpr(operation.get('associativity'), 'associativity', operation)}, "
-            f"{genOperationPriority(operation)}, "
-            f"{genOperationFunctionName(operation)})"
-        )
+        name = getOperationValueName(operation, genOperationValueName(index))
+        lines.append(genOperationDecl(name, operation, index, tabs))
 
     return "\n".join(lines) + "\n\n\n"
 
@@ -338,9 +424,33 @@ def getResultConstructor(rule: JsonObject) -> str:
         raise ValueError(f"parser rule must have result_constructor or sub rule action: {rule!r}")
 
     raise ValueError(
-        "ParsedObject parser rules require one shared result constructor; "
+        "RecursiveParser rules require one shared result constructor; "
         f"got multiple actions for {getRuleLabel(rule)!r}: {actions!r}"
     )
+
+
+def getPrattResultConstructor(rule: JsonObject) -> str:
+    value = rule.get(
+        "result_constructor",
+        rule.get("resultConstructor", rule.get("constructor", None)),
+    )
+
+    if value is not None:
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"pratt parser result constructor must be a non-empty string: {rule!r}")
+
+        return value
+
+    for sub_rule in getSubRules(rule):
+        if not isinstance(sub_rule, dict):
+            raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
+
+        action = getSubRuleAction(sub_rule)
+
+        if action is not None:
+            return action
+
+    raise ValueError(f"pratt parser rule must have result_constructor or sub rule action: {rule!r}")
 
 
 def validateSubRulePatterns(rule: JsonObject, sub_rule: JsonObject) -> list[object]:
@@ -361,17 +471,42 @@ def genPatternListExpr(patterns: list[object]) -> str:
     return pattern_expr
 
 
+def commentLine(line: str, tabs: int) -> str:
+    indent = " " * (tabs * 4)
+
+    return f"{indent}// {line[len(indent):]}"
+
+
+def getPrattSubRuleOperation(rule: JsonObject, sub_rule: JsonObject, index: int) -> str:
+    operation = getSubRuleOperation(sub_rule)
+
+    if operation is None:
+        return "null"
+
+    if isinstance(operation, str):
+        if not operation:
+            raise ValueError(f"pratt sub rule operation must be a non-empty xlang expression or null: {sub_rule!r}")
+
+        return operation
+
+    if isinstance(operation, dict):
+        return getOperationValueName(operation, genPrattOperationValueName(rule, index))
+
+    if not isinstance(operation, str) or not operation:
+        raise ValueError(f"pratt sub rule operation must be a non-empty xlang expression or null: {sub_rule!r}")
+
+    return operation
+
+
 def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     indent = " " * (tabs * 4)
     lines: list[str] = []
+    emitted_operations: set[str] = set()
 
     for index, rule in enumerate(rules):
         parser_type = getParserType(rule)
 
-        if parser_type == PRATT_PARSER:
-            continue
-
-        if parser_type != RECURSIVELY_DOWN_PARSER:
+        if parser_type not in {RECURSIVELY_DOWN_PARSER, PRATT_PARSER}:
             raise ValueError(f"unsupported parser type for {getRuleLabel(rule)!r}: {parser_type!r}")
 
         sub_rules = getSubRules(rule)
@@ -379,26 +514,167 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
         if not sub_rules:
             raise ValueError(f"parser rule must have at least one sub_rule: {rule!r}")
 
+        for operation_index, operation in enumerate(getRuleOperations(rule)):
+            operation_expr = getOperationValueName(
+                operation,
+                genPrattOperationValueName(rule, operation_index),
+            )
+
+            if operation_expr not in emitted_operations:
+                lines.append(genOperationDecl(operation_expr, operation, operation_index, tabs))
+                emitted_operations.add(operation_expr)
+
+        if parser_type == PRATT_PARSER:
+            for sub_rule_index, sub_rule in enumerate(sub_rules):
+                if not isinstance(sub_rule, dict):
+                    raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
+
+                rule_name = getRuleValueName(rule, sub_rule_index)
+                pattern_expr = genPatternListExpr(validateSubRulePatterns(rule, sub_rule))
+                operation = getSubRuleOperation(sub_rule)
+                operation_expr = getPrattSubRuleOperation(rule, sub_rule, sub_rule_index)
+                action = getSubRuleAction(sub_rule)
+
+                if action is None:
+                    raise ValueError(f"pratt sub rule must have an action: {sub_rule!r}")
+
+                if isinstance(operation, dict) and operation_expr not in emitted_operations:
+                    lines.append(genOperationDecl(operation_expr, operation, sub_rule_index, tabs))
+                    emitted_operations.add(operation_expr)
+
+                declaration = (
+                    f"{indent}private val {rule_name}: pointer<PrattRule> = "
+                    f"new PrattRule({pattern_expr}, {operation_expr}, "
+                    f"{action})"
+                )
+                lines.append(commentLine(declaration, tabs))
+
+            parser_name = getParserName(rule)
+            parser_expr = "new PrattParser()"
+
+            for sub_rule_index, _ in enumerate(sub_rules):
+                parser_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
+
+            if lines and lines[-1] != "":
+                lines.append("")
+
+            specific_parser_name = f"{parser_name}_SPECIFIC"
+            declaration = f"{indent}private val {specific_parser_name}: pointer<PrattParser> = {parser_expr}"
+
+            lines.append(commentLine(declaration, tabs))
+            lines.append(commentLine(
+                f"{indent}val {parser_name}: pointer<Parser> = "
+                f"new Parser(Parser.PRATT, {specific_parser_name})",
+                tabs,
+            ))
+            lines.append("")
+            continue
+
         for sub_rule_index, sub_rule in enumerate(sub_rules):
             if not isinstance(sub_rule, dict):
                 raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
 
             rule_name = getRuleValueName(rule, sub_rule_index)
             pattern_expr = genPatternListExpr(validateSubRulePatterns(rule, sub_rule))
-            lines.append(f"{indent}val {rule_name}: pointer<PatternList> = {pattern_expr}")
+            lines.append(f"{indent}private val {rule_name}: pointer<PatternList> = {pattern_expr}")
 
         parser_name = getParserName(rule)
         constructor = getResultConstructor(rule)
-        parser_expr = f"new ParsedObject({constructor})"
+        parser_expr = f"new RecursiveParser({constructor})"
 
         for sub_rule_index, _ in enumerate(sub_rules):
             parser_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
 
-        lines.append(
-            f"{indent}val {parser_name}: pointer<ParsedObject> = {parser_expr}"
-        )
+        if lines and lines[-1] != "":
+            lines.append("")
 
-    return "\n".join(lines) + "\n\n\n"
+        specific_parser_name = f"{parser_name}_SPECIFIC"
+        declaration = f"{indent}private val {specific_parser_name}: pointer<RecursiveParser> = {parser_expr}"
+
+        lines.append(declaration)
+        lines.append(
+            f"{indent}val {parser_name}: pointer<Parser> = "
+            f"new Parser(Parser.RECURSIVE_DOWN, {specific_parser_name})"
+        )
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n\n\n"
+
+
+def getParseFunctionName(rule: JsonObject) -> str:
+    value = rule.get("parse_function", rule.get("parseFunction", None))
+
+    if value is not None:
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"parse function name must be a non-empty string: {rule!r}")
+
+        return value
+
+    return f"parse{getRuleClass(rule)}"
+
+
+def getParserEntry(rule: JsonObject) -> str | None:
+    value = rule.get("entry", rule.get("parser_entry", rule.get("parserEntry", None)))
+
+    if value is None:
+        return None
+
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"parser entry must be a non-empty string: {rule!r}")
+
+    return value
+
+
+def genParseEntrypoints(rules: list[JsonObject], tabs: int) -> str:
+    indent = " " * (tabs * 4)
+    lines: list[str] = []
+
+    for rule in rules:
+        parser_type = getParserType(rule)
+        function_name = getParseFunctionName(rule)
+        result_type = getRuleClass(rule)
+
+        if parser_type == RECURSIVELY_DOWN_PARSER or parser_type == PRATT_PARSER:
+            parser_name = getParserName(rule)
+            entrypoint = [
+                f"{indent}fun {function_name}(input: pointer<TokenList>) -> pointer<{result_type}>",
+                f"{indent}{{",
+                f"{indent}    if input == null:",
+                f"{indent}        return null",
+                "",
+                f"{indent}    if {parser_name}.doParse(input) < 0:",
+                f"{indent}        return null",
+                "",
+                f"{indent}    return {parser_name}.getResult() as pointer<{result_type}>",
+                f"{indent}}}",
+                "",
+            ]
+
+            if parser_type == PRATT_PARSER:
+                lines.extend(
+                    commentLine(line, tabs) if line else ""
+                    for line in entrypoint
+                )
+            else:
+                lines.extend(entrypoint)
+            continue
+
+        entry = getParserEntry(rule)
+
+        if entry is not None:
+            lines.extend([
+                f"{indent}fun {function_name}(input: pointer<TokenList>) -> pointer<{result_type}> =",
+                f"{indent}    {entry}(input)",
+                "",
+            ])
+            continue
+
+        raise ValueError(f"unsupported parser type for {getRuleLabel(rule)!r}: {parser_type!r}")
+
+    if not lines:
+        return ""
+
+    return "\n".join(lines).rstrip() + "\n\n\n"
 
 
 def codegen(config: JsonObject, dest: Path) -> str:
@@ -416,6 +692,7 @@ def codegen(config: JsonObject, dest: Path) -> str:
         genOperationDecls(getOperations(config), 0),
         genBlocks(getCodeBlocks(config, "others")),
         genParserDecls(getRules(config), 0),
+        genParseEntrypoints(getRules(config), 0),
     ]
 
     return "".join(section for section in sections if section != "")

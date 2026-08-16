@@ -242,6 +242,15 @@ struct Token
     }
 
 
+    fun copy() -> pointer<Token>
+    {
+        if this.errorInfo == null:
+            return new Token(this.kind, this.pos, this.text)
+
+        return new Token(this.kind, this.pos, this.text, this.errorInfo)
+    }
+
+
     /**
      * Tests whether this token represents the end of the input.
      *

@@ -1,3 +1,4 @@
 .agents/
+.vscode/
 build/
 comment_formate.txt

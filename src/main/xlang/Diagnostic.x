@@ -137,6 +137,12 @@ struct Diagnostic
 
     // Diagnostic code for an empty parser input.
     static val EMPTY_INPUT: int = 7
+
+    // Diagnostic code for a parser result-construction failure.
+    static val CANNOT_CONSTRUCT_AST: int = 8
+
+    // Diagnostic code for an invalid parser pattern atom.
+    static val INVALID_PATTERN_ATOM: int = 9
     
 
     // Message for an invalid bracket pair table.
@@ -159,6 +165,12 @@ struct Diagnostic
 
     // Message for an empty parser input.
     static val EMPTY_INPUT_MSG: pointer<char> = "internal error: empty input"
+
+    // Message for a parser result-construction failure.
+    static val CANNOT_CONSTRUCT_AST_MSG: pointer<char> = "internal error: cannot construct AST"
+
+    // Message for an invalid parser pattern atom.
+    static val INVALID_PATTERN_ATOM_MSG: pointer<char> = "internal error: invalid pattern atom"
 
 
     /**

@@ -1,0 +1,72 @@
+/*
+ * Copyright (c) 2026 Di Wang
+ * SPDX-License-Identifier: MIT
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
+@file.class("Parsers")
+package xlang.parser
+
+import xlang.lexer.TokenList
+import xlang.util.ArrayList
+
+
+struct Parsers
+{
+    private var parser: pointer<Parser>
+
+    private var results: pointer<ArrayList>
+
+
+    fun __init__(parser: pointer<Parser>)
+    {
+        this.parser = parser
+        this.results = new ArrayList(sizeof(pointer<*>))
+    }
+
+
+    fun parse(tokens: pointer<TokenList>, index: int) -> int
+    {
+        this.results = new ArrayList(sizeof(pointer<*>))
+
+        if this.parser == null || tokens == null || index < 0 || index >= tokens.length():
+            return 0
+
+        var consumed: int = 0
+
+        while index + consumed < tokens.length():
+        {
+            val innerConsumed: int = this.parser.parse(tokens, index + consumed)
+
+            if innerConsumed <= 0 || !this.parser.lastTrySuccess():
+                break
+
+            val result: pointer<*> = this.parser.getResult()
+
+            this.results.push(result.ref)
+            consumed += innerConsumed
+        }
+
+        return consumed
+    }
+
+
+    fun getResult() -> pointer<ArrayList> = this.results
+}

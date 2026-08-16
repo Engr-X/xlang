@@ -265,7 +265,7 @@ foreach(src_abs ${XLANG_SOURCES})
     list(APPEND XLANG_OBJ_DIRS "${obj_dir}")
     list(APPEND XLANG_OBJS "${obj_abs}")
 
-    if (src_rel MATCHES "^xlang/Diagnostic\\.x$" OR src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lexer/" OR src_rel MATCHES "^xlang/parser/ParsedObjects?\\.x$" OR src_rel MATCHES "^xlang/parser/ParserUtil\\.x$" OR src_rel MATCHES "^xlang/util/")
+    if (src_rel MATCHES "^xlang/Diagnostic\\.x$" OR src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lexer/" OR src_rel MATCHES "^xlang/parser/Parsers?\\.x$" OR src_rel MATCHES "^xlang/parser/RecursiveParser\\.x$" OR src_rel MATCHES "^xlang/parser/ParserUtil\\.x$" OR src_rel MATCHES "^xlang/util/")
         list(APPEND XLANG_COMPILER_OBJS "${obj_abs}")
     endif()
 endforeach()

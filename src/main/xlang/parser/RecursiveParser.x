@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("ParsedObject")
+@file.class("RecursiveParser")
 package xlang.parser
 
 import xlang.Diagnostic
@@ -36,7 +36,7 @@ import xlang.util.ArrayList
 /**
  * Stores the result and intermediate state of one parser operation.
  *
- * A ParsedObject contains an ordered set of token-pattern rules. During
+ * A RecursiveParser contains an ordered set of token-pattern rules. During
  * parsing, those rules are tested against the beginning of an input TokenList.
  * The first complete match determines the token prefix consumed by this
  * object.
@@ -49,14 +49,17 @@ import xlang.util.ArrayList
  * structure.
  *
  * The caller must keep referenced rules and callback functions valid while
- * this ParsedObject uses them.
+ * this RecursiveParser uses them.
  */
-struct ParsedObject
+struct RecursiveParser
 {
     private var errors: pointer<ArrayList>
 
 
     private var results: pointer<ArrayList>
+
+
+    private var result: pointer<*>
 
 
     private var consumedLength: int
@@ -84,7 +87,7 @@ struct ParsedObject
      * The callback pointer is stored directly without validation.
      *
      * The caller must provide a valid callback and keep it available while
-     * this ParsedObject may invoke it.
+     * this RecursiveParser may invoke it.
      *
      * @param                   result the function that converts result items into a parser
      *                          result object.
@@ -96,6 +99,7 @@ struct ParsedObject
     {
         this.errors = new ArrayList(sizeof(Diagnostic))
         this.results = new ArrayList(sizeof(pointer<*>))
+        this.result = null
         this.consumedLength = 0
         this.resultConstructor = resultConstructor
         this.rules = new ArrayList(sizeof(PatternList))
@@ -108,27 +112,27 @@ struct ParsedObject
     fun ruleLength() -> int = this.rules.length
 
 
-    fun addRule(rule: pointer<PatternList>) -> pointer<ParsedObject>
+    fun addRule(rule: pointer<PatternList>) -> pointer<RecursiveParser>
     {
         this.rules.push(rule)
         return this
     }
 
 
-    private fun pushResult(results: pointer<ArrayList>, item: pointer<*>)
+    private fun pushResult(results: pointer<ArrayList>, item: pointer<*>) -> pointer<RecursiveParser>
     {
-        var resultSlot: pointer<*> = item
-
-        results.push(resultSlot.ref)
+        results.push(item.ref)
+        return this
     }
 
 
-    private fun pushInternalError(code: int, message: pointer<char>)
+    private fun pushInternalError(code: int, message: pointer<char>) -> pointer<RecursiveParser>
     {
         this.errors.push(Diagnostic.makeInternalError(
             code,
             new ArrayList(sizeof(SourceLocation)),
             message))
+        return this
     }
 
 
@@ -219,12 +223,15 @@ struct ParsedObject
                 }
 
                 // add to result
-                this.pushResult(results, token.get(index + consumed) as pointer<*>)
+                val matchedToken: pointer<Token> = token.get(index + consumed)
+                val resultToken: pointer<Token> = matchedToken.copy()
+
+                this.pushResult(results, resultToken as pointer<*>)
                 consumed += length
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParsedObject> = atom.getRefParser()
+                val refParser: pointer<Parser> = atom.getRefParser()
                 val innerConsumed: int = refParser.parse(token, index + consumed)
 
                 if refParser.lastTrySuccess():
@@ -244,7 +251,7 @@ struct ParsedObject
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParsedObjects> = atom.getRefsParser()
+                val refsParser: pointer<Parsers> = atom.getRefsParser()
                 val innerConsumed: int = refsParser.parse(token, index + consumed)
 
                 consumed += innerConsumed
@@ -254,7 +261,9 @@ struct ParsedObject
             }
             else:
             {
-                this.pushInternalError(0, "internal error: invalid pattern atom")
+                this.pushInternalError(
+                    Diagnostic.INVALID_PATTERN_ATOM,
+                    Diagnostic.INVALID_PATTERN_ATOM_MSG)
                 success = false
                 break
             }
@@ -262,9 +271,18 @@ struct ParsedObject
 
         if success:
         {
-            this.results = results
-            this.consumedLength = consumed
-            this.errors.push(Diagnostic.makeNormal())
+            this.result = this.resultConstructor(results)
+
+            if this.result == null:
+                this.pushInternalError(
+                    Diagnostic.CANNOT_CONSTRUCT_AST,
+                    Diagnostic.CANNOT_CONSTRUCT_AST_MSG)
+            else:
+            {
+                this.results = results
+                this.consumedLength = consumed
+                this.errors.push(Diagnostic.makeNormal())
+            }
         }
             
         return consumed
@@ -275,6 +293,7 @@ struct ParsedObject
     {
         this.errors = new ArrayList(sizeof(Diagnostic))
         this.results = new ArrayList(sizeof(pointer<*>))
+        this.result = null
         this.consumedLength = 0
 
         if token == null:
@@ -311,5 +330,5 @@ struct ParsedObject
     }
 
 
-    fun getResult() -> pointer<*> = this.resultConstructor(this.results)
+    fun getResult() -> pointer<*> = this.result
 }

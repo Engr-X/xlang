@@ -8,15 +8,6 @@
         "xlang.lexer.Token"
     ],
 
-    "operations": [
-        {"symbol": "$paren", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": -1},
-        {"symbol": "+", "function_name": "plus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 10},
-        {"symbol": "-", "function_name": "minus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 10},
-        {"symbol": "*", "function_name": "times", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20},
-        {"symbol": "/", "function_name": "div", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20},
-        {"symbol": "%", "function_name": "mod", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20}
-    ],
-
     "rules": [
         {
             "class": "Atom",
@@ -37,18 +28,38 @@
         {
             "class": "Expression",
             "parser": "pratt",
+            "operations": [
+                {"symbol": "$paren", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": -1},
+                {"symbol": "+", "function_name": "plus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 10},
+                {"symbol": "-", "function_name": "minus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 10},
+                {"symbol": "*", "function_name": "times", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20},
+                {"symbol": "/", "function_name": "div", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20},
+                {"symbol": "%", "function_name": "mod", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20}
+            ],
             "sub_rules": [
                 {"patterns": [{"kind": "$Atom"}], "action": "makeExpressionFromAtom"},
-                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.PLUS"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
-                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.MINUS"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
-                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.STAR"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
-                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.SLASH"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"},
-                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.PERCENT"}, {"kind": "$Expression"}], "action": "makeExpressionFromBinary"}
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.PLUS"}, {"kind": "$Expression"}], "operation": "EXPRESSION_OPERATION1", "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.MINUS"}, {"kind": "$Expression"}], "operation": "EXPRESSION_OPERATION2", "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.STAR"}, {"kind": "$Expression"}], "operation": "EXPRESSION_OPERATION3", "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.SLASH"}, {"kind": "$Expression"}], "operation": "EXPRESSION_OPERATION4", "action": "makeExpressionFromBinary"},
+                {"patterns": [{"kind": "$Expression"}, {"kind": "Tokenizer.PERCENT"}, {"kind": "$Expression"}], "operation": "EXPRESSION_OPERATION5", "action": "makeExpressionFromBinary"}
             ]
         }
     ],
 
     "others": [
+        [
+            "fun atomParserParse(input: pointer<TokenList>, index: int) -> int = ATOM_PARSER.parse(input, index)"
+        ],
+        [
+            "fun atomParserLastTrySuccess() -> bool = ATOM_PARSER.lastTrySuccess()"
+        ],
+        [
+            "fun atomParserGetResult() -> pointer<*> = ATOM_PARSER.getResult()"
+        ],
+        [
+            "fun atomParserDoParse(input: pointer<TokenList>) -> int = ATOM_PARSER.doParse(input)"
+        ],
         [
             "private fun makeAtom(results: pointer<ArrayList>) -> pointer<*>",
             "{",
@@ -91,6 +102,7 @@
             "    return Expression.fromAtom(atom)",
             "}"
         ],
+
         [
             "private fun operationFromToken(token: pointer<Token>) -> pointer<Operation>",
             "{",
@@ -98,19 +110,19 @@
             "        return null",
             "",
             "    if token.kind == Tokenizer.PLUS:",
-            "        return OPERATION1",
+            "        return EXPRESSION_OPERATION1",
             "",
             "    if token.kind == Tokenizer.MINUS:",
-            "        return OPERATION2",
+            "        return EXPRESSION_OPERATION2",
             "",
             "    if token.kind == Tokenizer.STAR:",
-            "        return OPERATION3",
+            "        return EXPRESSION_OPERATION3",
             "",
             "    if token.kind == Tokenizer.SLASH:",
-            "        return OPERATION4",
+            "        return EXPRESSION_OPERATION4",
             "",
             "    if token.kind == Tokenizer.PERCENT:",
-            "        return OPERATION5",
+            "        return EXPRESSION_OPERATION5",
             "",
             "    return null",
             "}"
