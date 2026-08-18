@@ -283,4 +283,15 @@ extern void xlang_putln_p(const void* value);
  */
 extern void xlang_putln_str(const x_char* const value);
 
+
+/**
+ * Reads one line from standard input into a caller-provided buffer.
+ *
+ * @param dest              destination buffer
+ * @param capacity          destination capacity in x_char slots
+ *
+ * @return                  number of characters read, or -1 on EOF or error
+ */
+extern int read_line(x_char* const dest, const int capacity);
+
 #endif

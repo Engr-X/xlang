@@ -21,10 +21,10 @@
  *
  */
 
-package xlang.lexer
+package xlang.parser.util
 
-import xlang.parser.Parser
-import xlang.parser.Parsers
+import xlang.lexer.Token
+import xlang.lexer.TokenList
 import xlang.util.ArrayList
 import xlang.util.string.String
 

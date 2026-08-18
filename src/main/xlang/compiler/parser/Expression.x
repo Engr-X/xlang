@@ -25,9 +25,10 @@
 
 package xlang.compiler.parser
 
-import xlang.compiler.Operation
+import xlang.Operation
 import xlang.util.ArrayList
 import xlang.util.string.String
+import xlang.util.string.StringBuilder
 
 
 struct Expression
@@ -45,7 +46,13 @@ struct Expression
 
     static fun fromBinary(op: pointer<Operation>, exp1: pointer<Expression>, exp2: pointer<Expression>) -> pointer<Expression>
     {
-        val call: pointer<MethodCall> = new MethodCall(exp1, op).addArgument(exp2)
+        val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp1).addArgument(exp2)
+        return new Expression(METHOD_CALL_KIND, call)
+    }
+
+    static fun fromPrefix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
+    {
+        val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp)
         return new Expression(METHOD_CALL_KIND, call)
     }
 
@@ -60,6 +67,37 @@ struct Expression
         this.kind = kind
         this.root = root
     }
+
+
+    fun getKind() -> int = this.kind
+
+
+    fun getRoot() -> pointer<*> = this.root
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        if this.kind == ATOM_KIND:
+        {
+            val atom: pointer<Atom> = this.root as pointer<Atom>
+            return atom.toString()
+        }
+
+        if this.kind == METHOD_CALL_KIND:
+        {
+            val call: pointer<MethodCall> = this.root as pointer<MethodCall>
+            return call.toString()
+        }
+
+        if this.kind == FIELD_ACCESS_KIND:
+        {
+            val access: pointer<FieldAccess> = this.root as pointer<FieldAccess>
+            return access.toString()
+        }
+
+        return new StringBuilder()
+    }
+
 }
 
 
@@ -74,13 +112,30 @@ struct FieldAccess
         this.host = host
         this.fieldName = String.strdup(fieldName)
     }
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = new StringBuilder()
+
+        if this.host != null:
+        {
+            sb.append(this.host.toString())
+            sb.append('.')
+        }
+
+        sb.append(this.fieldName)
+        return sb
+    }
 }
 
 
 struct MethodCall
 {
     private var host: pointer<Expression>
+
     private var callName: pointer<char>
+    
     private var arguments: pointer<ArrayList>
 
 
@@ -107,5 +162,59 @@ struct MethodCall
     }
 
 
+    fun getHost() -> pointer<Expression> = this.host
+
+
+    fun getCallName() -> pointer<char> = String.strdup(this.callName)
+
+
+    fun getArgument(index: int) -> pointer<Expression>
+    {
+        val slot: pointer<pointer<Expression>> = this.arguments.get(index) as pointer<pointer<Expression>>
+
+        if slot == null:
+            return null
+
+        return slot.deref
+    }
+
+
     fun argumentsCount() -> int = this.arguments.length
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = new StringBuilder()
+
+        if this.host != null:
+        {
+            sb.append(this.host.toString())
+            sb.append('.')
+        }
+
+        sb.append(this.callName)
+        sb.append('(')
+
+        var appendedArgument: bool = false
+
+        for (var i = 0; i < this.arguments.length; i++):
+        {
+            val argument: pointer<Expression> = this.getArgument(i)
+
+            if argument == null:
+                continue
+
+            if appendedArgument:
+                sb.append(", ")
+
+            sb.append(argument.toString())
+            appendedArgument = true
+        }
+
+        sb.append(')')
+
+        return sb
+    }
 }
+
+

@@ -47,10 +47,11 @@ fun genTest() -> pointer<TestGroup>
     val sublistTC: pointer<TestCase> = new TestCase("sublist", sublistTest)
     val peekPopTC: pointer<TestCase> = new TestCase("peekPop", peekPopTest)
     val comparatorTC: pointer<TestCase> = new TestCase("comparator", comparatorTest)
+    val sortTC: pointer<TestCase> = new TestCase("sort", sortTest)
 
     val testCaseSpace: blob[sizeof(pointer<TestCase>) * 16]
     val testCase: pointer<pointer<TestCase>> = testCaseSpace as pointer<pointer<TestCase>>
-    val testCaseLength: int = 13
+    val testCaseLength: int = 14
 
     testCase[0] = pushGetTC
     testCase[1] = pushFrontTC
@@ -65,6 +66,7 @@ fun genTest() -> pointer<TestGroup>
     testCase[10] = sublistTC
     testCase[11] = peekPopTC
     testCase[12] = comparatorTC
+    testCase[13] = sortTC
 
     for (var i = 0; i < testCaseLength; i++):
     {
@@ -447,6 +449,49 @@ private fun comparatorTest() -> int
 
     if !seeded.contains(value):
         return 14
+
+    return 0
+}
+
+
+private fun sortTest() -> int
+{
+    val list: pointer<ArrayList> = new ArrayList(sizeof(int))
+    val valueSpace: blob[sizeof(int)]
+    val value: pointer<int> = valueSpace as pointer<int>
+
+    list.setCmparator(intCmp)
+
+    value.deref = 4
+    list.push(value)
+    value.deref = 1
+    list.push(value)
+    value.deref = 3
+    list.push(value)
+    value.deref = 2
+    list.push(value)
+    value.deref = 3
+    list.push(value)
+
+    list.sort()
+
+    if list.length != 5:
+        return 1
+
+    val expectedSpace: blob[sizeof(int) * 5]
+    val expected: pointer<int> = expectedSpace as pointer<int>
+
+    expected[0] = 1
+    expected[1] = 2
+    expected[2] = 3
+    expected[3] = 3
+    expected[4] = 4
+
+    for (var i = 0; i < list.length; i++):
+    {
+        if (list.get(i) as pointer<int>).deref != expected[i]:
+            return i + 2
+    }
 
     return 0
 }

@@ -1,0 +1,92 @@
+priority,symbol,token name,operation name (function name)
+22,x.y,DOT,
+22,(x),PAREN,
+22,x[args],BRACKET,"get(x, args)"
+
+21,x++,DOUBLE_PLUS,succ(x)
+21,x--,DOUBLE_MINUS,pred(x)
+
+20,"++x",DOUBLE_PLUS,inc(x)
+20,"--x",DOUBLE_MINUS,dec(x)
+20,"+x",PLUS,pos(x)
+20,"-x",MINUS,neg(x)
+20,x as Type,KW_AS + TYPE,
+
+19,x ** y,DOUBLE_STAR,"pow(x, y)"
+
+18,x * y,STAR,"times(x, y)"
+18,x / y,SLASH,"div(x, y)"
+18,x % y,PERCENT,"rem(x, y)"
+
+17,x + y,PLUS,"plus(x, y)"
+17,x - y,MINUS,"minus(x, y)"
+
+16,x shl y,KW_SHL,"shl(x, y)"
+16,x shr y,KW_SHR,"shr(x, y)"
+16,x ushr y,KW_USHR,"ushr(x, y)"
+
+15,x < y,LESS,"compareTo(x, y, -1)"
+15,x > y,GREATER,"compareTo(x, y, 1)"
+15,x <= y,LESS_EQUAL,"compareTo(x, y, -1) || compareTo(x, y, 0)"
+15,x >= y,GREATER_EQUAL,"compareTo(x, y, 1) || compareTo(x, y, 0)"
+15,x is Type,KW_IS,
+15,x !is Type,BANG KW_IS,
+
+14,x === y,TRIPLE_EQUAL,"refEquals(x, y)"
+14,x == y,DOUBLE_EQUAL,"equals(x, y)"
+14,x !== y,BANG_DOUBLE_EQUAL,"inv(refEquals(x, y))"
+14,x != y,NOT_EQUAL,"inv(equals(x, y))"
+
+13,inv x,KW_INV,inv(x)
+
+12,x and y,KW_AND,"bitwiseAnd(x, y)"
+12,x nand y,KW_NAND,"inv(bitwiseAnd(x, y))"
+
+11,x xor y,KW_XOR,"bitwiseOr(bitwiseAnd(x, inv(y)), bitwiseAnd(inv(x), y))"
+11,x xnor y,KW_XNOR,"bitwiseOr(bitwiseAnd(x, y), bitwiseAnd(inv(x), inv(y)))"
+
+10,x or y,KW_OR,"bitwiseOr(x, y)"
+10,x nor y,KW_NOR,"inv(bitwiseOr(x, y))"
+
+9,x implies y,KW_IMPLIES,"bitwiseOr(inv(x), y)"
+9,x nimplies y,KW_NIMPLIES,"bitwiseAnd(x, inv(y))"
+
+8,x iff y,KW_IFF,"bitwiseOr(bitwiseAnd(x, y), bitwiseAnd(inv(x), inv(y)))"
+8,x niff y,KW_NIFF,"bitwiseOr(bitwiseAnd(x, inv(y)), bitwiseAnd(inv(x), y))"
+
+7,!x,BANG,not(x)
+
+6,x && y,DOUBLE_AMPERSAND,"logicalAnd(x, y)"
+6,x !&& y,BANG_DOUBLE_AMPERSAND,"not(logicalAnd(x, y))"
+
+5,x ^ y,CARET,"logicalOr(logicalAnd(x, not(y)), logicalAnd(not(x), y))"
+5,x !^ y,BANG_CARET,"logicalOr(logicalAnd(x, y), logicalAnd(not(x), not(y)))"
+
+4,x || y,DOUBLE_PIPE,"logicalOr(x, y)"
+4,x !|| y,BANG_DOUBLE_PIPE,"not(logicalOr(x, y))"
+
+3,x -> y,ARROW,"logicalOr(not(x), y)"
+3,x !-> y,NOT_ARROW,"logicalAnd(x, not(y))"
+
+2,x <-> y,DOUBLE_ARROW,"logicalOr(logicalAnd(x, y), logicalAnd(not(x), not(y)))"
+2,x !<-> y,BANG_DOUBLE_ARROW,"logicalOr(logicalAnd(x, not(y)), logicalAnd(not(x), y))"
+
+1,x = y,EQUAL,"assign(x, y)"
+1,x **= y,DOUBLE_STAR_EQUAL,"assign(x, pow(x, y))"
+1,x *= y,STAR_EQUAL,"assign(x, times(x, y))"
+1,x /= y,SLASH_EQUAL,"assign(x, div(x, y))"
+1,x %= y,PERCENT_EQUAL,"assign(x, rem(x, y))"
+1,x += y,PLUS_EQUAL,"assign(x, plus(x, y))"
+1,x -= y,MINUS_EQUAL,"assign(x, minus(x, y))"
+1,x <<= y,DOUBLE_LESS_EQUAL,"assign(x, shl(x, y))"
+1,x >>= y,DOUBLE_GREATER_EQUAL,"assign(x, shr(x, y))"
+1,x <<<= y,TRIPLE_LESS_EQUAL,"assign(x, shl(x, y))"
+1,x >>>= y,TRIPLE_GREATER_EQUAL,"assign(x, ushr(x, y))"
+1,x &= y,AMPERSAND_EQUAL,"assign(x, bitwiseAnd(x, y))"
+1,x !&= y,BANG_AMPERSAND_EQUAL,"assign(x, inv(bitwiseAnd(x, y)))"
+1,x ^= y,CARET_EQUAL,"assign(x, bitwiseOr(bitwiseAnd(x, inv(y)), bitwiseAnd(inv(x), y)))"
+1,x !^= y,BANG_CARET_EQUAL,"assign(x, bitwiseOr(bitwiseAnd(x, y), bitwiseAnd(inv(x), inv(y))))"
+1,x |= y,PIPE_EQUAL,"assign(x, bitwiseOr(x, y))"
+1,x !|= y,BANG_PIPE_EQUAL,"assign(x, inv(bitwiseOr(x, y)))"
+
+0,",",COMMA,

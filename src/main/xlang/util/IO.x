@@ -151,3 +151,15 @@ native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color
  */
 @native("colored_sprintln")
 native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, color: int) -> int;
+
+
+/**
+ * Reads one line from standard input into dest.
+ *
+ * @param dest              destination buffer
+ * @param capacity          destination capacity in char slots
+ *
+ * @return                  number of characters read, or -1 on EOF or error
+ */
+@native("read_line")
+native inline fun readLine(dest: pointer<char>, capacity: int) -> int;

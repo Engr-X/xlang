@@ -24,7 +24,7 @@
  */
 
 @file.class("Operation")
-package xlang.compiler
+package xlang
 
 import xlang.util.string.String
 

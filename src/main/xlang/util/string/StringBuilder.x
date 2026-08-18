@@ -187,6 +187,23 @@ struct StringBuilder
 
 
     /**
+     * Appends another StringBuilder's current content.
+     *
+     * The source builder is copied by value into this builder. The source
+     * object is not modified.
+     *
+     * @param sb                builder whose content should be appended
+     */
+    fun append(sb: pointer<StringBuilder>)
+    {
+        if sb == null:
+            return
+
+        this.append(sb.list)
+    }
+
+
+    /**
      * Appends a line feed character to the builder.
      */
     fun newline():

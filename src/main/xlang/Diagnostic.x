@@ -143,6 +143,12 @@ struct Diagnostic
 
     // Diagnostic code for an invalid parser pattern atom.
     static val INVALID_PATTERN_ATOM: int = 9
+
+    // Diagnostic code for multiple parser rules matching at the highest priority.
+    static val AMBIGUOUS_PARSER_RULE: int = 10
+
+    // Diagnostic code for a parser rule that cannot be parsed.
+    static val CANNOT_PARSE: int = 11
     
 
     // Message for an invalid bracket pair table.
@@ -171,6 +177,12 @@ struct Diagnostic
 
     // Message for an invalid parser pattern atom.
     static val INVALID_PATTERN_ATOM_MSG: pointer<char> = "internal error: invalid pattern atom"
+
+    // Message for multiple parser rules matching at the highest priority.
+    static val AMBIGUOUS_PARSER_RULE_MSG: pointer<char> = "internal error: ambiguous parser rule"
+
+    // Message for a parser rule that cannot be parsed.
+    static val CANNOT_PARSE_MSG: pointer<char> = "internal error: cannot parse"
 
 
     /**

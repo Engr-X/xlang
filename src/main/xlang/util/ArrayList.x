@@ -648,6 +648,45 @@ struct ArrayList
 
 
     /**
+     * Sorts all initialized elements using the configured comparator.
+     *
+     * The operation rearranges the element bytes in place and does not change
+     * the list length or capacity. The comparator must define the desired
+     * ordering and should be configured with setCmparator() before this method
+     * is called.
+     *
+     * @return                  this list after sorting.
+     */
+    fun sort() -> pointer<ArrayList>
+    {
+        val elementSize: int = this.tsize
+        val item: blob[elementSize]
+
+        for (var i = 1; i < this.length; i++):
+        {
+            System.memcopy(item as pointer<*>, this.data + i * elementSize, elementSize)
+
+            var destIndex: int = i
+
+            while destIndex > 0:
+            {
+                val previous: pointer<byte> = this.data + (destIndex - 1) * elementSize
+
+                if this.cmp(previous, item as pointer<*>) <= 0:
+                    break
+
+                System.memcopy(this.data + destIndex * elementSize, previous, elementSize)
+                destIndex--
+            }
+
+            System.memcopy(this.data + destIndex * elementSize, item as pointer<*>, elementSize)
+        }
+
+        return this
+    }
+
+
+    /**
      * Copies a half-open range into a new ArrayList.
      *
      * The range follows Java-style bounds:

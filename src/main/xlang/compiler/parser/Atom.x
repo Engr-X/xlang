@@ -25,7 +25,9 @@
 
 package xlang.compiler.parser
 
+import xlang.lexer.Token
 import xlang.util.ArrayList
+import xlang.util.string.StringBuilder
 
 
 struct Atom
@@ -39,7 +41,7 @@ struct Atom
     static val DOUBLE_IMM_KIND: int = 6
     static val STRING_IMM_KIND: int = 7
 
-    static val VARIABLE_KIND: int = 8
+    static val IDENTIFIER_KIND: int = 8
     static val STATEMENT_ATOM_KIND: int = 9
 
     
@@ -53,4 +55,30 @@ struct Atom
         this.kind = kind
         this.tokens = tokens
     }
+
+
+    private fun tokenString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = new StringBuilder()
+
+        for (var i = 0; i < this.tokens.length; i++):
+        {
+            val slot: pointer<pointer<*>> = this.tokens.get(i) as pointer<pointer<*>>
+
+            if slot == null:
+                continue
+
+            val token: pointer<Token> = slot.deref as pointer<Token>
+
+            if token == null || token.text == null:
+                continue
+
+            sb.append(token.text)
+        }
+
+        return sb
+    }
+
+
+    fun toString() -> pointer<StringBuilder> = this.tokenString()
 }

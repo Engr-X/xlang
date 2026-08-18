@@ -27,14 +27,17 @@ endif()
 set(XLANG_LEXER_CODEGEN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/xlang/lexer/codegen")
 set(XLANG_TOKENIZER_CODEGEN "${XLANG_LEXER_CODEGEN_DIR}/tokenizer_codegen.py")
 set(XLANG_NORMALIZER_CODEGEN "${XLANG_LEXER_CODEGEN_DIR}/normalizer_codegen.py")
+set(XLANG_PARSER_CODEGEN "${XLANG_LEXER_CODEGEN_DIR}/parser_codegen.py")
 set(XLANG_LEXER_CODEGEN_UTILS
     "${XLANG_LEXER_CODEGEN_DIR}/__init__.py"
     "${XLANG_LEXER_CODEGEN_DIR}/util.py"
 )
 set(XLANG_COMPILER_TOKENIZER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_tokenizer.json")
 set(XLANG_COMPILER_TOKEN_NORMALIZER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_token_normalizer.json")
+set(XLANG_COMPILER_PARSER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_parser.json")
 set(XLANG_COMPILER_TOKENIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/Tokenizer.x")
 set(XLANG_COMPILER_TOKEN_NORMALIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/TokenNormalizer.x")
+set(XLANG_COMPILER_PARSER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/parser/Parser.x")
 
 
 # 1.1 Generate xlang.compiler.lexer.Tokenizer from compiler_tokenizer.json.
@@ -94,6 +97,30 @@ add_custom_target(xlang_compiler_token_normalizer_codegen
     DEPENDS "${XLANG_COMPILER_TOKEN_NORMALIZER}"
 )
 
+# 1.3 Generate xlang.compiler.parser.Parser from compiler_parser.json.
+add_custom_command(
+    OUTPUT "${XLANG_COMPILER_PARSER}"
+
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/parser"
+    COMMAND ${PYTHON_EXECUTABLE}
+        "${XLANG_PARSER_CODEGEN}"
+        -c "${XLANG_COMPILER_PARSER_RULES}"
+        -d "${XLANG_COMPILER_PARSER}"
+
+    DEPENDS
+        "${XLANG_PARSER_CODEGEN}"
+        ${XLANG_LEXER_CODEGEN_UTILS}
+        "${XLANG_COMPILER_PARSER_RULES}"
+
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+
+    COMMENT "Generating compiler parser"
+    VERBATIM
+)
+
+add_custom_target(xlang_compiler_parser_codegen
+    DEPENDS "${XLANG_COMPILER_PARSER}"
+)
 ###############################################################
 
 # ===============================================================
@@ -233,6 +260,11 @@ if (DEFINED XLANG_COMPILER_TOKEN_NORMALIZER)
     list(REMOVE_DUPLICATES XLANG_SOURCES)
 endif()
 
+if (DEFINED XLANG_COMPILER_PARSER)
+    list(APPEND XLANG_SOURCES "${XLANG_COMPILER_PARSER}")
+    list(REMOVE_DUPLICATES XLANG_SOURCES)
+endif()
+
 # Python codegen sources are build tools, not xlang sources. Older generated
 # lexer code is also excluded from the main compilation set.
 list(FILTER XLANG_SOURCES EXCLUDE REGEX ".*[\\\\/]xlang[\\\\/]compiler[\\\\/]codegen[\\\\/].*")
@@ -265,7 +297,7 @@ foreach(src_abs ${XLANG_SOURCES})
     list(APPEND XLANG_OBJ_DIRS "${obj_dir}")
     list(APPEND XLANG_OBJS "${obj_abs}")
 
-    if (src_rel MATCHES "^xlang/Diagnostic\\.x$" OR src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lexer/" OR src_rel MATCHES "^xlang/parser/Parsers?\\.x$" OR src_rel MATCHES "^xlang/parser/RecursiveParser\\.x$" OR src_rel MATCHES "^xlang/parser/ParserUtil\\.x$" OR src_rel MATCHES "^xlang/util/")
+    if (src_rel MATCHES "^xlang/Diagnostic\\.x$" OR src_rel MATCHES "^xlang/Operation\\.x$" OR src_rel MATCHES "^xlang/compiler/" OR src_rel MATCHES "^xlang/lexer/" OR src_rel MATCHES "^xlang/parser/" OR src_rel MATCHES "^xlang/util/")
         list(APPEND XLANG_COMPILER_OBJS "${obj_abs}")
     endif()
 endforeach()
@@ -303,6 +335,7 @@ if (XLANG_SRCS)
     add_dependencies(xlang_objects
         xlang_compiler_tokenizer_codegen
         xlang_compiler_token_normalizer_codegen
+        xlang_compiler_parser_codegen
     )
 else()
     add_custom_target(xlang_objects

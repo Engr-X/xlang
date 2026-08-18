@@ -90,7 +90,7 @@ private fun canonicalizeLeadingLineTerminatorTest() -> int
 
     val ident: pointer<Token> = tokens.get(0)
 
-    if ident.kind != Tokenizer.TK_IDENTITY:
+    if ident.kind != Tokenizer.TK_IDENTIFIER:
         return 2
 
     if !String.streq(ident.text, "foo"):
@@ -120,7 +120,7 @@ private fun canonicalizeStatementSeparatorTest() -> int
 
     val foo: pointer<Token> = tokens.get(0)
 
-    if foo.kind != Tokenizer.TK_IDENTITY || !String.streq(foo.text, "foo"):
+    if foo.kind != Tokenizer.TK_IDENTIFIER || !String.streq(foo.text, "foo"):
         return 2
 
     val sep1: pointer<Token> = tokens.get(1)
@@ -130,7 +130,7 @@ private fun canonicalizeStatementSeparatorTest() -> int
 
     val bar: pointer<Token> = tokens.get(2)
 
-    if bar.kind != Tokenizer.TK_IDENTITY || !String.streq(bar.text, "bar"):
+    if bar.kind != Tokenizer.TK_IDENTIFIER || !String.streq(bar.text, "bar"):
         return 4
 
     val sep2: pointer<Token> = tokens.get(3)
@@ -140,7 +140,7 @@ private fun canonicalizeStatementSeparatorTest() -> int
 
     val baz: pointer<Token> = tokens.get(4)
 
-    if baz.kind != Tokenizer.TK_IDENTITY || !String.streq(baz.text, "baz"):
+    if baz.kind != Tokenizer.TK_IDENTIFIER || !String.streq(baz.text, "baz"):
         return 6
 
     val sep3: pointer<Token> = tokens.get(5)
@@ -150,7 +150,7 @@ private fun canonicalizeStatementSeparatorTest() -> int
 
     val qux: pointer<Token> = tokens.get(6)
 
-    if qux.kind != Tokenizer.TK_IDENTITY || !String.streq(qux.text, "qux"):
+    if qux.kind != Tokenizer.TK_IDENTIFIER || !String.streq(qux.text, "qux"):
         return 8
 
     val sep4: pointer<Token> = tokens.get(7)
@@ -177,7 +177,7 @@ private fun checkPairSemicolon(input: pointer<char>, leftKind: int, rightKind: i
 
     val left: pointer<Token> = tokens.get(0)
 
-    if left.kind != Tokenizer.TK_IDENTITY || !String.streq(left.text, "a"):
+    if left.kind != Tokenizer.TK_IDENTIFIER || !String.streq(left.text, "a"):
         return 2
 
     val open: pointer<Token> = tokens.get(1)
@@ -187,7 +187,7 @@ private fun checkPairSemicolon(input: pointer<char>, leftKind: int, rightKind: i
 
     val first: pointer<Token> = tokens.get(2)
 
-    if first.kind != Tokenizer.TK_IDENTITY || !String.streq(first.text, "b"):
+    if first.kind != Tokenizer.TK_IDENTIFIER || !String.streq(first.text, "b"):
         return 4
 
     val semicolon: pointer<Token> = tokens.get(3)
@@ -197,7 +197,7 @@ private fun checkPairSemicolon(input: pointer<char>, leftKind: int, rightKind: i
 
     val second: pointer<Token> = tokens.get(4)
 
-    if second.kind != Tokenizer.TK_IDENTITY || !String.streq(second.text, "c"):
+    if second.kind != Tokenizer.TK_IDENTIFIER || !String.streq(second.text, "c"):
         return 6
 
     val close: pointer<Token> = tokens.get(5)
@@ -207,7 +207,7 @@ private fun checkPairSemicolon(input: pointer<char>, leftKind: int, rightKind: i
 
     val right: pointer<Token> = tokens.get(6)
 
-    if right.kind != Tokenizer.TK_IDENTITY || !String.streq(right.text, "d"):
+    if right.kind != Tokenizer.TK_IDENTIFIER || !String.streq(right.text, "d"):
         return 8
 
     val terminator: pointer<Token> = tokens.get(7)
@@ -284,7 +284,7 @@ private fun checkRightBraceLineTerminator(input: pointer<char>) -> int
 
     val left: pointer<Token> = tokens.get(0)
 
-    if left.kind != Tokenizer.TK_IDENTITY || !String.streq(left.text, "a"):
+    if left.kind != Tokenizer.TK_IDENTIFIER || !String.streq(left.text, "a"):
         return 2
 
     val terminator: pointer<Token> = tokens.get(1)
@@ -304,7 +304,7 @@ private fun checkRightBraceLineTerminator(input: pointer<char>) -> int
 
     val right: pointer<Token> = tokens.get(4)
 
-    if right.kind != Tokenizer.TK_IDENTITY || !String.streq(right.text, "b"):
+    if right.kind != Tokenizer.TK_IDENTIFIER || !String.streq(right.text, "b"):
         return 6
 
     val finalTerminator: pointer<Token> = tokens.get(5)

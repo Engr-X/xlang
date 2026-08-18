@@ -20,7 +20,6 @@
  *
  *
  *
- *
  */
 
 @file.class("Xlang")
@@ -28,7 +27,8 @@ package xlang.compiler
 
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
-import xlang.compiler.lexer.TokenNormalizer
+import xlang.compiler.parser.Expression
+import xlang.compiler.parser.Parser
 import xlang.lexer.TokenList
 import xlang.util.IO
 import xlang.util.string.StringBuilder
@@ -36,18 +36,38 @@ import xlang.util.string.StringBuilder
 
 fun main()
 {
-    val text: pointer<char> = IO.readFile("D:/Coding/projects/Xlang/xlang/src/main/xlang/compiler/TestInput.test")
+    parseExpressionLoop()
+}
 
-    if text == null:
+
+fun parseExpressionLoop()
+{
+    val inputSpace: blob[1024]
+    val input: pointer<char> = inputSpace as pointer<char>
+
+    while true:
     {
-        putln("failed to read input file")
-        return
+        val length: int = IO.readLine(input, 1024)
+
+        if length < 0:
+            return
+
+        if length == 0:
+            continue
+
+        val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
+        val expression: pointer<Expression> = Parser.parseExpression(tokens)
+
+        if expression == null:
+        {
+            putln("failed to parse expression")
+            continue
+        }
+
+        val builder: pointer<StringBuilder> = expression.toString()
+        val output: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
+
+        builder.toString(output)
+        putln(output)
     }
-
-    val raw: pointer<TokenList> = Tokenizer.fullTokenize(text)
-    val builder: pointer<StringBuilder> = raw.toString(Tokenizer.TK_LINE_TERMINATOR)
-    val output: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
-
-    builder.toString(output)
-    putln(output)
 }

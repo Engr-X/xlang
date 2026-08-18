@@ -206,11 +206,11 @@ private fun fullTokenizeSymbolLineTerminatorTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.PLUS
     texts[1] = "+"
-    kinds[2] = Tokenizer.TK_IDENTITY
+    kinds[2] = Tokenizer.TK_IDENTIFIER
     texts[2] = "b"
     kinds[3] = Tokenizer.TK_LINE_TERMINATOR
     texts[3] = "\n"
@@ -228,7 +228,7 @@ private fun fullTokenizeRightBraceLineTerminatorTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.TK_LINE_TERMINATOR
     texts[1] = null
@@ -236,7 +236,7 @@ private fun fullTokenizeRightBraceLineTerminatorTest() -> int
     texts[2] = "}"
     kinds[3] = Tokenizer.TK_LINE_TERMINATOR
     texts[3] = null
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "b"
     kinds[5] = Tokenizer.TK_LINE_TERMINATOR
     texts[5] = "\n"
@@ -254,7 +254,7 @@ private fun commentsTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.EQUAL
     texts[1] = "="
@@ -262,7 +262,7 @@ private fun commentsTest() -> int
     texts[2] = "1"
     kinds[3] = Tokenizer.TK_LINE_TERMINATOR
     texts[3] = null
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "b"
     kinds[5] = Tokenizer.EQUAL
     texts[5] = "="
@@ -270,7 +270,7 @@ private fun commentsTest() -> int
     texts[6] = "2"
     kinds[7] = Tokenizer.TK_LINE_TERMINATOR
     texts[7] = null
-    kinds[8] = Tokenizer.TK_IDENTITY
+    kinds[8] = Tokenizer.TK_IDENTIFIER
     texts[8] = "c"
     kinds[9] = Tokenizer.EQUAL
     texts[9] = "="
@@ -290,7 +290,7 @@ private fun charEscapeTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.EQUAL
     texts[1] = "="
@@ -298,7 +298,7 @@ private fun charEscapeTest() -> int
     texts[2] = "\\n"
     kinds[3] = Tokenizer.SEMICOLON
     texts[3] = ";"
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "b"
     kinds[5] = Tokenizer.EQUAL
     texts[5] = "="
@@ -306,7 +306,7 @@ private fun charEscapeTest() -> int
     texts[6] = "\\'"
     kinds[7] = Tokenizer.SEMICOLON
     texts[7] = ";"
-    kinds[8] = Tokenizer.TK_IDENTITY
+    kinds[8] = Tokenizer.TK_IDENTIFIER
     texts[8] = "c"
     kinds[9] = Tokenizer.EQUAL
     texts[9] = "="
@@ -328,7 +328,7 @@ private fun stringEscapeTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "str1"
     kinds[1] = Tokenizer.EQUAL
     texts[1] = "="
@@ -336,7 +336,7 @@ private fun stringEscapeTest() -> int
     texts[2] = "hello, this is my own program language!!!"
     kinds[3] = Tokenizer.SEMICOLON
     texts[3] = ";"
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "str2"
     kinds[5] = Tokenizer.EQUAL
     texts[5] = "="
@@ -346,7 +346,7 @@ private fun stringEscapeTest() -> int
     texts[7] = ";"
     kinds[8] = Tokenizer.TK_LINE_TERMINATOR
     texts[8] = null
-    kinds[9] = Tokenizer.TK_IDENTITY
+    kinds[9] = Tokenizer.TK_IDENTIFIER
     texts[9] = "str3"
     kinds[10] = Tokenizer.EQUAL
     texts[10] = "="
@@ -356,7 +356,7 @@ private fun stringEscapeTest() -> int
     texts[12] = ";"
     kinds[13] = Tokenizer.TK_LINE_TERMINATOR
     texts[13] = null
-    kinds[14] = Tokenizer.TK_IDENTITY
+    kinds[14] = Tokenizer.TK_IDENTIFIER
     texts[14] = "str4"
     kinds[15] = Tokenizer.EQUAL
     texts[15] = "="
@@ -364,7 +364,7 @@ private fun stringEscapeTest() -> int
     texts[16] = "null"
     kinds[17] = Tokenizer.SEMICOLON
     texts[17] = ";"
-    kinds[18] = Tokenizer.TK_IDENTITY
+    kinds[18] = Tokenizer.TK_IDENTIFIER
     texts[18] = "q"
     kinds[19] = Tokenizer.EQUAL
     texts[19] = "="
@@ -414,15 +414,15 @@ private fun forLoopTest() -> int
     texts[0] = "for"
     kinds[1] = Tokenizer.LEFT_PAREN
     texts[1] = "("
-    kinds[2] = Tokenizer.TK_IDENTITY
+    kinds[2] = Tokenizer.TK_IDENTIFIER
     texts[2] = "x"
     kinds[3] = Tokenizer.EQUAL
     texts[3] = "="
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "a_address"
     kinds[5] = Tokenizer.DOT
     texts[5] = "."
-    kinds[6] = Tokenizer.TK_IDENTITY
+    kinds[6] = Tokenizer.TK_IDENTIFIER
     texts[6] = "getSize"
     kinds[7] = Tokenizer.LEFT_PAREN
     texts[7] = "("
@@ -430,7 +430,7 @@ private fun forLoopTest() -> int
     texts[8] = ")"
     kinds[9] = Tokenizer.SEMICOLON
     texts[9] = ";"
-    kinds[10] = Tokenizer.TK_IDENTITY
+    kinds[10] = Tokenizer.TK_IDENTIFIER
     texts[10] = "x"
     kinds[11] = Tokenizer.LESS_EQUAL
     texts[11] = "<="
@@ -438,7 +438,7 @@ private fun forLoopTest() -> int
     texts[12] = "10"
     kinds[13] = Tokenizer.SEMICOLON
     texts[13] = ";"
-    kinds[14] = Tokenizer.TK_IDENTITY
+    kinds[14] = Tokenizer.TK_IDENTIFIER
     texts[14] = "x"
     kinds[15] = Tokenizer.STAR_EQUAL
     texts[15] = "*="
@@ -448,11 +448,11 @@ private fun forLoopTest() -> int
     texts[17] = ")"
     kinds[18] = Tokenizer.TK_LINE_TERMINATOR
     texts[18] = null
-    kinds[19] = Tokenizer.TK_IDENTITY
+    kinds[19] = Tokenizer.TK_IDENTIFIER
     texts[19] = "print"
     kinds[20] = Tokenizer.LEFT_PAREN
     texts[20] = "("
-    kinds[21] = Tokenizer.TK_IDENTITY
+    kinds[21] = Tokenizer.TK_IDENTIFIER
     texts[21] = "x"
     kinds[22] = Tokenizer.RIGHT_PAREN
     texts[22] = ")"
@@ -470,7 +470,7 @@ private fun symbolsTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.DOUBLE_LESS_EQUAL
     texts[1] = "<<="
@@ -478,7 +478,7 @@ private fun symbolsTest() -> int
     texts[2] = "1"
     kinds[3] = Tokenizer.SEMICOLON
     texts[3] = ";"
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "b"
     kinds[5] = Tokenizer.DOUBLE_GREATER_EQUAL
     texts[5] = ">>="
@@ -486,7 +486,7 @@ private fun symbolsTest() -> int
     texts[6] = "2"
     kinds[7] = Tokenizer.SEMICOLON
     texts[7] = ";"
-    kinds[8] = Tokenizer.TK_IDENTITY
+    kinds[8] = Tokenizer.TK_IDENTIFIER
     texts[8] = "c"
     kinds[9] = Tokenizer.BANG_CARET_EQUAL
     texts[9] = "!^="
@@ -494,7 +494,7 @@ private fun symbolsTest() -> int
     texts[10] = "3"
     kinds[11] = Tokenizer.SEMICOLON
     texts[11] = ";"
-    kinds[12] = Tokenizer.TK_IDENTITY
+    kinds[12] = Tokenizer.TK_IDENTIFIER
     texts[12] = "d"
     kinds[13] = Tokenizer.DOUBLE_STAR_EQUAL
     texts[13] = "**="
@@ -502,32 +502,28 @@ private fun symbolsTest() -> int
     texts[14] = "4"
     kinds[15] = Tokenizer.SEMICOLON
     texts[15] = ";"
-    kinds[16] = Tokenizer.TK_IDENTITY
+    kinds[16] = Tokenizer.TK_IDENTIFIER
     texts[16] = "e"
-    kinds[17] = Tokenizer.QUESTION_ARROW
-    texts[17] = "?->"
-    kinds[18] = Tokenizer.TK_IDENTITY
+    kinds[17] = Tokenizer.ARROW
+    texts[17] = "->"
+    kinds[18] = Tokenizer.TK_IDENTIFIER
     texts[18] = "f"
     kinds[19] = Tokenizer.SEMICOLON
     texts[19] = ";"
-    kinds[20] = Tokenizer.TK_IDENTITY
+    kinds[20] = Tokenizer.TK_IDENTIFIER
     texts[20] = "g"
     kinds[21] = Tokenizer.TRIPLE_EQUAL
     texts[21] = "==="
-    kinds[22] = Tokenizer.TK_IDENTITY
+    kinds[22] = Tokenizer.TK_IDENTIFIER
     texts[22] = "h"
     kinds[23] = Tokenizer.SEMICOLON
     texts[23] = ";"
-    kinds[24] = Tokenizer.TK_IDENTITY
+    kinds[24] = Tokenizer.TK_IDENTIFIER
     texts[24] = "i"
-    kinds[25] = Tokenizer.TRIPLE_GREATER
-    texts[25] = ">>>"
-    kinds[26] = Tokenizer.TK_IDENTITY
-    texts[26] = "j"
     kinds[27] = Token.EOF_KIND
     texts[27] = Token.EOF_STRING
 
-    return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e?->f; g===h; i>>>j", kinds, texts, 28)
+    return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e->f; g===h; i", kinds, texts, 28)
 }
 
 
@@ -547,7 +543,7 @@ private fun invalidIdentTest() -> int
     val tokens: pointer<TokenList> = Tokenizer.tokenize("123abc")
     val token: pointer<Token> = tokens.get(0)
 
-    if !String.streq(token.errorInfo, "invalid identity name: 123abc"):
+    if !String.streq(token.errorInfo, "invalid identifier name: 123abc"):
         return 1
 
     return 0
@@ -561,28 +557,28 @@ private fun dotIncDecTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
-    kinds[1] = Tokenizer.DOUBLE_DOT
-    texts[1] = ".."
-    kinds[2] = Tokenizer.TK_IDENTITY
+    kinds[1] = Tokenizer.DOT
+    texts[1] = "."
+    kinds[2] = Tokenizer.TK_IDENTIFIER
     texts[2] = "b"
     kinds[3] = Tokenizer.DOT
     texts[3] = "."
-    kinds[4] = Tokenizer.TK_IDENTITY
+    kinds[4] = Tokenizer.TK_IDENTIFIER
     texts[4] = "c"
     kinds[5] = Tokenizer.DOUBLE_PLUS
     texts[5] = "++"
-    kinds[6] = Tokenizer.TK_IDENTITY
+    kinds[6] = Tokenizer.TK_IDENTIFIER
     texts[6] = "d"
     kinds[7] = Tokenizer.DOUBLE_MINUS
     texts[7] = "--"
-    kinds[8] = Tokenizer.TK_IDENTITY
+    kinds[8] = Tokenizer.TK_IDENTIFIER
     texts[8] = "e"
     kinds[9] = Token.EOF_KIND
     texts[9] = Token.EOF_STRING
 
-    return checkTokens("a..b . c ++d -- e", kinds, texts, 10)
+    return checkTokens("a.b . c ++d -- e", kinds, texts, 10)
 }
 
 
@@ -593,11 +589,11 @@ private fun arrayExpressionTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "arr"
     kinds[1] = Tokenizer.LEFT_BRACKET
     texts[1] = "["
-    kinds[2] = Tokenizer.TK_IDENTITY
+    kinds[2] = Tokenizer.TK_IDENTIFIER
     texts[2] = "i"
     kinds[3] = Tokenizer.DOUBLE_PLUS
     texts[3] = "++"
@@ -607,10 +603,10 @@ private fun arrayExpressionTest() -> int
     texts[5] = "+="
     kinds[6] = Tokenizer.LEFT_PAREN
     texts[6] = "("
-    kinds[7] = Tokenizer.TK_IDENTITY
+    kinds[7] = Tokenizer.TK_IDENTIFIER
     texts[7] = "x"
-    kinds[8] = Tokenizer.DOUBLE_LESS
-    texts[8] = "<<"
+    kinds[8] = Tokenizer.LESS
+    texts[8] = "<"
     kinds[9] = Tokenizer.TK_INTEGER
     texts[9] = "2"
     kinds[10] = Tokenizer.RIGHT_PAREN
@@ -621,7 +617,7 @@ private fun arrayExpressionTest() -> int
     texts[12] = "3"
     kinds[13] = Tokenizer.MINUS
     texts[13] = "-"
-    kinds[14] = Tokenizer.TK_IDENTITY
+    kinds[14] = Tokenizer.TK_IDENTIFIER
     texts[14] = "y"
     kinds[15] = Tokenizer.DOUBLE_MINUS
     texts[15] = "--"
@@ -630,7 +626,7 @@ private fun arrayExpressionTest() -> int
     kinds[17] = Token.EOF_KIND
     texts[17] = Token.EOF_STRING
 
-    return checkTokens("arr[i++] += (x<<2) ** 3 - y--;", kinds, texts, 18)
+    return checkTokens("arr[i++] += (x<2) ** 3 - y--;", kinds, texts, 18)
 }
 
 
@@ -641,7 +637,7 @@ private fun unclosedBlockCommentTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.EQUAL
     texts[1] = "="
@@ -663,7 +659,7 @@ private fun unclosedStringTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "a"
     kinds[1] = Tokenizer.EQUAL
     texts[1] = "="
@@ -690,7 +686,7 @@ private fun unclosedCharTest() -> int
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
-    kinds[0] = Tokenizer.TK_IDENTITY
+    kinds[0] = Tokenizer.TK_IDENTIFIER
     texts[0] = "c"
     kinds[1] = Tokenizer.EQUAL
     texts[1] = "="

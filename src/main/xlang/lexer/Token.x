@@ -26,9 +26,10 @@
 package xlang.lexer
 
 import xlang.System
+import xlang.parser.util.PatternList
+import xlang.util.ArrayList
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
-import xlang.util.ArrayList
 
 
 /**

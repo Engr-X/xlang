@@ -379,3 +379,35 @@ void xlang_putln_str(const x_char* const value)
     xlang_put_str(value);
     putchar('\n');
 }
+
+
+int read_line(x_char* const dest, const int capacity)
+{
+    int index = 0;
+    int ch;
+
+    if (dest == NULL || capacity <= 0)
+        return -1;
+
+    while (index < capacity - 1)
+    {
+        ch = getchar();
+
+        if (ch == EOF)
+        {
+            dest[index] = 0;
+            return index == 0 ? -1 : index;
+        }
+
+        if (ch == '\n')
+            break;
+
+        if (ch == '\r')
+            continue;
+
+        dest[index++] = (x_char)(unsigned char)ch;
+    }
+
+    dest[index] = 0;
+    return index;
+}

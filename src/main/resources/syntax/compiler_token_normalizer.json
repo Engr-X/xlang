@@ -1,9 +1,10 @@
 {
     "type": "compiler_normalizer_rules",
-
     "package": "xlang.compiler.lexer",
     "class": "TokenNormalizer",
-    "imports": ["xlang.util.HashSet"],
+    "imports": [
+        "xlang.util.HashSet"
+    ],
     "preprocess": "canonicalize",
     "postprocess": null,
     "constants": [
@@ -39,7 +40,6 @@
             "    addBanKind(set, Tokenizer.TRIPLE_GREATER_EQUAL)",
             "    addBanKind(set, Tokenizer.BANG_CARET_EQUAL)",
             "    addBanKind(set, Tokenizer.DOUBLE_STAR_EQUAL)",
-            "    addBanKind(set, Tokenizer.QUESTION_ARROW)",
             "    addBanKind(set, Tokenizer.BANG_DOUBLE_AMPERSAND)",
             "    addBanKind(set, Tokenizer.BANG_DOUBLE_PIPE)",
             "    addBanKind(set, Tokenizer.NOT_ARROW)",
@@ -53,20 +53,15 @@
             "    addBanKind(set, Tokenizer.SLASH_EQUAL)",
             "    addBanKind(set, Tokenizer.PERCENT_EQUAL)",
             "    addBanKind(set, Tokenizer.DOUBLE_EQUAL)",
-            "    addBanKind(set, Tokenizer.BANG_EQUAL)",
+            "    addBanKind(set, Tokenizer.NOT_EQUAL)",
             "    addBanKind(set, Tokenizer.GREATER_EQUAL)",
             "    addBanKind(set, Tokenizer.LESS_EQUAL)",
-            "    addBanKind(set, Tokenizer.DOUBLE_GREATER)",
-            "    addBanKind(set, Tokenizer.DOUBLE_LESS)",
             "    addBanKind(set, Tokenizer.DOUBLE_PIPE)",
             "    addBanKind(set, Tokenizer.DOUBLE_AMPERSAND)",
             "    addBanKind(set, Tokenizer.DOUBLE_STAR)",
             "    addBanKind(set, Tokenizer.DOUBLE_PLUS)",
             "    addBanKind(set, Tokenizer.DOUBLE_MINUS)",
-            "    addBanKind(set, Tokenizer.DOUBLE_DOT)",
             "    addBanKind(set, Tokenizer.ARROW)",
-            "    addBanKind(set, Tokenizer.FAT_ARROW)",
-            "    addBanKind(set, Tokenizer.DOUBLE_COLON)",
             "    addBanKind(set, Tokenizer.EQUAL)",
             "    addBanKind(set, Tokenizer.GREATER)",
             "    addBanKind(set, Tokenizer.LESS)",
@@ -77,8 +72,6 @@
             "    addBanKind(set, Tokenizer.STAR)",
             "    addBanKind(set, Tokenizer.SLASH)",
             "    addBanKind(set, Tokenizer.PERCENT)",
-            "    addBanKind(set, Tokenizer.AT)",
-            "    addBanKind(set, Tokenizer.DOLLAR)",
             "    addBanKind(set, Tokenizer.LEFT_PAREN)",
             "    addBanKind(set, Tokenizer.RIGHT_PAREN)",
             "    addBanKind(set, Tokenizer.LEFT_BRACKET)",
@@ -116,27 +109,101 @@
         ]
     ],
     "rules": [
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [{"kind": "Tokenizer.LEFT_PAREN"}], "pivot_index": "0", "action": "enterParenthesis"},
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [{"kind": "Tokenizer.RIGHT_PAREN"}], "pivot_index": "0", "action": "exitParenthesis"},
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [{"kind": "Tokenizer.LEFT_BRACKET"}], "pivot_index": "0", "action": "enterBracket"},
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [{"kind": "Tokenizer.RIGHT_BRACKET"}], "pivot_index": "0", "action": "exitBracket"},
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [{"kind": "Tokenizer.TK_LINE_TERMINATOR"}], "pivot_index": "0", "action": "deleteLineTerminatorInPair"},
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [
-            {"kind": "Token.AnyKind"},
-            {"kind": "Tokenizer.RIGHT_BRACE"},
-            {"kind": "Token.AnyKind"}], "pivot_index": "0", "action": "insertLineTerminatorAroundRightBrace"},
-
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [
-            {"kind": "Tokenizer.TK_LINE_TERMINATOR"},
-            {"kind": "Token.AnyKind"}], "pivot_index": "0", "action": "deleteLineTerminatorBeforeBanToken"},
-        {"state": "NormalizeFSM.DEFAULT", "patterns": [
-            {"kind": "Token.AnyKind"},
-            {"kind": "Tokenizer.TK_LINE_TERMINATOR"}], "pivot_index": "1", "action": "deleteLineTerminatorAfterBanToken"}
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Tokenizer.LEFT_PAREN"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "enterParenthesis"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Tokenizer.RIGHT_PAREN"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "exitParenthesis"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Tokenizer.LEFT_BRACKET"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "enterBracket"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Tokenizer.RIGHT_BRACKET"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "exitBracket"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Tokenizer.TK_LINE_TERMINATOR"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "deleteLineTerminatorInPair"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Token.AnyKind"
+                },
+                {
+                    "kind": "Tokenizer.RIGHT_BRACE"
+                },
+                {
+                    "kind": "Token.AnyKind"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "insertLineTerminatorAroundRightBrace"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Tokenizer.TK_LINE_TERMINATOR"
+                },
+                {
+                    "kind": "Token.AnyKind"
+                }
+            ],
+            "pivot_index": "0",
+            "action": "deleteLineTerminatorBeforeBanToken"
+        },
+        {
+            "state": "NormalizeFSM.DEFAULT",
+            "patterns": [
+                {
+                    "kind": "Token.AnyKind"
+                },
+                {
+                    "kind": "Tokenizer.TK_LINE_TERMINATOR"
+                }
+            ],
+            "pivot_index": "1",
+            "action": "deleteLineTerminatorAfterBanToken"
+        }
     ],
-    "others":
-    [
+    "others": [
         [],
-
         [
             "private inline fun enterParenthesis(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
@@ -165,7 +232,6 @@
             "    return false",
             "}"
         ],
-
         [
             "private inline fun deleteLineTerminatorInPair(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
@@ -176,7 +242,6 @@
             "    return true",
             "}"
         ],
-
         [
             "private inline fun deleteCursor(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",

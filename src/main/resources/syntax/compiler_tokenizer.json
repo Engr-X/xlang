@@ -1,24 +1,23 @@
 {
     "type": "compiler_tokenizer_rules",
-    
     "package": "xlang.compiler.lexer",
     "class": "Tokenizer",
-    "imports": ["xlang.System", "xlang.util.string.StringBuilder"],
-    "constants":
-    [
+    "imports": [
+        "xlang.System",
+        "xlang.util.string.StringBuilder"
+    ],
+    "constants": [
         "val INVALID_TOKEN_ERROR_MSG: pointer<char> = \"invalid token: \"",
         "val UNTERMINATED_BLOCK_COMMENT_ERROR_MSG: pointer<char> = \"unterminated block comment\"",
         "val UNTERMINATED_CHAR_ERROR_MSG: pointer<char> = \"unterminated char literal\"",
         "val UNTERMINATED_STRING_ERROR_MSG: pointer<char> = \"unterminated string literal\"",
-        "val INVALID_IDENTITY_NAME_ERROR_MSG: pointer<char> = \"invalid identity name: \"",
-
+        "val INVALID_IDENTITY_NAME_ERROR_MSG: pointer<char> = \"invalid identifier name: \"",
         "val LINE_COMMENT_STATE: int = 10",
         "val BLOCK_COMMENT_STATE: int = 11",
         "val CHAR_STATE: int = 12",
         "val STRING_STATE: int = 13",
-
         "val TK_LINE_TERMINATOR: int = 1",
-        "val TK_IDENTITY: int = 2",
+        "val TK_IDENTIFIER: int = 2",
         "val TK_INTEGER: int = 3",
         "val TK_LONG: int = 4",
         "val TK_FLOAT: int = 5",
@@ -27,223 +26,193 @@
         "val TK_CHAR: int = 8",
         "val TK_STRING: int = 9"
     ],
-
     "token_def_start": 100,
-    "token_defs":
-    [
-        {"name": "KW_FALSE", "pattern": "false"},
-        {"name": "KW_NULL", "pattern": "null"},
-        {"name": "KW_TRUE", "pattern": "true"},
-
-        {"name": "KW_PUBLIC", "pattern": "public"},
-        {"name": "KW_PROTECTED", "pattern": "protected"},
-        {"name": "KW_PRIVATE", "pattern": "private"},
-
-        {"name": "KW_VAR", "pattern": "var"},
-        {"name": "KW_VAL", "pattern": "val"},
-        {"name": "KW_MUT", "pattern": "mut"},
-        {"name": "KW_STATIC", "pattern": "static"},
-        {"name": "KW_INLINE", "pattern": "inline"},
-        {"name": "KW_NATIVE", "pattern": "native"},
-
-        {"name": "KW_PACKAGE", "pattern": "package"},
-        {"name": "KW_IMPORT", "pattern": "import"},
-
-        {"name": "KW_POINTER", "pattern": "pointer"},
-        {"name": "KW_BLOB", "pattern": "blob"},
-        {"name": "KW_BOOL", "pattern": "bool"},
-        {"name": "KW_BYTE", "pattern": "byte"},
-        {"name": "KW_CHAR", "pattern": "char"},
-        {"name": "KW_SHORT", "pattern": "short"},
-        {"name": "KW_INT", "pattern": "int"},
-        {"name": "KW_LONG", "pattern": "long"},
-        {"name": "KW_FLOAT", "pattern": "float"},
-        {"name": "KW_DOUBLE", "pattern": "double"},
-        {"name": "KW_VOID", "pattern": "void"},
-
-        {"name": "KW_NEW", "pattern": "new"},
-        {"name": "KW_AS", "pattern": "as"},
-
-        {"name": "KW_IF", "pattern": "if"},
-        {"name": "KW_ELIF", "pattern": "elif"},
-        {"name": "KW_ELSE", "pattern": "else"},
-        {"name": "KW_DO", "pattern": "do"},
-        {"name": "KW_WHILE", "pattern": "while"},
-        {"name": "KW_UNTIL", "pattern": "until"},
-        {"name": "KW_LOOP", "pattern": "loop"},
-        {"name": "KW_FOR", "pattern": "for"},
-        {"name": "KW_REPEAT", "pattern": "repeat"},
-        {"name": "KW_BREAK", "pattern": "break"},
-        {"name": "KW_CONTINUE", "pattern": "continue"},
-        {"name": "KW_RETURN", "pattern": "return"},
-        {"name": "KW_PASS", "pattern": "pass"},
-
-        {"name": "KW_INV", "pattern": "inv"},
-        {"name": "KW_SHL", "pattern": "shl"},
-        {"name": "KW_SHR", "pattern": "shr"},
-        {"name": "KW_USHR", "pattern": "ushr"},
-        {"name": "KW_AND", "pattern": "and"},
-        {"name": "KW_NAND", "pattern": "nand"},
-        {"name": "KW_XOR", "pattern": "xor"},
-        {"name": "KW_XNOR", "pattern": "xnor"},
-        {"name": "KW_OR", "pattern": "or"},
-        {"name": "KW_NOR", "pattern": "nor"},
-        {"name": "KW_IMPLIES", "pattern": "implies"},
-        {"name": "KW_NIMPLIES", "pattern": "nimplies"},
-
-        {"name": "KW_FUN", "pattern": "fun"},
-        {"name": "KW_STRUCT", "pattern": "struct"},
-        {"name": "KW_CLASS", "pattern": "class"}
+    "token_defs": [
+        { "name": "KW_AND", "pattern": "and" },
+        { "name": "KW_AS", "pattern": "as" },
+        { "name": "KW_BLOB", "pattern": "blob" },
+        { "name": "KW_BOOL", "pattern": "bool" },
+        { "name": "KW_BREAK", "pattern": "break" },
+        { "name": "KW_BYTE", "pattern": "byte" },
+        { "name": "KW_CHAR", "pattern": "char" },
+        { "name": "KW_CLASS", "pattern": "class" },
+        { "name": "KW_CONTINUE", "pattern": "continue" },
+        { "name": "KW_DO", "pattern": "do" },
+        { "name": "KW_DOUBLE", "pattern": "double" },
+        { "name": "KW_ELIF", "pattern": "elif" },
+        { "name": "KW_ELSE", "pattern": "else" },
+        { "name": "KW_FALSE", "pattern": "false" },
+        { "name": "KW_FLOAT", "pattern": "float" },
+        { "name": "KW_FOR", "pattern": "for" },
+        { "name": "KW_FUN", "pattern": "fun" },
+        { "name": "KW_IF", "pattern": "if" },
+        { "name": "KW_IFF", "pattern": "iff" },
+        { "name": "KW_IMPLIES", "pattern": "implies" },
+        { "name": "KW_IMPORT", "pattern": "import" },
+        { "name": "KW_INLINE", "pattern": "inline" },
+        { "name": "KW_INT", "pattern": "int" },
+        { "name": "KW_INV", "pattern": "inv" },
+        { "name": "KW_IS", "pattern": "is" },
+        { "name": "KW_LONG", "pattern": "long" },
+        { "name": "KW_LOOP", "pattern": "loop" },
+        { "name": "KW_MUT", "pattern": "mut" },
+        { "name": "KW_NAND", "pattern": "nand" },
+        { "name": "KW_NATIVE", "pattern": "native" },
+        { "name": "KW_NEW", "pattern": "new" },
+        { "name": "KW_NIFF", "pattern": "niff" },
+        { "name": "KW_NIMPLIES", "pattern": "nimplies" },
+        { "name": "KW_NOR", "pattern": "nor" },
+        { "name": "KW_NULL", "pattern": "null" },
+        { "name": "KW_OR", "pattern": "or" },
+        { "name": "KW_PACKAGE", "pattern": "package" },
+        { "name": "KW_PASS", "pattern": "pass" },
+        { "name": "KW_POINTER", "pattern": "pointer" },
+        { "name": "KW_PRIVATE", "pattern": "private" },
+        { "name": "KW_PROTECTED", "pattern": "protected" },
+        { "name": "KW_PUBLIC", "pattern": "public" },
+        { "name": "KW_REPEAT", "pattern": "repeat" },
+        { "name": "KW_RETURN", "pattern": "return" },
+        { "name": "KW_SHL", "pattern": "shl" },
+        { "name": "KW_SHORT", "pattern": "short" },
+        { "name": "KW_SHR", "pattern": "shr" },
+        { "name": "KW_STATIC", "pattern": "static" },
+        { "name": "KW_STRUCT", "pattern": "struct" },
+        { "name": "KW_TRUE", "pattern": "true" },
+        { "name": "KW_UNTIL", "pattern": "until" },
+        { "name": "KW_USHR", "pattern": "ushr" },
+        { "name": "KW_VAL", "pattern": "val" },
+        { "name": "KW_VAR", "pattern": "var" },
+        { "name": "KW_VOID", "pattern": "void" },
+        { "name": "KW_WHILE", "pattern": "while" },
+        { "name": "KW_XNOR", "pattern": "xnor" },
+        { "name": "KW_XOR", "pattern": "xor" }
     ],
-
     "symbol_def_start": 1000,
-    "symbol_defs":
-    [
-        {"name": "DOUBLE_LESS_EQUAL", "pattern": "<<="},
-        {"name": "DOUBLE_GREATER_EQUAL", "pattern": ">>="},
-        {"name": "TRIPLE_GREATER_EQUAL", "pattern": ">>>="},
-        {"name": "TRIPLE_GREATER", "pattern": ">>>"},
-        {"name": "BANG_CARET_EQUAL", "pattern": "!^="},
-        {"name": "DOUBLE_STAR_EQUAL", "pattern": "**="},
-        {"name": "QUESTION_ARROW", "pattern": "?->"},
-        {"name": "BANG_DOUBLE_AMPERSAND", "pattern": "!&&"},
-        {"name": "BANG_DOUBLE_PIPE", "pattern": "!||"},
-        {"name": "NOT_ARROW", "pattern": "!->"},
-        {"name": "DOUBLE_ARROW", "pattern": "<->"},
-        {"name": "TRIPLE_EQUAL", "pattern": "==="},
-
-        {"name": "PIPE_EQUAL", "pattern": "|="},
-        {"name": "CARET_EQUAL", "pattern": "^="},
-        {"name": "PLUS_EQUAL", "pattern": "+="},
-        {"name": "MINUS_EQUAL", "pattern": "-="},
-        {"name": "STAR_EQUAL", "pattern": "*="},
-        {"name": "SLASH_EQUAL", "pattern": "/="},
-        {"name": "PERCENT_EQUAL", "pattern": "%="},
-
-        {"name": "DOUBLE_EQUAL", "pattern": "=="},
-        {"name": "BANG_EQUAL", "pattern": "!="},
-        {"name": "GREATER_EQUAL", "pattern": ">="},
-        {"name": "LESS_EQUAL", "pattern": "<="},
-
-        {"name": "DOUBLE_GREATER", "pattern": ">>"},
-        {"name": "DOUBLE_LESS", "pattern": "<<"},
-        {"name": "DOUBLE_PIPE", "pattern": "||"},
-        {"name": "DOUBLE_AMPERSAND", "pattern": "&&"},
-
-        {"name": "DOUBLE_STAR", "pattern": "**"},
-        {"name": "DOUBLE_PLUS", "pattern": "++"},
-        {"name": "DOUBLE_MINUS", "pattern": "--"},
-        {"name": "DOUBLE_DOT", "pattern": ".."},
-
-        {"name": "ARROW", "pattern": "->"},
-        {"name": "FAT_ARROW", "pattern": "=>"},
-        {"name": "DOUBLE_COLON", "pattern": "::"},
-
-        {"name": "EQUAL", "pattern": "="},
-        {"name": "GREATER", "pattern": ">"},
-        {"name": "LESS", "pattern": "<"},
-        {"name": "CARET", "pattern": "^"},
-        {"name": "BANG", "pattern": "!"},
-
-        {"name": "PLUS", "pattern": "+"},
-        {"name": "MINUS", "pattern": "-"},
-        {"name": "STAR", "pattern": "*"},
-        {"name": "SLASH", "pattern": "/"},
-        {"name": "PERCENT", "pattern": "%"},
-
-        {"name": "AT", "pattern": "@"},
-        {"name": "DOLLAR", "pattern": "$"},
-        {"name": "LEFT_PAREN", "pattern": "("},
-        {"name": "RIGHT_PAREN", "pattern": ")"},
-        {"name": "LEFT_BRACKET", "pattern": "["},
-        {"name": "RIGHT_BRACKET", "pattern": "]"},
-        {"name": "LEFT_BRACE", "pattern": "{"},
-        {"name": "RIGHT_BRACE", "pattern": "}"},
-
-        {"name": "SEMICOLON", "pattern": ";"},
-        {"name": "COMMA", "pattern": ","},
-        {"name": "QUESTION", "pattern": "?"},
-        {"name": "COLON", "pattern": ":"},
-        {"name": "DOT", "pattern": "."},
-        {"name": "BACKSLASH", "pattern": "\\"}
+    "symbol_defs": [
+        { "name": "TRIPLE_GREATER_EQUAL", "pattern": ">>>=" },
+        { "name": "TRIPLE_LESS_EQUAL", "pattern": "<<<=" },
+        { "name": "DOUBLE_LESS_EQUAL", "pattern": "<<=" },
+        { "name": "DOUBLE_GREATER_EQUAL", "pattern": ">>=" },
+        { "name": "DOUBLE_STAR_EQUAL", "pattern": "**=" },
+        { "name": "BANG_CARET_EQUAL", "pattern": "!^=" },
+        { "name": "BANG_AMPERSAND_EQUAL", "pattern": "!&=" },
+        { "name": "BANG_PIPE_EQUAL", "pattern": "!|=" },
+        { "name": "BANG_DOUBLE_ARROW", "pattern": "!<->" },
+        { "name": "BANG_DOUBLE_EQUAL", "pattern": "!==" },
+        { "name": "BANG_DOUBLE_AMPERSAND", "pattern": "!&&" },
+        { "name": "BANG_DOUBLE_PIPE", "pattern": "!||" },
+        { "name": "NOT_ARROW", "pattern": "!->" },
+        { "name": "DOUBLE_ARROW", "pattern": "<->" },
+        { "name": "TRIPLE_EQUAL", "pattern": "===" },
+        { "name": "AMPERSAND_EQUAL", "pattern": "&=" },
+        { "name": "PIPE_EQUAL", "pattern": "|=" },
+        { "name": "CARET_EQUAL", "pattern": "^=" },
+        { "name": "PLUS_EQUAL", "pattern": "+=" },
+        { "name": "MINUS_EQUAL", "pattern": "-=" },
+        { "name": "STAR_EQUAL", "pattern": "*=" },
+        { "name": "SLASH_EQUAL", "pattern": "/=" },
+        { "name": "PERCENT_EQUAL", "pattern": "%=" },
+        { "name": "DOUBLE_EQUAL", "pattern": "==" },
+        { "name": "NOT_EQUAL", "pattern": "!=" },
+        { "name": "GREATER_EQUAL", "pattern": ">=" },
+        { "name": "LESS_EQUAL", "pattern": "<=" },
+        { "name": "DOUBLE_PIPE", "pattern": "||" },
+        { "name": "DOUBLE_AMPERSAND", "pattern": "&&" },
+        { "name": "DOUBLE_STAR", "pattern": "**" },
+        { "name": "DOUBLE_PLUS", "pattern": "++" },
+        { "name": "DOUBLE_MINUS", "pattern": "--" },
+        { "name": "ARROW", "pattern": "->" },
+        { "name": "EQUAL", "pattern": "=" },
+        { "name": "GREATER", "pattern": ">" },
+        { "name": "LESS", "pattern": "<" },
+        { "name": "CARET", "pattern": "^" },
+        { "name": "BANG_CARET", "pattern": "!^" },
+        { "name": "BANG", "pattern": "!" },
+        { "name": "PLUS", "pattern": "+" },
+        { "name": "MINUS", "pattern": "-" },
+        { "name": "STAR", "pattern": "*" },
+        { "name": "SLASH", "pattern": "/" },
+        { "name": "PERCENT", "pattern": "%" },
+        { "name": "LEFT_PAREN", "pattern": "(" },
+        { "name": "RIGHT_PAREN", "pattern": ")" },
+        { "name": "LEFT_BRACKET", "pattern": "[" },
+        { "name": "RIGHT_BRACKET", "pattern": "]" },
+        { "name": "LEFT_BRACE", "pattern": "{" },
+        { "name": "RIGHT_BRACE", "pattern": "}" },
+        { "name": "SEMICOLON", "pattern": ";" },
+        { "name": "COMMA", "pattern": "," },
+        { "name": "QUESTION", "pattern": "?" },
+        { "name": "COLON", "pattern": ":" },
+        { "name": "DOT", "pattern": "." },
+        { "name": "BACKSLASH", "pattern": "\\" }
     ],
-
-    "defs":
-    [
-        {"key": "letter", "pattern": "[a-zA-Z]"},
-        {"key": "digit", "pattern": "[0-9]"},
-        {"key": "underscore", "pattern": "[_]"},
-        {"key": "space", "pattern": "[\\ \\t\\r\\n\\f\\v]"},
-        {"key": "newline", "pattern": "\\r?\\n"},
-        {"key": "eof", "pattern": "\\0"},
-        {"key": "sign", "pattern": "[\\-\\+]"},
-        {"key": "bin_digit", "pattern": "[01]"},
-        {"key": "hex_digit", "pattern": "[0-9a-fA-F]"},
-        {"key": "float_postfix", "pattern": "[fF]"},
-        {"key": "long_postfix", "pattern": "[lL]"},
-        
-        {"key": "hex_int_lit", "pattern": "0[xX]$hex_digit+"},
-        {"key": "decimal_int_lit", "pattern": "$digit+"},
-        {"key": "int_lit", "pattern": "$hex_int_lit|$decimal_int_lit"},
-        {"key": "long_lit", "pattern": "$hex_int_lit$long_postfix|$decimal_int_lit$long_postfix"},
-        {"key": "double_no_exp_lit", "pattern": "$digit*\\.$digit+"},
-        {"key": "double_exp_lit", "pattern": "$digit*\\.$digit+[eE]$sign?$digit+"},
-        {"key": "double_lit", "pattern": "$double_exp_lit|$double_no_exp_lit"},
-        {"key": "float_lit", "pattern": "$double_exp_lit$float_postfix|$double_no_exp_lit$float_postfix"},
-        {"key": "long_double_lit", "pattern": "$double_exp_lit$long_postfix|$double_no_exp_lit$long_postfix"},
-
-        {"key": "ident", "pattern": "[a-zA-Z_][a-zA-Z0-9_]*"},
-        {"key": "invalid_ident", "pattern": "$decimal_int_lit[a-zA-Z_][a-zA-Z0-9_]*"},
-        {"key": "escaped_char", "pattern": "\\\\."},
-        {"key": "default", "pattern": "."}
+    "defs": [
+        { "key": "letter", "pattern": "[a-zA-Z]" },
+        { "key": "digit", "pattern": "[0-9]" },
+        { "key": "underscore", "pattern": "[_]" },
+        { "key": "space", "pattern": "[\\ \\t\\r\\n\\f\\v]" },
+        { "key": "newline", "pattern": "\\r?\\n" },
+        { "key": "eof", "pattern": "\\0" },
+        { "key": "sign", "pattern": "[\\-\\+]" },
+        { "key": "bin_digit", "pattern": "[01]" },
+        { "key": "hex_digit", "pattern": "[0-9a-fA-F]" },
+        { "key": "float_postfix", "pattern": "[fF]" },
+        { "key": "long_postfix", "pattern": "[lL]" },
+        { "key": "hex_int_lit", "pattern": "0[xX]$hex_digit+" },
+        { "key": "decimal_int_lit", "pattern": "$digit+" },
+        { "key": "int_lit", "pattern": "$hex_int_lit|$decimal_int_lit" },
+        { "key": "long_lit", "pattern": "$hex_int_lit$long_postfix|$decimal_int_lit$long_postfix" },
+        { "key": "double_no_exp_lit", "pattern": "$digit*\\.$digit+" },
+        { "key": "double_exp_lit", "pattern": "$digit*\\.$digit+[eE]$sign?$digit+" },
+        { "key": "double_lit", "pattern": "$double_exp_lit|$double_no_exp_lit" },
+        { "key": "float_lit", "pattern": "$double_exp_lit$float_postfix|$double_no_exp_lit$float_postfix" },
+        { "key": "long_double_lit", "pattern": "$double_exp_lit$long_postfix|$double_no_exp_lit$long_postfix" },
+        { "key": "ident", "pattern": "[a-zA-Z_][a-zA-Z0-9_]*" },
+        { "key": "invalid_ident", "pattern": "$decimal_int_lit[a-zA-Z_][a-zA-Z0-9_]*" },
+        { "key": "escaped_char", "pattern": "\\\\." },
+        { "key": "default", "pattern": "." }
     ],
-    "rules":
-    [
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$eof"], "action": "eatEOF"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["//"], "action": "begainLineComment"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["/\\*"], "action": "begainBlockComment"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["\\'"], "action": "begainChar"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["\""], "action": "begainString"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$newline"], "action": "eatLineTerminator"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$space"], "action": "skip"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$long_double_lit"], "action": "eatLongDoubleLit"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$float_lit"], "action": "eatFloatLit"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$double_lit"], "action": "eatDoubleLit"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$long_lit"], "action": "eatLongLit"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$hex_int_lit"], "action": "eatIntLit"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$invalid_ident"], "action": "invalidIdentError"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$decimal_int_lit"], "action": "eatIntLit"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$symbols$"], "action": "$eatSymbol$"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$ident"], "action": "eatIdent"},
-        {"state": "TokenizeFSM.DEFAULT", "patterns": ["$default"], "action": "defaultError"},
+    "rules": [
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$eof"], "action": "eatEOF" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["//"], "action": "beginLineComment" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["/\\*"], "action": "beginBlockComment" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["\\'"], "action": "beginChar" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["\""], "action": "beginString" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$newline"], "action": "eatLineTerminator" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$space"], "action": "skip" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$long_double_lit"], "action": "eatLongDoubleLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$float_lit"], "action": "eatFloatLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$double_lit"], "action": "eatDoubleLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$long_lit"], "action": "eatLongLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$hex_int_lit"], "action": "eatIntLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$invalid_ident"], "action": "invalidIdentError" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$decimal_int_lit"], "action": "eatIntLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$symbols$"], "action": "$eatSymbol$" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$ident"], "action": "eatIdent" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$default"], "action": "defaultError" },
 
+        { "state": "LINE_COMMENT_STATE", "patterns": ["$eof"], "action": "eatEOF" },
+        { "state": "LINE_COMMENT_STATE", "patterns": ["$newline"], "action": "endLineComment" },
+        { "state": "LINE_COMMENT_STATE", "patterns": ["$default"], "action": "skip" },
 
-        {"state": "LINE_COMMENT_STATE", "patterns": ["$eof"], "action": "eatEOF"},
-        {"state": "LINE_COMMENT_STATE", "patterns": ["$newline"], "action": "endLineComment"},
-        {"state": "LINE_COMMENT_STATE", "patterns": ["$default"], "action": "skip"},
+        { "state": "BLOCK_COMMENT_STATE", "patterns": ["$eof"], "action": "unterminatedBlockCommentError" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": ["\\*/"], "action": "endBlockComment" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": ["$newline"], "action": "skipNewLine" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": ["$default"], "action": "skip" },
 
+        { "state": "CHAR_STATE", "patterns": ["$eof"], "action": "unterminatedCharError" },
+        { "state": "CHAR_STATE", "patterns": ["$newline"], "action": "unterminatedCharError" },
+        { "state": "CHAR_STATE", "patterns": ["$escaped_char"], "action": "eatChar" },
+        { "state": "CHAR_STATE", "patterns": ["\\'"], "action": "endChar" },
+        { "state": "CHAR_STATE", "patterns": ["$default"], "action": "eatChar" },
 
-        {"state": "BLOCK_COMMENT_STATE", "patterns": ["$eof"], "action": "unterminatedBlockCommentError"},
-        {"state": "BLOCK_COMMENT_STATE", "patterns": ["\\*/"], "action": "endBlockComment"},
-        {"state": "BLOCK_COMMENT_STATE", "patterns": ["$newline"], "action": "skipNewLine"},
-        {"state": "BLOCK_COMMENT_STATE", "patterns": ["$default"], "action": "skip"},
-
-
-        {"state": "CHAR_STATE", "patterns": ["$eof"], "action": "unterminatedCharError"},
-        {"state": "CHAR_STATE", "patterns": ["$newline"], "action": "unterminatedCharError"},
-        {"state": "CHAR_STATE", "patterns": ["$escaped_char"], "action": "eatChar"},
-        {"state": "CHAR_STATE", "patterns": ["\\'"], "action": "endChar"},
-        {"state": "CHAR_STATE", "patterns": ["$default"], "action": "eatChar"},
-
-
-        {"state": "STRING_STATE", "patterns": ["$eof"], "action": "unterminatedStringError"},
-        {"state": "STRING_STATE", "patterns": ["$newline"], "action": "unterminatedStringError"},
-        {"state": "STRING_STATE", "patterns": ["$escaped_char"], "action": "eatChar"},
-        {"state": "STRING_STATE", "patterns": ["\""], "action": "endString"},
-        {"state": "STRING_STATE", "patterns": ["$default"], "action": "eatChar"}
+        { "state": "STRING_STATE", "patterns": ["$eof"], "action": "unterminatedStringError" },
+        { "state": "STRING_STATE", "patterns": ["$newline"], "action": "unterminatedStringError" },
+        { "state": "STRING_STATE", "patterns": ["$escaped_char"], "action": "eatChar" },
+        { "state": "STRING_STATE", "patterns": ["\""], "action": "endString" },
+        { "state": "STRING_STATE", "patterns": ["$default"], "action": "eatChar" }
     ],
-    "others":
-    [
+    "others": [
         [
             "private inline fun eatEOF(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    new Token(Token.EOF_KIND, input.pos.toTokenPosition(input.textLength), \"\")"
@@ -287,8 +256,6 @@
             "    return errorToken(input, -TokenizeFSM.DEFAULT, dest, tokenText)",
             "}"
         ],
-
-
         [
             "private inline fun changeState(input: pointer<LexInput>, state: int, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
@@ -298,15 +265,15 @@
             "}"
         ],
         [
-            "private fun begainLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
+            "private fun beginLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    changeState(input, LINE_COMMENT_STATE, dest)"
         ],
         [
-            "private fun begainBlockComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
+            "private fun beginBlockComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    changeState(input, BLOCK_COMMENT_STATE, dest)"
         ],
         [
-            "private fun begainChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "private fun beginChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.accumulator.clear()",
             "    return changeState(input, CHAR_STATE, dest)",
@@ -320,14 +287,12 @@
             "}"
         ],
         [
-            "private fun begainString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "private fun beginString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.accumulator.clear()",
             "    return changeState(input, STRING_STATE, dest)",
             "}"
         ],
-
-
         [
             "private inline fun eatToken(input: pointer<LexInput>, numberType: int, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
@@ -355,7 +320,6 @@
             "private fun eatLongDoubleLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    eatToken(input, TK_LONG_DOUBLE, dest)"
         ],
-
         [
             "private inline fun getKeywordKind(text: pointer<char>) -> int",
             "{",
@@ -376,7 +340,7 @@
             "            left = mid + 1",
             "    }",
             "",
-            "    return TK_IDENTITY",
+            "    return TK_IDENTIFIER",
             "}"
         ],
         [
@@ -386,9 +350,6 @@
             "    return eatToken(input, kind, dest)",
             "}"
         ],
-        
-        
-
         [
             "private fun endLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
@@ -396,8 +357,6 @@
             "    return eatLineTerminator(input, dest)",
             "}"
         ],
-
-
         [
             "private fun unterminatedBlockCommentError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    errorToken(input, -BLOCK_COMMENT_STATE, dest, UNTERMINATED_BLOCK_COMMENT_ERROR_MSG)"
@@ -410,8 +369,6 @@
             "    return new Token(TK_LINE_TERMINATOR, input.pos.toTokenPosition(input.textLength), null)",
             "}"
         ],
-
-
         [
             "private fun unterminatedCharError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    errorToken(input, -CHAR_STATE, dest, UNTERMINATED_CHAR_ERROR_MSG)"
@@ -438,8 +395,6 @@
             "    return null",
             "}"
         ],
-
-
         [
             "private fun unterminatedStringError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
             "    errorToken(input, -STRING_STATE, dest, UNTERMINATED_STRING_ERROR_MSG)"

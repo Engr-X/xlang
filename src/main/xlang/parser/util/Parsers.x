@@ -22,9 +22,10 @@
  */
 
 @file.class("Parsers")
-package xlang.parser
+package xlang.parser.util
 
 import xlang.lexer.TokenList
+import xlang.parser.ParseContainer
 import xlang.util.ArrayList
 
 
@@ -55,10 +56,10 @@ struct Parsers
         {
             val innerConsumed: int = this.parser.parse(tokens, index + consumed)
 
-            if innerConsumed <= 0 || !this.parser.lastTrySuccess():
+            if this.parser.haveError(innerConsumed):
                 break
 
-            val result: pointer<*> = this.parser.getResult()
+            val result: pointer<ParseContainer> = this.parser.getResult()
 
             this.results.push(result.ref)
             consumed += innerConsumed
@@ -68,5 +69,6 @@ struct Parsers
     }
 
 
-    fun getResult() -> pointer<ArrayList> = this.results
+    fun getResult() -> pointer<ParseContainer> =
+        new ParseContainer(ParseContainer.ARRAY_LIST_KIND, this.results)
 }
