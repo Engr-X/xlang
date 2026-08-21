@@ -27,8 +27,8 @@ import xlang.Diagnostic
 import xlang.SourceLocation
 import xlang.lexer.Token
 import xlang.lexer.TokenList
-import xlang.parser.util.Parser
-import xlang.parser.util.Parsers
+import xlang.parser.util.ParserRef
+import xlang.parser.util.ParserRefs
 import xlang.parser.util.PatternAtom
 import xlang.parser.util.PatternList
 import xlang.parser.util.Rule
@@ -386,7 +386,7 @@ struct PrattParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<Parser> = atom.getRefParser()
+                val refParser: pointer<ParserRef> = atom.getRefParser()
                 val innerConsumed: int = refParser.parse(token, cursor + consumed)
 
                 if !refParser.haveError(innerConsumed):
@@ -408,7 +408,7 @@ struct PrattParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<Parsers> = atom.getRefsParser()
+                val refsParser: pointer<ParserRefs> = atom.getRefsParser()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:
@@ -566,7 +566,7 @@ struct PrattParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<Parser> = atom.getRefParser()
+                val refParser: pointer<ParserRef> = atom.getRefParser()
 
                 if refParser.getId() == leftId:
                 {
@@ -594,7 +594,7 @@ struct PrattParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<Parsers> = atom.getRefsParser()
+                val refsParser: pointer<ParserRefs> = atom.getRefsParser()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:

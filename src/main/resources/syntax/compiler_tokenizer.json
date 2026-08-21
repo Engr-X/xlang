@@ -173,155 +173,147 @@
         { "key": "default", "pattern": "." }
     ],
     "rules": [
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$eof"], "action": "eatEOF" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["//"], "action": "beginLineComment" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["/\\*"], "action": "beginBlockComment" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["\\'"], "action": "beginChar" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["\""], "action": "beginString" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$newline"], "action": "eatLineTerminator" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$space"], "action": "skip" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$long_double_lit"], "action": "eatLongDoubleLit" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$float_lit"], "action": "eatFloatLit" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$double_lit"], "action": "eatDoubleLit" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$long_lit"], "action": "eatLongLit" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$hex_int_lit"], "action": "eatIntLit" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$invalid_ident"], "action": "invalidIdentError" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$decimal_int_lit"], "action": "eatIntLit" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$symbols$"], "action": "$eatSymbol$" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$ident"], "action": "eatIdent" },
-        { "state": "TokenizeFSM.DEFAULT", "patterns": ["$default"], "action": "defaultError" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$eof" ], "action": "eatEOF" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "//" ], "action": "beginLineComment" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "/\\*" ], "action": "beginBlockComment" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "\\'" ], "action": "beginChar" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "\"" ], "action": "beginString" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$newline" ], "action": "eatLineTerminator" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$space" ], "action": "skip" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$long_double_lit" ], "action": "eatLongDoubleLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$float_lit" ], "action": "eatFloatLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$double_lit" ], "action": "eatDoubleLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$long_lit" ], "action": "eatLongLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$hex_int_lit "], "action": "eatIntLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$invalid_ident" ], "action": "invalidIdentError" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$decimal_int_lit" ], "action": "eatIntLit" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$symbols$" ], "action": "$eatSymbol$" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$ident" ], "action": "eatIdent" },
+        { "state": "TokenizeFSM.DEFAULT", "patterns": [ "$default" ], "action": "defaultError" },
 
-        { "state": "LINE_COMMENT_STATE", "patterns": ["$eof"], "action": "eatEOF" },
-        { "state": "LINE_COMMENT_STATE", "patterns": ["$newline"], "action": "endLineComment" },
-        { "state": "LINE_COMMENT_STATE", "patterns": ["$default"], "action": "skip" },
+        { "state": "LINE_COMMENT_STATE", "patterns": [ "$eof" ], "action": "eatEOF" },
+        { "state": "LINE_COMMENT_STATE", "patterns": [ "$newline" ], "action": "endLineComment" },
+        { "state": "LINE_COMMENT_STATE", "patterns": [ "$default" ], "action": "skip" },
 
-        { "state": "BLOCK_COMMENT_STATE", "patterns": ["$eof"], "action": "unterminatedBlockCommentError" },
-        { "state": "BLOCK_COMMENT_STATE", "patterns": ["\\*/"], "action": "endBlockComment" },
-        { "state": "BLOCK_COMMENT_STATE", "patterns": ["$newline"], "action": "skipNewLine" },
-        { "state": "BLOCK_COMMENT_STATE", "patterns": ["$default"], "action": "skip" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": [ "$eof" ], "action": "unterminatedBlockCommentError" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": [ "\\*/" ], "action": "endBlockComment" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": [ "$newline" ], "action": "skipNewLine" },
+        { "state": "BLOCK_COMMENT_STATE", "patterns": [ "$default" ], "action": "skip" },
 
-        { "state": "CHAR_STATE", "patterns": ["$eof"], "action": "unterminatedCharError" },
-        { "state": "CHAR_STATE", "patterns": ["$newline"], "action": "unterminatedCharError" },
-        { "state": "CHAR_STATE", "patterns": ["$escaped_char"], "action": "eatChar" },
-        { "state": "CHAR_STATE", "patterns": ["\\'"], "action": "endChar" },
-        { "state": "CHAR_STATE", "patterns": ["$default"], "action": "eatChar" },
+        { "state": "CHAR_STATE", "patterns": [ "$eof" ], "action": "unterminatedCharError" },
+        { "state": "CHAR_STATE", "patterns": [ "$newline" ], "action": "unterminatedCharError" },
+        { "state": "CHAR_STATE", "patterns": [ "$escaped_char" ], "action": "eatChar" },
+        { "state": "CHAR_STATE", "patterns": [ "\\'" ], "action": "endChar" },
+        { "state": "CHAR_STATE", "patterns": [ "$default" ], "action": "eatChar" },
 
-        { "state": "STRING_STATE", "patterns": ["$eof"], "action": "unterminatedStringError" },
-        { "state": "STRING_STATE", "patterns": ["$newline"], "action": "unterminatedStringError" },
-        { "state": "STRING_STATE", "patterns": ["$escaped_char"], "action": "eatChar" },
-        { "state": "STRING_STATE", "patterns": ["\""], "action": "endString" },
-        { "state": "STRING_STATE", "patterns": ["$default"], "action": "eatChar" }
+        { "state": "STRING_STATE", "patterns": [ "$eof" ], "action": "unterminatedStringError" },
+        { "state": "STRING_STATE", "patterns": [ "$newline" ], "action": "unterminatedStringError" },
+        { "state": "STRING_STATE", "patterns": [ "$escaped_char" ], "action": "eatChar" },
+        { "state": "STRING_STATE", "patterns": [ "\"" ], "action": "endString" },
+        { "state": "STRING_STATE", "patterns": [ "$default" ], "action": "eatChar" }
     ],
     "others": [
-        [
-            "private inline fun eatEOF(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    new Token(Token.EOF_KIND, input.pos.toTokenPosition(input.textLength), \"\")"
-        ],
-        [
-            "private inline fun skip(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+        [   "private inline fun eatEOF(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
+            "    new Token(Token.EOF_KIND, input.pos.toTokenPosition(input.textLength), \"\")" ],
+
+
+        [   "private inline fun skip(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.updateCursor(input.textLength)",
             "    return null",
-            "}"
-        ],
-        [
-            "private inline fun skipNewLine(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private inline fun skipNewLine(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    val cursor: pointer<LexPosition> = dest.getCursorPtr()",
             "    cursor.line++",
             "    cursor.column = 0",
             "    cursor.offset += input.textLength",
             "    return null",
-            "}"
-        ],
-        [
-            "private inline fun errorToken(input: pointer<LexInput>, errorType: int, dest: pointer<TokenizeFSM>, errorInfo: pointer<char>) -> pointer<Token> =",
-            "    new Token(errorType, input.pos.toTokenPosition(input.textLength), input.text, errorInfo)"
-        ],
-        [
-            "private fun defaultError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private inline fun errorToken(input: pointer<LexInput>, errorType: int, dest: pointer<TokenizeFSM>, errorInfo: pointer<char>) -> pointer<Token> =",
+            "    new Token(errorType, input.pos.toTokenPosition(input.textLength), input.text, errorInfo)" ],
+
+
+        [   "private fun defaultError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    val tokenText: pointer<char> = System.allocMemory((String.strlen(input.text) + 16) * sizeof(char)) as pointer<char>",
             "    String.strcpy(tokenText, INVALID_TOKEN_ERROR_MSG)",
             "    String.strcat(tokenText, input.text)",
             "    return errorToken(input, -TokenizeFSM.DEFAULT, dest, tokenText)",
-            "}"
-        ],
-        [
-            "private fun invalidIdentError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun invalidIdentError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    val tokenText: pointer<char> = System.allocMemory((String.strlen(input.text) + 32) * sizeof(char)) as pointer<char>",
             "    String.strcpy(tokenText, INVALID_IDENTITY_NAME_ERROR_MSG)",
             "    String.strcat(tokenText, input.text)",
             "    return errorToken(input, -TokenizeFSM.DEFAULT, dest, tokenText)",
-            "}"
-        ],
-        [
-            "private inline fun changeState(input: pointer<LexInput>, state: int, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private inline fun changeState(input: pointer<LexInput>, state: int, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.setState(state)",
             "    dest.updateCursor(input.textLength)",
             "    return null",
-            "}"
-        ],
-        [
-            "private fun beginLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    changeState(input, LINE_COMMENT_STATE, dest)"
-        ],
-        [
-            "private fun beginBlockComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    changeState(input, BLOCK_COMMENT_STATE, dest)"
-        ],
-        [
-            "private fun beginChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun beginLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = changeState(input, LINE_COMMENT_STATE, dest)" ],
+
+
+        [   "private fun beginBlockComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = changeState(input, BLOCK_COMMENT_STATE, dest)" ],
+
+
+        [   "private fun beginChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.accumulator.clear()",
             "    return changeState(input, CHAR_STATE, dest)",
-            "}"
-        ],
-        [
-            "private fun eatLineTerminator(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun eatLineTerminator(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    skipNewLine(input, dest)",
             "    return new Token(TK_LINE_TERMINATOR, input.pos.toTokenPosition(input.textLength), null)",
-            "}"
-        ],
-        [
-            "private fun beginString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun beginString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.accumulator.clear()",
             "    return changeState(input, STRING_STATE, dest)",
-            "}"
-        ],
-        [
-            "private inline fun eatToken(input: pointer<LexInput>, numberType: int, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private inline fun eatToken(input: pointer<LexInput>, numberType: int, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.updateCursor(input.textLength)",
             "    return new Token(numberType, input.pos.toTokenPosition(input.textLength), input.text)",
-            "}"
-        ],
-        [
-            "private fun eatIntLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    eatToken(input, TK_INTEGER, dest)"
-        ],
-        [
-            "private fun eatLongLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    eatToken(input, TK_LONG, dest)"
-        ],
-        [
-            "private fun eatFloatLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    eatToken(input, TK_FLOAT, dest)"
-        ],
-        [
-            "private fun eatDoubleLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    eatToken(input, TK_DOUBLE, dest)"
-        ],
-        [
-            "private fun eatLongDoubleLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    eatToken(input, TK_LONG_DOUBLE, dest)"
-        ],
-        [
-            "private inline fun getKeywordKind(text: pointer<char>) -> int",
+            "}" ],
+
+
+        [   "private fun eatIntLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = eatToken(input, TK_INTEGER, dest)" ],
+
+        
+        [   "private fun eatLongLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = eatToken(input, TK_LONG, dest)" ],
+
+
+        [   "private fun eatFloatLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = eatToken(input, TK_FLOAT, dest)" ],
+      
+
+        [   "private fun eatDoubleLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = eatToken(input, TK_DOUBLE, dest)" ],
+
+
+        [   "private fun eatLongDoubleLit(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> = eatToken(input, TK_LONG_DOUBLE, dest)" ],
+
+
+        [   "private inline fun getKeywordKind(text: pointer<char>) -> int",
             "{",
             "    var left: int = 0",
             "    var right: int = keywordListLength - 1",
@@ -341,40 +333,40 @@
             "    }",
             "",
             "    return TK_IDENTIFIER",
-            "}"
-        ],
-        [
-            "private fun eatIdent(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun eatIdent(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    val kind: int = getKeywordKind(input.text)",
             "    return eatToken(input, kind, dest)",
-            "}"
-        ],
-        [
-            "private fun endLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun endLineComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.setState(TokenizeFSM.DEFAULT)",
             "    return eatLineTerminator(input, dest)",
-            "}"
-        ],
-        [
-            "private fun unterminatedBlockCommentError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    errorToken(input, -BLOCK_COMMENT_STATE, dest, UNTERMINATED_BLOCK_COMMENT_ERROR_MSG)"
-        ],
-        [
-            "private fun endBlockComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun unterminatedBlockCommentError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
+            "    errorToken(input, -BLOCK_COMMENT_STATE, dest, UNTERMINATED_BLOCK_COMMENT_ERROR_MSG)" ],
+
+
+        [   "private fun endBlockComment(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.setState(TokenizeFSM.DEFAULT)",
             "    dest.updateCursor(input.textLength)",
             "    return new Token(TK_LINE_TERMINATOR, input.pos.toTokenPosition(input.textLength), null)",
-            "}"
-        ],
-        [
-            "private fun unterminatedCharError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    errorToken(input, -CHAR_STATE, dest, UNTERMINATED_CHAR_ERROR_MSG)"
-        ],
-        [
-            "private fun endChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun unterminatedCharError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
+            "    errorToken(input, -CHAR_STATE, dest, UNTERMINATED_CHAR_ERROR_MSG)" ],
+
+
+        [   "private fun endChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    val charText: pointer<char> = System.allocMemory((dest.accumulator.length + 1) * sizeof(char)) as pointer<char>",
             "    dest.accumulator.toString(charText)",
@@ -385,22 +377,22 @@
             "        dest.accumulator.length)",
             "    changeState(input, TokenizeFSM.DEFAULT, dest)",
             "    return new Token(TK_CHAR, pos, charText)",
-            "}"
-        ],
-        [
-            "private fun eatChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun eatChar(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    dest.accumulator.append(input.text)",
             "    dest.updateCursor(input.textLength)",
             "    return null",
-            "}"
-        ],
-        [
-            "private fun unterminatedStringError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
-            "    errorToken(input, -STRING_STATE, dest, UNTERMINATED_STRING_ERROR_MSG)"
-        ],
-        [
-            "private fun endString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
+            "}" ],
+
+
+        [   "private fun unterminatedStringError(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =",
+            "    errorToken(input, -STRING_STATE, dest, UNTERMINATED_STRING_ERROR_MSG)" ],
+
+
+        [   "private fun endString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token>",
             "{",
             "    val charText: pointer<char> = System.allocMemory((dest.accumulator.length + 1) * sizeof(char)) as pointer<char>",
             "    dest.accumulator.toString(charText)",
@@ -411,29 +403,28 @@
             "        dest.accumulator.length)",
             "    changeState(input, TokenizeFSM.DEFAULT, dest)",
             "    return new Token(TK_STRING, pos, charText)",
-            "}"
-        ],
-        [
-            "fun tokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
+            "}" ],
+
+
+        [   "fun tokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
             "{",
             "    val tokens: pointer<TokenList> = tokenize(code)",
             "    tokens.setPath(filePath)",
             "    return tokens",
-            "}"
-        ],
-        [
-            "fun fullTokenize(code: pointer<char>) -> pointer<TokenList>",
+            "}" ],
+
+
+        [   "fun fullTokenize(code: pointer<char>) -> pointer<TokenList>",
             "{",
             "    val tokens: pointer<TokenList> = tokenize(code)",
             "    return TokenNormalizer.normalize(tokens)",
-            "}"
-        ],
-        [
-            "fun fullTokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
+            "}" ],
+
+            
+        [   "fun fullTokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
             "{",
             "    val tokens: pointer<TokenList> = tokenize(code, filePath)",
             "    return TokenNormalizer.normalize(tokens)",
-            "}"
-        ]
+            "}" ]
     ]
 }

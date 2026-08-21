@@ -2,14 +2,25 @@
     "type": "compiler_normalizer_rules",
     "package": "xlang.compiler.lexer",
     "class": "TokenNormalizer",
-    "imports": [
-        "xlang.util.HashSet"
-    ],
+    "imports": [ "xlang.util.HashSet" ],
     "preprocess": "canonicalize",
     "postprocess": null,
     "constants": [
-        [
-            "private fun tokenKindCmp(left: pointer<*>, right: pointer<*>) -> int",
+        [ "val banAfter: pointer<HashSet> = initBanAfter()" ],
+        [ "val banBefore: pointer<HashSet> = initBanBefore()" ]
+    ],
+    "rules": [
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }], "pivot_index": "0", "action": "enterParenthesis" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.RIGHT_PAREN" }], "pivot_index": "0", "action": "exitParenthesis" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }], "pivot_index": "0", "action": "enterBracket" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.RIGHT_BRACKET" }], "pivot_index": "0", "action": "exitBracket" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "pivot_index": "0", "action": "deleteLineTerminatorInPair" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Token.AnyKind" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Token.AnyKind" }], "pivot_index": "0", "action": "insertLineTerminatorAroundRightBrace" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Token.AnyKind" }], "pivot_index": "0", "action": "deleteLineTerminatorBeforeBanToken" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Token.AnyKind" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "pivot_index": "1", "action": "deleteLineTerminatorAfterBanToken" }
+    ],
+    "others": [
+        [   "private fun tokenKindCmp(left: pointer<*>, right: pointer<*>) -> int",
             "{",
             "    val lhs: int = (left as pointer<int>).deref",
             "    val rhs: int = (right as pointer<int>).deref",
@@ -17,23 +28,20 @@
             "    if lhs == rhs:",
             "        return 0",
             "",
-            "    return if lhs < rhs:",
-            "        -1",
-            "    else:",
-            "        1",
-            "}"
-        ],
-        [
-            "private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashSet>",
+            "    return (if lhs < rhs: -1 else: 1)",
+            "}" ],
+
+
+        [   "private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashSet>",
             "{",
             "    var kindSpace: int = kind",
             "    val kindPtr: pointer<int> = kindSpace.ref",
             "",
             "    return set.add(kindPtr)",
-            "}"
-        ],
-        [
-            "private fun addCommonBanKinds(set: pointer<HashSet>)",
+            "}" ],
+
+
+        [   "private fun addCommonBanKinds(set: pointer<HashSet>)",
             "{",
             "    addBanKind(set, Tokenizer.DOUBLE_LESS_EQUAL)",
             "    addBanKind(set, Tokenizer.DOUBLE_GREATER_EQUAL)",
@@ -81,176 +89,75 @@
             "    addBanKind(set, Tokenizer.COMMA)",
             "    addBanKind(set, Tokenizer.COLON)",
             "    addBanKind(set, Tokenizer.DOT)",
-            "}"
-        ],
-        [
-            "private fun initBanAfter() -> pointer<HashSet>",
+            "}" ],
+            
+
+        [   "private fun initBanAfter() -> pointer<HashSet>",
             "{",
             "    val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)",
             "",
             "    addCommonBanKinds(result)",
             "",
             "    return result",
-            "}"
-        ],
-        [
-            "private fun initBanBefore() -> pointer<HashSet>",
+            "}" ],
+
+
+        [   "private fun initBanBefore() -> pointer<HashSet>",
             "{",
             "    val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)",
             "",
             "    addCommonBanKinds(result)",
             "",
             "    return result",
-            "}"
-        ],
-        [
-            "val banAfter: pointer<HashSet> = initBanAfter()",
-            "val banBefore: pointer<HashSet> = initBanBefore()"
-        ]
-    ],
-    "rules": [
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Tokenizer.LEFT_PAREN"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "enterParenthesis"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Tokenizer.RIGHT_PAREN"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "exitParenthesis"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Tokenizer.LEFT_BRACKET"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "enterBracket"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Tokenizer.RIGHT_BRACKET"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "exitBracket"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Tokenizer.TK_LINE_TERMINATOR"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "deleteLineTerminatorInPair"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Token.AnyKind"
-                },
-                {
-                    "kind": "Tokenizer.RIGHT_BRACE"
-                },
-                {
-                    "kind": "Token.AnyKind"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "insertLineTerminatorAroundRightBrace"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Tokenizer.TK_LINE_TERMINATOR"
-                },
-                {
-                    "kind": "Token.AnyKind"
-                }
-            ],
-            "pivot_index": "0",
-            "action": "deleteLineTerminatorBeforeBanToken"
-        },
-        {
-            "state": "NormalizeFSM.DEFAULT",
-            "patterns": [
-                {
-                    "kind": "Token.AnyKind"
-                },
-                {
-                    "kind": "Tokenizer.TK_LINE_TERMINATOR"
-                }
-            ],
-            "pivot_index": "1",
-            "action": "deleteLineTerminatorAfterBanToken"
-        }
-    ],
-    "others": [
-        [],
-        [
-            "private inline fun enterParenthesis(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private inline fun enterParenthesis(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    fsm.changeParenthesis(1)",
             "    return false",
-            "}"
-        ],
-        [
-            "private inline fun exitParenthesis(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private inline fun exitParenthesis(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    fsm.changeParenthesis(-1)",
             "    return false",
-            "}"
-        ],
-        [
-            "private inline fun enterBracket(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private inline fun enterBracket(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    fsm.changeBracket(1)",
             "    return false",
-            "}"
-        ],
-        [
-            "private inline fun exitBracket(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private inline fun exitBracket(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    fsm.changeBracket(-1)",
             "    return false",
-            "}"
-        ],
-        [
-            "private inline fun deleteLineTerminatorInPair(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private inline fun deleteLineTerminatorInPair(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    if !fsm.hasOpenPair():",
             "        return false",
             "",
             "    fsm.deleteToken()",
             "    return true",
-            "}"
-        ],
-        [
-            "private inline fun deleteCursor(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private inline fun deleteCursor(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    fsm.deleteToken()",
             "    return true",
-            "}"
-        ],
-        [
-            "private fun insertLineTerminatorAroundRightBrace(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private fun insertLineTerminatorAroundRightBrace(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    if tokens == null || tokens.length != 3:",
             "        return false",
@@ -275,10 +182,10 @@
             "    }",
             "",
             "    return changed",
-            "}"
-        ],
-        [
-            "private fun isBanToken(set: pointer<HashSet>, token: pointer<Token>) -> bool",
+            "}" ],
+
+
+        [   "private fun isBanToken(set: pointer<HashSet>, token: pointer<Token>) -> bool",
             "{",
             "    if set == null || token == null:",
             "        return false",
@@ -287,10 +194,10 @@
             "    val kindPtr: pointer<int> = kindSpace.ref",
             "",
             "    return set.contains(kindPtr)",
-            "}"
-        ],
-        [
-            "private fun deleteLineTerminatorBeforeBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private fun deleteLineTerminatorBeforeBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    if tokens == null || tokens.length != 2:",
             "        return false",
@@ -302,10 +209,10 @@
             "",
             "    fsm.deleteToken()",
             "    return true",
-            "}"
-        ],
-        [
-            "private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
+            "}" ],
+
+
+        [   "private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool",
             "{",
             "    if tokens == null || tokens.length != 2:",
             "        return false",
@@ -317,10 +224,10 @@
             "",
             "    fsm.deleteToken()",
             "    return true",
-            "}"
-        ],
-        [
-            "fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>",
+            "}" ],
+
+            
+        [   "fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>",
             "{",
             "    val canonical: pointer<TokenList> = new TokenList(tokenlist.filePath)",
             "    var parenthesis: int = 0",
@@ -409,7 +316,6 @@
             "    }",
             "",
             "    return result",
-            "}"
-        ]
+            "}" ]
     ]
 }

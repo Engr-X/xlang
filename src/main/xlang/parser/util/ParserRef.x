@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("Parser")
+@file.class("ParserRef")
 package xlang.parser.util
 
 import xlang.Diagnostic
@@ -31,7 +31,7 @@ import xlang.parser.PrattParser
 import xlang.parser.RecursiveParser
 
 
-struct Parser
+struct ParserRef
 {
     static val RECURSIVE_DOWN: int = 0
 
@@ -45,12 +45,12 @@ struct Parser
     private var host: pointer<*>
 
 
-    static fun fromRecursiveDown(id: int) -> pointer<Parser> =
-        new Parser(id, RECURSIVE_DOWN, new RecursiveParser(id))
+    static fun fromRecursiveDown(id: int) -> pointer<ParserRef> =
+        new ParserRef(id, RECURSIVE_DOWN, new RecursiveParser(id))
 
 
-    static fun fromPratt(id: int, host: pointer<PrattParser>) -> pointer<Parser> =
-        new Parser(id, PRATT, host.setId(id))
+    static fun fromPratt(id: int, host: pointer<PrattParser>) -> pointer<ParserRef> =
+        new ParserRef(id, PRATT, host.setId(id))
 
 
     private fun __init__(id: int, type: int, host: pointer<*>)
@@ -64,7 +64,7 @@ struct Parser
     fun getId() -> int = this.id
 
 
-    fun addRule(rule: pointer<Rule>) -> pointer<Parser>
+    fun addRule(rule: pointer<Rule>) -> pointer<ParserRef>
     {
         if this.type == RECURSIVE_DOWN:
         {

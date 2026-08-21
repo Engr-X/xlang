@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("Parsers")
+@file.class("ParserRefs")
 package xlang.parser.util
 
 import xlang.lexer.TokenList
@@ -29,14 +29,14 @@ import xlang.parser.ParseContainer
 import xlang.util.ArrayList
 
 
-struct Parsers
+struct ParserRefs
 {
-    private var parser: pointer<Parser>
+    private var parser: pointer<ParserRef>
 
     private var results: pointer<ArrayList>
 
 
-    fun __init__(parser: pointer<Parser>)
+    fun __init__(parser: pointer<ParserRef>)
     {
         this.parser = parser
         this.results = new ArrayList(sizeof(pointer<*>))

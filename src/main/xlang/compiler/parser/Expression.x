@@ -26,17 +26,87 @@
 package xlang.compiler.parser
 
 import xlang.Operation
+import xlang.parser.ParseContainer
 import xlang.util.ArrayList
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
+
+
+struct SExpression
+{
+    static fun unwrap(sExpressions: pointer<ArrayList>) -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(pointer<Expression>))
+
+        if sExpressions == null:
+            return result
+
+        for (var i = 0; i < sExpressions.length; i++):
+        {
+            val slot: pointer<pointer<ParseContainer>> = sExpressions.get(i) as pointer<pointer<ParseContainer>>
+
+            if slot == null || slot.deref == null:
+                continue
+
+            val container: pointer<ParseContainer> = slot.deref
+            val sExpression: pointer<SExpression> = container.getValue() as pointer<SExpression>
+
+            if sExpression == null:
+                continue
+
+            val expression: pointer<Expression> = sExpression.unwrap()
+
+            if expression != null:
+                result.push(expression.ref)
+        }
+
+        return result
+    }
+
+
+    private var expression: pointer<Expression>
+
+
+    fun __init__(expression: pointer<Expression>):
+        this.expression = expression
+
+
+    fun unwrap() -> pointer<Expression> = this.expression
+}
+
+
+struct ExpressionTuple
+{
+    private var list: pointer<ArrayList>
+
+
+    fun __init__():
+        this.list = new ArrayList(sizeof(pointer<Expression>))
+
+
+    fun __init__(list: pointer<ArrayList>)
+    {
+        this.list = list
+    }
+
+
+    fun addExpression(expression: pointer<Expression>) -> pointer<ExpressionTuple>
+    {
+        this.list.push(expression.ref)
+        return this
+    }
+
+
+    fun getList() -> pointer<ArrayList> = this.list
+}
 
 
 struct Expression
 {
     static val ATOM_KIND: int = 1
     static val STATEMENT_KIND: int = 2
-    static val METHOD_CALL_KIND: int = 3
-    static val FIELD_ACCESS_KIND: int = 4
+    static val FIELD_ACCESS_KIND: int = 3
+    static val METHOD_CALL_KIND: int = 4
 
     private var kind: int
     private var root: pointer<*>
@@ -44,11 +114,13 @@ struct Expression
 
     static fun fromAtom(atom: pointer<Atom>) -> pointer<Expression> = new Expression(ATOM_KIND, atom)
 
+
     static fun fromBinary(op: pointer<Operation>, exp1: pointer<Expression>, exp2: pointer<Expression>) -> pointer<Expression>
     {
         val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp1).addArgument(exp2)
         return new Expression(METHOD_CALL_KIND, call)
     }
+
 
     static fun fromPrefix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
     {
@@ -56,11 +128,16 @@ struct Expression
         return new Expression(METHOD_CALL_KIND, call)
     }
 
+
     static fun fromFieldAccess(host: pointer<Expression>, fieldName: pointer<char>) -> pointer<Expression>
     {
         val access: pointer<FieldAccess> = new FieldAccess(host, fieldName)
         return new Expression(FIELD_ACCESS_KIND, access)
     }
+
+
+    static fun fromMethodCall(method: pointer<MethodCall>) -> pointer<Expression> = new Expression(METHOD_CALL_KIND, method) 
+
 
     private fun __init__(kind: int, root: pointer<*>)
     {
@@ -162,6 +239,13 @@ struct MethodCall
     }
 
 
+    fun setArguments(arguments: pointer<ExpressionTuple>) -> pointer<MethodCall>
+    {
+        this.arguments = arguments.getList()
+        return this
+    }
+    
+    
     fun getHost() -> pointer<Expression> = this.host
 
 
@@ -216,5 +300,3 @@ struct MethodCall
         return sb
     }
 }
-
-

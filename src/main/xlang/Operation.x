@@ -189,8 +189,7 @@ struct Operation
      *
      * @return                  copied null-terminated operator symbol
      */
-    fun getSymbol() -> pointer<char> =
-        String.strdup(this.symbol)
+    fun getSymbol() -> pointer<char> = String.strdup(this.symbol)
 
 
     /**
@@ -198,6 +197,5 @@ struct Operation
      *
      * @return                  copied null-terminated function name, or null when absent
      */
-    fun getFunctionName() -> pointer<char> =
-        String.strdup(this.functionName)
+    fun getFunctionName() -> pointer<char> = String.strdup(this.functionName)
 }

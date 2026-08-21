@@ -62,9 +62,9 @@ struct PatternAtom
     private var regex: pointer<char>
 
 
-    var refParser: pointer<Parser>
+    var refParser: pointer<ParserRef>
 
-    var refsParser: pointer<Parsers>
+    var refsParser: pointer<ParserRefs>
 
 
     /**
@@ -98,7 +98,7 @@ struct PatternAtom
     }
 
 
-    fun __init__(refParser: pointer<Parser>)
+    fun __init__(refParser: pointer<ParserRef>)
     {
         this.kind = Token.AnyKind
         this.regex = null
@@ -107,7 +107,7 @@ struct PatternAtom
     }
 
 
-    fun __init__(refsParser: pointer<Parsers>)
+    fun __init__(refsParser: pointer<ParserRefs>)
     {
         this.kind = Token.AnyKind
         this.regex = null
@@ -145,9 +145,9 @@ struct PatternAtom
 
     inline fun isRefs() -> bool = this.refsParser != null
 
-    inline fun getRefParser() -> pointer<Parser> = this.refParser
+    inline fun getRefParser() -> pointer<ParserRef> = this.refParser
 
-    inline fun getRefsParser() -> pointer<Parsers> = this.refsParser
+    inline fun getRefsParser() -> pointer<ParserRefs> = this.refsParser
 }
 
 
@@ -245,7 +245,7 @@ struct PatternList
     }
 
 
-    inline fun pushRef(refParser: pointer<Parser>) -> pointer<PatternList>
+    inline fun pushRef(refParser: pointer<ParserRef>) -> pointer<PatternList>
     {
         val pattern: PatternAtom = PatternAtom(refParser)
         this.patterns.push(pattern.ref)
@@ -253,7 +253,7 @@ struct PatternList
     }
 
 
-    inline fun pushRefs(refsParser: pointer<Parsers>) -> pointer<PatternList>
+    inline fun pushRefs(refsParser: pointer<ParserRefs>) -> pointer<PatternList>
     {
         val pattern: PatternAtom = PatternAtom(refsParser)
         this.patterns.push(pattern.ref)

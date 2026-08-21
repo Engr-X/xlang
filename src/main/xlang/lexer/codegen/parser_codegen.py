@@ -31,7 +31,8 @@ DEFAULT_IMPORTS: set[str] = {
     "xlang.lexer.TokenList",
     "xlang.parser.ParseContainer",
     "xlang.parser.PrattParser",
-    "xlang.parser.util.Parser",
+    "xlang.parser.util.ParserRef",
+    "xlang.parser.util.ParserRefs",
     "xlang.parser.util.PatternList",
     "xlang.parser.util.Rule",
     "xlang.util.ArrayList",
@@ -114,6 +115,12 @@ def genPatternPush(pattern: object) -> str:
     if kind is None and regex is None:
         raise ValueError(f"parser pattern must contain kind, regex or both: {pattern!r}")
 
+    if kind is not None and kind.startswith("[$") and kind.endswith("]"):
+        if regex is not None:
+            raise ValueError(f"parser list reference pattern cannot also contain regex: {pattern!r}")
+
+        parser_name = f"{upperSnake(kind[2:-1])}_PARSER"
+        return f".pushRefs(new ParserRefs({parser_name}))"
     if kind is not None and kind.startswith("$"):
         if regex is not None:
             raise ValueError(f"parser reference pattern cannot also contain regex: {pattern!r}")
@@ -530,20 +537,40 @@ def getPrattSubRuleOperation(rule: JsonObject, sub_rule: JsonObject, index: int)
     if operation is None:
         return "null"
 
-    if isinstance(operation, str):
-        if not operation:
-            raise ValueError(f"pratt sub rule operation must be a non-empty xlang expression or null: {sub_rule!r}")
-
-        return operation
-
     if isinstance(operation, dict):
         return getOperationValueName(operation, genPrattOperationValueName(rule, index))
 
     if not isinstance(operation, str) or not operation:
-        raise ValueError(f"pratt sub rule operation must be a non-empty xlang expression or null: {sub_rule!r}")
+        raise ValueError(f"pratt sub rule operation must be a non-empty operation reference or null: {sub_rule!r}")
 
-    return operation
+    function_matches: list[str] = []
+    fallback_matches: list[str] = []
 
+    for operation_index, operation_def in enumerate(getRuleOperations(rule)):
+        operation_name = getOperationValueName(
+            operation_def,
+            genPrattOperationValueName(rule, operation_index),
+        )
+        function_name = operation_def.get(
+            "function_name",
+            operation_def.get("functionName", operation_def.get("lowering_name", None)),
+        )
+
+        if function_name == operation:
+            function_matches.append(operation_name)
+
+        if operation == operation_name or operation == getOperationSymbol(operation_def):
+            fallback_matches.append(operation_name)
+
+    matches = function_matches if function_matches else fallback_matches
+
+    if len(matches) == 1:
+        return matches[0]
+
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous pratt sub rule operation {operation!r}: {sub_rule!r}")
+
+    raise ValueError(f"unknown pratt sub rule operation {operation!r}: {sub_rule!r}")
 
 def getOperationPriorityMap(rule: JsonObject) -> dict[str, int]:
     result: dict[str, int] = {}
@@ -612,8 +639,8 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
 
             lines.append(f"{indent}private val {specific_parser_name}: pointer<PrattParser> = new PrattParser()")
             lines.append(
-                f"{indent}val {parser_name}: pointer<Parser> = "
-                f"Parser.fromPratt({parser_id_name}, {specific_parser_name})"
+                f"{indent}val {parser_name}: pointer<ParserRef> = "
+                f"ParserRef.fromPratt({parser_id_name}, {specific_parser_name})"
             )
             lines.append("")
 
@@ -650,7 +677,7 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
             for sub_rule_index, _ in enumerate(sub_rules):
                 setup_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
 
-            lines.append(f"{indent}private val {parser_name}_SETUP: pointer<Parser> = {setup_expr}")
+            lines.append(f"{indent}private val {parser_name}_SETUP: pointer<ParserRef> = {setup_expr}")
             lines.append("")
             continue
 
@@ -672,7 +699,7 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
             )
 
         parser_name = getParserName(rule)
-        parser_expr = f"Parser.fromRecursiveDown({parser_id_name})"
+        parser_expr = f"ParserRef.fromRecursiveDown({parser_id_name})"
 
         for sub_rule_index, _ in enumerate(sub_rules):
             parser_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
@@ -681,7 +708,7 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
             lines.append("")
 
         lines.append(
-            f"{indent}val {parser_name}: pointer<Parser> = {parser_expr}"
+            f"{indent}val {parser_name}: pointer<ParserRef> = {parser_expr}"
         )
         lines.append("")
 
