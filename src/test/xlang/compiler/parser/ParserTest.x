@@ -43,15 +43,18 @@ fun genTest() -> pointer<TestGroup>
     val expressionParserTC: pointer<TestCase> = new TestCase("expressionParser", expressionParserTest)
     val leftAssociativeExpressionTC: pointer<TestCase> = new TestCase("leftAssociativeExpression", leftAssociativeExpressionTest)
     val parenthesizedExpressionTC: pointer<TestCase> = new TestCase("parenthesizedExpression", parenthesizedExpressionTest)
+    val indexAccessExpressionTC: pointer<TestCase> = new TestCase("indexAccessExpression", indexAccessExpressionTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val expressionParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, expressionParserTC, null)
     val leftAssociativeExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, leftAssociativeExpressionTC, null)
     val parenthesizedExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedExpressionTC, null)
+    val indexAccessExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, indexAccessExpressionTC, null)
 
     result.addTestUnion(atomParserUnion)
     result.addTestUnion(expressionParserUnion)
     result.addTestUnion(leftAssociativeExpressionUnion)
     result.addTestUnion(parenthesizedExpressionUnion)
+    result.addTestUnion(indexAccessExpressionUnion)
 
     return result
 }
@@ -165,6 +168,30 @@ private fun parenthesizedExpressionTest() -> int
 
     if rightCall == null || String.streq(rightCall.getCallName(), "times") == false:
         return 7
+
+    return 0
+}
+
+private fun indexAccessExpressionTest() -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.tokenize("arr[1, 2 + 3]")
+    val expression: pointer<Expression> = Parser.parseExpression(tokens)
+
+    if expression == null || expression.getKind() != Expression.INDEX_ACCESS_KIND:
+        return 1
+
+    val access: pointer<IndexAccess> = expression.getRoot() as pointer<IndexAccess>
+
+    if access == null || access.getHost() == null:
+        return 2
+
+    if access.indicesCount() != 2:
+        return 3
+
+    val second: pointer<Expression> = access.getIndex(1)
+
+    if second == null || second.getKind() != Expression.METHOD_CALL_KIND:
+        return 4
 
     return 0
 }

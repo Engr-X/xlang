@@ -48,9 +48,9 @@
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "neg", "action": "makeExpressionFromPrefix" },
 
                 
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "$ListLiteral" }], "action": "makeExpressionFromIndexAccess", "priority": 230 },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExpressionFromMethodCall", "priority": 230 },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExpressionFromFieldAccess", "priority": 220 },
-
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_STAR"}, { "kind": "$Expression" }], "operation": "pow", "action": "makeExpressionFromBinary" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.STAR" }, { "kind": "$Expression" }], "operation": "times", "action": "makeExpressionFromBinary" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.SLASH" }, { "kind": "$Expression" }], "operation": "div", "action": "makeExpressionFromBinary" },
@@ -82,6 +82,15 @@
                 { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple0" },
                 { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "[$SExpression]" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple1" },
                 { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "[$SExpression]" }, { "kind": "Tokenizer.COMMA" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple1" }
+            ]
+        },
+        {
+            "class": "ListLiteral",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral0" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "$Expression" }, { "kind": "[$SExpression]" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral1" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "$Expression" }, { "kind": "[$SExpression]" }, { "kind": "Tokenizer.COMMA" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral1" }
             ]
         }
     ],
@@ -144,6 +153,25 @@
             "}" ],
 
 
+        [   "private fun makeListLiteral0(results: pointer<ArrayList>) -> pointer<*> = new ListLiteral()" ],
+
+
+        [   "private fun makeListLiteral1(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expressionSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val expressionContainer: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
+            "    val firstExpression: pointer<Expression> = expressionContainer.getValue() as pointer<Expression>",
+            "    val sExpressionsSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "    val sExpressionsContainer: pointer<ParseContainer> = sExpressionsSlot.deref as pointer<ParseContainer>",
+            "    val sExpressions: pointer<ArrayList> = sExpressionsContainer.getValue() as pointer<ArrayList>",
+            "    val expressions: pointer<ArrayList> = SExpression.unwrap(sExpressions)",
+            "",
+            "    expressions.pushFront(firstExpression.ref)",
+            "",
+            "    return new ListLiteral(expressions)",
+            "}" ],
+
+
         [   "private fun makeExpressionFromAtom(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val slot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
@@ -183,6 +211,21 @@
             "    val call: pointer<MethodCall> = new MethodCall(host, nameToken.text).setArguments(tuple)",
             "",
             "    return Expression.fromMethodCall(call)",
+            "}" ],
+
+
+        [   "private fun makeExpressionFromIndexAccess(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val hostSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val hostContainer: pointer<ParseContainer> = hostSlot.deref as pointer<ParseContainer>",
+            "    val host: pointer<Expression> = hostContainer.getValue() as pointer<Expression>",
+            "    val listSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val listContainer: pointer<ParseContainer> = listSlot.deref as pointer<ParseContainer>",
+            "    val list: pointer<ListLiteral> = listContainer.getValue() as pointer<ListLiteral>",
+            "",
+            "    val access: pointer<IndexAccess> = new IndexAccess(host, list)",
+            "",
+            "    return Expression.fromIndexAccess(access)",
             "}" ],
 
 

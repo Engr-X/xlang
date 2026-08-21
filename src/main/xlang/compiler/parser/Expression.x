@@ -101,12 +101,39 @@ struct ExpressionTuple
 }
 
 
+struct ListLiteral
+{
+    private var list: pointer<ArrayList>
+
+
+    fun __init__():
+        this.list = new ArrayList(sizeof(pointer<Expression>))
+
+
+    fun __init__(list: pointer<ArrayList>)
+    {
+        this.list = list
+    }
+
+
+    fun addExpression(expression: pointer<Expression>) -> pointer<ListLiteral>
+    {
+        this.list.push(expression.ref)
+        return this
+    }
+
+
+    fun getList() -> pointer<ArrayList> = this.list
+}
+
+
 struct Expression
 {
     static val ATOM_KIND: int = 1
     static val STATEMENT_KIND: int = 2
     static val FIELD_ACCESS_KIND: int = 3
     static val METHOD_CALL_KIND: int = 4
+    static val INDEX_ACCESS_KIND: int = 5
 
     private var kind: int
     private var root: pointer<*>
@@ -139,6 +166,9 @@ struct Expression
     static fun fromMethodCall(method: pointer<MethodCall>) -> pointer<Expression> = new Expression(METHOD_CALL_KIND, method) 
 
 
+    static fun fromIndexAccess(access: pointer<IndexAccess>) -> pointer<Expression> = new Expression(INDEX_ACCESS_KIND, access)
+
+
     private fun __init__(kind: int, root: pointer<*>)
     {
         this.kind = kind
@@ -169,6 +199,12 @@ struct Expression
         if this.kind == FIELD_ACCESS_KIND:
         {
             val access: pointer<FieldAccess> = this.root as pointer<FieldAccess>
+            return access.toString()
+        }
+
+        if this.kind == INDEX_ACCESS_KIND:
+        {
+            val access: pointer<IndexAccess> = this.root as pointer<IndexAccess>
             return access.toString()
         }
 
@@ -297,6 +333,77 @@ struct MethodCall
 
         sb.append(')')
 
+        return sb
+    }
+}
+
+
+struct IndexAccess
+{
+    private var host: pointer<Expression>
+
+    private var indices: pointer<ArrayList>
+
+
+    fun __init__(host: pointer<Expression>, indices: pointer<ListLiteral>)
+    {
+        this.host = host
+        this.indices = indices.getList()
+    }
+
+
+    fun addIndex(index: pointer<Expression>) -> pointer<IndexAccess>
+    {
+        this.indices.push(index.ref)
+        return this
+    }
+
+
+    fun getHost() -> pointer<Expression> = this.host
+
+
+    fun getIndex(index: int) -> pointer<Expression>
+    {
+        val slot: pointer<pointer<Expression>> = this.indices.get(index) as pointer<pointer<Expression>>
+
+        if slot == null:
+            return null
+
+        return slot.deref
+    }
+
+
+    fun indicesCount() -> int = this.indices.length
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = new StringBuilder()
+
+        sb.append("IndexAccess(")
+
+        if this.host != null:
+            sb.append(this.host.toString())
+
+        sb.append(", [")
+
+        var appendedIndex: bool = false
+
+        for (var i = 0; i < this.indices.length; i++):
+        {
+            val index: pointer<Expression> = this.getIndex(i)
+
+            if index == null:
+                continue
+
+            if appendedIndex:
+                sb.append(", ")
+
+            sb.append(index.toString())
+            appendedIndex = true
+        }
+
+        sb.append("])")
         return sb
     }
 }
