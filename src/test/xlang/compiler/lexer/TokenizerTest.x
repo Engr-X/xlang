@@ -520,10 +520,14 @@ private fun symbolsTest() -> int
     texts[23] = ";"
     kinds[24] = Tokenizer.TK_IDENTIFIER
     texts[24] = "i"
+    kinds[25] = Tokenizer.BANG_DOUBLE_EQUAL
+    texts[25] = "!=="
+    kinds[26] = Tokenizer.TK_IDENTIFIER
+    texts[26] = "j"
     kinds[27] = Token.EOF_KIND
     texts[27] = Token.EOF_STRING
 
-    return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e->f; g===h; i", kinds, texts, 28)
+    return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e->f; g===h; i!==j", kinds, texts, 28)
 }
 
 

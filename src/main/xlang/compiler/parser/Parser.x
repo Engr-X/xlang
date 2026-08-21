@@ -155,6 +155,25 @@ private fun makeExpressionFromBinary(results: pointer<ArrayList>) -> pointer<*>
 }
 
 
+val ATOM_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ATOM_PARSER_ID)
+
+private val EXPRESSION_PARSER_SPECIFIC: pointer<PrattParser> = new PrattParser()
+val EXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromPratt(EXPRESSION_PARSER_ID, EXPRESSION_PARSER_SPECIFIC)
+
+val SEXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(SEXPRESSION_PARSER_ID)
+
+val EXPRESSION_TUPLE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EXPRESSION_TUPLE_PARSER_ID)
+
+val EXPRESSION_OPERATION0: pointer<Operation> = new Operation(0, "$paren", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 220, null)
+val EXPRESSION_OPERATION1: pointer<Operation> = new Operation(1, "+", Operation.PREFIX_TYPE, Operation.RIGHT_ASSOC, 200, "pos")
+val EXPRESSION_OPERATION2: pointer<Operation> = new Operation(2, "-", Operation.PREFIX_TYPE, Operation.RIGHT_ASSOC, 200, "neg")
+val EXPRESSION_OPERATION3: pointer<Operation> = new Operation(3, "**", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 190, "pow")
+val EXPRESSION_OPERATION4: pointer<Operation> = new Operation(4, "*", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 180, "times")
+val EXPRESSION_OPERATION5: pointer<Operation> = new Operation(5, "/", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 180, "div")
+val EXPRESSION_OPERATION6: pointer<Operation> = new Operation(6, "%", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 180, "rem")
+val EXPRESSION_OPERATION7: pointer<Operation> = new Operation(7, "+", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 170, "plus")
+val EXPRESSION_OPERATION8: pointer<Operation> = new Operation(8, "-", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 170, "minus")
+
 private val ATOM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_NULL), makeAtom, Rule.STARTER_ROLE, 0)
 private val ATOM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_TRUE), makeAtom, Rule.STARTER_ROLE, 0)
 private val ATOM_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FALSE), makeAtom, Rule.STARTER_ROLE, 0)
@@ -167,20 +186,6 @@ private val ATOM_RULE8: pointer<Rule> = new Rule(new PatternList().pushRegex(Tok
 private val ATOM_RULE9: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_LONG_DOUBLE), makeAtom, Rule.STARTER_ROLE, 0)
 private val ATOM_RULE10: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER), makeAtom, Rule.STARTER_ROLE, 0)
 
-val ATOM_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ATOM_PARSER_ID).addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
-
-val EXPRESSION_OPERATION0: pointer<Operation> = new Operation(0, "$paren", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 220, null)
-val EXPRESSION_OPERATION1: pointer<Operation> = new Operation(1, "+", Operation.PREFIX_TYPE, Operation.RIGHT_ASSOC, 200, "pos")
-val EXPRESSION_OPERATION2: pointer<Operation> = new Operation(2, "-", Operation.PREFIX_TYPE, Operation.RIGHT_ASSOC, 200, "neg")
-val EXPRESSION_OPERATION3: pointer<Operation> = new Operation(3, "**", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 190, "pow")
-val EXPRESSION_OPERATION4: pointer<Operation> = new Operation(4, "*", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 180, "times")
-val EXPRESSION_OPERATION5: pointer<Operation> = new Operation(5, "/", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 180, "div")
-val EXPRESSION_OPERATION6: pointer<Operation> = new Operation(6, "%", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 180, "rem")
-val EXPRESSION_OPERATION7: pointer<Operation> = new Operation(7, "+", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 170, "plus")
-val EXPRESSION_OPERATION8: pointer<Operation> = new Operation(8, "-", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 170, "minus")
-private val EXPRESSION_PARSER_SPECIFIC: pointer<PrattParser> = new PrattParser()
-val EXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromPratt(EXPRESSION_PARSER_ID, EXPRESSION_PARSER_SPECIFIC)
-
 private val EXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRef(EXPRESSION_TUPLE_PARSER), makeFunction, Rule.STARTER_ROLE, 240)
 private val EXPRESSION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(ATOM_PARSER), makeExpressionFromAtom, Rule.STARTER_ROLE, 230)
 private val EXPRESSION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.RIGHT_PAREN), makeExpressionFromParenthesis, Rule.STARTER_ROLE, EXPRESSION_OPERATION0)
@@ -192,17 +197,17 @@ private val EXPRESSION_RULE7: pointer<Rule> = new Rule(new PatternList().pushRef
 private val EXPRESSION_RULE8: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PERCENT).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION6)
 private val EXPRESSION_RULE9: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PLUS).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION7)
 private val EXPRESSION_RULE10: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.MINUS).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION8)
-private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10)
 
 private val SEXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.COMMA).pushRef(EXPRESSION_PARSER), makeSExpression, Rule.STARTER_ROLE, 0)
-
-val SEXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(SEXPRESSION_PARSER_ID).addRule(SEXPRESSION_RULE0)
 
 private val EXPRESSION_TUPLE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.RIGHT_PAREN), makeExpressionTuple0, Rule.STARTER_ROLE, 0)
 private val EXPRESSION_TUPLE_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(EXPRESSION_PARSER).pushRefs(new ParserRefs(SEXPRESSION_PARSER)).pushRegex(Tokenizer.RIGHT_PAREN), makeExpressionTuple1, Rule.STARTER_ROLE, 0)
 private val EXPRESSION_TUPLE_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(EXPRESSION_PARSER).pushRefs(new ParserRefs(SEXPRESSION_PARSER)).pushRegex(Tokenizer.COMMA).pushRegex(Tokenizer.RIGHT_PAREN), makeExpressionTuple1, Rule.STARTER_ROLE, 0)
 
-val EXPRESSION_TUPLE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EXPRESSION_TUPLE_PARSER_ID).addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
+private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
+private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10)
+private val SEXPRESSION_PARSER_SETUP: pointer<ParserRef> = SEXPRESSION_PARSER.addRule(SEXPRESSION_RULE0)
+private val EXPRESSION_TUPLE_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_TUPLE_PARSER.addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
 
 
 fun parseAtom(input: pointer<TokenList>) -> pointer<Atom>

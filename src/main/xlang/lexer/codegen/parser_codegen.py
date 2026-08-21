@@ -610,9 +610,12 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     lines: list[str] = []
     emitted_operations: set[str] = set()
 
-    for index, rule in enumerate(rules):
+    # Parser references must exist before PatternList constructors can refer to
+    # parsers declared later in the JSON rule list.
+    for rule in rules:
         parser_type = getParserType(rule)
         parser_id_name = getParserIdName(rule)
+        parser_name = getParserName(rule)
 
         if parser_type not in {RECURSIVELY_DOWN_PARSER, PRATT_PARSER}:
             raise ValueError(f"unsupported parser type for {getRuleLabel(rule)!r}: {parser_type!r}")
@@ -622,6 +625,24 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
         if not sub_rules:
             raise ValueError(f"parser rule must have at least one sub_rule: {rule!r}")
 
+        if parser_type == PRATT_PARSER:
+            specific_parser_name = f"{parser_name}_SPECIFIC"
+
+            lines.append(f"{indent}private val {specific_parser_name}: pointer<PrattParser> = new PrattParser()")
+            lines.append(
+                f"{indent}val {parser_name}: pointer<ParserRef> = "
+                f"ParserRef.fromPratt({parser_id_name}, {specific_parser_name})"
+            )
+        else:
+            lines.append(
+                f"{indent}val {parser_name}: pointer<ParserRef> = "
+                f"ParserRef.fromRecursiveDown({parser_id_name})"
+            )
+
+        lines.append("")
+
+    # Operations must exist before Rule constructors store pointers to them.
+    for rule in rules:
         for operation_index, operation in enumerate(getRuleOperations(rule)):
             operation_expr = getOperationValueName(
                 operation,
@@ -632,17 +653,34 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                 lines.append(genOperationDecl(operation_expr, operation, operation_index, tabs))
                 emitted_operations.add(operation_expr)
 
+        if getParserType(rule) != PRATT_PARSER:
+            continue
+
+        for sub_rule_index, sub_rule in enumerate(getSubRules(rule)):
+            if not isinstance(sub_rule, dict):
+                raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
+
+            operation = getSubRuleOperation(sub_rule)
+
+            if not isinstance(operation, dict):
+                continue
+
+            operation_expr = getPrattSubRuleOperation(rule, sub_rule, sub_rule_index)
+
+            if operation_expr not in emitted_operations:
+                lines.append(genOperationDecl(operation_expr, operation, sub_rule_index, tabs))
+                emitted_operations.add(operation_expr)
+
+    if emitted_operations:
+        lines.append("")
+
+    # Rules can now safely reference any parser, including a later or cyclic one.
+    for rule in rules:
+        parser_type = getParserType(rule)
+        sub_rules = getSubRules(rule)
+
         if parser_type == PRATT_PARSER:
             operation_priorities = getOperationPriorityMap(rule)
-            parser_name = getParserName(rule)
-            specific_parser_name = f"{parser_name}_SPECIFIC"
-
-            lines.append(f"{indent}private val {specific_parser_name}: pointer<PrattParser> = new PrattParser()")
-            lines.append(
-                f"{indent}val {parser_name}: pointer<ParserRef> = "
-                f"ParserRef.fromPratt({parser_id_name}, {specific_parser_name})"
-            )
-            lines.append("")
 
             for sub_rule_index, sub_rule in enumerate(sub_rules):
                 if not isinstance(sub_rule, dict):
@@ -659,10 +697,6 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                 if action is None:
                     raise ValueError(f"pratt sub rule must have an action: {sub_rule!r}")
 
-                if isinstance(operation, dict) and operation_expr not in emitted_operations:
-                    lines.append(genOperationDecl(operation_expr, operation, sub_rule_index, tabs))
-                    emitted_operations.add(operation_expr)
-
                 if operation is None:
                     rule_ctor = f"new Rule({pattern_expr}, {action}, {role_expr}, {priority})"
                 else:
@@ -672,12 +706,6 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                     f"{indent}private val {rule_name}: pointer<Rule> = {rule_ctor}"
                 )
 
-            setup_expr = parser_name
-
-            for sub_rule_index, _ in enumerate(sub_rules):
-                setup_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
-
-            lines.append(f"{indent}private val {parser_name}_SETUP: pointer<ParserRef> = {setup_expr}")
             lines.append("")
             continue
 
@@ -698,19 +726,20 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                 f"new Rule({pattern_expr}, {action}, Rule.STARTER_ROLE, {priority})"
             )
 
+        lines.append("")
+
+    # Registration is last so no parser observes a partially initialized rule.
+    for rule in rules:
         parser_name = getParserName(rule)
-        parser_expr = f"ParserRef.fromRecursiveDown({parser_id_name})"
+        sub_rules = getSubRules(rule)
+        setup_expr = parser_name
 
         for sub_rule_index, _ in enumerate(sub_rules):
-            parser_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
-
-        if lines and lines[-1] != "":
-            lines.append("")
+            setup_expr += f".addRule({getRuleValueName(rule, sub_rule_index)})"
 
         lines.append(
-            f"{indent}val {parser_name}: pointer<ParserRef> = {parser_expr}"
+            f"{indent}private val {parser_name}_SETUP: pointer<ParserRef> = {setup_expr}"
         )
-        lines.append("")
 
     return "\n".join(lines).rstrip() + "\n\n\n"
 
