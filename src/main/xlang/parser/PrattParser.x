@@ -183,21 +183,30 @@ struct PrattParser
             if rule.priority < minPriority:
                 break
 
-            val rightMinPriority: int =
-                if rule.getAssociativity() == Operation.RIGHT_ASSOC:
-                    rule.priority
-                else:
-                    rule.priority + 1
-
+            val pattern: pointer<PatternList> = rule.getPattern()
+            val lastAtom: pointer<PatternAtom> = pattern.get(pattern.length() - 1)
+            val hasRight: bool = lastAtom.isRef() &&
+                lastAtom.getRefParser().getId() == left.getKind()
             var rightLength: int = 0
-            val right: pointer<ParseContainer> = this.tryParse(
-                token,
-                cursor + consumed + continuationLength,
-                rightMinPriority,
-                rightLength.ref)
+            var right: pointer<ParseContainer> = null
 
-            if right == null:
-                return null
+            if hasRight:
+            {
+                val rightMinPriority: int =
+                    if rule.getAssociativity() == Operation.RIGHT_ASSOC:
+                        rule.priority
+                    else:
+                        rule.priority + 1
+
+                right = this.tryParse(
+                    token,
+                    cursor + consumed + continuationLength,
+                    rightMinPriority,
+                    rightLength.ref)
+
+                if right == null:
+                    return null
+            }
 
             val results: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
             val leftItem: pointer<*> = left as pointer<*>
@@ -212,8 +221,11 @@ struct PrattParser
                     results.push(slot)
             }
 
-            val rightItem: pointer<*> = right as pointer<*>
-            results.push(rightItem.ref)
+            if hasRight:
+            {
+                val rightItem: pointer<*> = right as pointer<*>
+                results.push(rightItem.ref)
+            }
 
             val constructedResult: pointer<*> = rule.constructResult(results)
 
@@ -386,7 +398,7 @@ struct PrattParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParserRef> = atom.getRefParser()
+                val refParser: pointer<ParserRef> = atom.getRefParser().clone()
                 val innerConsumed: int = refParser.parse(token, cursor + consumed)
 
                 if !refParser.haveError(innerConsumed):
@@ -408,7 +420,7 @@ struct PrattParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParserRefs> = atom.getRefsParser()
+                val refsParser: pointer<ParserRefs> = atom.getRefsParser().clone()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:
@@ -566,7 +578,7 @@ struct PrattParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParserRef> = atom.getRefParser()
+                val refParser: pointer<ParserRef> = atom.getRefParser().clone()
 
                 if refParser.getId() == leftId:
                 {
@@ -594,7 +606,7 @@ struct PrattParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParserRefs> = atom.getRefsParser()
+                val refsParser: pointer<ParserRefs> = atom.getRefsParser().clone()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:
@@ -618,6 +630,16 @@ struct PrattParser
         matchLength.deref = consumed
         return results
     }
+
+
+    fun clone() -> pointer<PrattParser>
+    {
+        val result: pointer<PrattParser> = new PrattParser()
+
+        result.id = this.id
+        result.starterRules = this.starterRules
+        result.continuationRules = this.continuationRules
+        return result
+    }
+
 }
-
-

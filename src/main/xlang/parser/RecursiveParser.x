@@ -60,9 +60,7 @@ struct RecursiveParser
 
     private var error: pointer<Diagnostic>
 
-
     private var result: pointer<ParseContainer>
-
 
     /**
      * Stores the token-pattern rules tested by eat.
@@ -217,7 +215,7 @@ struct RecursiveParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParserRef> = atom.getRefParser()
+                val refParser: pointer<ParserRef> = atom.getRefParser().clone()
                 val innerConsumed: int = refParser.parse(token, cursor + consumed)
 
                 if !refParser.haveError(innerConsumed):
@@ -239,7 +237,7 @@ struct RecursiveParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParserRefs> = atom.getRefsParser()
+                val refsParser: pointer<ParserRefs> = atom.getRefsParser().clone()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:
@@ -318,4 +316,12 @@ struct RecursiveParser
 
 
     fun getResult() -> pointer<ParseContainer> = this.result
+
+
+    fun clone() -> pointer<RecursiveParser>
+    {
+        val result: pointer<RecursiveParser> = new RecursiveParser(this.id)
+        result.rules = this.rules
+        return result
+    }
 }

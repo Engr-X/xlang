@@ -174,4 +174,22 @@ struct ParserRef
 
 
     fun getHost() -> pointer<*> = this.host
+
+
+    fun clone() -> pointer<ParserRef>
+    {
+        if this.type == RECURSIVE_DOWN:
+        {
+            val parser: pointer<RecursiveParser> = this.host as pointer<RecursiveParser>
+            return new ParserRef(this.id, this.type, parser.clone())
+        }
+
+        if this.type == PRATT:
+        {
+            val parser: pointer<PrattParser> = this.host as pointer<PrattParser>
+            return new ParserRef(this.id, this.type, parser.clone())
+        }
+
+        return null
+    }
 }

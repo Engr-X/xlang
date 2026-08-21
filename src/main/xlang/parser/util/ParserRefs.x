@@ -71,4 +71,7 @@ struct ParserRefs
 
     fun getResult() -> pointer<ParseContainer> =
         new ParseContainer(ParseContainer.ARRAY_LIST_KIND, this.results)
+
+
+    fun clone() -> pointer<ParserRefs> = new ParserRefs(this.parser.clone())
 }
