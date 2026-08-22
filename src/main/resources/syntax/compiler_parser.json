@@ -35,14 +35,21 @@
             "parser": "pratt",
             "operations": [
                 { "symbol": "$paren", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 220 },
+
                 { "symbol": "++", "function_name": "succ", "fixity": "Operation.POSTFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 210 },
                 { "symbol": "--", "function_name": "pred", "fixity": "Operation.POSTFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 210 },
+
+                { "symbol": "++", "function_name": "inc", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 200 },
+                { "symbol": "--", "function_name": "dec", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 200 },
                 { "symbol": "+", "function_name": "pos", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 200 },
                 { "symbol": "-", "function_name": "neg", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 200 },
+
                 { "symbol": "**", "function_name": "pow", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 190 },
+
                 { "symbol": "*", "function_name": "times", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 180 },
                 { "symbol": "/", "function_name": "div", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 180 },
                 { "symbol": "%", "function_name": "rem", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 180 },
+
                 { "symbol": "+", "function_name": "plus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 170 },
                 { "symbol": "-", "function_name": "minus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 170 }
             ],
@@ -53,6 +60,8 @@
 
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "pos", "action": "makeExpressionFromPrefix" },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "neg", "action": "makeExpressionFromPrefix" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.DOUBLE_PLUS" }, { "kind": "$Expression" }], "operation": "inc", "action": "makeExpressionFromPrefix" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.DOUBLE_MINUS" }, { "kind": "$Expression" }], "operation": "dec", "action": "makeExpressionFromPrefix" },
 
                 
 

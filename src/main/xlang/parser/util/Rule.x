@@ -78,11 +78,16 @@ struct Rule
 
 
 
-    fun getAssociativity() -> int =
-        if this.operation == null:
+    fun getAssociativity() -> int = if this.operation == null:
             Operation.LEFT_ASSOC
         else:
             this.operation.associativity
+
+
+    fun getFixity() -> int = if this.operation == null:
+            Operation.INFIX_TYPE
+        else:
+            this.operation.fixity
 
 
     fun getPattern() -> pointer<PatternList> = this.pattern

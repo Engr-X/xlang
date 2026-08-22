@@ -198,6 +198,30 @@ private fun prefixExpressionTest() -> int
     if !hasRootMethodCall("-x", "neg"):
         return 2
 
+    val incExpression: pointer<Expression> = parseExpressionText("++x + y")
+    val incRoot: pointer<MethodCall> = getRootMethodCall(incExpression)
+
+    if incRoot == null || String.streq(incRoot.getCallName(), "plus") == false:
+        return 3
+
+    val incLeft: pointer<Expression> = incRoot.getArgument(0)
+    val incLeftCall: pointer<MethodCall> = getRootMethodCall(incLeft)
+
+    if incLeftCall == null || String.streq(incLeftCall.getCallName(), "inc") == false:
+        return 4
+
+    val decExpression: pointer<Expression> = parseExpressionText("--x + y")
+    val decRoot: pointer<MethodCall> = getRootMethodCall(decExpression)
+
+    if decRoot == null || String.streq(decRoot.getCallName(), "plus") == false:
+        return 5
+
+    val decLeft: pointer<Expression> = decRoot.getArgument(0)
+    val decLeftCall: pointer<MethodCall> = getRootMethodCall(decLeft)
+
+    if decLeftCall == null || String.streq(decLeftCall.getCallName(), "dec") == false:
+        return 6
+
     return 0
 }
 

@@ -399,14 +399,33 @@ struct PrattParser
             elif atom.isRef():
             {
                 val refParser: pointer<ParserRef> = atom.getRefParser().clone()
-                val innerConsumed: int = refParser.parse(token, cursor + consumed)
+                var innerConsumed: int = 0
+                var innerResult: pointer<ParseContainer> = null
+                var hasError: bool = false
 
-                if !refParser.haveError(innerConsumed):
+                if rule.getFixity() == Operation.PREFIX_TYPE && refParser.getId() == this.id:
+                {
+                    innerResult = this.tryParse(
+                        token,
+                        cursor + consumed,
+                        rule.priority,
+                        innerConsumed.ref)
+                    hasError = innerResult == null
+                }
+                else:
+                {
+                    innerConsumed = refParser.parse(token, cursor + consumed)
+                    hasError = refParser.haveError(innerConsumed)
+
+                    if !hasError:
+                        innerResult = refParser.getResult()
+                }
+
+                if !hasError:
                 {
                     consumed += innerConsumed
 
                     // add to result
-                    val innerResult: pointer<ParseContainer> = refParser.getResult()
                     results.push(innerResult.ref)
                 }
                 else:
