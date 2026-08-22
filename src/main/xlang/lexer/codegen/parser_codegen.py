@@ -605,6 +605,34 @@ def getPrattSubRulePriority(rule: JsonObject, sub_rule: JsonObject, operation_pr
     return 0
 
 
+def genPrattRuleActionName(rule: JsonObject, index: int) -> str:
+    return f"{getRuleValueName(rule, index)}_ACTION"
+
+
+def genPrattRuleAction(
+    rule: JsonObject,
+    sub_rule: JsonObject,
+    index: int,
+    tabs: int,
+) -> str:
+    indent = " " * (tabs * 4)
+    name = genPrattRuleActionName(rule, index)
+    action = getSubRuleAction(sub_rule)
+    operation = getPrattSubRuleOperation(rule, sub_rule, index)
+
+    if action is None:
+        raise ValueError(f"pratt sub rule must have an action: {sub_rule!r}")
+
+    return "\n".join([
+        f"{indent}private fun {name}(results: pointer<ArrayList>) -> pointer<*>",
+        f"{indent}{{",
+        f"{indent}    val operationItem: pointer<*> = {operation} as pointer<*>",
+        "",
+        f"{indent}    results.pushFront(operationItem.ref)",
+        f"{indent}    return {action}(results)",
+        f"{indent}}}",
+    ])
+
 def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     indent = " " * (tabs * 4)
     lines: list[str] = []
@@ -674,6 +702,20 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     if emitted_operations:
         lines.append("")
 
+    for rule in rules:
+        if getParserType(rule) != PRATT_PARSER:
+            continue
+
+        for sub_rule_index, sub_rule in enumerate(getSubRules(rule)):
+            if not isinstance(sub_rule, dict):
+                raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
+
+            if getSubRuleOperation(sub_rule) is None:
+                continue
+
+            lines.append(genPrattRuleAction(rule, sub_rule, sub_rule_index, tabs))
+            lines.append("")
+
     # Rules can now safely reference any parser, including a later or cyclic one.
     for rule in rules:
         parser_type = getParserType(rule)
@@ -700,7 +742,8 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                 if operation is None:
                     rule_ctor = f"new Rule({pattern_expr}, {action}, {role_expr}, {priority})"
                 else:
-                    rule_ctor = f"new Rule({pattern_expr}, {action}, {role_expr}, {operation_expr})"
+                    rule_action = genPrattRuleActionName(rule, sub_rule_index)
+                    rule_ctor = f"new Rule({pattern_expr}, {rule_action}, {role_expr}, {operation_expr})"
 
                 lines.append(
                     f"{indent}private val {rule_name}: pointer<Rule> = {rule_ctor}"

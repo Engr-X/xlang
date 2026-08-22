@@ -144,34 +144,41 @@ struct Expression
     static fun fromAtom(atom: pointer<Atom>) -> pointer<Expression> = new Expression(ATOM_KIND, atom)
 
 
-    static fun fromBinary(op: pointer<Operation>, exp1: pointer<Expression>, exp2: pointer<Expression>) -> pointer<Expression>
+    inline static fun fromBinary(op: pointer<Operation>, exp1: pointer<Expression>, exp2: pointer<Expression>) -> pointer<Expression>
     {
         val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp1).addArgument(exp2)
         return new Expression(METHOD_CALL_KIND, call)
     }
 
 
-    static fun fromPrefix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
+    inline static fun fromPrefix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
     {
         val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp)
         return new Expression(METHOD_CALL_KIND, call)
     }
 
 
-    static fun fromFieldAccess(host: pointer<Expression>, fieldName: pointer<char>) -> pointer<Expression>
+    inline static fun fromPostfix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
+    {
+        val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp)
+        return new Expression(METHOD_CALL_KIND, call)
+    }
+
+
+    inline static fun fromFieldAccess(host: pointer<Expression>, fieldName: pointer<char>) -> pointer<Expression>
     {
         val access: pointer<FieldAccess> = new FieldAccess(host, fieldName)
         return new Expression(FIELD_ACCESS_KIND, access)
     }
 
 
-    static fun fromMethodCall(method: pointer<MethodCall>) -> pointer<Expression> = new Expression(METHOD_CALL_KIND, method) 
+    inline static fun fromMethodCall(method: pointer<MethodCall>) -> pointer<Expression> = new Expression(METHOD_CALL_KIND, method) 
 
 
-    static fun fromIndexAccess(access: pointer<IndexAccess>) -> pointer<Expression> = new Expression(INDEX_ACCESS_KIND, access)
+    inline static fun fromIndexAccess(access: pointer<IndexAccess>) -> pointer<Expression> = new Expression(INDEX_ACCESS_KIND, access)
 
 
-    static fun fromTypeCast(castTo: pointer<TypeCast>) -> pointer<Expression> = new Expression(TYPE_CAST_KIND, castTo)
+    inline static fun fromTypeCast(castTo: pointer<TypeCast>) -> pointer<Expression> = new Expression(TYPE_CAST_KIND, castTo)
 
 
     private fun __init__(kind: int, root: pointer<*>)
