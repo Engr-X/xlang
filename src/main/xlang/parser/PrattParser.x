@@ -660,5 +660,4 @@ struct PrattParser
         result.continuationRules = this.continuationRules
         return result
     }
-
 }

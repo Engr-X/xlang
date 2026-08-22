@@ -572,6 +572,94 @@ def getPrattSubRuleOperation(rule: JsonObject, sub_rule: JsonObject, index: int)
 
     raise ValueError(f"unknown pratt sub rule operation {operation!r}: {sub_rule!r}")
 
+
+def getPrattSubRuleOperatorKind(rule: JsonObject, sub_rule: JsonObject) -> str:
+    for pattern in validateSubRulePatterns(rule, sub_rule):
+        if isinstance(pattern, str):
+            continue
+
+        if not isinstance(pattern, dict):
+            raise TypeError(f"parser pattern must be string or object: {pattern!r}")
+
+        kind = genKindExpr(pattern.get("kind", None))
+
+        if kind is None:
+            continue
+
+        if kind.startswith("$") or (kind.startswith("[$") and kind.endswith("]")):
+            continue
+
+        return kind
+
+    raise ValueError(f"pratt operation sub rule must contain an operator token kind: {sub_rule!r}")
+
+
+def genPrattOperationLookupDecls(rules: list[JsonObject], tabs: int) -> str:
+    indent = " " * (tabs * 4)
+    lines: list[str] = []
+    emitted: set[tuple[str, str]] = set()
+
+    for rule in rules:
+        if getParserType(rule) != PRATT_PARSER:
+            continue
+
+        for sub_rule_index, sub_rule in enumerate(getSubRules(rule)):
+            if not isinstance(sub_rule, dict):
+                raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
+
+            if getSubRuleOperation(sub_rule) is None:
+                continue
+
+            operation_expr = getPrattSubRuleOperation(rule, sub_rule, sub_rule_index)
+
+            if operation_expr == "null":
+                continue
+
+            operation_fixity: str | None = None
+            operation = getSubRuleOperation(sub_rule)
+
+            if isinstance(operation, dict):
+                operation_fixity = genOperationExpr(operation.get("fixity"), "fixity", operation)
+            else:
+                for operation_index, operation_def in enumerate(getRuleOperations(rule)):
+                    operation_name = getOperationValueName(
+                        operation_def,
+                        genPrattOperationValueName(rule, operation_index),
+                    )
+
+                    if operation_name == operation_expr:
+                        operation_fixity = genOperationExpr(operation_def.get("fixity"), "fixity", operation_def)
+                        break
+
+            if operation_fixity is None:
+                raise ValueError(f"unknown pratt sub rule operation {operation_expr!r}: {sub_rule!r}")
+
+            token_kind = getPrattSubRuleOperatorKind(rule, sub_rule)
+            key = (token_kind, operation_expr)
+
+            if key in emitted:
+                continue
+
+            emitted.add(key)
+            lines.extend([
+                f"{indent}    if token.kind == {token_kind} && fixity == {operation_fixity}:",
+                f"{indent}        return {operation_expr}",
+                "",
+            ])
+
+    if not lines:
+        return ""
+
+    return "\n".join([
+        f"{indent}private fun toOperation(token: pointer<Token>, fixity: int) -> pointer<Operation>",
+        f"{indent}{{",
+        f"{indent}    if token == null:",
+        f"{indent}        return null",
+        "",
+        *lines,
+        f"{indent}    return null",
+        f"{indent}}}",
+    ]) + "\n\n"
 def getOperationPriorityMap(rule: JsonObject) -> dict[str, int]:
     result: dict[str, int] = {}
 
@@ -702,20 +790,11 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
     if emitted_operations:
         lines.append("")
 
-    for rule in rules:
-        if getParserType(rule) != PRATT_PARSER:
-            continue
+    operation_lookup = genPrattOperationLookupDecls(rules, tabs)
 
-        for sub_rule_index, sub_rule in enumerate(getSubRules(rule)):
-            if not isinstance(sub_rule, dict):
-                raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
-
-            if getSubRuleOperation(sub_rule) is None:
-                continue
-
-            lines.append(genPrattRuleAction(rule, sub_rule, sub_rule_index, tabs))
-            lines.append("")
-
+    if operation_lookup:
+        lines.append(operation_lookup.rstrip())
+        lines.append("")
     # Rules can now safely reference any parser, including a later or cyclic one.
     for rule in rules:
         parser_type = getParserType(rule)
@@ -742,8 +821,7 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                 if operation is None:
                     rule_ctor = f"new Rule({pattern_expr}, {action}, {role_expr}, {priority})"
                 else:
-                    rule_action = genPrattRuleActionName(rule, sub_rule_index)
-                    rule_ctor = f"new Rule({pattern_expr}, {rule_action}, {role_expr}, {operation_expr})"
+                    rule_ctor = f"new Rule({pattern_expr}, {action}, {role_expr}, {operation_expr})"
 
                 lines.append(
                     f"{indent}private val {rule_name}: pointer<Rule> = {rule_ctor}"

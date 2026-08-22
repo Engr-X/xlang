@@ -11,7 +11,6 @@
     "constants": [
         "val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)"
     ],
-
     "rules": [
         {
             "class": "Atom",
@@ -35,7 +34,6 @@
             "parser": "pratt",
             "operations": [
                 { "symbol": "$paren", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 220 },
-
                 { "symbol": "++", "function_name": "succ", "fixity": "Operation.POSTFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 210 },
                 { "symbol": "--", "function_name": "pred", "fixity": "Operation.POSTFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 210 },
 
@@ -51,7 +49,16 @@
                 { "symbol": "%", "function_name": "rem", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 180 },
 
                 { "symbol": "+", "function_name": "plus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 170 },
-                { "symbol": "-", "function_name": "minus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 170 }
+                { "symbol": "-", "function_name": "minus", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 170 },
+
+                { "symbol": "shl", "function_name": "shl", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 160 },
+                { "symbol": "shr", "function_name": "shr", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 160 },
+                { "symbol": "ushr", "function_name": "ushr", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 160 },
+
+                { "symbol": ">", "function_name": "greater", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
+                { "symbol": "<", "function_name": "less", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
+                { "symbol": ">=", "function_name": "greaterEqual", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
+                { "symbol": "<=", "function_name": "lessEqual", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 }
             ],
             "sub_rules": [
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExpressionFromFunctionCall", "priority": 240 },
@@ -81,7 +88,14 @@
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PERCENT" }, { "kind": "$Expression" }], "operation": "rem", "action": "makeExpressionFromInfix" },
                 
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "plus", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "minus", "action": "makeExpressionFromInfix" }
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "minus", "action": "makeExpressionFromInfix" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_SHL" }, { "kind": "$Expression" }], "operation": "shl", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_SHR" }, { "kind": "$Expression" }], "operation": "shr", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_USHR" }, { "kind": "$Expression" }], "operation": "ushr", "action": "makeExpressionFromInfix" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.GREATER" }, { "kind": "$Expression" }], "operation": "greater", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.LESS" }, { "kind": "$Expression" }], "operation": "less", "action": "makeExpressionFromInfix" }
             ],
             "force_ends": [
                 { "kind": "Tokenizer.RIGHT_PAREN" },
@@ -119,7 +133,6 @@
             ]
         }
     ],
-
     "others": [
         [   "private fun makeAtom(results: pointer<ArrayList>) -> pointer<*>",
             "{",
@@ -265,6 +278,7 @@
             "    return Expression.fromFieldAccess(host, fieldToken.text)",
             "}" ],
 
+
         [   "private fun makeExpressionFromTypeCast(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val expressionSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
@@ -282,7 +296,7 @@
 
         [   "private fun makeExpressionFromParenthesis(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val slot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "    val slot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
             "    val container: pointer<ParseContainer> = slot.deref as pointer<ParseContainer>",
             "",
             "    return container.getValue()",
@@ -292,8 +306,9 @@
         [   "private fun makeExpressionFromPrefix(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val opSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val expressionSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
-            "    val op: pointer<Operation> = opSlot.deref as pointer<Operation>",
+            "    val expressionSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val op: pointer<Operation> = toOperation(opToken, Operation.PREFIX_TYPE)",
             "    val container: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
             "",
             "    val expression: pointer<Expression> = container.getValue() as pointer<Expression>",
@@ -304,12 +319,13 @@
 
         [   "private fun makeExpressionFromInfix(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val opSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val leftSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val rightSlot: pointer<pointer<*>> = results.get(3) as pointer<pointer<*>>",
+            "    val leftSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val rightSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
             "",
             "    val leftContainer: pointer<ParseContainer> = leftSlot.deref as pointer<ParseContainer>",
-            "    val op: pointer<Operation> = opSlot.deref as pointer<Operation>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val op: pointer<Operation> = toOperation(opToken, Operation.INFIX_TYPE)",
             "    val rightContainer: pointer<ParseContainer> = rightSlot.deref as pointer<ParseContainer>",
             "",
             "    val left: pointer<Expression> = leftContainer.getValue() as pointer<Expression>",
@@ -321,9 +337,10 @@
 
         [   "private fun makeExpressionFromPostfix(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val opSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val expressionSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val op: pointer<Operation> = opSlot.deref as pointer<Operation>",
+            "    val expressionSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val op: pointer<Operation> = toOperation(opToken, Operation.POSTFIX_TYPE)",
             "    val container: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
             "",
             "    val expression: pointer<Expression> = container.getValue() as pointer<Expression>",
