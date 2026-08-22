@@ -4,8 +4,12 @@
     "package": "xlang.compiler.parser",
     "class": "Parser",
     "imports": [
+        "xlang.compiler.Type",
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token"
+    ],
+    "constants": [
+        "val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)"
     ],
 
     "rules": [
@@ -44,17 +48,24 @@
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExpressionFromFunctionCall", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExpressionFromAtom", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExpressionFromParenthesis" },
+
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "pos", "action": "makeExpressionFromPrefix" },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "neg", "action": "makeExpressionFromPrefix" },
 
                 
+
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "$ListLiteral" }], "action": "makeExpressionFromIndexAccess", "priority": 230 },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExpressionFromMethodCall", "priority": 230 },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExpressionFromFieldAccess", "priority": 220 },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_AS" }, { "kind": "$Type" }], "action": "makeExpressionFromTypeCast", "priority": 200 },
+                
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_STAR"}, { "kind": "$Expression" }], "operation": "pow", "action": "makeExpressionFromBinary" },
+
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.STAR" }, { "kind": "$Expression" }], "operation": "times", "action": "makeExpressionFromBinary" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.SLASH" }, { "kind": "$Expression" }], "operation": "div", "action": "makeExpressionFromBinary" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PERCENT" }, { "kind": "$Expression" }], "operation": "rem", "action": "makeExpressionFromBinary" },
+                
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "plus", "action": "makeExpressionFromBinary" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "minus", "action": "makeExpressionFromBinary" }
             ],
@@ -238,6 +249,20 @@
             "    val fieldToken: pointer<Token> = fieldSlot.deref as pointer<Token>",
             "",
             "    return Expression.fromFieldAccess(host, fieldToken.text)",
+            "}" ],
+
+        [   "private fun makeExpressionFromTypeCast(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expressionSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val expressionContainer: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
+            "    val typeSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "    val typeContainer: pointer<ParseContainer> = typeSlot.deref as pointer<ParseContainer>",
+            "",
+            "    val expression: pointer<Expression> = expressionContainer.getValue() as pointer<Expression>",
+            "    val targetType: pointer<Type> = typeContainer.getValue() as pointer<Type>",
+            "    val cast: pointer<TypeCast> = new TypeCast(expression, targetType)",
+            "",
+            "    return Expression.fromTypeCast(cast)",
             "}" ],
 
 

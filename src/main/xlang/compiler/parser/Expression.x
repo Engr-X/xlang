@@ -26,6 +26,7 @@
 package xlang.compiler.parser
 
 import xlang.Operation
+import xlang.compiler.Type
 import xlang.parser.ParseContainer
 import xlang.util.ArrayList
 import xlang.util.string.String
@@ -134,6 +135,7 @@ struct Expression
     static val FIELD_ACCESS_KIND: int = 3
     static val METHOD_CALL_KIND: int = 4
     static val INDEX_ACCESS_KIND: int = 5
+    static val TYPE_CAST_KIND: int = 6
 
     private var kind: int
     private var root: pointer<*>
@@ -167,6 +169,9 @@ struct Expression
 
 
     static fun fromIndexAccess(access: pointer<IndexAccess>) -> pointer<Expression> = new Expression(INDEX_ACCESS_KIND, access)
+
+
+    static fun fromTypeCast(castTo: pointer<TypeCast>) -> pointer<Expression> = new Expression(TYPE_CAST_KIND, castTo)
 
 
     private fun __init__(kind: int, root: pointer<*>)
@@ -208,9 +213,62 @@ struct Expression
             return access.toString()
         }
 
+        if this.kind == TYPE_CAST_KIND:
+        {
+            val cast: pointer<TypeCast> = this.root as pointer<TypeCast>
+            return cast.toString()
+        }
+
         return new StringBuilder()
     }
 
+}
+
+
+struct TypeCast
+{
+    private var expression: pointer<Expression>
+
+    private var targetType: pointer<Type>
+
+
+    fun __init__(expression: pointer<Expression>, targetType: pointer<Type>)
+    {
+        this.expression = expression
+        this.targetType = targetType
+    }
+
+
+    fun getExpression() -> pointer<Expression> = this.expression
+
+
+    fun getTargetType() -> pointer<Type>
+    {
+        if this.targetType == null:
+            return null
+
+        return this.targetType.copy()
+    }
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = new StringBuilder()
+
+        sb.append('(')
+
+        if this.targetType != null:
+            sb.append(this.targetType.getTypeName())
+
+        sb.append(")(")
+
+        if this.expression != null:
+            sb.append(this.expression.toString())
+
+        sb.append(')')
+
+        return sb
+    }
 }
 
 

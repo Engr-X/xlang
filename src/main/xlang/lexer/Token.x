@@ -363,6 +363,15 @@ struct TokenList
         this.tokens.push(token)
 
 
+    fun addAll(index: int, items: pointer<ArrayList>)
+    {
+        if items == null || items.length <= 0:
+            return
+
+        this.tokens.addAll(index, items.get(0), items.length)
+    }
+
+
     /**
      * Returns the number of tokens currently stored in the list.
      *

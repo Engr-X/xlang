@@ -33,9 +33,8 @@ import xlang.util.string.String
 /**
  * Describes a resolved compiler type.
  *
- * A Type stores a compact numeric kind, the simple type name, an optional
- * package name, nested type arguments and the runtime memory size used by
- * values of this type.
+ * A Type stores the simple type name, an optional package name, nested type
+ * arguments and the runtime memory size used by values of this type.
  *
  * Type arguments make compound types representable without inventing a new
  * struct for every shape. For example, pointer<char> can be represented by a
@@ -45,14 +44,6 @@ import xlang.util.string.String
  */
 struct Type
 {
-    /**
-     * Stores the numeric kind of this type.
-     *
-     * The compiler can use this value for fast comparisons before falling
-     * back to textual package and type names.
-     */
-    val type: int
-
     /**
      * Points to the null-terminated simple type name.
      *
@@ -78,20 +69,17 @@ struct Type
     private val typeArguments: pointer<ArrayList>
 
     /**
+     * Stores the runtime memory size in bytes.
+     */
+    private val memSize: int
+
+    /**
      * Stores the number of nested type arguments.
      *
      * This mirrors typeArguments.length so callers can check arity directly on
      * Type. For pointer<char>, length is 1.
      */
     var length: int
-
-    /**
-     * Stores the runtime memory size of this type in bytes.
-     *
-     * For value-like types this should be the real value size. For pointer-like
-     * types this can be the pointer size, depending on semantic lowering.
-     */
-    val memSize: int
 
 
     /**
@@ -100,19 +88,17 @@ struct Type
      * Both packageName and typeName are duplicated. The caller may still pass
      * null for packageName when a package is intentionally absent.
      *
-     * @param type              the numeric type kind.
      * @param packageName       the null-terminated package name.
      * @param typeName          the null-terminated simple type name.
      * @param memSize           the runtime memory size in bytes.
      */
-    fun __init__(type: int, packageName: pointer<char>, typeName: pointer<char>, memSize: int)
+    fun __init__(packageName: pointer<char>, typeName: pointer<char>, memSize: int)
     {
-        this.type = type
         this.typeName = String.strdup(typeName)
         this.packageName = String.strdup(packageName)
         this.typeArguments = new ArrayList(sizeof(Type))
-        this.length = 0
         this.memSize = memSize
+        this.length = 0
     }
 
 
@@ -151,7 +137,7 @@ struct Type
      */
     fun copy() -> pointer<Type>
     {
-        val result: pointer<Type> = new Type(this.type, this.packageName, this.typeName, this.memSize)
+        val result: pointer<Type> = new Type(this.packageName, this.typeName, this.memSize)
 
         for (var i: int = 0; i < this.length; i++):
         {
@@ -184,6 +170,9 @@ struct Type
      */
     fun getPackageName() -> pointer<char> =
         String.strdup(this.packageName)
+
+
+    fun getMemSize() -> int = this.memSize
 
 
     /**

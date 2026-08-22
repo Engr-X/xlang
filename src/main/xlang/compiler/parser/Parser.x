@@ -3,6 +3,7 @@ package xlang.compiler.parser
 
 
 import xlang.Operation
+import xlang.compiler.Type
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
 import xlang.lexer.TokenList
@@ -13,6 +14,9 @@ import xlang.parser.util.ParserRefs
 import xlang.parser.util.PatternList
 import xlang.parser.util.Rule
 import xlang.util.ArrayList
+
+
+val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)
 
 
 private val ATOM_PARSER_ID: int = 1
@@ -155,6 +159,20 @@ private fun makeExpressionFromFieldAccess(results: pointer<ArrayList>) -> pointe
     return Expression.fromFieldAccess(host, fieldToken.text)
 }
 
+private fun makeExpressionFromTypeCast(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expressionSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>
+    val expressionContainer: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>
+    val typeSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>
+    val typeContainer: pointer<ParseContainer> = typeSlot.deref as pointer<ParseContainer>
+
+    val expression: pointer<Expression> = expressionContainer.getValue() as pointer<Expression>
+    val targetType: pointer<Type> = typeContainer.getValue() as pointer<Type>
+    val cast: pointer<TypeCast> = new TypeCast(expression, targetType)
+
+    return Expression.fromTypeCast(cast)
+}
+
 private fun makeExpressionFromParenthesis(results: pointer<ArrayList>) -> pointer<*>
 {
     val slot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>
@@ -255,12 +273,13 @@ private val EXPRESSION_RULE4: pointer<Rule> = new Rule(new PatternList().pushReg
 private val EXPRESSION_RULE5: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRef(LIST_LITERAL_PARSER), makeExpressionFromIndexAccess, Rule.CONTINUATION_ROLE, 230)
 private val EXPRESSION_RULE6: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.DOT).pushRegex(Tokenizer.TK_IDENTIFIER).pushRef(EXPRESSION_TUPLE_PARSER), makeExpressionFromMethodCall, Rule.CONTINUATION_ROLE, 230)
 private val EXPRESSION_RULE7: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.DOT).pushRegex(Tokenizer.TK_IDENTIFIER), makeExpressionFromFieldAccess, Rule.CONTINUATION_ROLE, 220)
-private val EXPRESSION_RULE8: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.DOUBLE_STAR).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION3)
-private val EXPRESSION_RULE9: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.STAR).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION4)
-private val EXPRESSION_RULE10: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.SLASH).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION5)
-private val EXPRESSION_RULE11: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PERCENT).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION6)
-private val EXPRESSION_RULE12: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PLUS).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION7)
-private val EXPRESSION_RULE13: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.MINUS).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION8)
+private val EXPRESSION_RULE8: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.KW_AS).pushRef(TYPE_PARSER), makeExpressionFromTypeCast, Rule.CONTINUATION_ROLE, 200)
+private val EXPRESSION_RULE9: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.DOUBLE_STAR).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION3)
+private val EXPRESSION_RULE10: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.STAR).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION4)
+private val EXPRESSION_RULE11: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.SLASH).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION5)
+private val EXPRESSION_RULE12: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PERCENT).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION6)
+private val EXPRESSION_RULE13: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PLUS).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION7)
+private val EXPRESSION_RULE14: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.MINUS).pushRef(EXPRESSION_PARSER), makeExpressionFromBinary, Rule.CONTINUATION_ROLE, EXPRESSION_OPERATION8)
 
 private val SEXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.COMMA).pushRef(EXPRESSION_PARSER), makeSExpression, Rule.STARTER_ROLE, 0)
 
@@ -273,7 +292,7 @@ private val LIST_LITERAL_RULE1: pointer<Rule> = new Rule(new PatternList().pushR
 private val LIST_LITERAL_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACKET).pushRef(EXPRESSION_PARSER).pushRefs(new ParserRefs(SEXPRESSION_PARSER)).pushRegex(Tokenizer.COMMA).pushRegex(Tokenizer.RIGHT_BRACKET), makeListLiteral1, Rule.STARTER_ROLE, 0)
 
 private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
-private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13)
+private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13).addRule(EXPRESSION_RULE14)
 private val SEXPRESSION_PARSER_SETUP: pointer<ParserRef> = SEXPRESSION_PARSER.addRule(SEXPRESSION_RULE0)
 private val EXPRESSION_TUPLE_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_TUPLE_PARSER.addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
 private val LIST_LITERAL_PARSER_SETUP: pointer<ParserRef> = LIST_LITERAL_PARSER.addRule(LIST_LITERAL_RULE0).addRule(LIST_LITERAL_RULE1).addRule(LIST_LITERAL_RULE2)

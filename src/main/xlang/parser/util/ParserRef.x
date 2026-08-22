@@ -29,6 +29,7 @@ import xlang.lexer.TokenList
 import xlang.parser.ParseContainer
 import xlang.parser.PrattParser
 import xlang.parser.RecursiveParser
+import xlang.parser.TypeParser
 
 
 struct ParserRef
@@ -36,6 +37,8 @@ struct ParserRef
     static val RECURSIVE_DOWN: int = 0
 
     static val PRATT: int = 1
+
+    static val TYPE_PARSER: int = 2
 
 
     private var id: int
@@ -51,6 +54,10 @@ struct ParserRef
 
     static fun fromPratt(id: int, host: pointer<PrattParser>) -> pointer<ParserRef> =
         new ParserRef(id, PRATT, host.setId(id))
+
+
+    static fun fromType(id: int) -> pointer<ParserRef> =
+        new ParserRef(id, TYPE_PARSER, new TypeParser(id))
 
 
     private fun __init__(id: int, type: int, host: pointer<*>)
@@ -100,6 +107,12 @@ struct ParserRef
             return parser.parse(tokens, index)
         }
 
+        if this.type == TYPE_PARSER:
+        {
+            val parser: pointer<TypeParser> = this.host as pointer<TypeParser>
+            return parser.parse(tokens, index)
+        }
+
         return -1
     }
 
@@ -133,6 +146,12 @@ struct ParserRef
             return parser.haveError(eaten)
         }
 
+        if this.type == TYPE_PARSER:
+        {
+            val parser: pointer<TypeParser> = this.host as pointer<TypeParser>
+            return parser.haveError(eaten)
+        }
+
         return true
     }
 
@@ -149,6 +168,12 @@ struct ParserRef
         {
             val parser: pointer<PrattParser> = this.host as pointer<PrattParser>
             return parser.getResult() as pointer<ParseContainer>
+        }
+
+        if this.type == TYPE_PARSER:
+        {
+            val parser: pointer<TypeParser> = this.host as pointer<TypeParser>
+            return parser.getResult()
         }
 
         return null
@@ -169,6 +194,12 @@ struct ParserRef
             return parser.getLastError()
         }
 
+        if this.type == TYPE_PARSER:
+        {
+            val parser: pointer<TypeParser> = this.host as pointer<TypeParser>
+            return parser.getError()
+        }
+
         return null
     }
 
@@ -187,6 +218,12 @@ struct ParserRef
         if this.type == PRATT:
         {
             val parser: pointer<PrattParser> = this.host as pointer<PrattParser>
+            return new ParserRef(this.id, this.type, parser.clone())
+        }
+
+        if this.type == TYPE_PARSER:
+        {
+            val parser: pointer<TypeParser> = this.host as pointer<TypeParser>
             return new ParserRef(this.id, this.type, parser.clone())
         }
 

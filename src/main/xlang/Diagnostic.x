@@ -149,6 +149,9 @@ struct Diagnostic
 
     // Diagnostic code for a parser rule that cannot be parsed.
     static val CANNOT_PARSE: int = 11
+
+    // Diagnostic code for a token sequence that cannot start a type.
+    static val CANNOT_PARSE_TYPE: int = 12
     
 
     // Message for an invalid bracket pair table.
@@ -183,6 +186,9 @@ struct Diagnostic
 
     // Message for a parser rule that cannot be parsed.
     static val CANNOT_PARSE_MSG: pointer<char> = "internal error: cannot parse"
+
+    // Message for a token sequence that cannot be parsed as a type.
+    static val CANNOT_PARSE_TYPE_MSG: pointer<char> = "cannot parse type"
 
 
     /**
