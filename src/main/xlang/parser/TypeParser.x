@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2026 Di Wang
+        this.depth--
+        var errorIndex: int = index + consumed
  * SPDX-License-Identifier: MIT
  *
  *
@@ -51,6 +52,7 @@ struct TypeParser
         this.id = id
         this.error = null
         this.result = null
+        this.depth = 0
     }
 
 
@@ -71,6 +73,31 @@ struct TypeParser
         }
 
         val token: pointer<Token> = tokens.get(index)
+
+        if token.kind == Tokenizer.STAR:
+        {
+            if this.depth >= 1:
+            {
+                val parsedType: pointer<Type> = Type.voidType().addToken(token)
+                this.result = new ParseContainer(this.id, parsedType)
+                return 1
+            }
+
+            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+            val location: pointer<SourceLocation> = new SourceLocation(
+                tokens.filePath,
+                token.pos.offset,
+                token.pos.line,
+                token.pos.column,
+                token.pos.length)
+
+            locations.push(location)
+            this.error = Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE_TYPE,
+                locations,
+                Diagnostic.CANNOT_PARSE_TYPE_MSG)
+            return -1
+        }
 
         if token.kind == Tokenizer.KW_BLOB:
             return this.parseBlob(tokens, index)
@@ -119,15 +146,18 @@ struct TypeParser
 
 
         val parsedType: pointer<Type> = new Type(null, token.text, 0).addToken(token).addToken(nextToken)
+        this.depth++
         var consumed: int = 2
 
         while index + consumed < tokens.length():
         {
             val argumentParser: pointer<TypeParser> = this.clone()
+            argumentParser.depth = this.depth
             val argumentLength: int = argumentParser.parse(tokens, index + consumed)
 
             if argumentParser.haveError(argumentLength):
             {
+                this.depth--
                 this.error = argumentParser.getError()
                 return -1
             }
@@ -154,6 +184,7 @@ struct TypeParser
 
             if delimiter.kind == Tokenizer.GREATER:
             {
+                this.depth--
                 consumed++
                 parsedType.addToken(delimiter)
                 this.result = new ParseContainer(this.id, parsedType)
@@ -167,6 +198,7 @@ struct TypeParser
             consumed++
         }
 
+        this.depth--
         var errorIndex: int = index + consumed
 
         if errorIndex >= tokens.length():

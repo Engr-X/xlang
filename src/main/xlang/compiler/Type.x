@@ -47,6 +47,116 @@ import xlang.util.string.String
 struct Type
 {
     /**
+     * Creates the built-in void type descriptor.
+     *
+     * The void type represents the absence of a value and cannot store any data.
+     *
+     * The memory size is zero bytes.
+     *
+     * The void type is used for functions that do not return a value and for
+     * operations where no value is produced.
+     */
+    static fun voidType() -> pointer<Type> = new Type("xlang.primary", "void", 0)
+
+
+    /**
+     * Creates the built-in boolean type descriptor.
+     *
+     * The memory size is one byte.
+     *
+     * Boolean values are represented as a single byte value. A value of zero
+     * represents false, while any non-zero value represents true.
+     */
+    static fun boolType() -> pointer<Type> = new Type("xlang.primary", "bool", 1)
+
+
+    /**
+    * Creates the built-in signed byte type descriptor.
+    *
+    * The memory size is one byte.
+    *
+    * The byte type represents an 8-bit signed integer value.
+    */
+    static fun byteType() -> pointer<Type> = new Type("xlang.primary", "byte", 1)
+
+
+    /**
+     * Creates the built-in signed short integer type descriptor.
+     *
+     * The memory size is two bytes.
+     *
+     * The short type represents a 16-bit signed integer value.
+     */
+    static fun shortType() -> pointer<Type> = new Type("xlang.primary", "short", 2)
+
+
+    /**
+     * Creates the built-in signed integer type descriptor.
+     *
+     * The memory size is four bytes.
+     *
+     * The int type represents a 32-bit signed integer value.
+     */
+    static fun intType() -> pointer<Type> = new Type("xlang.primary", "int", 4)
+
+
+    /**
+     * Creates the built-in signed long integer type descriptor.
+     *
+     * The memory size is eight bytes.
+     *
+     * The long type represents a 64-bit signed integer value.
+     */
+    static fun longType() -> pointer<Type> = new Type("xlang.primary", "long", 8)
+
+
+    /**
+     * Creates the built-in single-precision floating-point type descriptor.
+     *
+     * The memory size is four bytes.
+     *
+     * The float type follows the IEEE 754 single-precision floating-point format.
+     */
+    static fun floatType() -> pointer<Type> = new Type("xlang.primary", "float", 4)
+
+
+    /**
+     * Creates the built-in double-precision floating-point type descriptor.
+     *
+     * The memory size is eight bytes.
+     *
+     * The double type follows the IEEE 754 double-precision floating-point format.
+     */
+    static fun doubleType() -> pointer<Type> = new Type("xlang.primary", "double", 8)
+
+
+    /**
+     * Creates the built-in pointer type descriptor.
+     *
+     * The memory size is eight bytes for the current target model.
+     *
+     * Pointer values store memory addresses and are used to reference objects,
+     * structures, functions, or other memory locations.
+     */
+    static fun pointerType() -> pointer<Type> = new Type("xlang.primary", "pointer", 8).addTypeArgument(voidType())
+
+
+    /**
+     * Creates a built-in fixed-size blob type descriptor.
+     *
+     * A blob represents a raw block of memory with a fixed size and no predefined
+     * interpretation.
+     *
+     * @param memSize number of bytes occupied by the blob value.
+     *
+     * Postconditions:
+     * - The returned type descriptor occupies exactly memSize bytes.
+     * - The blob contents are managed by the owner of the value.
+     */
+    static fun blobType(memSize: int) -> pointer<Type> = new Type("xlang.primary", "blob", memSize)
+
+
+    /**
      * Points to the null-terminated simple type name.
      *
      * Examples include `int`, `Token` and `ArrayList`.
@@ -269,5 +379,47 @@ struct Type
             return null
 
         return typeArgument.copy()
+    }
+
+
+    /**
+     * Returns whether another Type describes the same type shape.
+     *
+     * Package name and simple type name are compared by string content. Type
+     * arguments are compared recursively in order.
+     *
+     * @param other             Type to compare with this Type
+     *
+     * @return                  true when both Type values are equivalent
+     */
+    fun equals(other: pointer<Type>) -> bool
+    {
+        if other == null:
+            return false
+
+        if !String.streq(this.packageName, other.packageName) || !String.streq(this.typeName, other.typeName):
+            return false
+
+        if this.memSize != other.memSize || this.length != other.length:
+            return false
+
+        for (var i: int = 0; i < this.length; i++):
+        {
+            val left: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
+            val right: pointer<Type> = other.typeArguments.get(i) as pointer<Type>
+
+            if left == null || right == null:
+            {
+                if left != right:
+                    return false
+
+                continue
+            }
+
+            if !left.equals(right):
+                return false
+        }
+
+        return true
     }
 }

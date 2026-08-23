@@ -40,7 +40,6 @@ struct Atom
     static val FLOAT_IMM_KIND: int = 5
     static val DOUBLE_IMM_KIND: int = 6
     static val STRING_IMM_KIND: int = 7
-
     static val IDENTIFIER_KIND: int = 8
     static val STATEMENT_ATOM_KIND: int = 9
 
@@ -49,11 +48,21 @@ struct Atom
     
     private val tokens: pointer<ArrayList>
 
+    private val inferredType: pointer<Type>
+
 
     fun __init__(kind: int, tokens: pointer<ArrayList>)
     {
         this.kind = kind
         this.tokens = tokens
+    }
+
+
+    fun infer() -> pointer<Type>
+    {
+        // this.inferredType = if this.kind == NULL_IMM_KIND
+
+        return  this.inferredType
     }
 
 

@@ -39,6 +39,7 @@ import xlang.compiler.parser.ParserTest
 import xlang.parser.ParserUtilTest
 import xlang.parser.PrattParserTest
 import xlang.parser.RecursiveParserTest
+import xlang.parser.TypeParserTest
 import xlang.util.IO
 import xlang.util.ArrayListTest
 import xlang.util.HashSetTest
@@ -51,7 +52,7 @@ private fun getTestGroup() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("xlang")
     val testGroupSpace: blob[sizeof(pointer<TestGroup>) * 100]
-    val testGroupLength: int = 14
+    val testGroupLength: int = 15
     val testGroups: pointer<pointer<TestGroup>> = testGroupSpace as pointer<pointer<TestGroup>>
 
     testGroups[0] = StringTest.TEST_GROUP
@@ -68,6 +69,7 @@ private fun getTestGroup() -> pointer<TestGroup>
     testGroups[11] = ParserTest.TEST_GROUP
     testGroups[12] = RecursiveParserTest.TEST_GROUP
     testGroups[13] = PrattParserTest.TEST_GROUP
+    testGroups[14] = TypeParserTest.TEST_GROUP
 
     for (var i = 0; i < testGroupLength; i++):
     {
