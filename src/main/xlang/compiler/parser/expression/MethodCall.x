@@ -20,7 +20,7 @@
  *
  */
 @file.class("MethodCall")
-package xlang.compiler.parser
+package xlang.compiler.parser.expression
 
 import xlang.Operation
 import xlang.lexer.Token

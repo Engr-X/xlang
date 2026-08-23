@@ -21,7 +21,7 @@
  *
  */
 @file.class("Expression") 
-package xlang.compiler.parser
+package xlang.compiler.parser.expression
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
@@ -37,6 +37,7 @@ struct Expression
     static val METHOD_CALL_KIND: int = 4
     static val INDEX_ACCESS_KIND: int = 5
     static val TYPE_CAST_KIND: int = 6
+    static val ASSIGNMENT_KIND: int = 7
 
 
     static fun fromAtom(atom: pointer<Atom>) -> pointer<Expression> = new Expression(ATOM_KIND, atom)
@@ -56,6 +57,9 @@ struct Expression
 
 
     inline static fun fromTypeCast(castTo: pointer<TypeCast>) -> pointer<Expression> = new Expression(TYPE_CAST_KIND, castTo)
+
+
+    inline static fun fromAssignment(assignment: pointer<Assignment>) -> pointer<Expression> = new Expression(ASSIGNMENT_KIND, assignment)
 
 
     private var kind: int
@@ -126,6 +130,11 @@ struct Expression
             val cast: pointer<TypeCast> = this.root as pointer<TypeCast>
             rootTokens = cast.getAllTokens()
         }
+        elif this.kind == ASSIGNMENT_KIND:
+        {
+            val assignment: pointer<Assignment> = this.root as pointer<Assignment>
+            rootTokens = assignment.getAllTokens()
+        }
         else:
             return null
 
@@ -169,6 +178,12 @@ struct Expression
         {
             val cast: pointer<TypeCast> = this.root as pointer<TypeCast>
             return cast.toString()
+        }
+
+        if this.kind == ASSIGNMENT_KIND:
+        {
+            val assignment: pointer<Assignment> = this.root as pointer<Assignment>
+            return assignment.toString()
         }
 
         return new StringBuilder()

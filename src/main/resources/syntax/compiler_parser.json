@@ -6,7 +6,18 @@
     "imports": [
         "xlang.compiler.Type",
         "xlang.compiler.lexer.Tokenizer",
-        "xlang.lexer.Token"
+        "xlang.lexer.Token",
+        "xlang.compiler.parser.expression.Assignment",
+        "xlang.compiler.parser.expression.Atom",
+        "xlang.compiler.parser.expression.Expression",
+        "xlang.compiler.parser.expression.ExpressionDesugar",
+        "xlang.compiler.parser.expression.ExpressionTuple",
+        "xlang.compiler.parser.expression.FieldAccess",
+        "xlang.compiler.parser.expression.IndexAccess",
+        "xlang.compiler.parser.expression.ListLiteral",
+        "xlang.compiler.parser.expression.MethodCall",
+        "xlang.compiler.parser.expression.SExpression",
+        "xlang.compiler.parser.expression.TypeCast"
     ],
     "constants": [
         "val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)"
@@ -67,9 +78,39 @@
 
                 { "symbol": "inv", "function_name": "inv", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 130 },
 
+                { "symbol": "and", "function_name": "bitwiseAnd", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 120 },
+                { "symbol": "nand", "function_name": "bitwiseNand", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 120 },
+
+                { "symbol": "xor", "function_name": "bitwiseXor", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 110 },
+                { "symbol": "xnor", "function_name": "bitwiseXnor", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 110 },
+
+                { "symbol": "or", "function_name": "bitwiseOr", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 100 },
+                { "symbol": "nor", "function_name": "bitwiseNor", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 100 },
+
+                { "symbol": "implies", "function_name": "implies", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 90 },
+                { "symbol": "nimplies", "function_name": "nimplies", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 90 },
+
+                { "symbol": "iff", "function_name": "iff", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 80 },
+                { "symbol": "niff", "function_name": "niff", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 80 },
+
                 { "symbol": "!", "function_name": "not", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 70 },
 
-                { "symbol": "||", "function_name": "logicalOr", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 40 }
+                { "symbol": "&&", "function_name": "logicalAnd", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 60 },
+                { "symbol": "!&&", "function_name": "logicalNand", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 60 },
+
+                { "symbol": "^", "function_name": "logicalXor", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 50 },
+                { "symbol": "!^", "function_name": "logicalXnor", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 50 },
+
+                { "symbol": "||", "function_name": "logicalOr", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 40 },
+                { "symbol": "!||", "function_name": "logicalNor", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 40 },
+
+                { "symbol": "->", "function_name": "logicalImplies", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 30 },
+                { "symbol": "!->", "function_name": "logicalNimplies", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 30 },
+
+                { "symbol": "<->", "function_name": "logicalIff", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20 },
+                { "symbol": "!<->", "function_name": "logicalNiff", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20 },
+
+                { "symbol": "=", "function_name": "assign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 }
             ],
             "sub_rules": [
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
@@ -118,8 +159,38 @@
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_EQUAL" }, { "kind": "$Expression" }], "operation": "equals", "action": "makeExprFromInfix" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_DOUBLE_EQUAL" }, { "kind": "$Expression" }], "operation": "refEquals", "action": "makeExprFromNotRefEqual" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.NOT_EQUAL" }, { "kind": "$Expression" }], "operation": "equals", "action": "makeExprFromNotEqual" },
+                
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_AND" }, { "kind": "$Expression" }], "operation": "bitwiseAnd", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_NAND" }, { "kind": "$Expression" }], "operation": "bitwiseNand", "action": "makeExprFromBitwiseNand" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_PIPE" }, { "kind": "$Expression" }], "operation": "logicalOr", "action": "makeExprFromInfix" }
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_XOR" }, { "kind": "$Expression" }], "operation": "bitwiseXor", "action": "makeExprFromBitwiseXor" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_XNOR" }, { "kind": "$Expression" }], "operation": "bitwiseXnor", "action": "makeExprFromBitwiseXnor" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_OR" }, { "kind": "$Expression" }], "operation": "bitwiseOr", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_NOR" }, { "kind": "$Expression" }], "operation": "bitwiseNor", "action": "makeExprFromBitwiseNor" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_IMPLIES" }, { "kind": "$Expression" }], "operation": "implies", "action": "makeExprFromImplies" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_NIMPLIES" }, { "kind": "$Expression" }], "operation": "nimplies", "action": "makeExprFromNimplies" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_IFF" }, { "kind": "$Expression" }], "operation": "iff", "action": "makeExprFromIff" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_NIFF" }, { "kind": "$Expression" }], "operation": "niff", "action": "makeExprFromNiff" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_AMPERSAND" }, { "kind": "$Expression" }], "operation": "logicalAnd", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_DOUBLE_AMPERSAND" }, { "kind": "$Expression" }], "operation": "logicalNand", "action": "makeExprFromLogicalNand" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.CARET" }, { "kind": "$Expression" }], "operation": "logicalXor", "action": "makeExprFromLogicalXor" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_CARET" }, { "kind": "$Expression" }], "operation": "logicalXnor", "action": "makeExprFromLogicalXnor" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_PIPE" }, { "kind": "$Expression" }], "operation": "logicalOr", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_DOUBLE_PIPE" }, { "kind": "$Expression" }], "operation": "logicalNor", "action": "makeExprFromLogicalNor" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Expression" }], "operation": "logicalImplies", "action": "makeExprFromLogicalImplies" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.NOT_ARROW" }, { "kind": "$Expression" }], "operation": "logicalNimplies", "action": "makeExprFromLogicalNimplies" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_ARROW" }, { "kind": "$Expression" }], "operation": "logicalIff", "action": "makeExprFromLogicalIff" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_DOUBLE_ARROW" }, { "kind": "$Expression" }], "operation": "logicalNiff", "action": "makeExprFromLogicalNiff" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "operation": "assign", "action": "makeExprFromAssign" }
             ],
             "force_ends": [
                 { "kind": "Tokenizer.RIGHT_PAREN" },
@@ -457,6 +528,35 @@
             "" ],
 
 
+        [   "private fun makeExprFromAssignWith(results: pointer<ArrayList>, subOp: pointer<Operation>) -> pointer<*>",
+            "{",
+            "    val leftSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val rightSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "",
+            "    val leftContainer: pointer<ParseContainer> = leftSlot.deref as pointer<ParseContainer>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val op: pointer<Operation> = toOperation(opToken, Operation.INFIX_TYPE)",
+            "    val rightContainer: pointer<ParseContainer> = rightSlot.deref as pointer<ParseContainer>",
+            "",
+            "    if op == null:",
+            "        return null",
+            "",
+            "    val left: pointer<Expression> = leftContainer.getValue() as pointer<Expression>",
+            "    val right: pointer<Expression> = rightContainer.getValue() as pointer<Expression>",
+            "    val result: pointer<Expression> = ExpressionDesugar.fromAssignWith(op, left, right, subOp)",
+            "",
+            "    if result == null:",
+            "        return null",
+            "",
+            "    return result.addExtraToken(opToken)",
+            "}" ],
+
+
+        [   "private fun makeExprFromAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, null)",
+            "" ],
+
         [   "private fun makeExprFromCompare(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromInfixWith(results, ExpressionDesugar.fromCompare)",
             "" ],
@@ -470,6 +570,87 @@
         [   "private fun makeExprFromNotEqual(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotEqual)",
             "" ],
+
+
+        [   "private fun makeExprFromBitwiseNand(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseNand)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseNor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseNor)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseXor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseXor)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseXnor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseXnor)",
+            "" ],
+
+
+        [   "private fun makeExprFromImplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeImplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromNimplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNimplies)",
+            "" ],
+
+            
+        [   "private fun makeExprFromIff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeIff)",
+            "" ],
+
+
+        [   "private fun makeExprFromNiff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNiff)",
+            "" ],
+
+            
+        [   "private fun makeExprFromLogicalXor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalXor)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalXnor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalXnor)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNand(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNand)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalImplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalImplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNimplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNimplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalIff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalIff)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNiff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNiff)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNor)",
+            "" ],
+
 
         [   "private fun makeExprFromPostfixWith(",
             "    results: pointer<ArrayList>,",

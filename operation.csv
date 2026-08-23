@@ -82,10 +82,9 @@ priority,symbol,token name,operation name (function name)
 1,x >>= y,DOUBLE_GREATER_EQUAL,"assign(x, shr(x, y))"
 1,x <<<= y,TRIPLE_LESS_EQUAL,"assign(x, shl(x, y))"
 1,x >>>= y,TRIPLE_GREATER_EQUAL,"assign(x, ushr(x, y))"
+1,x ~= y,AMPERSAND_EQUAL,"assign(x, inv(x))"
 1,x &= y,AMPERSAND_EQUAL,"assign(x, bitwiseAnd(x, y))"
 1,x !&= y,BANG_AMPERSAND_EQUAL,"assign(x, inv(bitwiseAnd(x, y)))"
-1,x ^= y,CARET_EQUAL,"assign(x, bitwiseOr(bitwiseAnd(x, inv(y)), bitwiseAnd(inv(x), y)))"
-1,x !^= y,BANG_CARET_EQUAL,"assign(x, bitwiseOr(bitwiseAnd(x, y), bitwiseAnd(inv(x), inv(y))))"
 1,x |= y,PIPE_EQUAL,"assign(x, bitwiseOr(x, y))"
 1,x !|= y,BANG_PIPE_EQUAL,"assign(x, inv(bitwiseOr(x, y)))"
 

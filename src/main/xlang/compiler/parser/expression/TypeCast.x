@@ -20,7 +20,7 @@
  *
  */
 @file.class("TypeCast")
-package xlang.compiler.parser
+package xlang.compiler.parser.expression
 
 import xlang.compiler.Type
 import xlang.lexer.Token

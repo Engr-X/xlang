@@ -18,16 +18,17 @@
  *
  *
  *
+ *
  */
-@file.class("ListLiteral")
-package xlang.compiler.parser
+@file.class("ExpressionTuple") 
+package xlang.compiler.parser.expression
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
 
 
-struct ListLiteral
+struct ExpressionTuple
 {
     private var list: pointer<ArrayList>
 
@@ -49,7 +50,7 @@ struct ListLiteral
     }
 
 
-    fun addExpression(expression: pointer<Expression>) -> pointer<ListLiteral>
+    fun addExpression(expression: pointer<Expression>) -> pointer<ExpressionTuple>
     {
         this.list.push(expression.ref)
         return this
@@ -62,7 +63,7 @@ struct ListLiteral
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
 
 
-    fun addExtraToken(token: pointer<Token>) -> pointer<ListLiteral>
+    fun addExtraToken(token: pointer<Token>) -> pointer<ExpressionTuple>
     {
         if token != null:
             this.extraTokens.push(token)
@@ -71,7 +72,7 @@ struct ListLiteral
     }
 
 
-    fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<ListLiteral>
+    fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<ExpressionTuple>
     {
         if tokens != null:
             this.extraTokens.addAll(this.extraTokens.length, tokens)
@@ -101,6 +102,7 @@ struct ListLiteral
         }
 
         result.addAll(result.length, this.extraTokens)
+
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

@@ -11,6 +11,16 @@ import xlang.util.ArrayList
 import xlang.util.HashSet
 
 
+val banAfter: pointer<HashSet> = initBanAfter()
+val banBefore: pointer<HashSet> = initBanBefore()
+
+
+var normalizerIsInit: bool = false
+val ruleLength: int = 8
+val rulesSpace: blob[sizeof(pointer<NormalizeRule>) * 8]
+val rulePtr: pointer<pointer<NormalizeRule>> = rulesSpace as pointer<pointer<NormalizeRule>>
+
+
 private fun tokenKindCmp(left: pointer<*>, right: pointer<*>) -> int
 {
     val lhs: int = (left as pointer<int>).deref
@@ -19,11 +29,9 @@ private fun tokenKindCmp(left: pointer<*>, right: pointer<*>) -> int
     if lhs == rhs:
         return 0
 
-    return if lhs < rhs:
-        -1
-    else:
-        1
+    return (if lhs < rhs: -1 else: 1)
 }
+
 private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashSet>
 {
     var kindSpace: int = kind
@@ -31,6 +39,7 @@ private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashS
 
     return set.add(kindPtr)
 }
+
 private fun addCommonBanKinds(set: pointer<HashSet>)
 {
     addBanKind(set, Tokenizer.DOUBLE_LESS_EQUAL)
@@ -80,6 +89,7 @@ private fun addCommonBanKinds(set: pointer<HashSet>)
     addBanKind(set, Tokenizer.COLON)
     addBanKind(set, Tokenizer.DOT)
 }
+
 private fun initBanAfter() -> pointer<HashSet>
 {
     val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)
@@ -88,6 +98,7 @@ private fun initBanAfter() -> pointer<HashSet>
 
     return result
 }
+
 private fun initBanBefore() -> pointer<HashSet>
 {
     val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)
@@ -96,16 +107,6 @@ private fun initBanBefore() -> pointer<HashSet>
 
     return result
 }
-val banAfter: pointer<HashSet> = initBanAfter()
-val banBefore: pointer<HashSet> = initBanBefore()
-
-
-var normalizerIsInit: bool = false
-val ruleLength: int = 8
-val rulesSpace: blob[sizeof(pointer<NormalizeRule>) * 8]
-val rulePtr: pointer<pointer<NormalizeRule>> = rulesSpace as pointer<pointer<NormalizeRule>>
-
-
 
 private inline fun enterParenthesis(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool
 {

@@ -120,6 +120,11 @@ private fun tokenizeTest() -> int
     if result != 0:
         return 13
 
+    result = compoundSymbolsTest()
+
+    if result != 0:
+        return 14
+
     return 0
 }
 
@@ -165,6 +170,23 @@ private fun checkTokens(input: pointer<char>, kinds: pointer<int>, texts: pointe
     val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
 
     return checkTokenList(tokens, kinds, texts, length)
+}
+
+
+private fun checkTokenAt(tokens: pointer<TokenList>, index: int, kind: int, text: pointer<char>) -> int
+{
+    if tokens == null || index < 0 || index >= tokens.length():
+        return 1
+
+    val token: pointer<Token> = tokens.get(index)
+
+    if token == null || token.kind != kind:
+        return 1
+
+    if !String.streq(token.text, text):
+        return 1
+
+    return 0
 }
 
 
@@ -528,6 +550,59 @@ private fun symbolsTest() -> int
     texts[27] = Token.EOF_STRING
 
     return checkTokens("a<<=1; b>>=2; c!^=3; d**=4; e->f; g===h; i!==j", kinds, texts, 28)
+}
+
+
+private fun compoundSymbolsTest() -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.tokenize("inv !x; a xor b; a xnor b; a implies b; a nimplies b; a !&& b; a !|| b; a !^ b; a -> b; a !-> b; a <-> b; a !<-> b; a ~= b")
+
+    if tokens == null || tokens.length() != 52:
+        return 1
+
+    if checkTokenAt(tokens, 0, Tokenizer.KW_INV, "inv") != 0:
+        return 2
+
+    if checkTokenAt(tokens, 1, Tokenizer.BANG, "!") != 0:
+        return 3
+
+    if checkTokenAt(tokens, 5, Tokenizer.KW_XOR, "xor") != 0:
+        return 4
+
+    if checkTokenAt(tokens, 9, Tokenizer.KW_XNOR, "xnor") != 0:
+        return 5
+
+    if checkTokenAt(tokens, 13, Tokenizer.KW_IMPLIES, "implies") != 0:
+        return 6
+
+    if checkTokenAt(tokens, 17, Tokenizer.KW_NIMPLIES, "nimplies") != 0:
+        return 7
+
+    if checkTokenAt(tokens, 21, Tokenizer.BANG_DOUBLE_AMPERSAND, "!&&") != 0:
+        return 8
+
+    if checkTokenAt(tokens, 25, Tokenizer.BANG_DOUBLE_PIPE, "!||") != 0:
+        return 9
+
+    if checkTokenAt(tokens, 29, Tokenizer.BANG_CARET, "!^") != 0:
+        return 10
+
+    if checkTokenAt(tokens, 33, Tokenizer.ARROW, "->") != 0:
+        return 11
+
+    if checkTokenAt(tokens, 37, Tokenizer.NOT_ARROW, "!->") != 0:
+        return 12
+
+    if checkTokenAt(tokens, 41, Tokenizer.DOUBLE_ARROW, "<->") != 0:
+        return 13
+
+    if checkTokenAt(tokens, 45, Tokenizer.BANG_DOUBLE_ARROW, "!<->") != 0:
+        return 14
+
+    if checkTokenAt(tokens, 49, Tokenizer.TILDE_EQUAL, "~=") != 0:
+        return 15
+
+    return 0
 }
 
 

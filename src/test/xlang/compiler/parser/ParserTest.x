@@ -24,11 +24,19 @@
 package xlang.compiler.parser
 
 import xlang.compiler.Type
+import xlang.System
 import xlang.compiler.lexer.Tokenizer
+import xlang.compiler.parser.expression.Atom
+import xlang.compiler.parser.expression.Expression
+import xlang.compiler.parser.expression.FieldAccess
+import xlang.compiler.parser.expression.IndexAccess
+import xlang.compiler.parser.expression.MethodCall
+import xlang.compiler.parser.expression.TypeCast
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
 import xlang.util.string.String
+import xlang.util.string.StringBuilder
 import xlang.test.TestCase
 import xlang.test.TestGroup
 import xlang.test.TestUnion
@@ -51,6 +59,7 @@ fun genTest() -> pointer<TestGroup>
     val postfixExpressionTC: pointer<TestCase> = new TestCase("postfixExpression", postfixExpressionTest)
     val typeCastExpressionTC: pointer<TestCase> = new TestCase("typeCastExpression", typeCastExpressionTest)
     val infixExpressionTC: pointer<TestCase> = new TestCase("infixExpression", infixExpressionTest)
+    val compoundOperatorExpressionTC: pointer<TestCase> = new TestCase("compoundOperatorExpression", compoundOperatorExpressionTest)
     val mixedExpressionTC: pointer<TestCase> = new TestCase("mixedExpression", mixedExpressionTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
@@ -63,6 +72,7 @@ fun genTest() -> pointer<TestGroup>
     val postfixExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, postfixExpressionTC, null)
     val typeCastExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, typeCastExpressionTC, null)
     val infixExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, infixExpressionTC, null)
+    val compoundOperatorExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, compoundOperatorExpressionTC, null)
     val mixedExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, mixedExpressionTC, null)
 
     result.addTestUnion(atomParserUnion)
@@ -76,6 +86,7 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(postfixExpressionUnion)
     result.addTestUnion(typeCastExpressionUnion)
     result.addTestUnion(infixExpressionUnion)
+    result.addTestUnion(compoundOperatorExpressionUnion)
     result.addTestUnion(mixedExpressionUnion)
 
     return result
@@ -103,6 +114,21 @@ private fun hasRootMethodCall(input: pointer<char>, callName: pointer<char>) -> 
     val call: pointer<MethodCall> = getRootMethodCall(parseExpressionText(input))
 
     return call != null && String.streq(call.getCallName(), callName)
+}
+
+
+private fun expressionTextEquals(input: pointer<char>, expected: pointer<char>) -> bool
+{
+    val expression: pointer<Expression> = parseExpressionText(input)
+
+    if expression == null:
+        return false
+
+    val builder: pointer<StringBuilder> = expression.toString()
+    val actual: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
+
+    builder.toString(actual)
+    return String.streq(actual, expected)
 }
 
 
@@ -558,6 +584,53 @@ private fun infixExpressionTest() -> int
 
     return 0
 }
+private fun compoundOperatorExpressionTest() -> int
+{
+    if !expressionTextEquals("inv x", "inv(x)"):
+        return 1
+
+    if !expressionTextEquals("!x", "not(x)"):
+        return 2
+
+    if !expressionTextEquals("x xor y", "bitwiseOr(bitwiseAnd(x, inv(y)), bitwiseAnd(inv(x), y))"):
+        return 3
+
+    if !expressionTextEquals("x xnor y", "bitwiseOr(bitwiseAnd(x, y), bitwiseAnd(inv(x), inv(y)))"):
+        return 4
+
+    if !expressionTextEquals("x implies y", "bitwiseOr(inv(x), y)"):
+        return 5
+
+    if !expressionTextEquals("x nimplies y", "bitwiseAnd(x, inv(y))"):
+        return 6
+
+    if !expressionTextEquals("x ^ y", "logicalOr(logicalAnd(x, not(y)), logicalAnd(not(x), y))"):
+        return 7
+
+    if !expressionTextEquals("x !^ y", "logicalOr(logicalAnd(x, y), logicalAnd(not(x), not(y)))"):
+        return 8
+
+    if !expressionTextEquals("x -> y", "logicalOr(not(x), y)"):
+        return 9
+
+    if !expressionTextEquals("x !-> y", "logicalAnd(x, not(y))"):
+        return 10
+
+    if !expressionTextEquals("x <-> y", "logicalOr(logicalAnd(x, y), logicalAnd(not(x), not(y)))"):
+        return 11
+
+    if !expressionTextEquals("x !<-> y", "logicalOr(logicalAnd(x, not(y)), logicalAnd(not(x), y))"):
+        return 12
+
+    if !expressionTextEquals("x !&& y", "not(logicalAnd(x, y))"):
+        return 13
+
+    if !expressionTextEquals("x !|| y", "not(logicalOr(x, y))"):
+        return 14
+
+    return 0
+}
+
 private fun mixedExpressionTest() -> int
 {
     val expression: pointer<Expression> = parseExpressionText("f(1 + 2 * 3, a.b(4)[5 + -x]++, y as double) - z--")

@@ -20,7 +20,7 @@
  *
  */
 @file.class("IndexAccess")
-package xlang.compiler.parser
+package xlang.compiler.parser.expression
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition

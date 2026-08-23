@@ -27,7 +27,7 @@ package xlang.compiler
 
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
-import xlang.compiler.parser.Expression
+import xlang.compiler.parser.expression.Expression
 import xlang.compiler.parser.Parser
 import xlang.lexer.Token
 import xlang.lexer.TokenList
