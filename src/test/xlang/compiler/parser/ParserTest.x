@@ -628,6 +628,48 @@ private fun compoundOperatorExpressionTest() -> int
     if !expressionTextEquals("x !|| y", "not(logicalOr(x, y))"):
         return 14
 
+    if !expressionTextEquals("x **= y", "(x = pow(x, y))"):
+        return 15
+
+    if !expressionTextEquals("x *= y", "(x = times(x, y))"):
+        return 16
+
+    if !expressionTextEquals("x /= y", "(x = div(x, y))"):
+        return 17
+
+    if !expressionTextEquals("x %= y", "(x = rem(x, y))"):
+        return 18
+
+    if !expressionTextEquals("x += y", "(x = plus(x, y))"):
+        return 19
+
+    if !expressionTextEquals("x -= y", "(x = minus(x, y))"):
+        return 20
+
+    if !expressionTextEquals("x <<= y", "(x = shl(x, y))"):
+        return 21
+
+    if !expressionTextEquals("x >>= y", "(x = shr(x, y))"):
+        return 22
+
+    if !expressionTextEquals("x <<<= y", "(x = shl(x, y))"):
+        return 23
+
+    if !expressionTextEquals("x >>>= y", "(x = ushr(x, y))"):
+        return 24
+
+    if !expressionTextEquals("x &= y", "(x = bitwiseAnd(x, y))"):
+        return 25
+
+    if !expressionTextEquals("x !&= y", "(x = inv(bitwiseAnd(x, y)))"):
+        return 26
+
+    if !expressionTextEquals("x |= y", "(x = bitwiseOr(x, y))"):
+        return 27
+
+    if !expressionTextEquals("x !|= y", "(x = inv(bitwiseOr(x, y)))"):
+        return 28
+
     return 0
 }
 

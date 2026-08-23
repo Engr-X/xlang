@@ -208,19 +208,58 @@ def getOperationSymbol(operation: JsonObject) -> str:
     return symbol
 
 
-def genOperationFunctionName(operation: JsonObject) -> str:
+def getOperationFunctionName(operation: JsonObject) -> str | None:
     value = operation.get(
         "function_name",
         operation.get("functionName", operation.get("lowering_name", None)),
     )
 
     if value is None:
-        return "null"
+        return None
 
     if not isinstance(value, str) or not value:
         raise ValueError(f"operation function_name must be a non-empty string or null: {operation!r}")
 
+    return value
+
+
+def genOperationFunctionName(operation: JsonObject) -> str:
+    value = getOperationFunctionName(operation)
+
+    if value is None:
+        return "null"
+
     return json.dumps(value)
+
+
+def toOperationNamePart(value: str) -> str:
+    result: list[str] = []
+    previous_was_separator = True
+
+    for index, char in enumerate(value):
+        if char.isalnum():
+            if char.isupper() and index > 0 and not previous_was_separator:
+                result.append("_")
+
+            result.append(char.upper())
+            previous_was_separator = False
+        else:
+            if not previous_was_separator:
+                result.append("_")
+                previous_was_separator = True
+
+    while result and result[-1] == "_":
+        result.pop()
+
+    name = "".join(result)
+
+    if not name:
+        name = "OPERATION"
+
+    if name[0].isdigit():
+        name = f"OPERATION_{name}"
+
+    return name
 
 
 def genOperationExpr(value: object, name: str, operation: JsonObject) -> str:
@@ -248,17 +287,15 @@ def genOperationId(operation: JsonObject, default_id: int) -> int:
     return value
 
 
-def genOperationValueName(index: int) -> str:
-    return f"OPERATION{index}"
+def genOperationValueName(operation: JsonObject, index: int) -> str:
+    function_name = getOperationFunctionName(operation)
+    name_source = function_name if function_name is not None else getOperationSymbol(operation)
+
+    return f"OP_{toOperationNamePart(name_source)}"
 
 
-def genPrattOperationValueName(rule: JsonObject, index: int) -> str:
-    parser_name = getParserName(rule)
-
-    if parser_name.endswith("_PARSER"):
-        return f"{parser_name[:-7]}_OPERATION{index}"
-
-    return f"{parser_name}_OPERATION{index}"
+def genPrattOperationValueName(rule: JsonObject, operation: JsonObject, index: int) -> str:
+    return genOperationValueName(operation, index)
 
 
 def getOperationValueName(operation: JsonObject, default_name: str) -> str:
@@ -296,7 +333,7 @@ def genOperationDecls(operations: list[JsonObject], tabs: int) -> str:
     lines: list[str] = []
 
     for index, operation in enumerate(operations):
-        name = getOperationValueName(operation, genOperationValueName(index))
+        name = getOperationValueName(operation, genOperationValueName(operation, index))
         lines.append(genOperationDecl(name, operation, index, tabs))
 
     return "\n".join(lines) + "\n\n\n"
@@ -538,7 +575,7 @@ def getPrattSubRuleOperation(rule: JsonObject, sub_rule: JsonObject, index: int)
         return "null"
 
     if isinstance(operation, dict):
-        return getOperationValueName(operation, genPrattOperationValueName(rule, index))
+        return getOperationValueName(operation, genPrattOperationValueName(rule, operation, index))
 
     if not isinstance(operation, str) or not operation:
         raise ValueError(f"pratt sub rule operation must be a non-empty operation reference or null: {sub_rule!r}")
@@ -549,12 +586,9 @@ def getPrattSubRuleOperation(rule: JsonObject, sub_rule: JsonObject, index: int)
     for operation_index, operation_def in enumerate(getRuleOperations(rule)):
         operation_name = getOperationValueName(
             operation_def,
-            genPrattOperationValueName(rule, operation_index),
+            genPrattOperationValueName(rule, operation_def, operation_index),
         )
-        function_name = operation_def.get(
-            "function_name",
-            operation_def.get("functionName", operation_def.get("lowering_name", None)),
-        )
+        function_name = getOperationFunctionName(operation_def)
 
         if function_name == operation:
             function_matches.append(operation_name)
@@ -624,7 +658,7 @@ def genPrattOperationLookupDecls(rules: list[JsonObject], tabs: int) -> str:
                 for operation_index, operation_def in enumerate(getRuleOperations(rule)):
                     operation_name = getOperationValueName(
                         operation_def,
-                        genPrattOperationValueName(rule, operation_index),
+                        genPrattOperationValueName(rule, operation_def, operation_index),
                     )
 
                     if operation_name == operation_expr:
@@ -660,13 +694,14 @@ def genPrattOperationLookupDecls(rules: list[JsonObject], tabs: int) -> str:
         f"{indent}    return null",
         f"{indent}}}",
     ]) + "\n\n"
+
 def getOperationPriorityMap(rule: JsonObject) -> dict[str, int]:
     result: dict[str, int] = {}
 
     for operation_index, operation in enumerate(getRuleOperations(rule)):
         name = getOperationValueName(
             operation,
-            genPrattOperationValueName(rule, operation_index),
+            genPrattOperationValueName(rule, operation, operation_index),
         )
         result[name] = genOperationPriority(operation)
 
@@ -762,7 +797,7 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
         for operation_index, operation in enumerate(getRuleOperations(rule)):
             operation_expr = getOperationValueName(
                 operation,
-                genPrattOperationValueName(rule, operation_index),
+                genPrattOperationValueName(rule, operation, operation_index),
             )
 
             if operation_expr not in emitted_operations:

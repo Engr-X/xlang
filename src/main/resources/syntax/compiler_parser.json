@@ -110,7 +110,21 @@
                 { "symbol": "<->", "function_name": "logicalIff", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20 },
                 { "symbol": "!<->", "function_name": "logicalNiff", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 20 },
 
-                { "symbol": "=", "function_name": "assign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 }
+                { "symbol": "=", "function_name": "assign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "**=", "function_name": "powAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "*=", "function_name": "timesAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "/=", "function_name": "divAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "%=", "function_name": "remAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "+=", "function_name": "plusAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "-=", "function_name": "minusAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "<<=", "function_name": "shlAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": ">>=", "function_name": "shrAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "<<<=", "function_name": "ushlAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": ">>>=", "function_name": "ushrAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "&=", "function_name": "bitwiseAndAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "!&=", "function_name": "bitwiseNandAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "|=", "function_name": "bitwiseOrAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 },
+                { "symbol": "!|=", "function_name": "bitwiseNorAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 }
             ],
             "sub_rules": [
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
@@ -190,7 +204,21 @@
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_ARROW" }, { "kind": "$Expression" }], "operation": "logicalIff", "action": "makeExprFromLogicalIff" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_DOUBLE_ARROW" }, { "kind": "$Expression" }], "operation": "logicalNiff", "action": "makeExprFromLogicalNiff" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "operation": "assign", "action": "makeExprFromAssign" }
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "operation": "assign", "action": "makeExprFromAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_STAR_EQUAL" }, { "kind": "$Expression" }], "operation": "powAssign", "action": "makeExprFromPowAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.STAR_EQUAL" }, { "kind": "$Expression" }], "operation": "timesAssign", "action": "makeExprFromTimesAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.SLASH_EQUAL" }, { "kind": "$Expression" }], "operation": "divAssign", "action": "makeExprFromDivAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PERCENT_EQUAL" }, { "kind": "$Expression" }], "operation": "remAssign", "action": "makeExprFromRemAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PLUS_EQUAL" }, { "kind": "$Expression" }], "operation": "plusAssign", "action": "makeExprFromPlusAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.MINUS_EQUAL" }, { "kind": "$Expression" }], "operation": "minusAssign", "action": "makeExprFromMinusAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_LESS_EQUAL" }, { "kind": "$Expression" }], "operation": "shlAssign", "action": "makeExprFromShlAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_GREATER_EQUAL" }, { "kind": "$Expression" }], "operation": "shrAssign", "action": "makeExprFromShrAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TRIPLE_LESS_EQUAL" }, { "kind": "$Expression" }], "operation": "ushlAssign", "action": "makeExprFromUshlAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TRIPLE_GREATER_EQUAL" }, { "kind": "$Expression" }], "operation": "ushrAssign", "action": "makeExprFromUshrAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.AMPERSAND_EQUAL" }, { "kind": "$Expression" }], "operation": "bitwiseAndAssign", "action": "makeExprFromBitwiseAndAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_AMPERSAND_EQUAL" }, { "kind": "$Expression" }], "operation": "bitwiseNandAssign", "action": "makeExprFromBitwiseNandAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PIPE_EQUAL" }, { "kind": "$Expression" }], "operation": "bitwiseOrAssign", "action": "makeExprFromBitwiseOrAssign" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_PIPE_EQUAL" }, { "kind": "$Expression" }], "operation": "bitwiseNorAssign", "action": "makeExprFromBitwiseNorAssign" }
             ],
             "force_ends": [
                 { "kind": "Tokenizer.RIGHT_PAREN" },
@@ -553,10 +581,6 @@
             "}" ],
 
 
-        [   "private fun makeExprFromAssign(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromAssignWith(results, null)",
-            "" ],
-
         [   "private fun makeExprFromCompare(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromInfixWith(results, ExpressionDesugar.fromCompare)",
             "" ],
@@ -677,6 +701,112 @@
 
         [   "private fun makeExprFromPostfix(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromPostfixWith(results, ExpressionDesugar.fromPostfix)",
+            "" ],
+
+
+        [   "private fun makeExprFromAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, null)",
+            "" ],
+
+
+        [   "private fun makeExprFromPowAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_POW)",
+            "" ],
+
+
+        [   "private fun makeExprFromTimesAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_TIMES)",
+            "" ],
+
+
+        [   "private fun makeExprFromDivAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_DIV)",
+            "" ],
+
+
+        [   "private fun makeExprFromRemAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_REM)",
+            "" ],
+
+
+        [   "private fun makeExprFromPlusAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_PLUS)",
+            "" ],
+
+
+        [   "private fun makeExprFromMinusAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_MINUS)",
+            "" ],
+
+
+        [   "private fun makeExprFromShlAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_SHL)",
+            "" ],
+
+
+        [   "private fun makeExprFromShrAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_SHR)",
+            "" ],
+
+
+        [   "private fun makeExprFromUshlAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_SHL)",
+            "" ],
+
+
+        [   "private fun makeExprFromUshrAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_USHR)",
+            "" ],
+
+        [   "private fun makeExprFromAssignWithBuilder(",
+            "    results: pointer<ArrayList>,",
+            "    build: (pointer<Operation>, pointer<Expression>, pointer<Expression>) -> pointer<Expression>) -> pointer<*>",
+            "{",
+            "    val leftSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val rightSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "",
+            "    val leftContainer: pointer<ParseContainer> = leftSlot.deref as pointer<ParseContainer>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val op: pointer<Operation> = toOperation(opToken, Operation.INFIX_TYPE)",
+            "    val rightContainer: pointer<ParseContainer> = rightSlot.deref as pointer<ParseContainer>",
+            "",
+            "    if op == null:",
+            "        return null",
+            "",
+            "    val left: pointer<Expression> = leftContainer.getValue() as pointer<Expression>",
+            "    val right: pointer<Expression> = rightContainer.getValue() as pointer<Expression>",
+            "    val value: pointer<Expression> = build(op, left, right)",
+            "",
+            "    if value == null:",
+            "        return null",
+            "",
+            "    val result: pointer<Expression> = ExpressionDesugar.fromAssignWith(op, left, value, null)",
+            "",
+            "    if result == null:",
+            "        return null",
+            "",
+            "    return result.addExtraToken(opToken)",
+            "}" ],
+
+
+        [   "private fun makeExprFromBitwiseAndAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_BITWISE_AND)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseNandAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWithBuilder(results, ExpressionDesugar.makeBitwiseNand)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseOrAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWith(results, OP_BITWISE_OR)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseNorAssign(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromAssignWithBuilder(results, ExpressionDesugar.makeBitwiseNor)",
             "" ]
     ]
 }
