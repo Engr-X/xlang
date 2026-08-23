@@ -286,6 +286,7 @@ tests = testGroup "Parse.ParseExpr" [
     blockExprParseTests,
     ifAssignSugarParseTests,
     sizeofParseTests,
+    chainedMemberParseTests,
     pointerSuffixParseTests
     ]
 
@@ -728,6 +729,41 @@ pointerSuffixParseTests = testGroup "Parse.ParseExpr.pointerSuffix" [
                     (Variable "j" _)
                     _)
                 _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other)
+    ]
+
+
+chainedMemberParseTests :: TestTree
+chainedMemberParseTests = testGroup "Parse.ParseExpr.chainedMember" [
+    testCase "call result supports member call chain" $
+        case replLexparseExpr "a.b().c().d()" of
+            Right (Call
+                (Member
+                    (Call
+                        (Member
+                            (Call (Qualified ["a", "b"] _) [])
+                            "c"
+                            _)
+                        [])
+                    "d"
+                    _)
+                []) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "call result supports member access" $
+        case replLexparseExpr "a.b().c" of
+            Right (Member (Call (Qualified ["a", "b"] _) []) "c" _) -> pure ()
+            other -> assertFailure ("unexpected parse result: " ++ show other),
+
+    testCase "member call can carry explicit generic arguments" $
+        case replLexparseExpr "a.b().c::<int>()" of
+            Right (CallT
+                (Member
+                    (Call (Qualified ["a", "b"] _) [])
+                    "c"
+                    _)
+                [(Int32T, _)]
+                []) -> pure ()
             other -> assertFailure ("unexpected parse result: " ++ show other)
     ]
 

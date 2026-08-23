@@ -378,7 +378,7 @@ lowerWithUses path (decls, stmts) vUses fUses =
 
         isStructOwnedSymbol :: String -> String -> Bool
         isStructOwnedSymbol sym ownerCls =
-            sym == (ownerCls ++ "$$size") || (ownerCls ++ "$") `isPrefixOf` sym
+            sym == (ownerCls ++ "$__SIZE__") || (ownerCls ++ "$") `isPrefixOf` sym
 
         -- | Cross-platform file-name extraction without depending on System.FilePath.
         takeFileName :: FilePath -> FilePath

@@ -1,5 +1,6 @@
-module IR.TACLowingTest where
+﻿module IR.TACLowingTest where
 
+import Control.Exception (SomeException, evaluate, try)
 import Control.Monad.State.Strict (evalState)
 import IR.TAC (IRAtom(..), IRFunction(..), IRMemberType(..))
 import IR.TACLowing
@@ -802,12 +803,14 @@ sizeofLoweringTests = testGroup "IR.TACLowing.sizeof" [
         nodes @?= []
         outAtom @?= TAC.Int32C 4,
 
-    testCase "sizeof(struct type) folds to pointer size" $ do
+    testCase "raw sizeof(struct type) requires struct normalization" $ do
         let expr = AST.SizeOfType (Class ["Token"] [], [LT.dummyToken]) LT.dummyToken
             st0 = TAC.mkTACState Map.empty Map.empty
-            (nodes, outAtom) = evalState (TAC.runTACM (exprLowing expr)) st0
-        nodes @?= []
-        outAtom @?= TAC.Int32C 8,
+            lowered = evalState (TAC.runTACM (exprLowing expr)) st0
+        res <- try (evaluate lowered) :: IO (Either SomeException ([IRNode], IRAtom))
+        case res of
+            Left _ -> pure ()
+            Right (_, outAtom) -> assertFailure ("unexpected raw struct sizeof result: " ++ show outAtom),
 
     testCase "sizeof(variable) uses type only and folds to constant atom" $ do
         let posA = makePosition 20 1 1
@@ -826,17 +829,17 @@ sizeofLoweringTests = testGroup "IR.TACLowing.sizeof" [
 
 structClassSplitTests :: TestTree
 structClassSplitTests = testGroup "IR.TACLowing.structClassSplit" [
-    testCase "detect struct owner names from generated $$size symbols" $ do
+    testCase "detect struct owner names from generated __SIZE__ symbols" $ do
         let stmts =
-                [ AST.DefConstVar ["people$$size"] (Just Int32T) (Just (AST.IntConst "32" LT.dummyToken)) [LT.dummyToken]
-                , AST.DefConstVar ["node$$size"] (Just Int32T) (Just (AST.IntConst "16" LT.dummyToken)) [LT.dummyToken]
+                [ AST.DefConstVar ["people$__SIZE__"] (Just Int32T) (Just (AST.IntConst "32" LT.dummyToken)) [LT.dummyToken]
+                , AST.DefConstVar ["node$__SIZE__"] (Just Int32T) (Just (AST.IntConst "16" LT.dummyToken)) [LT.dummyToken]
                 , AST.DefConstVar ["x"] (Just Int32T) (Just (AST.IntConst "1" LT.dummyToken)) [LT.dummyToken]
                 ]
             names = structNamePrefixes stmts
         names @?= ["people", "node"],
 
     testCase "split struct-owned generated members into dedicated buckets" $ do
-        let peopleSize = AST.DefConstVar ["people$$size"] (Just Int32T) (Just (AST.IntConst "32" LT.dummyToken)) [LT.dummyToken]
+        let peopleSize = AST.DefConstVar ["people$__SIZE__"] (Just Int32T) (Just (AST.IntConst "32" LT.dummyToken)) [LT.dummyToken]
             peopleInit = AST.Function (Void, [LT.dummyToken]) (AST.Variable "people$__init__" LT.dummyToken) [] (AST.Multiple [])
             mainFun = AST.Function (Void, [LT.dummyToken]) (AST.Variable "main" LT.dummyToken) [] (AST.Multiple [])
             stmts = [peopleSize, peopleInit, mainFun]
@@ -905,6 +908,7 @@ tests = testGroup "IR.TACLowing" [
     functionPointerLoweringTests,
     structClassSplitTests
     ]
+
 
 
 

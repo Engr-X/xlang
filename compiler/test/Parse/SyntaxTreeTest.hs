@@ -1,4 +1,4 @@
-module Parse.SyntaxTreeTest where
+﻿module Parse.SyntaxTreeTest where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -848,16 +848,15 @@ normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram
         assertBool "sb.length should not remain as an unresolved qualified name" (not hasRawQualified)
         assertBool "sb.length should lower to a struct-field dereference" hasFieldLoad
     ,
-    testCase "sizeof(struct) uses type size and memSize returns struct storage size" $ do
+    testCase "sizeof(struct) rewrites to struct storage size" $ do
         let tokStruct = mkIdD "struct"
             tokToken = mkIdD "Token"
             tokMain = mkIdD "main"
             tokSizeof = mkIdD "sizeof"
             tokPointer = mkIdD "pointer"
-            tokMemSize = mkIdD "memSize"
             tokDirect = mkIdD "direct"
             tokPtr = mkIdD "ptr"
-            tokMem = mkIdD "mem"
+            tokByName = mkIdD "byName"
             tokA = mkIdD "a"
             tokB = mkIdD "b"
             tokC = mkIdD "c"
@@ -880,9 +879,9 @@ normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram
                         , DefConstVar ["ptr"] (Just Int32T)
                             (Just (SizeOfType (Pointer (Class ["Token"] []), [tokPointer, tokToken]) tokSizeof))
                             [tokPtr]
-                        , DefConstVar ["mem"] (Just Int32T)
-                            (Just (Call (Qualified ["Token", "memSize"] [tokToken, tokMemSize]) []))
-                            [tokMem]
+                        , DefConstVar ["byName"] (Just Int32T)
+                            (Just (SizeOfExpr (Variable "Token" tokToken) tokSizeof))
+                            [tokByName]
                         ])
 
             (_, outStmts) = normalizeProgram ([], [structStmt, mainStmt])
@@ -895,21 +894,15 @@ normalizeStructProgramTests = testGroup "Parse.SyntaxTree.normalizeStructProgram
                 (e:_) -> Just e
                 [] -> Nothing
 
-            memSizeFns =
-                [ body
-                | Function _ (Variable "Token$memSize" _) [] body <- outStmts
-                ]
-
-        initOf "direct" @?= Just (SizeOfType (Class ["Token"] [], [tokToken]) tokSizeof)
+        case initOf "direct" of
+            Just (IntConst "32" _) -> pure ()
+            other -> assertFailure ("unexpected direct sizeof rewrite: " ++ show other)
         case initOf "ptr" of
             Just (SizeOfType (Pointer (Class ["Token"] []), _) _) -> pure ()
             other -> assertFailure ("unexpected pointer sizeof rewrite: " ++ show other)
-        case initOf "mem" of
-            Just (Call (Variable "Token$memSize" _) []) -> pure ()
-            other -> assertFailure ("unexpected memSize call rewrite: " ++ show other)
-        case memSizeFns of
-            [Multiple [Command (Return (Just (IntConst "32" _))) _]] -> pure ()
-            other -> assertFailure ("unexpected generated memSize body: " ++ show other)
+        case initOf "byName" of
+            Just (IntConst "32" _) -> pure ()
+            other -> assertFailure ("unexpected sizeof-name rewrite: " ++ show other)
     ,
     testCase "rewrite struct static/member access and bare method call sugar" $ do
         let tokStruct = mkIdD "struct"
@@ -1567,3 +1560,4 @@ tests = testGroup "Parse.SyntaxTree" [
     isFunctionTests, isFunctionTTests, isAssignmentTests, declPathTests, getPackageTests,
     collectInputProgramTests, collectInputProgramsTests, promoteTopLevelFunctionsTests, normalizeProgramForLoweringTests, normalizeStructProgramTests]
     
+

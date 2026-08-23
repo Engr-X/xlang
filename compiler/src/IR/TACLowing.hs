@@ -1,4 +1,4 @@
-{-# LANGUAGE HexFloatLiterals #-}
+﻿{-# LANGUAGE HexFloatLiterals #-}
 {-# LANGUAGE TupleSections #-}
 
 
@@ -56,40 +56,23 @@ data PtrSuffixOp
 
 
 -- Keep TAC function signatures aligned with semantic type aliases.
--- In particular, user class types at top-level positions are auto-referenced.
+-- User class types stay as value types; pointer<T> must be explicit.
 normalizeTypeAliasLocal :: Class -> Class
-normalizeTypeAliasLocal = go True
+normalizeTypeAliasLocal = go
   where
-    go :: Bool -> Class -> Class
-    go top cls = case cls of
+    go :: Class -> Class
+    go cls = case cls of
         Class ["String"] [] -> Class ["String"] []
         Class ["java", "lang", "String"] [] -> Class ["String"] []
         Class ["xlang", "String"] [] -> Class ["String"] []
         Class ["Any"] [] -> Class ["Any"] []
         Class ["xlang", "Any"] [] -> Class ["Any"] []
         Class ["java", "lang", "Object"] [] -> Class ["Any"] []
-        Pointer inner -> Pointer (go False inner)
-        FuncPtr ret args -> FuncPtr (go True ret) (map (go True) args)
-        Class qn args ->
-            let clsN = Class qn (map (go True) args)
-            in if top && shouldAutoRefUserClass clsN
-                then Pointer clsN
-                else clsN
+        Blob e -> AST.normalizeClass (Blob e)
+        Pointer inner -> Pointer (go inner)
+        FuncPtr ret args -> FuncPtr (go ret) (map go args)
+        Class qn args -> Class qn (map go args)
         other -> other
-
-    shouldAutoRefUserClass :: Class -> Bool
-    shouldAutoRefUserClass c = case c of
-        Class ["String"] [] -> False
-        Class ["Any"] [] -> False
-        Class qn [] -> not (isTemplateTypeName (last qn))
-        _ -> False
-
-    isTemplateTypeName :: String -> Bool
-    isTemplateTypeName [] = False
-    isTemplateTypeName s = all toUpperAscii s
-
-    toUpperAscii :: Char -> Bool
-    toUpperAscii ch = ch >= 'A' && ch <= 'Z'
 
 
 parsePointerSuffixQualified :: [String] -> [Token] -> Maybe (String, Token, [PtrSuffixOp])
@@ -561,7 +544,7 @@ sizeofClassBytesIR cls0 = case AST.normalizeClass cls0 of
     Float128T -> Just 16
     Pointer _ -> Just 8
     FuncPtr _ _ -> Just 8
-    Class _ _ -> Just 8
+    Class _ _ -> Nothing
     Blob _ -> AST.blobConstSizeMaybe cls0
     Void -> Nothing
     ErrorClass -> Nothing
@@ -1261,12 +1244,15 @@ exprLowing (AST.Call funName params) = do
             mFunInfo <- case funName of
                 AST.Variable _ tok -> TAC.lookupFunctionMaybe [tokenPos tok]
                 AST.Qualified _ toks -> TAC.lookupFunctionMaybe (map tokenPos toks)
+                AST.Member _ _ _ -> TAC.lookupFunctionMaybe (map tokenPos (AST.exprTokens funName))
                 _ -> pure Nothing
             case mFunInfo of
                 Just funInfo -> case funInfo of
                     TEnv.FunLocal _ qname sig -> do
                         let retT = TEnv.funReturn sig
-                        (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
+                        let paramTs = TEnv.funParams sig
+                        let (autoRefReceiver, callArgs) = callArgsWithReceiver paramTs funName params
+                        (argInstrs, argAtoms) <- lowerArgsWithSig autoRefReceiver paramTs callArgs
                         dst <- newSubCVar retT
                         mInlineNative <- TAC.getInlineNativeTarget qname
                         case mInlineNative of
@@ -1276,7 +1262,9 @@ exprLowing (AST.Call funName params) = do
                                 return (IRInstr (TAC.ICallStatic dst qname argAtoms) : argInstrs, dst)
                     TEnv.FunImported _ _ fullQname sig -> do
                         let retT = TEnv.funReturn sig
-                        (argInstrs, argAtoms) <- lowerArgsWithSig (TEnv.funParams sig) params
+                        let paramTs = TEnv.funParams sig
+                        let (autoRefReceiver, callArgs) = callArgsWithReceiver paramTs funName params
+                        (argInstrs, argAtoms) <- lowerArgsWithSig autoRefReceiver paramTs callArgs
                         dst <- newSubCVar retT
                         return (IRInstr (TAC.ICallStatic dst fullQname argAtoms) : argInstrs, dst)
                 Nothing -> do
@@ -1284,7 +1272,7 @@ exprLowing (AST.Call funName params) = do
                     calleeTy <- getAtomType calleeAtom
                     case calleeTy of
                         FuncPtr retT paramTs -> do
-                            (argInstrs, argAtoms) <- lowerArgsWithSig paramTs params
+                            (argInstrs, argAtoms) <- lowerArgsWithSig False paramTs params
                             dst <- newSubCVar retT
                             return (IRInstr (TAC.ICallPtr dst calleeAtom argAtoms) : (argInstrs ++ calleeInstrs), dst)
                         _ ->
@@ -1316,17 +1304,51 @@ exprLowing (AST.Call funName params) = do
             _ ->
                 error $ "invalid intrinsic pointer call arity: " ++ intrinsicName
 
-        lowerArgsWithSig :: [Class] -> [Expression] -> TACM ([IRNode], [IRAtom])
-        lowerArgsWithSig paramTs args
+        lowerArgsWithSig :: Bool -> [Class] -> [Expression] -> TACM ([IRNode], [IRAtom])
+        lowerArgsWithSig autoRefReceiver paramTs args
             | length paramTs /= length args = error "internal error: argument count mismatch after typecheck"
-            | otherwise = foldrM step ([], []) (zip args paramTs)
+            | otherwise = foldrM step ([], []) (zip3 args paramTs [0..])
             where
-                step :: (Expression, Class) -> ([IRNode], [IRAtom]) -> TACM ([IRNode], [IRAtom])
-                step (p, paramT) (instrsRest, atomsRest) = do
+                step :: (Expression, Class, Int) -> ([IRNode], [IRAtom]) -> TACM ([IRNode], [IRAtom])
+                step (p, paramT, argIndex) (instrsRest, atomsRest) = do
                     (instrsP, atomP) <- if AST.isAtom p then atomLowing p else exprLowing p
                     argT <- getAtomType atomP
-                    (castInstrs, castAtom) <- castIfNeeded argT atomP paramT
-                    return (instrsRest ++ castInstrs ++ instrsP, castAtom : atomsRest)
+                    if shouldAutoRefReceiver argIndex argT paramT
+                        then do
+                            refAtom <- newSubCVar paramT
+                            let refInstr = IRInstr (TAC.Ref refAtom atomP)
+                            return (instrsRest ++ [refInstr] ++ instrsP, refAtom : atomsRest)
+                        else do
+                            (castInstrs, castAtom) <- castIfNeeded argT atomP paramT
+                            return (instrsRest ++ castInstrs ++ instrsP, castAtom : atomsRest)
+
+                shouldAutoRefReceiver :: Int -> Class -> Class -> Bool
+                shouldAutoRefReceiver argIndex actualT expectedT =
+                    autoRefReceiver &&
+                    argIndex == 0 &&
+                    case normalizeTypeAliasLocal expectedT of
+                        Pointer inner ->
+                            normalizeTypeAliasLocal actualT == normalizeTypeAliasLocal inner
+                        _ -> False
+
+        callArgsWithReceiver :: [Class] -> Expression -> [Expression] -> (Bool, [Expression])
+        callArgsWithReceiver paramTs callee args = case callee of
+            AST.Member receiver _ _ -> (True, receiver : args)
+            AST.Qualified names toks
+                | length paramTs == length args + 1 ->
+                    case qualifiedReceiver names toks of
+                        Just receiver -> (True, receiver : args)
+                        Nothing -> (False, args)
+            _ -> (False, args)
+
+        qualifiedReceiver :: QName -> [Token] -> Maybe Expression
+        qualifiedReceiver names toks = case (names, toks) of
+            (baseName : _ : _, baseTok : suffixToks) ->
+                let suffixNames = init (tail names)
+                    suffixTokens = take (length suffixNames) suffixToks
+                    addMember receiver (fieldName, fieldTok) = AST.Member receiver fieldName fieldTok
+                in Just $ foldl' addMember (AST.Variable baseName baseTok) (zip suffixNames suffixTokens)
+            _ -> Nothing
 
 exprLowing (AST.CallT {}) = error "template is not support!"
 
@@ -1542,7 +1564,7 @@ qualifyLoweredQName classType ownerOverrides cls qn
                 [] -> ""
         belongsToCurrentStruct :: String -> Bool
         belongsToCurrentStruct sym =
-            sym == (currentClassName ++ "$$size")
+            sym == (currentClassName ++ "$__SIZE__")
                 || (currentClassName ++ "$") `isPrefixOf` sym
         preferPlainOwnerForStruct :: String -> Maybe String
         preferPlainOwnerForStruct sym =
@@ -1717,6 +1739,7 @@ collectAssignKeysBlock (AST.Multiple ss) = do
                 return (ks1 ++ ks2 ++ ks3)
             AST.Call callee args -> concat <$> mapM collectAssignKeysExpr (callee : args)
             AST.CallT callee _ args -> concat <$> mapM collectAssignKeysExpr (callee : args)
+            AST.Member receiver _ _ -> collectAssignKeysExpr receiver
             AST.BlockExpr b -> collectAssignKeysBlock b
             _ -> return []
 
@@ -2988,7 +3011,7 @@ structNamePrefixes stmts =
 
     stripSize :: String -> Maybe String
     stripSize name
-        | "$$size" `isSuffixOfS` name = Just (take (length name - length "$$size") name)
+        | "$__SIZE__" `isSuffixOfS` name = Just (take (length name - length "$__SIZE__") name)
         | otherwise = Nothing
 
     isSuffixOfS :: String -> String -> Bool
@@ -3000,7 +3023,7 @@ structOwnerOfSymbol structNames symbol =
     listToMaybe [s | s <- structNames, belongs s]
   where
     belongs :: String -> Bool
-    belongs s = symbol == (s ++ "$$size") || (s ++ "$") `isPrefixOf` symbol
+    belongs s = symbol == (s ++ "$__SIZE__") || (s ++ "$") `isPrefixOf` symbol
 
 
 stmtStructOwner :: [String] -> Statement -> Maybe String
@@ -3098,7 +3121,7 @@ progmLowing path (decls, stmts) =
             in cap ++ "X"
         isStructOwnedSymbol :: String -> String -> Bool
         isStructOwnedSymbol sym ownerCls =
-            sym == (ownerCls ++ "$$size") || (ownerCls ++ "$") `isPrefixOf` sym
+            sym == (ownerCls ++ "$__SIZE__") || (ownerCls ++ "$") `isPrefixOf` sym
         -- | Extract file name from a path (no path module dependency).
         takeFileName :: FilePath -> FilePath
         takeFileName p =
@@ -3148,6 +3171,7 @@ collectConstKey = foldl step Map.empty
             AST.DefConstVar [name] _ _ toks ->
                 Map.insertWith (++) name (map tokenPos toks) acc
             _ -> acc
+
 
 
 

@@ -979,10 +979,17 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs externalStructSt
                     (externalStructStmts ++ importedStructStmts)
                     staticStructValues
                     prog0
+            currentWrapperClass = fromMaybe (fileClassName path) (getJavaName prog)
+            currentDeclaredVarTyped =
+                let varDecls = collectDeclaredTopLevelVarsWithClass currentWrapperClass packageName stmts
+                    varMap = Map.fromList [(keyQn, (cls, pos, fullQn)) | (keyQn, fullQn, cls, pos) <- varDecls]
+                in (emptyTypedImportEnv path) { tVars = varMap }
+            currentTypedEnv = expandTypedImportEnvBySpecs packageName importedSpecs currentDeclaredVarTyped
+            typedEnvs1 = currentTypedEnv : typedEnvs0
             importEnvs0 =
                 if null typedEnvs
-                    then defaultImportEnv path : importEnvs
-                    else defaultImportEnv path : map typedToImportEnv typedEnvs0
+                    then defaultImportEnv path : typedToImportEnv currentTypedEnv : importEnvs
+                    else defaultImportEnv path : map typedToImportEnv typedEnvs1
         case checkNativeLinkConflict path prog of
             Left errs -> Left errs
             Right () ->
@@ -995,7 +1002,7 @@ checkOneProgramForTarget target path prog0 importEnvs typedEnvs externalStructSt
                                 case CC.checkProgmWithUses path prog importEnvs0 of
                                     Left errs -> Left errs
                                     Right (st, uses) ->
-                                        TC.inferProgmWithCtx path packageName stmts st uses typedEnvs0
+                                        TC.inferProgmWithCtx path packageName stmts st uses typedEnvs1
     where
         defaultImportedSpecs :: [ImportSpec]
         defaultImportedSpecs = [ImportWildcard ["xlang", "io"]]

@@ -6,8 +6,8 @@ module Semantic.TypeCheck where
 import Control.Monad (when, unless, void)
 import Control.Monad.State.Strict (State, get, modify, put, runState)
 import Data.Map.Strict (Map)
-import Data.Char (toLower, isUpper)
-import Data.List (find, foldl', intercalate)
+import Data.Char (toLower)
+import Data.List (find, foldl', intercalate, nub, nubBy)
 import Data.Maybe (listToMaybe, mapMaybe, isNothing, fromMaybe)
 import Data.Foldable (for_)
 import Parse.SyntaxTree (AccessModified(..), Block(..), Class(..), Command(..), Decl, DeclFlag(..), DeclFlags, Expression(..), Operator(..), Program, Statement(..), pattern Function, pattern FunctionT, SwitchCase(..), exprTokens, stmtTokens, prettyClass, prettyExpr, prettyOp, normalizeProgram, normalizeClass, blobConstSizeMaybe, blobSizeExprMaybe)
@@ -110,37 +110,21 @@ defaultDecl = declFromFlags defaultDeclFlags
 
 
 normalizeTypeAlias :: Class -> Class
-normalizeTypeAlias = go True
+normalizeTypeAlias = go
   where
-    go :: Bool -> Class -> Class
-    go top cls = case cls of
+    go :: Class -> Class
+    go cls = case cls of
         Class ["String"] [] -> Class ["String"] []
         Class ["java", "lang", "String"] [] -> Class ["String"] []
         Class ["xlang", "String"] [] -> Class ["String"] []
         Class ["Any"] [] -> Class ["Any"] []
         Class ["xlang", "Any"] [] -> Class ["Any"] []
         Class ["java", "lang", "Object"] [] -> Class ["Any"] []
-        Pointer inner -> Pointer (go False inner)
-        FuncPtr ret args -> FuncPtr (go True ret) (map (go True) args)
-        Class qn args ->
-            let clsN = Class qn (map (go True) args)
-            in if top && shouldAutoRefUserClass clsN
-                then Pointer clsN
-                else clsN
+        Blob e -> normalizeClass (Blob e)
+        Pointer inner -> Pointer (go inner)
+        FuncPtr ret args -> FuncPtr (go ret) (map go args)
+        Class qn args -> Class qn (map go args)
         other -> other
-
-    shouldAutoRefUserClass :: Class -> Bool
-    shouldAutoRefUserClass c = case c of
-        Class ["String"] [] -> False
-        Class ["Any"] [] -> False
-        Class qn [] -> not (isTemplateTypeName (last qn))
-        _ -> False
-
-    -- Template type names are generated as Excel-like uppercase tokens
-    -- (A, B, ... Z, AA, AB, ...). Keep them as plain type vars.
-    isTemplateTypeName :: String -> Bool
-    isTemplateTypeName [] = False
-    isTemplateTypeName s = all isUpper s
 
 
 checkBlobTypeConstraints :: Path -> [Position] -> Class -> TypeM ()
@@ -507,6 +491,10 @@ inferExpr p _ _ e@(CharConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(BoolConst _ _) = inferLiteral p e
 inferExpr p _ _ e@(StringConst _ _) = inferLiteral p e
 
+inferExpr path packages envs e@(Member base _ _) = do
+    void $ inferExpr path packages envs base
+    errClass $ UE.Syntax $ UE.makeError path (map Lex.tokenPos (exprTokens e)) "unsupported member access"
+
 inferExpr path packages envs (IfExpr cond thenE elseE _) = do
     tCond <- inferExpr path packages envs cond
     checkCondBool path (map Lex.tokenPos (exprTokens cond)) tCond
@@ -631,9 +619,12 @@ inferExpr path packages envs (Variable str tok) = do
                         pure (normalizeTypeAlias t)
                     Nothing -> do
                         let qn = packages ++ [str]
+                            qBare = [str]
 
                         -- ??????????????????/??????????????
-                        case listToMaybe $ mapMaybe (Map.lookup qn . tVars) envs of
+                        case listToMaybe $ mapMaybe (\env -> case Map.lookup qn (tVars env) of
+                                Just item -> Just item
+                                Nothing -> Map.lookup qBare (tVars env)) envs of
                             -- ????????????????????
                             Just (t, _, full) -> do
                                 recordVarUse [pos] (VarImported defaultDeclFlags t qn full)
@@ -770,8 +761,13 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
                 fromBasicLike = isBasicType fromCast
                 toBasicLike = isBasicType toCast
 
+            -- Struct value -> pointer<T> is the explicit address-taking cast used by
+            -- struct field lowering. Other pointer/basic casts keep the old rules.
+            if isStructValueToPointerCast fromTN toTN then
+                pure ()
+
             -- one is basic, the other is not
-            if fromBasicLike /= toBasicLike then do
+            else if fromBasicLike /= toBasicLike then do
                 addErr $ UE.Syntax $ UE.makeError path pos $ staticCastError (prettyClass fromTN) (prettyClass toTN)
 
             -- both are non-basic (class / array / user type)
@@ -822,6 +818,10 @@ inferExpr path packages envs e@(Cast (cls, _) innerE _) = do
             sigRetN = normalizeTypeAlias (normalizeClass (funReturn sig))
             sigParamsN = map (normalizeTypeAlias . normalizeClass) (funParams sig)
         in retN == sigRetN && paramsN == sigParamsN
+
+    isStructValueToPointerCast :: Class -> Class -> Bool
+    isStructValueToPointerCast (Class _ _) (Pointer _) = True
+    isStructValueToPointerCast _ _ = False
 
     pointerAsInt64 :: Class -> Class
     pointerAsInt64 (Pointer _) = Int64T
@@ -1121,7 +1121,7 @@ inferExpr path packages envs e@(Call callee args) = do
             [(Class, [Position])] ->
             TypeM (Maybe Class)
         inferFunctionPointerCall ctx callPos0 calleeExpr argInfos = do
-            if hasSyntheticCalleeToken calleeExpr || isNamedFunctionCallee ctx calleeExpr
+            if hasSyntheticCalleeToken calleeExpr || isNamedFunctionCallee ctx calleeExpr || isMemberCallee calleeExpr || isMemberQualifiedCallee ctx calleeExpr
                 then pure Nothing
                 else do
                     calleeTy <- inferExpr path packages envs calleeExpr
@@ -1177,6 +1177,40 @@ inferExpr path packages envs e@(Call callee args) = do
                     in hasLocal || hasImported
             _ -> False
 
+        isMemberCallee :: Expression -> Bool
+        isMemberCallee Member {} = True
+        isMemberCallee _ = False
+
+        isMemberQualifiedCallee :: TypeCtx -> Expression -> Bool
+        isMemberQualifiedCallee ctx expr0 = case expr0 of
+            Qualified names toks -> case (names, toks) of
+                (baseName : _ : _, baseTok : _) ->
+                    let pos = Lex.tokenPos baseTok
+                        hasLocalByUse = case getVarId pos (tcCtx ctx) of
+                            Just vid -> Map.member vid (tcVarTypes ctx)
+                            Nothing -> False
+                        hasLocalByScope = case lookupVarId baseName (CC.st (tcCtx ctx)) of
+                            Just _ -> True
+                            Nothing -> False
+                        hasImported = case getImportedVarType (packages ++ [baseName]) envs of
+                            Just _ -> True
+                            Nothing -> case getImportedVarType [baseName] envs of
+                                Just _ -> True
+                                Nothing -> False
+                    in baseName == "this" || hasLocalByUse || hasLocalByScope || hasImported
+                _ -> False
+            _ -> False
+
+        qualifiedCallAsMember :: QName -> [Lex.Token] -> Maybe Expression
+        qualifiedCallAsMember names toks = case (names, toks) of
+            (baseName : suffixes, baseTok : suffixToks)
+                | not (null suffixes) ->
+                    Just $ foldl' addMember (Variable baseName baseTok) (zip suffixes suffixToks)
+            _ -> Nothing
+          where
+            addMember :: Expression -> (String, Lex.Token) -> Expression
+            addMember receiver (method, tok) = Member receiver method tok
+
         lowerRegularCall :: TypeCtx -> [Position] -> [FunTable] -> Expression -> [(Class, [Position])] -> TypeM Class
         lowerRegularCall ctx callPos0 fScopes0 expr argInfos = case expr of
             Variable name tok -> do
@@ -1205,9 +1239,83 @@ inferExpr path packages envs e@(Call callee args) = do
                                 (maybe [] (\(sigs', _, full) -> [(names, full, sigs')]) . Map.lookup names . tFuncs)
                                 envs
                     let namePoses = map Lex.tokenPos toks
-                    resolveImportedCall names (intercalate "." names) importEntries namePoses callPos0 argInfos
+                    case importEntries of
+                        [] -> case qualifiedCallAsMember names toks of
+                            Just memberExpr ->
+                                lowerRegularCall ctx callPos0 fScopes0 memberExpr argInfos
+                            Nothing ->
+                                resolveImportedCall names (intercalate "." names) importEntries namePoses callPos0 argInfos
+                        _ ->
+                            resolveImportedCall names (intercalate "." names) importEntries namePoses callPos0 argInfos
+
+            Member receiver method _ -> do
+                receiverTy <- inferExpr path packages envs receiver
+                let receiverPos = map Lex.tokenPos (exprTokens receiver)
+                    namePoses = map Lex.tokenPos (exprTokens expr)
+                    receiverArgTy = memberReceiverArgType receiverTy
+                    argInfosWithReceiver = (receiverArgTy, receiverPos) : argInfos
+                case memberMethodQNames receiverTy method of
+                    [] -> errClass $ UE.Syntax $ UE.makeError path namePoses $
+                        "member call expects struct receiver, got " ++ prettyClass receiverTy
+                    candidates -> do
+                        let localEntries = concatMap (localMemberEntries fScopes0) candidates
+                            importEntries = concatMap importMemberEntries candidates
+                            entries = dedupMemberEntries (nub (localEntries ++ importEntries))
+                        case entries of
+                            [] -> errClass $ UE.Syntax $ UE.makeError path namePoses (UE.undefinedIdentity method)
+                            _ -> do
+                                res <- matchInSigs (map snd entries) callPos0 argInfosWithReceiver
+                                case res of
+                                    Left err -> errClass err
+                                    Right sig -> do
+                                        case find ((== sig) . snd) entries of
+                                            Just (entry, _) -> recordFunUse namePoses entry
+                                            Nothing -> pure ()
+                                        pure $ funReturn sig
 
             _ -> errClass $ UE.Syntax $ UE.makeError path callPos0 UE.invalidFunctionName
+
+        memberMethodQNames :: Class -> String -> [QName]
+        memberMethodQNames receiverTy method =
+            case normalizeTypeAlias (normalizeClass receiverTy) of
+                Pointer (Class qn []) -> ownerCandidates qn
+                Class qn [] -> ownerCandidates qn
+                _ -> []
+          where
+            ownerCandidates :: QName -> [QName]
+            ownerCandidates [] = []
+            ownerCandidates qn =
+                let simple = last qn
+                    dollarFull = intercalate "$" qn ++ "$" ++ method
+                    dollarSimple = simple ++ "$" ++ method
+                in nub [
+                    [dollarFull],
+                    [dollarSimple],
+                    qn ++ [method],
+                    [simple, method],
+                    packages ++ qn ++ [method],
+                    packages ++ [simple, method]
+                ]
+
+        memberReceiverArgType :: Class -> Class
+        memberReceiverArgType receiverTy =
+            case normalizeTypeAlias (normalizeClass receiverTy) of
+                Class _ _ -> Pointer receiverTy
+                _ -> receiverTy
+
+        localMemberEntries :: [FunTable] -> QName -> [(FullFunctionTable, FunSig)]
+        localMemberEntries fScopes0 qname =
+            [(FunLocal defaultDecl qname sig, sig) | sig <- lookupFun qname fScopes0]
+
+        importMemberEntries :: QName -> [(FullFunctionTable, FunSig)]
+        importMemberEntries qname =
+            concatMap
+                (maybe [] (\(sigs, _, full) -> [(FunImported defaultDeclFlags qname full sig, sig) | sig <- sigs]) . Map.lookup qname . tFuncs)
+                envs
+
+        dedupMemberEntries :: [(FullFunctionTable, FunSig)] -> [(FullFunctionTable, FunSig)]
+        dedupMemberEntries =
+            nubBy (\(_, sigA) (_, sigB) -> sigA == sigB)
 
         applyMatches ::
             [Position] ->

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+﻿{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -105,7 +105,9 @@ classMangle Char = "c"
 classMangle Void = "v"
 classMangle (Pointer c) = "P" ++ classMangle c
 classMangle (FuncPtr ret args) = concat ["FI", concatMap classMangle args, "E", classMangle ret]
-classMangle (Blob _) = "B"
+classMangle cls@(Blob _) = case blobConstSizeMaybe cls of
+    Just n -> "B" ++ show n ++ "E"
+    Nothing -> error ("classMangle: blob size must be compile-time constant: " ++ prettyClass cls)
 classMangle (Class ss args) =
     case ss of
         [] -> error "classMangle: empty class qname"
@@ -149,12 +151,19 @@ classDemangleEither raw = case parseMangledType raw of
                 (inner, rest) <- parseMangledType cs
                 Right (Pointer inner, rest)
             'F' -> parseFuncPtrType cs
-            'B' -> Right (Blob (IntConst "1" Lex.dummyToken), cs)
+            'B' -> parseBlobType cs
             'N' -> parseNestedType cs
             _
                 | isDigit c -> parseSingleType (c : cs)
                 | otherwise -> Left ("unexpected tag '" ++ [c] ++ "'")
 
+        parseBlobType :: String -> Either String (Class, String)
+        parseBlobType s =
+            let (digits, rest) = span isDigit s
+            in case (digits, rest) of
+                ("", _) -> Right (Blob (IntConst "1" Lex.dummyToken), s)
+                (_, 'E' : rest') -> Right (Blob (IntConst digits Lex.dummyToken), rest')
+                _ -> Left "blob mangle must be B<size>E"
         parseFuncPtrType :: String -> Either String (Class, String)
         parseFuncPtrType s = case s of
             ('I' : rest0) -> do
@@ -237,6 +246,34 @@ blobSizeExprMaybe (Blob e) = Just e
 blobSizeExprMaybe _ = Nothing
 
 
+sizeofClassBytesConst :: Class -> Maybe Int
+sizeofClassBytesConst cls0 = case cls0 of
+    Blob _ -> blobConstSizeMaybe cls0
+    _ -> case normalizeClass cls0 of
+        Int8T -> Just 1
+        Bool -> Just 1
+        Char -> Just 4
+        Int16T -> Just 2
+        Int32T -> Just 4
+        Float32T -> Just 4
+        Int64T -> Just 8
+        Float64T -> Just 8
+        Float128T -> Just 16
+        Pointer _ -> Just 8
+        FuncPtr _ _ -> Just 8
+        Blob _ -> blobConstSizeMaybe cls0
+        Void -> Nothing
+        Class _ _ -> Nothing
+        ErrorClass -> Nothing
+
+
+sizeofExprClassConst :: Expression -> Maybe Class
+sizeofExprClassConst ex = case ex of
+    Variable name _ -> normalizeBuiltinClass name
+    Qualified [name] _ -> normalizeBuiltinClass name
+    _ -> Nothing
+
+
 blobConstSizeMaybe :: Class -> Maybe Int
 blobConstSizeMaybe cls = case cls of
     Blob e -> evalInt e
@@ -260,6 +297,8 @@ blobConstSizeMaybe cls = case cls of
             rhs <- evalInt b
             if rhs == 0 then Nothing else Just (lhs `mod` rhs)
         Cast _ inner _ -> evalInt inner
+        SizeOfExpr inner _ -> sizeofExprClassConst inner >>= sizeofClassBytesConst
+        SizeOfType (cls, _) _ -> sizeofClassBytesConst cls
         _ -> Nothing
 
     parseIntLiteral :: String -> Maybe Int
@@ -446,6 +485,7 @@ data Expression =
 
     | Variable String Token
     | Qualified [String] [Token] -- eg: java.lang.math.PI
+    | Member Expression String Token -- eg: foo().bar
 
     -- this. expr must be Qualified of Variable
     | Cast (Class, [Token]) Expression Token
@@ -478,6 +518,7 @@ prettyExpr n me = insertTab n ++ prettyExpr' me
         prettyExpr' (Just (BoolConst b _)) = if b then "true" else "false"
         prettyExpr' (Just (Variable s _)) = s
         prettyExpr' (Just (Qualified ss _)) = intercalate "." ss
+        prettyExpr' (Just (Member base name _)) = concat [prettyExpr' (Just base), ".", name]
         prettyExpr' (Just (Cast (c, _) e _)) = concat ["(", prettyClass c, ")(", prettyExpr' (Just e), ")"]
         prettyExpr' (Just (Unary o e _)) = prettyOp o ++ prettyExpr' (Just e)
         prettyExpr' (Just (Binary o e1 e2 _)) = concat [prettyExpr' (Just e1), prettyOp o, prettyExpr' (Just e2)]
@@ -520,6 +561,7 @@ exprTokens (StringConst _ t) = [t]
 exprTokens (BoolConst _ t) = [t]
 exprTokens (Variable _ t) = [t]
 exprTokens (Qualified _ ts) = ts
+exprTokens (Member base _ t) = exprTokens base ++ [t]
 exprTokens (Cast (_, toks) e t) = exprTokens e ++ (t : toks)
 exprTokens (Unary _ e t) = t : exprTokens e
 exprTokens (Binary _ e1 e2 t) = t : (exprTokens e1 ++ exprTokens e2)
@@ -539,6 +581,8 @@ flattenExpr Nothing = []
 flattenExpr (Just fatherE@(Cast _ e2 _)) = [fatherE, e2]
 flattenExpr (Just fatherE@(Unary _ e _)) = [fatherE, e]
 flattenExpr (Just fatherE@(Binary _ e1 e2 _)) = [fatherE, e1, e2]
+flattenExpr (Just fatherE@(Member base _ _)) =
+    fatherE : flattenExpr (Just base)
 flattenExpr (Just fatherE@(Call callee args)) =
     concat [[fatherE], flattenExpr (Just callee), concatMap (flattenExpr . Just) args]
 flattenExpr (Just fatherE@(CallT callee _ args)) =
@@ -1214,6 +1258,7 @@ inlineProgramFunctions (decls, stmts) =
             Cast _ e _ -> exprCallees e
             Unary _ e _ -> exprCallees e
             Binary _ e1 e2 _ -> HashSet.union (exprCallees e1) (exprCallees e2)
+            Member base _ _ -> exprCallees base
             _ -> HashSet.empty
 
         rewriteStmtInline :: Map String InlineFunSpec -> [String] -> Statement -> Statement
@@ -1304,6 +1349,7 @@ inlineProgramFunctions (decls, stmts) =
             BoolConst _ _ -> expr
             Variable _ _ -> expr
             Qualified _ _ -> expr
+            Member base name tok -> Member (rewriteExprInline specs stack base) name tok
             Cast ty e tok -> Cast ty (rewriteExprInline specs stack e) tok
             Unary op e tok -> Unary op (rewriteExprInline specs stack e) tok
             Binary op e1 e2 tok -> Binary op (rewriteExprInline specs stack e1) (rewriteExprInline specs stack e2) tok
@@ -1367,6 +1413,7 @@ inlineProgramFunctions (decls, stmts) =
             StringConst _ _ -> expr
             BoolConst _ _ -> expr
             Qualified _ _ -> expr
+            Member base name tok -> Member (substInlineExpr subst base) name tok
             Cast ty e tok -> Cast ty (substInlineExpr subst e) tok
             Unary op e tok -> Unary op (substInlineExpr subst e) tok
             Binary op e1 e2 tok -> Binary op (substInlineExpr subst e1) (substInlineExpr subst e2) tok
@@ -2371,6 +2418,9 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
             BoolConst {} -> (expr, [])
             Variable {} -> (expr, [])
             Qualified {} -> (expr, [])
+            Member base name tok ->
+                let (base', reqs) = rewriteExpr defs0 hints base
+                in (Member base' name tok, reqs)
             Cast ty e tok ->
                 let (e', reqs) = rewriteExpr defs0 hints e
                 in (Cast ty e' tok, reqs)
@@ -2559,6 +2609,7 @@ instantiateTemplateCallsProgramWithDefs externalDefs (decls, stmts0) =
             Cast (ty, toks) e tok -> Cast (substituteClass subst ty, toks) (substituteExpr subst e) tok
             Unary op e tok -> Unary op (substituteExpr subst e) tok
             Binary op e1 e2 tok -> Binary op (substituteExpr subst e1) (substituteExpr subst e2) tok
+            Member base name tok -> Member (substituteExpr subst base) name tok
             Call callee args -> Call (substituteExpr subst callee) (map (substituteExpr subst) args)
             CallT callee tys args ->
                 let tys' = map (\(t, toks) -> (substituteClass subst t, toks)) tys
@@ -2796,7 +2847,16 @@ buildStructMeta (Struct _ _ (_, nameExpr) members) =
         (fieldMap, staticFields, staticFieldTypes, instMethods, stMethods, hasInit0, endOff) =
             foldl' step (Map.empty, Set.empty, Map.empty, Set.empty, Set.empty, False, 0) members
         finalSize = align8 endOff
-    in StructMeta sname fieldMap staticFields staticFieldTypes Set.empty instMethods (Set.insert "memSize" stMethods) hasInit0 finalSize
+    in StructMeta
+        sname
+        fieldMap
+        (Set.insert "__SIZE__" staticFields)
+        (Map.insert "__SIZE__" Int32T staticFieldTypes)
+        Set.empty
+        instMethods
+        stMethods
+        hasInit0
+        finalSize
   where
     step (fMap, sFields, sFieldTypes, iMethods, stMethods, hasInit0, curOff) m = case m of
         DefField names mTy _ toks ->
@@ -2948,19 +3008,12 @@ expandStructStmt metas st@(Struct _ _ (_, nameExpr) members) =
             [] -> Lex.dummyToken
         sizeDecl =
             DefConstVar
-                [structGlobalName sname "$size"]
+                [structGlobalName sname "__SIZE__"]
                 (Just Int32T)
                 (Just (IntConst (show (smSize meta)) sizeTok))
                 [sizeTok]
-        memSizeName = structGlobalName sname "memSize"
-        memSizeFun =
-            Function
-                (Int32T, [sizeTok])
-                (Variable memSizeName (renameIdentToken memSizeName sizeTok))
-                []
-                (Multiple [Command (Return (Just (IntConst (show (smSize meta)) sizeTok))) sizeTok])
         fieldMetaDecls = concatMap (emitInstanceFieldMeta sname) members
-    in fieldMetaDecls ++ (sizeDecl : memSizeFun : concatMap (expandMember sname) members)
+    in fieldMetaDecls ++ (sizeDecl : concatMap (expandMember sname) members)
   where
     emitInstanceFieldMeta :: String -> Statement -> [Statement]
     emitInstanceFieldMeta sname member = case member of
@@ -3084,21 +3137,25 @@ rewriteStmt metas mThis env n st = case st of
         in (n1, env, Exprs es')
 
     DefField names mTy me toks ->
-        let (n1, me') = rewriteMaybeExpr metas mThis env n me
-            env' = updateStructEnvFromDecl metas env names mTy me
-        in (n1, env', DefField names mTy me' toks)
+        let (n0, mTy') = rewriteMaybeClass metas mThis env n mTy
+            (n1, me') = rewriteMaybeExpr metas mThis env n0 me
+            env' = updateStructEnvFromDecl metas env names mTy' me
+        in (n1, env', DefField names mTy' me' toks)
     DefConstField names mTy me toks ->
-        let (n1, me') = rewriteMaybeExpr metas mThis env n me
-            env' = updateStructEnvFromDecl metas env names mTy me
-        in (n1, env', DefConstField names mTy me' toks)
+        let (n0, mTy') = rewriteMaybeClass metas mThis env n mTy
+            (n1, me') = rewriteMaybeExpr metas mThis env n0 me
+            env' = updateStructEnvFromDecl metas env names mTy' me
+        in (n1, env', DefConstField names mTy' me' toks)
     DefVar names mTy me toks ->
-        let (n1, me') = rewriteMaybeExpr metas mThis env n me
-            env' = updateStructEnvFromDecl metas env names mTy me'
-        in (n1, env', DefVar names mTy me' toks)
+        let (n0, mTy') = rewriteMaybeClass metas mThis env n mTy
+            (n1, me') = rewriteMaybeExpr metas mThis env n0 me
+            env' = updateStructEnvFromDecl metas env names mTy' me'
+        in (n1, env', DefVar names mTy' me' toks)
     DefConstVar names mTy me toks ->
-        let (n1, me') = rewriteMaybeExpr metas mThis env n me
-            env' = updateStructEnvFromDecl metas env names mTy me'
-        in (n1, env', DefConstVar names mTy me' toks)
+        let (n0, mTy') = rewriteMaybeClass metas mThis env n mTy
+            (n1, me') = rewriteMaybeExpr metas mThis env n0 me
+            env' = updateStructEnvFromDecl metas env names mTy' me'
+        in (n1, env', DefConstVar names mTy' me' toks)
 
     StmtGroup ss ->
         let (n1, _, ss') = rewriteStmtList metas mThis env n ss
@@ -3315,6 +3372,52 @@ rewriteExprList metas mThis env n (e:es) =
     in (n2, e1 : rest)
 
 
+rewriteMaybeClass :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Maybe Class -> (Int, Maybe Class)
+rewriteMaybeClass _ _ _ n Nothing = (n, Nothing)
+rewriteMaybeClass metas mThis env n (Just cls) =
+    let (n1, cls1) = rewriteClass metas mThis env n cls
+    in (n1, Just cls1)
+
+
+rewriteClass :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Class -> (Int, Class)
+rewriteClass metas mThis env n cls = case cls of
+    Pointer inner ->
+        let (n1, inner1) = rewriteClass metas mThis env n inner
+        in (n1, Pointer inner1)
+    FuncPtr ret args ->
+        let (n1, ret1) = rewriteClass metas mThis env n ret
+            (n2, args1) = rewriteClassList metas mThis env n1 args
+        in (n2, FuncPtr ret1 args1)
+    Blob e ->
+        let (n1, e1) = rewriteExpr metas mThis env n e
+        in (n1, normalizeClass (Blob e1))
+    Class names args ->
+        let (n1, args1) = rewriteClassList metas mThis env n args
+        in (n1, Class names args1)
+    _ -> (n, cls)
+
+
+rewriteClassList :: StructMetaMap -> Maybe String -> StructEnv -> Int -> [Class] -> (Int, [Class])
+rewriteClassList _ _ _ n [] = (n, [])
+rewriteClassList metas mThis env n (cls:rest) =
+    let (n1, cls1) = rewriteClass metas mThis env n cls
+        (n2, rest1) = rewriteClassList metas mThis env n1 rest
+    in (n2, cls1 : rest1)
+
+
+sizeofExprStructTypeName :: StructMetaMap -> StructEnv -> Expression -> Maybe String
+sizeofExprStructTypeName metas env ex = case ex of
+    Variable name _ ->
+        if Map.member name env
+            then Nothing
+            else resolveStructQName metas [name]
+    Qualified names _ ->
+        case names of
+            [] -> Nothing
+            (base : _) | Map.member base env -> Nothing
+            _ -> resolveStructQName metas names
+    _ -> Nothing
+
 rewriteExpr :: StructMetaMap -> Maybe String -> StructEnv -> Int -> Expression -> (Int, Expression)
 rewriteExpr metas mThis env n ex = case ex of
     Error {} -> (n, ex)
@@ -3346,6 +3449,9 @@ rewriteExpr metas mThis env n ex = case ex of
             Nothing -> (n, ex)
     Qualified names toks ->
         (n, rewriteQualifiedRef metas mThis env names toks)
+    Member base name tok ->
+        let (n1, base1) = rewriteExpr metas mThis env n base
+        in (n1, Member base1 name tok)
     Cast ty e tok ->
         let (n1, e1) = rewriteExpr metas mThis env n e
         in (n1, Cast ty e1 tok)
@@ -3358,9 +3464,13 @@ rewriteExpr metas mThis env n ex = case ex of
         in (n2, Binary op a1 a2 tok)
     SizeOfExpr e tok ->
         let (n1, e1) = rewriteExpr metas mThis env n e
-        in (n1, SizeOfExpr e1 tok)
+        in case sizeofExprStructTypeName metas env e >>= (`Map.lookup` metas) of
+            Just sm -> (n1, IntConst (show (smSize sm)) tok)
+            Nothing -> (n1, SizeOfExpr e1 tok)
     SizeOfType (cls, ts) tok ->
-        (n, SizeOfType (cls, ts) tok)
+        case structNameFromSizeofType metas cls >>= (`Map.lookup` metas) of
+            Just sm -> (n, IntConst (show (smSize sm)) tok)
+            Nothing -> (n, SizeOfType (cls, ts) tok)
     IfExpr c t f toks ->
         let (n1, c1) = rewriteExpr metas mThis env n c
             (n2, t1) = rewriteExpr metas mThis env n1 t
@@ -3717,7 +3827,7 @@ mkStructCtorExpr metas sname tok n args =
                     let initName = structGlobalName sname "__init__"
                     in [Expr (Call (Variable initName (mkGeneratedIdentToken (n + 1) initName)) (thisPtr : args))]
                 else []
-        retExpr = Cast ptrTy tmpVar tok
+        retExpr = Unary DeRef thisPtr tok
         body = Multiple (tmpDecl : initCall ++ [Expr retExpr])
     in (n + 2, BlockExpr body)
 
@@ -3985,6 +4095,7 @@ rewriteExprCalls callMap expr = case expr of
     BoolConst _ _ -> expr
     Variable _ _ -> expr
     Qualified _ _ -> expr
+    Member base name tok -> Member (rewriteExprCalls callMap base) name tok
     Cast ty e tok -> Cast ty (rewriteExprCalls callMap e) tok
     Unary op e tok -> Unary op (rewriteExprCalls callMap e) tok
     Binary op e1 e2 tok -> Binary op (rewriteExprCalls callMap e1) (rewriteExprCalls callMap e2) tok
@@ -4269,7 +4380,9 @@ normalizeClass cls = case cls of
     Class names args -> Class names (map normalizeClass args)
     Pointer c -> Pointer (normalizeClass c)
     FuncPtr ret args -> FuncPtr (normalizeClass ret) (map normalizeClass args)
-    Blob n -> Blob n
+    Blob n -> case blobConstSizeMaybe (Blob n) of
+        Just size -> Blob (IntConst (show size) Lex.dummyToken)
+        Nothing -> Blob n
     other -> other
 
 
@@ -4678,4 +4791,6 @@ jvmClassAnnotation tok = case tok of
         , low `elem` ["jvmclass", "class", "filename"] -> Just (value, strTok)
         | otherwise -> Nothing
     _ -> Nothing
+
+
 

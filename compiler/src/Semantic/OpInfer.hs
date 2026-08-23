@@ -6,8 +6,7 @@ import Control.Applicative (liftA3)
 import Data.List (elemIndex, intercalate)
 import Data.Map.Strict (Map)
 import Data.Maybe (mapMaybe)
-import Data.Char (isUpper)
-import Parse.SyntaxTree (Class(..), Operator(..), prettyClass)
+import Parse.SyntaxTree (Class(..), Operator(..), prettyClass, normalizeClass)
 import Semantic.TypeEnv (FunSig(..))
 import Util.Exception (ErrorKind, Warning(..))
 import Util.Type (Path, Position)
@@ -56,35 +55,21 @@ numericRangeRank = Map.fromList [
 
 
 normalizeTypeAlias :: Class -> Class
-normalizeTypeAlias = go True
+normalizeTypeAlias = go
   where
-    go :: Bool -> Class -> Class
-    go top cls = case cls of
+    go :: Class -> Class
+    go cls = case cls of
         Class ["String"] [] -> Class ["String"] []
         Class ["java", "lang", "String"] [] -> Class ["String"] []
         Class ["xlang", "String"] [] -> Class ["String"] []
         Class ["Any"] [] -> Class ["Any"] []
         Class ["xlang", "Any"] [] -> Class ["Any"] []
         Class ["java", "lang", "Object"] [] -> Class ["Any"] []
-        Pointer inner -> Pointer (go False inner)
-        FuncPtr ret args -> FuncPtr (go True ret) (map (go True) args)
-        Class qn args ->
-            let clsN = Class qn (map (go True) args)
-            in if top && shouldAutoRefUserClass clsN
-                then Pointer clsN
-                else clsN
+        Blob e -> normalizeClass (Blob e)
+        Pointer inner -> Pointer (go inner)
+        FuncPtr ret args -> FuncPtr (go ret) (map go args)
+        Class qn args -> Class qn (map go args)
         other -> other
-
-    shouldAutoRefUserClass :: Class -> Bool
-    shouldAutoRefUserClass c = case c of
-        Class ["String"] [] -> False
-        Class ["Any"] [] -> False
-        Class qn [] -> not (isTemplateTypeName (last qn))
-        _ -> False
-
-    isTemplateTypeName :: String -> Bool
-    isTemplateTypeName [] = False
-    isTemplateTypeName s = all isUpper s
 
 
 widenedClass :: Class -> [Class]

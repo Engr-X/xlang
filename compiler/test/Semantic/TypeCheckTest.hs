@@ -15,7 +15,7 @@ import Parse.SyntaxTree (Block(..), Class(..), Expression(..), Statement(..), pa
 import Parse.SyntaxTree (DeclFlag(..))
 import Semantic.TypeCheck
 import Semantic.NameEnv (CheckState(..), ImportEnv(..), QName, Scope(..), VarId, lookupVarId)
-import Semantic.TypeEnv (FunSig(..), FunTable, TypedImportEnv(..), VarTable)
+import Semantic.TypeEnv (FullFunctionTable(..), FunSig(..), FunTable, TypedImportEnv(..), VarTable)
 
 import qualified Data.Map.Strict as Map
 import qualified Lex.Token as Lex
@@ -140,6 +140,17 @@ assertVarType name expected ctx = case lookupVarId name (CC.st (tcCtx ctx)) of
     Just (vid, _) -> case Map.lookup vid (tcVarTypes ctx) of
         Nothing -> assertFailure $ "missing var type for: " ++ name
         Just (cls, _) -> cls @?= expected
+
+
+assertFunUse :: QName -> TypeCtx -> Assertion
+assertFunUse expected ctx =
+    assertBool ("missing function use: " ++ show expected) $
+        any ((== expected) . funUseQName) (Map.elems (tcFullFunUses ctx))
+  where
+    funUseQName :: FullFunctionTable -> QName
+    funUseQName one = case one of
+        FunLocal _ qname _ -> qname
+        FunImported _ _ fullQname _ -> fullQname
 
 
 parseExprOrFail :: String -> IO AST.Expression
@@ -1129,7 +1140,21 @@ inferProgmTests = testGroup "Semantic.TypeCheck.inferProgm" $ map mkCase [
     ("45", unlines [
         "fun f(p: pointer<int>) -> int = 1;",
         "val x = f(null);"
-    ], Nothing, noExtraTc)]
+    ], Nothing, noExtraTc),
+
+    ("46", unlines [
+        "struct B {",
+        "    fun done() -> int = 1;",
+        "}",
+        "struct A {",
+        "    fun next() -> pointer<B> = 0 as pointer<B>;",
+        "}",
+        "val a: pointer<A> = 0 as pointer<A>;",
+        "val x = a.next().done();"
+    ], Nothing, \ctx -> do
+        assertVarType "x" Int32T ctx
+        assertFunUse ["A$next"] ctx
+        assertFunUse ["B$done"] ctx)]
     where
         mkCase (name, src, expected, extra) = testCase name $ do
             prog <- parseProgmOrFail src

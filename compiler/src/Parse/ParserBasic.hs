@@ -480,6 +480,23 @@ mkPointerSuffixExpr base suffixTok = case suffixTok of
     _ -> Error [suffixTok] "unsupported postfix suffix"
 
 
+-- | Build member access on an arbitrary expression.
+--
+-- Pointer suffixes remain parser sugar:
+--   - expr.deref / expr.dref  => Unary DeRef expr
+--   - expr.ref                => rejected unless parsed as variable.ref
+-- Regular names are kept as Member so chained expressions such as
+-- foo().bar().baz can be preserved until semantic passes know how to lower them.
+mkMemberExpr :: Expression -> Token -> Expression
+mkMemberExpr base suffixTok = case suffixTok of
+    Lex.Ident raw _ -> case map toLower raw of
+        "deref" -> Unary DeRef base suffixTok
+        "dref" -> Unary DeRef base suffixTok
+        "ref" -> Error [suffixTok] "ref can only be used on variables"
+        _ -> Member base raw suffixTok
+    _ -> Error [suffixTok] "unsupported postfix suffix"
+
+
 -- | Build pointer index sugar:
 --   ptr[i]  ==>  (ptr + i).deref
 mkPointerIndexExpr :: Expression -> Expression -> Token -> Expression

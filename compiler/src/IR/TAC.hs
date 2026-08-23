@@ -43,6 +43,9 @@ expandExpr e@(AST.BoolConst _ _) = ([], e)
 
 expandExpr e@(AST.Variable _ _) = ([], e)
 expandExpr e@(AST.Qualified _ _) = ([], e)
+expandExpr (AST.Member base name tok) =
+    let (ss, base') = expandExpr base
+    in (ss, AST.Member base' name tok)
 expandExpr (AST.SizeOfExpr x tok) =
     let (ss, x') = expandExpr x
     in (ss, AST.SizeOfExpr x' tok)

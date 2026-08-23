@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+﻿{-# LANGUAGE OverloadedStrings #-}
 {- HLINT ignore "Replace case with maybe" -}
 module X64Lowing.Lowing where
 
@@ -146,10 +146,10 @@ genFloatToBoolCast64 ::
     X64.Atom ->
     X64LowerM [X64.Instruction]
 genFloatToBoolCast64 dstAtom fromC srcAtom = do
-    tmpF <- getTmpFRegM64
-    fRet <- getFRetRegM64
-    tmpI <- getTmpIRegM64
     iRet <- getIRetRegM64
+    fRet <- getFRetRegM64
+    tmpF <- getTmpFRegM64
+    tmpI <- getTmpIRegM64
     let xSrc = X64.Reg tmpF X64.NN
         xZero = X64.Reg fRet X64.NN
         one32 = X64.Reg tmpI X64.B32
@@ -444,6 +444,11 @@ moveArgToReg64 regSel _srcIR atom cls = case regSel of
                     return (ptrLoad ++ [X64.Mov (X64.Reg ireg X64.B8L) srcMem X64.B8L, X64.And dst64 (X64.Imm 0xff) X64.B64])
                 _ ->
                     error $ "moveArgToReg64: invalid blob by-value bits: " ++ show cls
+        structCls@(AST.Class {}) -> do
+            mStruct <- structReturnInfo64 structCls
+            case mStruct of
+                Just _ -> loadValueAddressToReg64 ireg atom
+                Nothing -> loadRefValueToReg64 _srcIR (X64.Reg ireg X64.B64) atom
         _ | isRefClass64 cls ->
             loadRefValueToReg64 _srcIR (X64.Reg ireg X64.B64) atom
         _ -> case Map.lookup cls bitsByClass64 of
@@ -472,6 +477,21 @@ moveArgToStack64 cc stackOff srcIR atom cls = do
                     return (ptrLoad ++ [X64.Mov vReg srcMem bits] ++ movs)
                 Nothing ->
                     error $ "moveArgToStack64: invalid blob by-value bits: " ++ show cls
+        structCls@(AST.Class {}) -> do
+            mStruct <- structReturnInfo64 structCls
+            case mStruct of
+                Just _ -> do
+                    tmp <- getTmpIRegM64
+                    let tmpReg = X64.Reg tmp X64.B64
+                    addrLoad <- loadValueAddressToReg64 tmp atom
+                    movs <- movLike64 X64.B64 dst tmpReg
+                    return (addrLoad ++ movs)
+                Nothing -> do
+                    tmp <- getTmpIRegM64
+                    let tmpReg = X64.Reg tmp X64.B64
+                    srcLoad <- loadRefValueToReg64 srcIR tmpReg atom
+                    movs <- movLike64 X64.B64 dst tmpReg
+                    return (srcLoad ++ movs)
         _ | isRefClass64 cls -> do
             tmp <- getTmpIRegM64
             let tmpReg = X64.Reg tmp X64.B64
@@ -493,6 +513,72 @@ loadRefValueToReg64 :: IR.IRAtom -> X64.Atom -> X64.Atom -> X64LowerM [X64.Instr
 loadRefValueToReg64 srcIR dstReg srcAtom = case srcIR of
     IR.StringC _ -> return [X64.Lea dstReg srcAtom X64.B64]
     _ -> return [X64.Mov dstReg srcAtom X64.B64]
+
+
+storeValueAddressToAtom64 :: X64.Atom -> X64.Atom -> X64LowerM [X64.Instruction]
+storeValueAddressToAtom64 dstAtom srcAtom = case srcAtom of
+    mem@(X64.Mem {}) -> case dstAtom of
+        reg@(X64.Reg _ _) ->
+            return [X64.Lea reg mem X64.B64]
+        _ -> do
+            tmp <- getTmpIRegM64
+            let tmpReg = X64.Reg tmp X64.B64
+            movs <- movLike64 X64.B64 dstAtom tmpReg
+            return (X64.Lea tmpReg mem X64.B64 : movs)
+    _ ->
+        error $ "storeValueAddressToAtom64: source is not addressable memory: " ++ show srcAtom
+
+
+copyMemoryByRegs64 :: Register -> Register -> Int -> [X64.Instruction]
+copyMemoryByRegs64 dstBase srcBase n = concatMap copyOne (copyChunksBySize64 n)
+  where
+    srcMem off = X64.Mem (Just srcBase) Nothing off
+    dstMem off = X64.Mem (Just dstBase) Nothing off
+    copyOne (off, bits) =
+        let tmp = X64.Reg X64.R9 bits
+        in [X64.Mov tmp (srcMem off) bits, X64.Mov (dstMem off) tmp bits]
+
+
+loadValueAddressToReg64 :: Register -> X64.Atom -> X64LowerM [X64.Instruction]
+loadValueAddressToReg64 dstReg srcAtom = case srcAtom of
+    mem@(X64.Mem {}) ->
+        return [X64.Lea (X64.Reg dstReg X64.B64) mem X64.B64]
+    _ ->
+        error $ "loadValueAddressToReg64: source is not addressable memory: " ++ show srcAtom
+
+
+copyStructValueToValue64 :: X64.Atom -> X64.Atom -> Int -> X64LowerM [X64.Instruction]
+copyStructValueToValue64 dstAtom srcAtom sizeN = do
+    dstAddr <- loadValueAddressToReg64 X64.R10 dstAtom
+    srcAddr <- loadValueAddressToReg64 X64.R11 srcAtom
+    return (dstAddr ++ srcAddr ++ copyMemoryByRegs64 X64.R10 X64.R11 sizeN)
+
+
+copyPointerToStructValue64 :: X64.Atom -> X64.Atom -> Int -> X64LowerM [X64.Instruction]
+copyPointerToStructValue64 dstAtom ptrAtom sizeN = do
+    dstAddr <- loadValueAddressToReg64 X64.R10 dstAtom
+    let srcAddr = [X64.Mov (X64.Reg X64.R11 X64.B64) ptrAtom X64.B64]
+    return (dstAddr ++ srcAddr ++ copyMemoryByRegs64 X64.R10 X64.R11 sizeN)
+
+
+callReturnInstrs64 :: X64.Atom -> Class -> Maybe ([String], Int) -> X64LowerM [X64.Instruction]
+callReturnInstrs64 dstAtom dstCls mStructRet = do
+    iRet <- getIRetRegM64
+    fRet <- getFRetRegM64
+    case dstCls of
+        AST.Void -> return []
+        AST.Float32T -> return [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
+        AST.Float64T -> return [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
+        AST.Class {} ->
+            case mStructRet of
+                Just (_, sizeN) ->
+                    copyPointerToStructValue64 dstAtom (X64.Reg X64.SP X64.B64) sizeN
+                Nothing -> return [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
+        cls | isRefClass64 cls ->
+            return [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
+        cls -> case Map.lookup cls bitsByClass64 of
+            Just bits -> return [X64.Mov dstAtom (X64.Reg iRet bits) bits]
+            Nothing -> error $ "callReturnInstrs64: unsupported return class: " ++ show cls
 
 
 isStackArgSel64 :: ArgRegSel64 -> Bool
@@ -596,8 +682,8 @@ copyChunksBySize64 n = go 0 (max 0 n)
 
 genBlobReturn64 :: Int -> X64LowerM [X64.Instruction]
 genBlobReturn64 n0 = do
-    sp <- getSpRegM64
     iRet <- getIRetRegM64
+    sp <- getSpRegM64
     let n = max 0 n0
         frameShift = n + 8
         spReg64 = X64.Reg sp X64.B64
@@ -639,25 +725,61 @@ prepareDirectCallParams64 = do
     pure (stackInstrs ++ regInstrs)
 
 
+-- Resolve a struct size by exact qualified name, or by unique short name.
+structSizeByQNamePure64 :: Map [String] Int -> [String] -> Maybe Int
+structSizeByQNamePure64 structSizeMap qn =
+    case Map.lookup qn structSizeMap of
+        Just n -> Just n
+        Nothing ->
+            let want = if null qn then "" else last qn
+                matches = [n | (full, n) <- Map.toList structSizeMap, not (null full), last full == want]
+            in case matches of
+                [n] -> Just n
+                _ -> Nothing
+
+
 -- 64-bit target byte size for a type.
-classBytes64 :: Class -> Int
-classBytes64 (AST.Class {}) = 8
-classBytes64 (AST.Pointer _) = 8
-classBytes64 (AST.Blob _) = 8
-classBytes64 (AST.FuncPtr _ _) = 8
-classBytes64 AST.Void = 0
-classBytes64 cls = case Map.lookup cls sizeByClass64 of
+classBytes64WithStructs :: Map [String] Int -> Class -> Int
+classBytes64WithStructs structSizeMap (AST.Class qn _) =
+    case structSizeByQNamePure64 structSizeMap qn of
+        Just n | n > 0 -> n
+        _ -> 8
+classBytes64WithStructs _ (AST.Pointer _) = 8
+classBytes64WithStructs _ (AST.Blob _) = 8
+classBytes64WithStructs _ (AST.FuncPtr _ _) = 8
+classBytes64WithStructs _ AST.Void = 0
+classBytes64WithStructs _ cls = case Map.lookup cls sizeByClass64 of
     Just n -> n
     Nothing -> error $ "classBytes64: unknown class: " ++ show cls
 
 
-classAlign64 :: Class -> Int
-classAlign64 cls = case classBytes64 cls of
+classBytes64 :: Class -> Int
+classBytes64 = classBytes64WithStructs Map.empty
+
+
+classAlign64WithStructs :: Map [String] Int -> Class -> Int
+classAlign64WithStructs structSizeMap cls = case classBytes64WithStructs structSizeMap cls of
     n | n <= 1 -> 1
     2 -> 2
     4 -> 4
     8 -> 8
     _ -> 16
+
+
+classAlign64 :: Class -> Int
+classAlign64 = classAlign64WithStructs Map.empty
+
+
+classBytesM64 :: Class -> X64LowerM Int
+classBytesM64 cls = do
+    structSizeMap <- gets stStructSizeMap64
+    return (classBytes64WithStructs structSizeMap cls)
+
+
+classAlignM64 :: Class -> X64LowerM Int
+classAlignM64 cls = do
+    structSizeMap <- gets stStructSizeMap64
+    return (classAlign64WithStructs structSizeMap cls)
 
 
 alignUpN :: Int -> Int -> Int
@@ -706,8 +828,8 @@ localOffsets64 (IR.IRFunction _ _ _ atomTypes _ _) baseOff =
 --   1) atom -> positive stack offset
 --   2) blob local atom -> blob data positive stack offset
 --   3) final/max offset
-stackLayout64 :: IRFunction -> Int -> (Map IRAtom Int, Map IRAtom Int, Int)
-stackLayout64 (IR.IRFunction _ _ funSig atomTypes (body, _) _) baseOff =
+stackLayout64 :: Map [String] Int -> IRFunction -> Int -> (Map IRAtom Int, Map IRAtom Int, Int)
+stackLayout64 structSizeMap (IR.IRFunction _ _ funSig atomTypes (body, _) _) baseOff =
     let start = max 0 baseOff
         paramEnts = [(IR.Param i, cls) | (i, cls) <- zip [0 ..] (TEnv.funParams funSig)]
         localEnts = [(a, cls) | (a, cls) <- Map.toAscList atomTypes, isLocal a]
@@ -733,12 +855,12 @@ stackLayout64 (IR.IRFunction _ _ funSig atomTypes (body, _) _) baseOff =
                             ptrOff = alignUpN (dataOff + 8) 8
                         in (Map.insert a ptrOff acc, Map.insert a dataOff blobAcc, ptrOff)
                     Nothing ->
-                        let sizeN = classBytes64 cls
-                            nextOff = alignUpN (curOff + sizeN) (classAlign64 cls)
+                        let sizeN = classBytes64WithStructs structSizeMap cls
+                            nextOff = alignUpN (curOff + sizeN) (classAlign64WithStructs structSizeMap cls)
                         in (Map.insert a nextOff acc, blobAcc, nextOff)
             _ ->
-                let sizeN = classBytes64 cls
-                    nextOff = alignUpN (curOff + sizeN) (classAlign64 cls)
+                let sizeN = classBytes64WithStructs structSizeMap cls
+                    nextOff = alignUpN (curOff + sizeN) (classAlign64WithStructs structSizeMap cls)
                 in (Map.insert a nextOff acc, blobAcc, nextOff)
 
 
@@ -913,9 +1035,9 @@ atomTypes64 (IR.IRFunction _ _ funSig atomTypes _ _) =
     in Map.union atomTypes paramTypes
 
 
-mkState64 :: IRFunction -> Int -> CallConv64 -> StackLayoutState
-mkState64 fun@(IR.IRFunction _ _ funSig _ (_, retBid) _) baseOff cc =
-    let (layout, blobDataOff, endOff) = stackLayout64 fun baseOff
+mkState64 :: Map [String] Int -> IRFunction -> Int -> CallConv64 -> StackLayoutState
+mkState64 structSizeMap fun@(IR.IRFunction _ _ funSig _ (_, retBid) _) baseOff cc =
+    let (layout, blobDataOff, endOff) = stackLayout64 structSizeMap fun baseOff
         tys = atomTypes64 fun
     in StackLayoutState {
         stOff64 = layout,
@@ -931,7 +1053,7 @@ mkState64 fun@(IR.IRFunction _ _ funSig _ (_, retBid) _) baseOff cc =
         stCurFunName64 = Nothing,
         stCurFunSig64 = Just funSig,
         stStructQNameSet64 = Set.empty,
-        stStructSizeMap64 = Map.empty,
+        stStructSizeMap64 = structSizeMap,
         stSRetPtrOff64 = Nothing,
         stSRetSize64 = Nothing,
         stInClinit64 = False,
@@ -941,8 +1063,8 @@ mkState64 fun@(IR.IRFunction _ _ funSig _ (_, retBid) _) baseOff cc =
     }
 
 
-stackLayoutClinit64 :: Map IRAtom Class -> Int -> (Map IRAtom Int, Int)
-stackLayoutClinit64 atomTypes baseOff =
+stackLayoutClinit64 :: Map [String] Int -> Map IRAtom Class -> Int -> (Map IRAtom Int, Int)
+stackLayoutClinit64 structSizeMap atomTypes baseOff =
     let start = max 0 baseOff
         stackEnts = [(a, cls) | (a, cls) <- Map.toAscList atomTypes, isStackAtom a]
         (layout, endOff) = foldl' step (Map.empty, start) stackEnts
@@ -955,14 +1077,14 @@ stackLayoutClinit64 atomTypes baseOff =
 
         step :: (Map IRAtom Int, Int) -> (IRAtom, Class) -> (Map IRAtom Int, Int)
         step (acc, curOff) (a, cls) =
-            let sizeN = classBytes64 cls
-                nextOff = alignUpN (curOff + sizeN) (classAlign64 cls)
+            let sizeN = classBytes64WithStructs structSizeMap cls
+                nextOff = alignUpN (curOff + sizeN) (classAlign64WithStructs structSizeMap cls)
             in (Map.insert a nextOff acc, nextOff)
 
 
-mkClinitState64 :: IR.StaticInit -> Map IRAtom Class -> Map IRAtom String -> Int -> CallConv64 -> StackLayoutState
-mkClinitState64 (IR.StaticInit (_, retBid)) staticAtomTypes clinitStackSlots baseOff cc =
-    let (layout, endOff) = stackLayoutClinit64 staticAtomTypes baseOff
+mkClinitState64 :: Map [String] Int -> IR.StaticInit -> Map IRAtom Class -> Map IRAtom String -> Int -> CallConv64 -> StackLayoutState
+mkClinitState64 structSizeMap (IR.StaticInit (_, retBid)) staticAtomTypes clinitStackSlots baseOff cc =
+    let (layout, endOff) = stackLayoutClinit64 structSizeMap staticAtomTypes baseOff
     in StackLayoutState {
         stOff64 = layout,
         stBlobDataOff64 = Map.empty,
@@ -977,7 +1099,7 @@ mkClinitState64 (IR.StaticInit (_, retBid)) staticAtomTypes clinitStackSlots bas
         stCurFunName64 = Just staticInitName,
         stCurFunSig64 = Just (TEnv.FunSig [] AST.Void),
         stStructQNameSet64 = Set.empty,
-        stStructSizeMap64 = Map.empty,
+        stStructSizeMap64 = structSizeMap,
         stSRetPtrOff64 = Nothing,
         stSRetSize64 = Nothing,
         stInClinit64 = True,
@@ -992,7 +1114,7 @@ type X64LowerM a = State StackLayoutState a
 
 
 runX64LowerState64 :: IRFunction -> Int -> CallConv64 -> StackLayoutState
-runX64LowerState64 = mkState64
+runX64LowerState64 fun baseOff cc = mkState64 Map.empty fun baseOff cc
 
 
 withLowerState64 :: StackLayoutState -> X64LowerM a -> X64LowerM a
@@ -1281,7 +1403,8 @@ tySizeM64 :: IRAtom -> X64LowerM (X64.Atom, Class, Int)
 tySizeM64 atom = do
     x64Atom <- atomAddrM64 atom
     cls <- atomTypeM64 atom
-    return (x64Atom, cls, classBytes64 cls)
+    sizeN <- classBytesM64 cls
+    return (x64Atom, cls, sizeN)
 
 
 movMemToReg :: X64.Atom -> Class -> X64LowerM X64.Instruction
@@ -1795,25 +1918,35 @@ x64StmtCode64 (IR.IAssign dst src) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
     (srcAtom, srcCls, _) <- tySizeM64 src
     let bothRefClasses = isRefClass64 dstCls && isRefClass64 srcCls
+        assignReferenceOrScalar =
+            if isRefClass64 dstCls || isRefClass64 srcCls
+                then do
+                    tmp <- getIRetRegM64
+                    let tmpAtom = X64.Reg tmp X64.B64
+                    srcLoad <- loadRefValueToReg64 src tmpAtom srcAtom
+                    return (srcLoad ++ [X64.Mov dstAtom tmpAtom X64.B64])
+                else case intAssignBits64 srcCls of
+                    Just bits -> movLike64 bits dstAtom srcAtom
+                    Nothing -> case srcCls of
+                        AST.Float32T -> movLikeF32 dstAtom srcAtom
+                        AST.Float64T -> movLikeF64 dstAtom srcAtom
+                        _ ->
+                            error $ "x64StmtLowing64(IAssign): unsupported assignment class: " ++ show srcCls
     if dstCls == AST.Void || srcCls == AST.Void
         then return []
         else if dstCls /= srcCls && not bothRefClasses
         -- Lowering can still see mixed-class IAssign from late sugar/template flows.
         -- Reuse ICast lowering so backend stays robust and cast semantics remain central.
         then x64StmtCode64 (IR.ICast dst (srcCls, dstCls) src)
-        else if isRefClass64 dstCls || isRefClass64 srcCls
-            then do
-                tmp <- getIRetRegM64
-                let tmpAtom = X64.Reg tmp X64.B64
-                srcLoad <- loadRefValueToReg64 src tmpAtom srcAtom
-                return (srcLoad ++ [X64.Mov dstAtom tmpAtom X64.B64])
-            else case intAssignBits64 srcCls of
-                Just bits -> movLike64 bits dstAtom srcAtom
-                Nothing -> case srcCls of
-                    AST.Float32T -> movLikeF32 dstAtom srcAtom
-                    AST.Float64T -> movLikeF64 dstAtom srcAtom
-                    _ ->
-                        error $ "x64StmtLowing64(IAssign): unsupported assignment class: " ++ show srcCls
+        else case dstCls of
+            AST.Class {} -> do
+                mStruct <- structReturnInfo64 dstCls
+                case mStruct of
+                    Just (_, sizeN) | srcCls == dstCls ->
+                        copyStructValueToValue64 dstAtom srcAtom sizeN
+                    _ -> assignReferenceOrScalar
+            _ -> assignReferenceOrScalar
+
 
 x64StmtCode64 (IR.IUnary dst AST.UnaryPlus src) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
@@ -1980,51 +2113,54 @@ x64StmtCode64 (IR.ICast dst (fromC, toC) src) = do
         then return []
         else if srcCls /= fromC || dstCls /= toC
         then error $ "x64StmtLowing64(ICast): type mismatch between IR annotation and atom types: " ++ show (fromC, toC, srcCls, dstCls)
-        else
-            let fromCN = castClassNorm fromC
-                toCN = castClassNorm toC
-            in if fromCN == toCN then
-                case toCN of
-                    AST.Float32T -> movLikeF32 dstAtom srcAtom
-                    AST.Float64T -> movLikeF64 dstAtom srcAtom
-                    _ | toCN == AST.Int64T -> do
-                        tmp <- getTmpIRegM64
-                        let tmpAtom = X64.Reg tmp X64.B64
-                        srcLoad <- loadRefValueToReg64 src tmpAtom srcAtom
-                        movs <- movLike64 X64.B64 dstAtom tmpAtom
-                        return (srcLoad ++ movs)
-                    _ ->
-                        let bits = if toCN == AST.Int64T then X64.B64 else classBits64 toCN
-                        in movLike64 bits dstAtom srcAtom
-            else case (fromCN, toCN) of
-            (fromInt, AST.Bool)
-                | isCastIntClass64 fromInt ->
-                    genIntToBoolCast64 dstAtom fromInt srcAtom
-            (AST.Bool, toInt)
-                | isCastIntClass64 toInt ->
-                    genBoolToIntCast64 dstAtom toInt srcAtom
-            (AST.Bool, toF)
-                | toF `elem` [AST.Float32T, AST.Float64T] ->
-                    genBoolToFloatCast64 dstAtom toF srcAtom
-            (fromF, AST.Bool)
-                | fromF `elem` [AST.Float32T, AST.Float64T] ->
-                    genFloatToBoolCast64 dstAtom fromF srcAtom
-            (fromF, toF)
-                | fromF `elem` [AST.Float32T, AST.Float64T]
-                    && toF `elem` [AST.Float32T, AST.Float64T]
-                    && fromF /= toF ->
-                    genFloatToFloatCast64 dstAtom fromF toF srcAtom
-            (fromF, toInt)
-                | fromF `elem` [AST.Float32T, AST.Float64T] && isCastIntClass64 toInt ->
-                    genFloatToIntCast64 dstAtom fromF toInt srcAtom
-            (fromInt, toF)
-                | (isCastIntClass64 fromInt || fromInt == AST.Bool) && toF `elem` [AST.Float32T, AST.Float64T] ->
-                    genIntToFloatCast64 dstAtom fromInt toF srcAtom
-            (fromInt, toInt)
-                | isCastIntClass64 fromInt && isCastIntClass64 toInt ->
-                    genIntCast64 dstAtom fromInt toInt srcAtom
+        else case (fromC, toC) of
+            (AST.Class {}, AST.Pointer _) ->
+                storeValueAddressToAtom64 dstAtom srcAtom
             _ ->
-                error $ "x64StmtLowing64(ICast): only int-like<->int-like, int-like->float/double, bool<->int, bool<->float/double, float<->double, and float/double->int casts are supported now, got: " ++ show (fromC, toC)
+                let fromCN = castClassNorm fromC
+                    toCN = castClassNorm toC
+                in if fromCN == toCN
+                    then case toCN of
+                        AST.Float32T -> movLikeF32 dstAtom srcAtom
+                        AST.Float64T -> movLikeF64 dstAtom srcAtom
+                        _ | toCN == AST.Int64T -> do
+                            tmp <- getTmpIRegM64
+                            let tmpAtom = X64.Reg tmp X64.B64
+                            srcLoad <- loadRefValueToReg64 src tmpAtom srcAtom
+                            movs <- movLike64 X64.B64 dstAtom tmpAtom
+                            return (srcLoad ++ movs)
+                        _ ->
+                            let bits = if toCN == AST.Int64T then X64.B64 else classBits64 toCN
+                            in movLike64 bits dstAtom srcAtom
+                    else case (fromCN, toCN) of
+                        (fromInt, AST.Bool)
+                            | isCastIntClass64 fromInt ->
+                                genIntToBoolCast64 dstAtom fromInt srcAtom
+                        (AST.Bool, toInt)
+                            | isCastIntClass64 toInt ->
+                                genBoolToIntCast64 dstAtom toInt srcAtom
+                        (AST.Bool, toF)
+                            | toF `elem` [AST.Float32T, AST.Float64T] ->
+                                genBoolToFloatCast64 dstAtom toF srcAtom
+                        (fromF, AST.Bool)
+                            | fromF `elem` [AST.Float32T, AST.Float64T] ->
+                                genFloatToBoolCast64 dstAtom fromF srcAtom
+                        (fromF, toF)
+                            | fromF `elem` [AST.Float32T, AST.Float64T]
+                                && toF `elem` [AST.Float32T, AST.Float64T]
+                                && fromF /= toF ->
+                                genFloatToFloatCast64 dstAtom fromF toF srcAtom
+                        (fromF, toInt)
+                            | fromF `elem` [AST.Float32T, AST.Float64T] && isCastIntClass64 toInt ->
+                                genFloatToIntCast64 dstAtom fromF toInt srcAtom
+                        (fromInt, toF)
+                            | (isCastIntClass64 fromInt || fromInt == AST.Bool) && toF `elem` [AST.Float32T, AST.Float64T] ->
+                                genIntToFloatCast64 dstAtom fromInt toF srcAtom
+                        (fromInt, toInt)
+                            | isCastIntClass64 fromInt && isCastIntClass64 toInt ->
+                                genIntCast64 dstAtom fromInt toInt srcAtom
+                        _ ->
+                            error $ "x64StmtLowing64(ICast): only int-like<->int-like, int-like->float/double, bool<->int, bool<->float/double, float<->double, and float/double->int casts are supported now, got: " ++ show (fromC, toC)
   where
     castClassNorm :: Class -> Class
     castClassNorm (AST.Pointer _) = AST.Int64T
@@ -2032,6 +2168,7 @@ x64StmtCode64 (IR.ICast dst (fromC, toC) src) = do
     castClassNorm (AST.FuncPtr _ _) = AST.Int64T
     castClassNorm (AST.Class _ _) = AST.Int64T
     castClassNorm c = c
+
 
 x64StmtCode64 (IR.GetFuncAddr dst (IR.TACFunction qname sig)) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
@@ -2054,8 +2191,6 @@ x64StmtCode64 (IR.ICallPtr dst fnPtr args) = do
     (fnAtom, fnCls, _) <- tySizeM64 fnPtr
     argTriples <- mapM tySizeM64 args
     cc <- getCCM64
-    iRet <- getIRetRegM64
-    fRet <- getFRetRegM64
 
     (paramTypes, retTypeByPtr) <- case fnCls of
         AST.FuncPtr retTy argTs -> pure (argTs, retTy)
@@ -2100,44 +2235,22 @@ x64StmtCode64 (IR.ICallPtr dst fnPtr args) = do
         -- Keep argument registers intact (e.g. rcx/rdx on Win64):
         -- use a dedicated volatile register for indirect call target.
         callReg = X64.Reg X64.R10 X64.B64
+        postStructRet = [X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm structRetAlloc) X64.B64 | structRetAlloc > 0]
         movFnPtr = [X64.Mov callReg fnAtom X64.B64]
-        retInstrs = case dstCls of
-            AST.Void -> []
-            AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
-            AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
-            cls | isRefClass64 cls ->
-                case mStructRet of
-                    Just _ -> [X64.Mov dstAtom (X64.Reg X64.SP X64.B64) X64.B64]
-                    Nothing -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
-            cls -> case Map.lookup cls bitsByClass64 of
-                Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
-                Nothing -> error $ "x64StmtLowing64(ICallPtr): unsupported return class: " ++ show cls
     stackInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) stackPairs
     regInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) regPairs
-    return (preCall ++ prepRetPtr ++ stackInstrs ++ regInstrs ++ movFnPtr ++ [X64.CallA callReg] ++ postCall ++ retInstrs)
+    retInstrs <- callReturnInstrs64 dstAtom dstCls mStructRet
+    return $ concat [preCall, prepRetPtr, stackInstrs, regInstrs, movFnPtr, [X64.CallA callReg], postCall, retInstrs, postStructRet]
 
 x64StmtCode64 (IR.ICallStaticDirect dst qname args) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
     argTriples <- mapM tySizeM64 args
     cc <- getCCM64
-    iRet <- getIRetRegM64
-    fRet <- getFRetRegM64
     mStructRet <- structReturnInfo64 dstCls
     let argAtoms = map (\(a, _, _) -> a) argTriples
         argClasses = map (\(_, c, _) -> c) argTriples
         fullSig = argClasses ++ [dstCls]
         (callName, callSig) = mkDirectCallName64 qname fullSig
-        retInstrs = case dstCls of
-            AST.Void -> []
-            AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
-            AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
-            cls | isRefClass64 cls ->
-                case mStructRet of
-                    Just _ -> [X64.Mov dstAtom (X64.Reg X64.SP X64.B64) X64.B64]
-                    Nothing -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
-            cls -> case Map.lookup cls bitsByClass64 of
-                Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
-                Nothing -> error $ "x64StmtLowing64(ICallStaticDirect): unsupported return class: " ++ show cls
     let hiddenRetClass = AST.Pointer AST.Void
         fullArgClasses = case mStructRet of
             Just _ -> hiddenRetClass : argClasses
@@ -2160,17 +2273,17 @@ x64StmtCode64 (IR.ICallStaticDirect dst qname args) = do
             Nothing -> zip3 args argAtoms argClasses
         argPairs = zip regPlan fullArgTriples
         stackPairs = [one | one@(regSel, _) <- argPairs, isStackArgSel64 regSel]
+        postStructRet = [X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm structRetAlloc) X64.B64 | structRetAlloc > 0]
         regPairs = [one | one@(regSel, _) <- argPairs, not (isStackArgSel64 regSel)]
     stackInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) stackPairs
     regInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) regPairs
-    return (preCall ++ prepRetPtr ++ stackInstrs ++ regInstrs ++ [X64.Call callName callSig] ++ postCall ++ retInstrs)
+    retInstrs <- callReturnInstrs64 dstAtom dstCls mStructRet
+    return $ concat [preCall, prepRetPtr, stackInstrs, regInstrs, [X64.Call callName callSig], postCall, retInstrs, postStructRet]
 x64StmtCode64 (IR.ICallVirtual {}) = error "TODO"
 x64StmtCode64 (IR.ICallStatic dst qname args) = do
     (dstAtom, dstCls, _) <- tySizeM64 dst
     argTriples <- mapM tySizeM64 args
     cc <- getCCM64
-    iRet <- getIRetRegM64
-    fRet <- getFRetRegM64
 
     mStructRet <- structReturnInfo64 dstCls
     let argAtoms = map (\(a, _, _) -> a) argTriples
@@ -2189,6 +2302,7 @@ x64StmtCode64 (IR.ICallStatic dst qname args) = do
         totalAlloc = callFrameBytes + structRetAlloc
         preCall = [X64.Sub (X64.Reg X64.SP X64.B64) (X64.Imm totalAlloc) X64.B64 | totalAlloc > 0]
         postCall = [X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm callFrameBytes) X64.B64 | callFrameBytes > 0]
+        postStructRet = [X64.Add (X64.Reg X64.SP X64.B64) (X64.Imm structRetAlloc) X64.B64 | structRetAlloc > 0]
         retPtrReg = X64.Reg X64.R11 X64.B64
         prepRetPtr = case mStructRet of
             Just _ -> [X64.Lea retPtrReg (X64.Mem (Just X64.SP) Nothing callFrameBytes) X64.B64]
@@ -2202,20 +2316,9 @@ x64StmtCode64 (IR.ICallStatic dst qname args) = do
         regPairs = [one | one@(regSel, _) <- argPairs, not (isStackArgSel64 regSel)]
     stackInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) stackPairs
     regInstrs <- concat <$> mapM (\(regSel, (srcIR, atom, cls)) -> moveArgToArgLoc64 cc regSel srcIR atom cls) regPairs
+    retInstrs <- callReturnInstrs64 dstAtom dstCls mStructRet
 
-    let retInstrs = case dstCls of
-            AST.Void -> []
-            AST.Float32T -> [X64.Movss dstAtom (X64.Reg fRet X64.NN) X64.B32]
-            AST.Float64T -> [X64.Movsd dstAtom (X64.Reg fRet X64.NN) X64.B64]
-            cls | isRefClass64 cls ->
-                case mStructRet of
-                    Just _ -> [X64.Mov dstAtom (X64.Reg X64.SP X64.B64) X64.B64]
-                    Nothing -> [X64.Mov dstAtom (X64.Reg iRet X64.B64) X64.B64]
-            cls -> case Map.lookup cls bitsByClass64 of
-                Just bits -> [X64.Mov dstAtom (X64.Reg iRet bits) bits]
-                Nothing -> error $ "x64StmtLowing64(ICallStatic): unsupported return class: " ++ show cls
-
-    return $ concat [preCall, prepRetPtr, stackInstrs, regInstrs, [X64.Call callName callSig], postCall, retInstrs]
+    return $ concat [preCall, prepRetPtr, stackInstrs, regInstrs, [X64.Call callName callSig], postCall, retInstrs, postStructRet]
 
 x64StmtCode64 (IR.IGetField {}) = error "TODO"
 x64StmtCode64 (IR.IPutField {}) = error "TODO"
@@ -2313,6 +2416,15 @@ x64StmtCode64 (IR.Deref dst src) = do
                     tmpF <- getTmpFRegM64
                     let fReg = X64.Reg tmpF X64.NN
                     return (loadPtr ++ [X64.Movsd fReg fromPtr X64.B64, X64.Movsd dstAtom fReg X64.B64])
+                cls@(AST.Class {}) -> do
+                    mStruct <- structReturnInfo64 cls
+                    case mStruct of
+                        Just (_, sizeN) ->
+                            copyPointerToStructValue64 dstAtom srcAtom sizeN
+                        Nothing -> do
+                            let vReg = X64.Reg tmpI X64.B64
+                            movs <- movLike64 X64.B64 dstAtom vReg
+                            return (loadPtr ++ [X64.Mov vReg fromPtr X64.B64] ++ movs)
                 cls | cls == AST.Int64T || isRefClass64 cls -> do
                     let vReg = X64.Reg tmpI X64.B64
                     movs <- movLike64 X64.B64 dstAtom vReg
@@ -2324,6 +2436,7 @@ x64StmtCode64 (IR.Deref dst src) = do
                         return (loadPtr ++ [X64.Mov vReg fromPtr bits] ++ movs)
                     Nothing ->
                         error $ "x64StmtLowing64(Deref): unsupported destination class: " ++ show dstCls
+
 
 x64StmtCode64 (IR.DerefAssign ptr src widthN) = do
     (ptrAtom, ptrCls, _) <- tySizeM64 ptr
@@ -2872,49 +2985,72 @@ x64FuncEntry64 (IR.IRFunction _ _ funSig _ _ _) = do
                     AST.Float32T -> return [X64.Movss dst (X64.Reg fReg X64.NN) X64.B32]
                     AST.Float64T -> return [X64.Movsd dst (X64.Reg fReg X64.NN) X64.B64]
                     _ -> error $ "x64FuncEntry64: non-float class spilled from float register: " ++ show cls
-                ArgRegI iReg ->
-                    case blobByValueBits64 cls of
-                        Just bits -> do
-                            blobDataOff <- getBlobDataOffMapM64
-                            case Map.lookup (IR.Param paramIdx) blobDataOff of
-                                Just dataOff ->
-                                    let dataDst = X64.Mem (Just bp) Nothing (negate dataOff)
-                                        src = X64.Reg iReg bits
-                                    in return [X64.Mov dataDst src bits]
-                                Nothing ->
-                                    error $ "x64FuncEntry64: missing blob shadow area for param " ++ show paramIdx
-                        Nothing -> case paramSpillBits64 cls of
-                            Just bits ->
-                                let src = X64.Reg iReg bits
-                                in return [X64.Mov dst src bits]
-                            Nothing ->
-                                error $ "x64FuncEntry64: unsupported param class for register spill: " ++ show cls
+                ArgRegI iReg -> case cls of
+                    AST.Class {} -> do
+                        mStruct <- structReturnInfo64 cls
+                        case mStruct of
+                            Just (_, sizeN) ->
+                                copyPointerToStructValue64 dst (X64.Reg iReg X64.B64) sizeN
+                            Nothing -> spillIntegerReg paramIdx iReg dst cls
+                    _ -> spillIntegerReg paramIdx iReg dst cls
                 ArgStack stackOff -> do
                     let src = X64.Mem (Just bp) Nothing (incomingStackArgBaseDisp64 ccNow + stackOff)
-                    case blobByValueBits64 cls of
-                        Just bits -> do
-                            blobDataOff <- getBlobDataOffMapM64
-                            case Map.lookup (IR.Param paramIdx) blobDataOff of
-                                Just dataOff -> do
-                                    tmpI <- getTmpIRegM64
-                                    let dataDst = X64.Mem (Just bp) Nothing (negate dataOff)
-                                        tmp = X64.Reg tmpI bits
-                                    pure [X64.Mov tmp src bits, X64.Mov dataDst tmp bits]
-                                Nothing ->
-                                    error $ "x64FuncEntry64: missing blob shadow area for stack param " ++ show paramIdx
-                        Nothing -> case cls of
-                            AST.Float32T -> do
-                                tmpF <- getTmpFRegM64
-                                let tmp = X64.Reg tmpF X64.NN
-                                pure [X64.Movss tmp src X64.B32, X64.Movss dst tmp X64.B32]
-                            AST.Float64T -> do
-                                tmpF <- getTmpFRegM64
-                                let tmp = X64.Reg tmpF X64.NN
-                                pure [X64.Movsd tmp src X64.B64, X64.Movsd dst tmp X64.B64]
-                            _ -> case paramSpillBits64 cls of
-                                Just bits -> movLike64 bits dst src
-                                Nothing ->
-                                    error $ "x64FuncEntry64: unsupported param class for stack spill: " ++ show cls
+                    case cls of
+                        AST.Class {} -> do
+                            mStruct <- structReturnInfo64 cls
+                            case mStruct of
+                                Just (_, sizeN) ->
+                                    copyPointerToStructValue64 dst src sizeN
+                                Nothing -> spillStackScalar paramIdx src dst cls
+                        _ -> spillStackScalar paramIdx src dst cls
+
+        spillIntegerReg :: Int -> Register -> X64.Atom -> Class -> X64LowerM [X64.Instruction]
+        spillIntegerReg paramIdx iReg dst cls =
+            case blobByValueBits64 cls of
+                Just bits -> do
+                    blobDataOff <- getBlobDataOffMapM64
+                    case Map.lookup (IR.Param paramIdx) blobDataOff of
+                        Just dataOff -> do
+                            bp <- getBpRegM64
+                            let dataDst = X64.Mem (Just bp) Nothing (negate dataOff)
+                                src = X64.Reg iReg bits
+                            return [X64.Mov dataDst src bits]
+                        Nothing ->
+                            error $ "x64FuncEntry64: missing blob shadow area for param " ++ show paramIdx
+                Nothing -> case paramSpillBits64 cls of
+                    Just bits ->
+                        let src = X64.Reg iReg bits
+                        in return [X64.Mov dst src bits]
+                    Nothing ->
+                        error $ "x64FuncEntry64: unsupported param class for register spill: " ++ show cls
+
+        spillStackScalar :: Int -> X64.Atom -> X64.Atom -> Class -> X64LowerM [X64.Instruction]
+        spillStackScalar paramIdx src dst cls =
+            case blobByValueBits64 cls of
+                Just bits -> do
+                    blobDataOff <- getBlobDataOffMapM64
+                    case Map.lookup (IR.Param paramIdx) blobDataOff of
+                        Just dataOff -> do
+                            bp <- getBpRegM64
+                            tmpI <- getTmpIRegM64
+                            let dataDst = X64.Mem (Just bp) Nothing (negate dataOff)
+                                tmp = X64.Reg tmpI bits
+                            pure [X64.Mov tmp src bits, X64.Mov dataDst tmp bits]
+                        Nothing ->
+                            error $ "x64FuncEntry64: missing blob shadow area for stack param " ++ show paramIdx
+                Nothing -> case cls of
+                    AST.Float32T -> do
+                        tmpF <- getTmpFRegM64
+                        let tmp = X64.Reg tmpF X64.NN
+                        pure [X64.Movss tmp src X64.B32, X64.Movss dst tmp X64.B32]
+                    AST.Float64T -> do
+                        tmpF <- getTmpFRegM64
+                        let tmp = X64.Reg tmpF X64.NN
+                        pure [X64.Movsd tmp src X64.B64, X64.Movsd dst tmp X64.B64]
+                    _ -> case paramSpillBits64 cls of
+                        Just bits -> movLike64 bits dst src
+                        Nothing ->
+                            error $ "x64FuncEntry64: unsupported param class for stack spill: " ++ show cls
 
         initBlobLocals :: X64LowerM [X64.Instruction]
         initBlobLocals = do
@@ -3234,7 +3370,7 @@ lowerFun ownerQName floatConstLblMap stringConstLblMap fun = do
     let baseOff = 0
     let funName = case fun of
             IR.IRFunction _ name _ _ _ _ -> name
-        stFun = (mkState64 fun baseOff cc) {
+        stFun = (mkState64 structSizeMap fun baseOff cc) {
             stFloatConstLabelMap64 = floatConstLblMap,
             stStringConstLabelMap64 = stringConstLblMap,
             stOwnerQName64 = ownerQName,
@@ -3303,7 +3439,7 @@ x64LowingClass pkgSegs (IR.IRClass decl className classType attrs sInit staticAt
         (floatConstLblMap, floatConstData, floatSeqNext) = collectClassFloatConsts64 cc ownerQName floatSeqStart klass
         (stringConstLblMap, stringConstData, stringSeqNext) = collectClassStringConsts64 cc ownerQName stringSeqStart klass
         (clinitStackSlots, clinitStackData) = collectClinitStackSlots64 ownerQName staticAtomTypes sInit
-        stClinit = (mkClinitState64 sInit staticAtomTypes clinitStackSlots baseOff cc) {
+        stClinit = (mkClinitState64 structSizeMap sInit staticAtomTypes clinitStackSlots baseOff cc) {
             stFloatConstLabelMap64 = floatConstLblMap,
             stStringConstLabelMap64 = stringConstLblMap,
             stOwnerQName64 = ownerQName,
@@ -3422,7 +3558,7 @@ structSizeFromClass64 :: String -> IR.IRClass -> Maybe Int
 structSizeFromClass64 className (IR.IRClass _ _ _ _ (IR.StaticInit (blocks, _)) _ _ _ _ _) =
     finalSize
   where
-    sizeFieldName = className ++ "$$size"
+    sizeFieldName = className ++ "$__SIZE__"
     instrs = concatMap oneBlock blocks
 
     oneBlock :: IR.IRBlock -> [IR.IRInstr]
@@ -3461,7 +3597,7 @@ structSizeFromClass64 className (IR.IRClass _ _ _ _ (IR.StaticInit (blocks, _)) 
 
 initClassState64 :: X64.CallConv64 -> Set.Set [String] -> Map [String] Int -> IR.IRClass -> StackLayoutState
 initClassState64 cc structQSet structSizeMap (IR.IRClass _ _ _ _ sInit staticAtomTypes _ _ _ _) =
-    (mkClinitState64 sInit staticAtomTypes Map.empty 0 cc) {
+    (mkClinitState64 structSizeMap sInit staticAtomTypes Map.empty 0 cc) {
         stStructQNameSet64 = structQSet,
         stStructSizeMap64 = structSizeMap
     }
@@ -3492,4 +3628,7 @@ x64LowingProgm (IR.IRProgm pkgSegs classes) = do
     let decls = globals ++ externs
     let prog = X64.X64Progm decls staticData textSegs
     return prog
+
+
+
 

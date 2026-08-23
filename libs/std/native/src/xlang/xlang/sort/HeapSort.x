@@ -57,11 +57,20 @@ private fun siftDown(
             childPtr = rightPtr
         }
 
-        if comp(holeValue, childPtr) >= 0:
-            break
-
         System.memcopy(arr + tsize * holeIndex, childPtr, tsize)
         holeIndex = child
+    }
+
+    while holeIndex > startIndex:
+    {
+        val parent: int = (holeIndex - 1) / 2
+        val parentPtr: pointer<byte> = arr + tsize * parent
+
+        if comp(parentPtr, holeValue) >= 0:
+            break
+
+        System.memcopy(arr + tsize * holeIndex, parentPtr, tsize)
+        holeIndex = parent
     }
 
     System.memcopy(arr + tsize * holeIndex, holeValue, tsize)

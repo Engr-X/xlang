@@ -75,6 +75,7 @@ hasAssign = go
     go (AST.Cast _ x _) = go x
     go (AST.Call f args) = go f || any go args
     go (AST.CallT f _ args) = go f || any go args
+    go (AST.Member base _ _) = go base
     go (AST.SizeOfExpr x _) = go x
     go (AST.SizeOfType _ _) = False
     go (AST.IfExpr cond thenE elseE _) = go cond || go thenE || go elseE
@@ -288,7 +289,7 @@ checkExpr p packages envs expr = case expr of
                 when (null (classScope cState) && not hasLocalThis) $
                     addErr $ UE.Syntax $ UE.makeError p [tokenPos tok] (undefinedIdentity name)
             else
-                if isVarDefine name cState || isVarImport (packages ++ [name]) envs
+                if isVarDefine name cState || isVarImport (packages ++ [name]) envs || isVarImport [name] envs
                     then do
                         case lookupVarId name cState of
                             Just (vid, _) -> do
@@ -330,12 +331,16 @@ checkExpr p packages envs expr = case expr of
                         (clsTop:_) -> if Map.member field (sVars clsTop) then pure ()
                             else addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity field)
 
-                    -- non-this qualified name is resolved only through imports.
+                    -- non-this qualified name is either an imported static symbol or a member chain.
                     _ -> if isVarImport names envs || isFunImport names envs
                             then pure ()
-                            else case lookupHiddenVarPos names envs of
-                                Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
-                                Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                            else if shouldTreatAsMemberCall names cState
+                                then checkQualifiedMemberBase names tokens
+                                else case lookupHiddenVarPos names envs of
+                                    Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                    Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+    AST.Member base _ _ ->
+        checkExpr p packages envs base
     AST.IfExpr cond thenE elseE _ -> do
         checkExpr p packages envs cond
         checkExpr p packages envs thenE
@@ -503,9 +508,11 @@ checkExpr p packages envs expr = case expr of
                                 -- non-this qualified name is resolved only through imports.
                                 _ -> if isFunImport names envs || isVarImport names envs
                                         then pure ()
-                                        else case lookupHiddenFunPos names envs of
-                                            Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
-                                            Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                                        else if shouldTreatAsMemberCall names cState
+                                            then checkQualifiedMemberBase names tokens
+                                            else case lookupHiddenFunPos names envs of
+                                                Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                                Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
                         _ -> do
                             case names of
                                 -- this.f / this.f.g ... => check 'f' exists in nearest class scope only.
@@ -523,9 +530,11 @@ checkExpr p packages envs expr = case expr of
                                 -- non-this qualified name is resolved only through imports.
                                 _ -> if isFunImport names envs || isVarImport names envs
                                         then pure ()
-                                        else case lookupHiddenFunPos names envs of
-                                            Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
-                                            Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
+                                        else if shouldTreatAsMemberCall names cState
+                                            then checkQualifiedMemberBase names tokens
+                                            else case lookupHiddenFunPos names envs of
+                                                Just _ -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) UE.notVisibleMsg
+                                                Nothing -> addErr $ UE.Syntax $ UE.makeError p (map tokenPos tokens) (undefinedIdentity $ concatQ names)
 
                 other -> checkExpr p packages envs other
 
@@ -544,7 +553,27 @@ checkExpr p packages envs expr = case expr of
         shouldTreatAsPointerIntrinsic baseName cState =
             baseName == "this" ||
             isVarDefine baseName cState ||
-            isVarImport (packages ++ [baseName]) envs
+            isVarImport (packages ++ [baseName]) envs ||
+            isVarImport [baseName] envs
+
+
+        checkQualifiedMemberBase :: [String] -> [Token] -> CheckM ()
+        checkQualifiedMemberBase names tokens = case (names, tokens) of
+            (baseName : _ : _, baseTok : _) ->
+                checkExpr p packages envs (AST.Variable baseName baseTok)
+            _ -> pure ()
+
+
+        shouldTreatAsMemberCall :: [String] -> CheckState -> Bool
+        shouldTreatAsMemberCall names cState = case names of
+            baseName : _ : _ ->
+                isVarDefine baseName cState ||
+                isVarImport (packages ++ [baseName]) envs ||
+                isVarImport [baseName] envs ||
+                case lookupVarId baseName cState of
+                    Just _ -> True
+                    Nothing -> False
+            _ -> False
 
 
 
