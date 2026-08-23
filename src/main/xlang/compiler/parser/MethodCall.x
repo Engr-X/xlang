@@ -32,9 +32,6 @@ import xlang.util.string.StringBuilder
 
 struct MethodCall
 {
-    // static fun fromCompare(exp1: pointer<Expression>)
-
-
     private var host: pointer<Expression>
 
     private var callName: pointer<char>

@@ -58,44 +58,68 @@
                 { "symbol": ">", "function_name": "greater", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
                 { "symbol": "<", "function_name": "less", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
                 { "symbol": ">=", "function_name": "greaterEqual", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
-                { "symbol": "<=", "function_name": "lessEqual", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 }
+                { "symbol": "<=", "function_name": "lessEqual", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 150 },
+
+                { "symbol": "===", "function_name": "refEquals", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 140 },
+                { "symbol": "==", "function_name": "equals", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 140 },
+                { "symbol": "!==", "function_name": "notRefEquals", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 140 },
+                { "symbol": "!=", "function_name": "notEquals", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 140 },
+
+                { "symbol": "inv", "function_name": "inv", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 130 },
+
+                { "symbol": "!", "function_name": "not", "fixity": "Operation.PREFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 70 },
+
+                { "symbol": "||", "function_name": "logicalOr", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.LEFT_ASSOC", "priority": 40 }
             ],
             "sub_rules": [
-                { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExpressionFromFunctionCall", "priority": 240 },
-                { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExpressionFromAtom", "priority": 230 },
-                { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExpressionFromParenthesis" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
+                { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExprFromAtom", "priority": 230 },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExprFromParen" },
 
-                { "role": "starter", "patterns": [{ "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "pos", "action": "makeExpressionFromPrefix" },
-                { "role": "starter", "patterns": [{ "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "neg", "action": "makeExpressionFromPrefix" },
-                { "role": "starter", "patterns": [{ "kind": "Tokenizer.DOUBLE_PLUS" }, { "kind": "$Expression" }], "operation": "inc", "action": "makeExpressionFromPrefix" },
-                { "role": "starter", "patterns": [{ "kind": "Tokenizer.DOUBLE_MINUS" }, { "kind": "$Expression" }], "operation": "dec", "action": "makeExpressionFromPrefix" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "pos", "action": "makeExprFromPrefix" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "neg", "action": "makeExprFromPrefix" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.DOUBLE_PLUS" }, { "kind": "$Expression" }], "operation": "inc", "action": "makeExprFromPrefix" },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.DOUBLE_MINUS" }, { "kind": "$Expression" }], "operation": "dec", "action": "makeExprFromPrefix" },
+
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_INV" }, { "kind": "$Expression" }], "operation": "inv", "action": "makeExprFromPrefix" },
+
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.BANG" }, { "kind": "$Expression" }], "operation": "not", "action": "makeExprFromPrefix" },
 
                 
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "$ListLiteral" }], "action": "makeExpressionFromIndexAccess", "priority": 230 },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExpressionFromMethodCall", "priority": 230 },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExpressionFromFieldAccess", "priority": 220 },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "$ListLiteral" }], "action": "makeExprFromIndexAccess", "priority": 230 },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromMethodCall", "priority": 230 },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOT"}, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExprFromFieldAccess", "priority": 220 },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_PLUS" }], "operation": "succ", "action": "makeExpressionFromPostfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_MINUS" }], "operation": "pred", "action": "makeExpressionFromPostfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_PLUS" }], "operation": "succ", "action": "makeExprFromPostfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_MINUS" }], "operation": "pred", "action": "makeExprFromPostfix" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_AS" }, { "kind": "$Type" }], "action": "makeExpressionFromTypeCast", "priority": 200 },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_AS" }, { "kind": "$Type" }], "action": "makeExprFromTypeCast", "priority": 200 },
                 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_STAR"}, { "kind": "$Expression" }], "operation": "pow", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_STAR"}, { "kind": "$Expression" }], "operation": "pow", "action": "makeExprFromInfix" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.STAR" }, { "kind": "$Expression" }], "operation": "times", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.SLASH" }, { "kind": "$Expression" }], "operation": "div", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PERCENT" }, { "kind": "$Expression" }], "operation": "rem", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.STAR" }, { "kind": "$Expression" }], "operation": "times", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.SLASH" }, { "kind": "$Expression" }], "operation": "div", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PERCENT" }, { "kind": "$Expression" }], "operation": "rem", "action": "makeExprFromInfix" },
                 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "plus", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "minus", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.PLUS" }, { "kind": "$Expression" }], "operation": "plus", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.MINUS" }, { "kind": "$Expression" }], "operation": "minus", "action": "makeExprFromInfix" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_SHL" }, { "kind": "$Expression" }], "operation": "shl", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_SHR" }, { "kind": "$Expression" }], "operation": "shr", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_USHR" }, { "kind": "$Expression" }], "operation": "ushr", "action": "makeExpressionFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_SHL" }, { "kind": "$Expression" }], "operation": "shl", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_SHR" }, { "kind": "$Expression" }], "operation": "shr", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_USHR" }, { "kind": "$Expression" }], "operation": "ushr", "action": "makeExprFromInfix" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.GREATER" }, { "kind": "$Expression" }], "operation": "greater", "action": "makeExpressionFromInfix" },
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.LESS" }, { "kind": "$Expression" }], "operation": "less", "action": "makeExpressionFromInfix" }
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.GREATER" }, { "kind": "$Expression" }], "operation": "greater", "action": "makeExprFromCompare" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.LESS" }, { "kind": "$Expression" }], "operation": "less", "action": "makeExprFromCompare" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.GREATER_EQUAL" }, { "kind": "$Expression" }], "operation": "greaterEqual", "action": "makeExprFromCompare" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.LESS_EQUAL" }, { "kind": "$Expression" }], "operation": "lessEqual", "action": "makeExprFromCompare" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TRIPLE_EQUAL" }, { "kind": "$Expression" }], "operation": "refEquals", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_EQUAL" }, { "kind": "$Expression" }], "operation": "equals", "action": "makeExprFromInfix" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.BANG_DOUBLE_EQUAL" }, { "kind": "$Expression" }], "operation": "refEquals", "action": "makeExprFromNotRefEqual" },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.NOT_EQUAL" }, { "kind": "$Expression" }], "operation": "equals", "action": "makeExprFromNotEqual" },
+
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_PIPE" }, { "kind": "$Expression" }], "operation": "logicalOr", "action": "makeExprFromInfix" }
             ],
             "force_ends": [
                 { "kind": "Tokenizer.RIGHT_PAREN" },
@@ -264,7 +288,7 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromAtom(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val slot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val container: pointer<ParseContainer> = slot.deref as pointer<ParseContainer>",
@@ -275,7 +299,7 @@
 
 
 
-        [   "private fun makeExpressionFromFunctionCall(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromFuncCall(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val nameSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
@@ -290,7 +314,7 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromMethodCall(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromMethodCall(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val hostSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val hostContainer: pointer<ParseContainer> = hostSlot.deref as pointer<ParseContainer>",
@@ -310,7 +334,7 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromIndexAccess(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromIndexAccess(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val hostSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val hostContainer: pointer<ParseContainer> = hostSlot.deref as pointer<ParseContainer>",
@@ -325,7 +349,7 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromFieldAccess(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromFieldAccess(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val hostSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val hostContainer: pointer<ParseContainer> = hostSlot.deref as pointer<ParseContainer>",
@@ -340,7 +364,7 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromTypeCast(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromTypeCast(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val expressionSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val expressionContainer: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
@@ -358,7 +382,7 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromParenthesis(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromParen(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val expressionSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
@@ -373,7 +397,9 @@
             "}" ],
 
 
-        [   "private fun makeExpressionFromPrefix(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromPrefixWith(",
+            "    results: pointer<ArrayList>,",
+            "    build: (pointer<Operation>, pointer<Expression>) -> pointer<Expression>) -> pointer<*>",
             "{",
             "    val opSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val expressionSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
@@ -381,14 +407,27 @@
             "    val op: pointer<Operation> = toOperation(opToken, Operation.PREFIX_TYPE)",
             "    val container: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
             "",
+            "    if op == null:",
+            "        return null",
+            "",
             "    val expression: pointer<Expression> = container.getValue() as pointer<Expression>",
-            "    val result: pointer<Expression> = Expression.fromPrefix(op, expression)",
+            "    val result: pointer<Expression> = build(op, expression)",
+            "",
+            "    if result == null:",
+            "        return null",
             "",
             "    return result.addExtraToken(opToken)",
             "}" ],
 
 
-        [   "private fun makeExpressionFromInfix(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromPrefix(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromPrefixWith(results, ExpressionDesugar.fromPrefix)",
+            "" ],
+
+
+        [   "private fun makeExprFromInfixWith(",
+            "    results: pointer<ArrayList>,",
+            "    build: (pointer<Operation>, pointer<Expression>, pointer<Expression>) -> pointer<Expression>) -> pointer<*>",
             "{",
             "    val leftSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
@@ -399,15 +438,42 @@
             "    val op: pointer<Operation> = toOperation(opToken, Operation.INFIX_TYPE)",
             "    val rightContainer: pointer<ParseContainer> = rightSlot.deref as pointer<ParseContainer>",
             "",
+            "    if op == null:",
+            "        return null",
+            "",
             "    val left: pointer<Expression> = leftContainer.getValue() as pointer<Expression>",
             "    val right: pointer<Expression> = rightContainer.getValue() as pointer<Expression>",
-            "    val result: pointer<Expression> = Expression.fromBinary(op, left, right)",
+            "    val result: pointer<Expression> = build(op, left, right)",
+            "",
+            "    if result == null:",
+            "        return null",
             "",
             "    return result.addExtraToken(opToken)",
             "}" ],
 
 
-        [   "private fun makeExpressionFromPostfix(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromInfix(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.fromInfix)",
+            "" ],
+
+
+        [   "private fun makeExprFromCompare(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.fromCompare)",
+            "" ],
+
+
+        [   "private fun makeExprFromNotRefEqual(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotRefEqual)",
+            "" ],
+
+
+        [   "private fun makeExprFromNotEqual(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotEqual)",
+            "" ],
+
+        [   "private fun makeExprFromPostfixWith(",
+            "    results: pointer<ArrayList>,",
+            "    build: (pointer<Operation>, pointer<Expression>) -> pointer<Expression>) -> pointer<*>",
             "{",
             "    val expressionSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
@@ -415,10 +481,21 @@
             "    val op: pointer<Operation> = toOperation(opToken, Operation.POSTFIX_TYPE)",
             "    val container: pointer<ParseContainer> = expressionSlot.deref as pointer<ParseContainer>",
             "",
+            "    if op == null:",
+            "        return null",
+            "",
             "    val expression: pointer<Expression> = container.getValue() as pointer<Expression>",
-            "    val result: pointer<Expression> = Expression.fromPostfix(op, expression)",
+            "    val result: pointer<Expression> = build(op, expression)",
+            "",
+            "    if result == null:",
+            "        return null",
             "",
             "    return result.addExtraToken(opToken)",
-            "}" ]
+            "}" ],
+
+
+        [   "private fun makeExprFromPostfix(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromPostfixWith(results, ExpressionDesugar.fromPostfix)",
+            "" ]
     ]
 }

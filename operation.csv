@@ -25,10 +25,10 @@ priority,symbol,token name,operation name (function name)
 16,x shr y,KW_SHR,"shr(x, y)"
 16,x ushr y,KW_USHR,"ushr(x, y)"
 
-15,x > y,GREATER,"compareTo(x, y, 1)"
-15,x < y,LESS,"compareTo(x, y, -1)"
-15,x >= y,GREATER_EQUAL,"compareTo(x, y, 1) || compareTo(x, y, 0)"
-15,x <= y,LESS_EQUAL,"compareTo(x, y, -1) || compareTo(x, y, 0)"
+15,x > y,GREATER,"compareSign(x, y, 1)"
+15,x < y,LESS,"compareSign(x, y, -1)"
+15,x >= y,GREATER_EQUAL,"logicalOr(compareSign(x, y, 1), compareSign(x, y, 0))"
+15,x <= y,LESS_EQUAL,"logicalOr(compareSign(x, y, -1), compareSign(x, y, 0))"
 15,x is Type,KW_IS,instanceof(x, Type)
 15,x !is Type,BANG KW_IS,logicalNot(instanceof(x, Type))
 

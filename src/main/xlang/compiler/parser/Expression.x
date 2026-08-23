@@ -23,7 +23,6 @@
 @file.class("Expression") 
 package xlang.compiler.parser
 
-import xlang.Operation
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
@@ -41,27 +40,6 @@ struct Expression
 
 
     static fun fromAtom(atom: pointer<Atom>) -> pointer<Expression> = new Expression(ATOM_KIND, atom)
-
-
-    inline static fun fromBinary(op: pointer<Operation>, exp1: pointer<Expression>, exp2: pointer<Expression>) -> pointer<Expression>
-    {
-        val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp1).addArgument(exp2)
-        return new Expression(METHOD_CALL_KIND, call)
-    }
-
-
-    inline static fun fromPrefix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
-    {
-        val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp)
-        return new Expression(METHOD_CALL_KIND, call)
-    }
-
-
-    inline static fun fromPostfix(op: pointer<Operation>, exp: pointer<Expression>) -> pointer<Expression>
-    {
-        val call: pointer<MethodCall> = new MethodCall(null, op).addArgument(exp)
-        return new Expression(METHOD_CALL_KIND, call)
-    }
 
 
     inline static fun fromFieldAccess(host: pointer<Expression>, fieldName: pointer<char>) -> pointer<Expression>
