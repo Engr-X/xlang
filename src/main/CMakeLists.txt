@@ -34,7 +34,9 @@ set(XLANG_LEXER_CODEGEN_UTILS
 )
 set(XLANG_COMPILER_TOKENIZER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_tokenizer.json")
 set(XLANG_COMPILER_TOKEN_NORMALIZER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_token_normalizer.json")
-set(XLANG_COMPILER_PARSER_RULES "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_parser.json")
+set(XLANG_COMPILER_PARSER_RULES
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_expression_parser.json"
+)
 set(XLANG_COMPILER_TOKENIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/Tokenizer.x")
 set(XLANG_COMPILER_TOKEN_NORMALIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/TokenNormalizer.x")
 set(XLANG_COMPILER_PARSER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/parser/Parser.x")
@@ -97,25 +99,26 @@ add_custom_target(xlang_compiler_token_normalizer_codegen
     DEPENDS "${XLANG_COMPILER_TOKEN_NORMALIZER}"
 )
 
-# 1.3 Generate xlang.compiler.parser.Parser from compiler_parser.json.
+# 1.3 Generate xlang.compiler.parser.Parser from compiler_expression_parser.json.
 add_custom_command(
     OUTPUT "${XLANG_COMPILER_PARSER}"
 
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/parser"
     COMMAND ${PYTHON_EXECUTABLE}
         "${XLANG_PARSER_CODEGEN}"
-        -c "${XLANG_COMPILER_PARSER_RULES}"
+        -c ${XLANG_COMPILER_PARSER_RULES}
         -d "${XLANG_COMPILER_PARSER}"
 
     DEPENDS
         "${XLANG_PARSER_CODEGEN}"
         ${XLANG_LEXER_CODEGEN_UTILS}
-        "${XLANG_COMPILER_PARSER_RULES}"
+        ${XLANG_COMPILER_PARSER_RULES}
 
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 
     COMMENT "Generating compiler parser"
     VERBATIM
+    COMMAND_EXPAND_LISTS
 )
 
 add_custom_target(xlang_compiler_parser_codegen

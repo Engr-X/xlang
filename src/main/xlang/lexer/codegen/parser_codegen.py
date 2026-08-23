@@ -57,6 +57,50 @@ def getCodeBlocks(config: JsonObject, name: str) -> list[CodeBlock]:
     return blocks
 
 
+def getConfigList(config: JsonObject, name: str) -> list[object]:
+    value = config.get(name, config.get(f"{name}: ", []))
+
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be a list")
+
+    return value
+
+
+def mergeConfigs(configs: list[JsonObject]) -> JsonObject:
+    if not configs:
+        raise ValueError("at least one parser config is required")
+
+    result: JsonObject = dict(configs[0])
+    result["imports"] = []
+    result["constants"] = []
+    result["operations"] = []
+    result["rules"] = []
+    result["others"] = []
+
+    package_name = getPackageName(configs[0])
+    class_name = configs[0].get("class", None)
+
+    for config in configs:
+        ensure_type(config, PARSER_RULES_TYPE, "parser config")
+
+        current_package_name = getPackageName(config)
+
+        if current_package_name and package_name and current_package_name != package_name:
+            raise ValueError("parser config package values must match")
+
+        current_class_name = config.get("class", None)
+
+        if current_class_name is not None and class_name is not None and current_class_name != class_name:
+            raise ValueError("parser config class values must match")
+
+        result["imports"].extend(getConfigList(config, "imports"))
+        result["constants"].extend(getConfigList(config, "constants"))
+        result["operations"].extend(getConfigList(config, "operations"))
+        result["rules"].extend(getConfigList(config, "rules"))
+        result["others"].extend(getCodeBlocks(config, "others"))
+
+    return result
+
 def genBlocks(blocks: list[CodeBlock]) -> str:
     if not blocks:
         return ""
@@ -1006,8 +1050,9 @@ def main() -> None:
         "-c",
         "--config",
         required=True,
+        nargs="+",
         type=Path,
-        help="Path to parser rules JSON file.",
+        help="Path to parser rules JSON file. Pass multiple files to merge them in order.",
     )
     parser.add_argument(
         "-d",
@@ -1018,8 +1063,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    config = read_json(args.config)
-    content = codegen(config, args.dest)
+    configs = [read_json(config_path) for config_path in args.config]
+    content = codegen(mergeConfigs(configs), args.dest)
     write_text(args.dest, content)
 
 
