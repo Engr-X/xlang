@@ -241,7 +241,56 @@ private fun addAllTest() -> int
 
     if (list.get(5) as pointer<int>).deref != 3:
         return 10
+    val target: pointer<ArrayList> = new ArrayList(sizeof(int))
+    val sourceList: pointer<ArrayList> = new ArrayList(sizeof(int))
+    val badSource: pointer<ArrayList> = new ArrayList(sizeof(long))
 
+    value.deref = 1
+    target.push(value)
+    value.deref = 4
+    target.push(value)
+
+    value.deref = 2
+    sourceList.push(value)
+    value.deref = 3
+    sourceList.push(value)
+
+    target.addAll(1, sourceList)
+
+    if target.length != 4:
+        return 11
+
+    if (target.get(0) as pointer<int>).deref != 1:
+        return 12
+
+    if (target.get(1) as pointer<int>).deref != 2:
+        return 13
+
+    if (target.get(2) as pointer<int>).deref != 3:
+        return 14
+
+    if (target.get(3) as pointer<int>).deref != 4:
+        return 15
+
+    target.addAll(1, badSource)
+
+    if target.length != 4:
+        return 16
+
+    target.addAll(-1, sourceList)
+
+    if target.length != 4:
+        return 17
+
+    target.addAll(target.length + 1, sourceList)
+
+    if target.length != 4:
+        return 18
+
+    target.addAll(target.length, null)
+
+    if target.length != 4:
+        return 19
     return 0
 }
 

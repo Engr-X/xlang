@@ -26,6 +26,8 @@
 @file.class("Type")
 package xlang.compiler
 
+import xlang.lexer.Token
+import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
 import xlang.util.string.String
 
@@ -69,6 +71,14 @@ struct Type
     private val typeArguments: pointer<ArrayList>
 
     /**
+     * Stores source tokens owned directly by this Type layer.
+     *
+     * Nested type argument tokens are stored by their own Type objects and are
+     * merged recursively by getAllTokens().
+     */
+    private val tokens: pointer<ArrayList>
+
+    /**
      * Stores the runtime memory size in bytes.
      */
     private val memSize: int
@@ -97,8 +107,28 @@ struct Type
         this.typeName = String.strdup(typeName)
         this.packageName = String.strdup(packageName)
         this.typeArguments = new ArrayList(sizeof(Type))
+        this.tokens = new ArrayList(sizeof(Token))
         this.memSize = memSize
         this.length = 0
+    }
+
+
+    /**
+     * Adds one source token owned by this Type layer.
+     *
+     * Null tokens are ignored. The token is stored directly because token
+     * lifetime is managed by the parser/token list that produced it.
+     *
+     * @param token             source token to append
+     *
+     * @return                  this Type for chained construction
+     */
+    fun addToken(token: pointer<Token>) -> pointer<Type>
+    {
+        if token != null:
+            this.tokens.push(token)
+
+        return this
     }
 
 
@@ -139,6 +169,12 @@ struct Type
     {
         val result: pointer<Type> = new Type(this.packageName, this.typeName, this.memSize)
 
+        for (var i: int = 0; i < this.tokens.length; i++):
+        {
+            val token: pointer<Token> = this.tokens.get(i) as pointer<Token>
+            result.addToken(token)
+        }
+
         for (var i: int = 0; i < this.length; i++):
         {
             val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
@@ -172,7 +208,47 @@ struct Type
         String.strdup(this.packageName)
 
 
+    /**
+     * Returns the runtime memory size in bytes.
+     *
+     * @return                  runtime memory size in bytes
+     */
     fun getMemSize() -> int = this.memSize
+
+
+    /**
+     * Collects source tokens owned by this Type and its nested type arguments.
+     *
+     * This Type owns only the tokens for its own layer, such as the type name
+     * and delimiters like `<`, `,` and `>`. Nested type arguments recursively
+     * contribute their own tokens. The merged list is sorted by source position
+     * before it is returned.
+     *
+     * @return                  all source tokens belonging to this Type tree
+     */
+    fun getAllTokens() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+
+        result.addAll(result.length, this.tokens)
+
+        for (var i: int = 0; i < this.length; i++):
+        {
+            val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
+
+            if typeArgument == null:
+                continue
+
+            val tokens: pointer<ArrayList> = typeArgument.getAllTokens()
+
+            if tokens != null:
+                result.addAll(result.length, tokens)
+        }
+
+        result.setCmparator(TokenPosition.compareToken)
+        result.sort()
+        return result
+    }
 
 
     /**

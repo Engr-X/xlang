@@ -189,6 +189,30 @@ struct ArrayList
     }
 
 
+    /**
+     * Creates an empty list with explicit allocation settings and comparator.
+     *
+     * This constructor is useful when callers know both the expected capacity
+     * and the comparison behavior that should be used by contains(), indexOf(),
+     * remove() and sort(). The comparator is stored directly.
+     *
+     * Preconditions:
+     * - tsize must be greater than 0.
+     * - initialCapacity must be greater than 0.
+     * - loadFactor must be greater than 0.
+     * - cmp must be a valid comparator function.
+     *
+     * Postconditions:
+     * - length == 0.
+     * - capacity == initialCapacity.
+     * - data points to initialCapacity * tsize bytes of storage.
+     * - cmp is used as the list comparator.
+     *
+     * @param tsize             size in bytes of one element
+     * @param initialCapacity   number of element slots to allocate initially
+     * @param loadFactor        resize threshold as a ratio of capacity
+     * @param cmp               comparator used by search, removal and sorting
+     */
     fun __init__(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
     {
         this.length = 0
@@ -495,6 +519,27 @@ struct ArrayList
     }
 
 
+
+
+    /**
+     * Inserts all elements from another ArrayList before index.
+     *
+     * The source list must use the same element size as this list. Null, empty,
+     * invalid index and mismatched element-size inputs are ignored. The copied
+     * bytes are independent from the source list storage after insertion.
+     *
+     * @param index             destination index before which the elements are inserted
+     * @param items             source list whose elements are copied
+     */
+    fun addAll(index: int, items: pointer<ArrayList>)
+    {
+        if items == null || items.length <= 0 || this.tsize != items.tsize:
+            return
+
+        this.addAll(index, items.get(0), items.length)
+    }
+
+    
     /**
      * Inserts one element before index.
      *

@@ -48,6 +48,71 @@ import xlang.util.string.StringBuilder
 struct TokenPosition
 {
     /**
+     * Compares two token positions in source order.
+     *
+     * Null positions sort before non-null positions. Non-null positions are
+     * ordered by offset first, then line, column and length as deterministic
+     * tie-breakers.
+     *
+     * @param left              the left position, or null
+     * @param right             the right position, or null
+     *
+     * @return                  negative if left is before right, zero if equal, positive otherwise
+     */
+    static fun compare(left: pointer<TokenPosition>, right: pointer<TokenPosition>) -> int
+    {
+        if left == null && right == null:
+            return 0
+
+        if left == null:
+            return -1
+
+        if right == null:
+            return 1
+
+        if left.offset != right.offset:
+            return if left.offset < right.offset: -1 else: 1
+
+        if left.line != right.line:
+            return if left.line < right.line: -1
+            else: 1
+
+        if left.column != right.column:
+            return if left.column < right.column: -1
+            else: 1
+
+        if left.length == right.length:
+            return 0
+
+        return if left.length < right.length: -1 else: 1
+    }
+    
+
+
+    /**
+     * Compares two ArrayList token slots by their token positions.
+     *
+     * This adapter is intended for ArrayList instances that store Token values.
+     * It extracts each token's position and delegates the actual ordering to
+     * compare().
+     */
+    static fun compareToken(left: pointer<*>, right: pointer<*>) -> int
+    {
+        val leftToken: pointer<Token> = left as pointer<Token>
+        val rightToken: pointer<Token> = right as pointer<Token>
+
+        if leftToken == null && rightToken == null:
+            return TokenPosition.compare(null, null)
+
+        if leftToken == null:
+            return TokenPosition.compare(null, rightToken.pos)
+
+        if rightToken == null:
+            return TokenPosition.compare(leftToken.pos, null)
+
+        return TokenPosition.compare(leftToken.pos, rightToken.pos)
+    }
+    /**
      * Stores the absolute one-dimensional offset in the source text.
      *
      * The first character of the source text normally has offset 0.
@@ -99,7 +164,7 @@ struct TokenPosition
         this.line = line
         this.column = column
         this.length = length
-    }   
+    }
 }
 
 
@@ -368,7 +433,7 @@ struct TokenList
         if items == null || items.length <= 0:
             return
 
-        this.tokens.addAll(index, items.get(0), items.length)
+        this.tokens.addAll(index, items)
     }
 
 

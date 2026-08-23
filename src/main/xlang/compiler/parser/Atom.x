@@ -57,7 +57,28 @@ struct Atom
     }
 
 
-    private fun tokenString() -> pointer<StringBuilder>
+    fun getAllTokens() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+
+        for (var i = 0; i < this.tokens.length; i++):
+        {
+            val slot: pointer<pointer<*>> = this.tokens.get(i) as pointer<pointer<*>>
+
+            if slot == null:
+                continue
+
+            val token: pointer<Token> = slot.deref as pointer<Token>
+
+            if token != null:
+                result.push(token)
+        }
+
+        return result
+    }
+
+
+    fun toString() -> pointer<StringBuilder>
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
@@ -78,7 +99,4 @@ struct Atom
 
         return sb
     }
-
-
-    fun toString() -> pointer<StringBuilder> = this.tokenString()
 }

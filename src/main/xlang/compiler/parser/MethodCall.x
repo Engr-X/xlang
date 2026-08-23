@@ -18,11 +18,13 @@
  *
  *
  *
- *
  */
+@file.class("MethodCall")
 package xlang.compiler.parser
 
 import xlang.Operation
+import xlang.lexer.Token
+import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
@@ -39,12 +41,15 @@ struct MethodCall
     
     private var arguments: pointer<ArrayList>
 
+    private var extraTokens: pointer<ArrayList>
+
 
     fun __init__(host: pointer<Expression>, callName: pointer<char>)
     {
         this.host = host
         this.callName = String.strdup(callName)
         this.arguments = new ArrayList(sizeof(pointer<Expression>))
+        this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
@@ -53,6 +58,7 @@ struct MethodCall
         this.host = host
         this.callName = op.getFunctionName()
         this.arguments = new ArrayList(sizeof(pointer<Expression>))
+        this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
@@ -63,9 +69,19 @@ struct MethodCall
     }
 
 
+    fun addExtraToken(token: pointer<Token>) -> pointer<MethodCall>
+    {
+        if token != null:
+            this.extraTokens.push(token)
+
+        return this
+    }
+
+
     fun setArguments(arguments: pointer<ExpressionTuple>) -> pointer<MethodCall>
     {
         this.arguments = arguments.getList()
+        this.extraTokens.addAll(this.extraTokens.length, arguments.getExtraTokens())
         return this
     }
     
@@ -88,6 +104,38 @@ struct MethodCall
 
 
     fun argumentsCount() -> int = this.arguments.length
+
+
+    fun getAllTokens() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+
+        if this.host != null:
+        {
+            val tokens: pointer<ArrayList> = this.host.getAllTokens()
+
+            if tokens != null:
+                result.addAll(result.length, tokens)
+        }
+
+        for (var i = 0; i < this.arguments.length; i++):
+        {
+            val argument: pointer<Expression> = this.getArgument(i)
+
+            if argument == null:
+                continue
+
+            val tokens: pointer<ArrayList> = argument.getAllTokens()
+
+            if tokens != null:
+                result.addAll(result.length, tokens)
+        }
+
+        result.addAll(result.length, this.extraTokens)
+        result.setCmparator(TokenPosition.compareToken)
+        result.sort()
+        return result
+    }
 
 
     fun toString() -> pointer<StringBuilder>

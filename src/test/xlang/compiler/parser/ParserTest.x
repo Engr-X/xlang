@@ -25,7 +25,9 @@ package xlang.compiler.parser
 
 import xlang.compiler.Type
 import xlang.compiler.lexer.Tokenizer
+import xlang.lexer.Token
 import xlang.lexer.TokenList
+import xlang.util.ArrayList
 import xlang.util.string.String
 import xlang.test.TestCase
 import xlang.test.TestGroup
@@ -104,6 +106,17 @@ private fun hasRootMethodCall(input: pointer<char>, callName: pointer<char>) -> 
 }
 
 
+private fun tokenTextAt(tokens: pointer<ArrayList>, index: int, text: pointer<char>) -> bool
+{
+    if tokens == null || index < 0 || index >= tokens.length:
+        return false
+
+    val token: pointer<Token> = tokens.get(index) as pointer<Token>
+
+    return token != null && String.streq(token.text, text)
+}
+
+
 private fun atomParserTest() -> int
 {
     val tokens: pointer<TokenList> = Tokenizer.tokenize("true")
@@ -142,6 +155,44 @@ private fun functionCallExpressionTest() -> int
     if second == null || second.getKind() != Expression.METHOD_CALL_KIND:
         return 5
 
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 8:
+        return 6
+
+    val token0: pointer<Token> = tokens.get(0) as pointer<Token>
+    val token1: pointer<Token> = tokens.get(1) as pointer<Token>
+    val token2: pointer<Token> = tokens.get(2) as pointer<Token>
+    val token3: pointer<Token> = tokens.get(3) as pointer<Token>
+    val token4: pointer<Token> = tokens.get(4) as pointer<Token>
+    val token5: pointer<Token> = tokens.get(5) as pointer<Token>
+    val token6: pointer<Token> = tokens.get(6) as pointer<Token>
+    val token7: pointer<Token> = tokens.get(7) as pointer<Token>
+
+    if token0 == null || String.streq(token0.text, "f") == false:
+        return 7
+
+    if token1 == null || String.streq(token1.text, "(") == false:
+        return 8
+
+    if token2 == null || String.streq(token2.text, "1") == false:
+        return 9
+
+    if token3 == null || String.streq(token3.text, ",") == false:
+        return 10
+
+    if token4 == null || String.streq(token4.text, "2") == false:
+        return 11
+
+    if token5 == null || String.streq(token5.text, "+") == false:
+        return 12
+
+    if token6 == null || String.streq(token6.text, "3") == false:
+        return 13
+
+    if token7 == null || String.streq(token7.text, ")") == false:
+        return 14
+
     return 0
 }
 
@@ -152,6 +203,14 @@ private fun atomExpressionTest() -> int
 
     if expression == null || expression.getKind() != Expression.ATOM_KIND:
         return 1
+
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 1:
+        return 2
+
+    if !tokenTextAt(tokens, 0, "x"):
+        return 3
 
     return 0
 }
@@ -185,6 +244,14 @@ private fun parenthesizedExpressionTest() -> int
 
     if rightCall == null || String.streq(rightCall.getCallName(), "times") == false:
         return 6
+
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 11:
+        return 7
+
+    if !tokenTextAt(tokens, 0, "(") || !tokenTextAt(tokens, 4, ")") || !tokenTextAt(tokens, 5, "*") || !tokenTextAt(tokens, 6, "(") || !tokenTextAt(tokens, 10, ")"):
+        return 8
 
     return 0
 }
@@ -222,6 +289,14 @@ private fun prefixExpressionTest() -> int
     if decLeftCall == null || String.streq(decLeftCall.getCallName(), "dec") == false:
         return 6
 
+    val tokens: pointer<ArrayList> = incExpression.getAllTokens()
+
+    if tokens == null || tokens.length != 4:
+        return 7
+
+    if !tokenTextAt(tokens, 0, "++") || !tokenTextAt(tokens, 1, "x") || !tokenTextAt(tokens, 2, "+") || !tokenTextAt(tokens, 3, "y"):
+        return 8
+
     return 0
 }
 
@@ -251,6 +326,14 @@ private fun indexAccessExpressionTest() -> int
     if nested == null || nested.getKind() != Expression.INDEX_ACCESS_KIND:
         return 5
 
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 8:
+        return 6
+
+    if !tokenTextAt(tokens, 0, "arr") || !tokenTextAt(tokens, 1, "[") || !tokenTextAt(tokens, 3, ",") || !tokenTextAt(tokens, 7, "]"):
+        return 7
+
     return 0
 }
 
@@ -277,8 +360,42 @@ private fun methodCallExpressionTest() -> int
     if second == null || second.getKind() != Expression.METHOD_CALL_KIND:
         return 5
 
-    return 0
-}
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 10:
+        return 6
+
+    if !tokenTextAt(tokens, 0, "a"):
+        return 7
+
+    if !tokenTextAt(tokens, 1, "."):
+        return 8
+
+    if !tokenTextAt(tokens, 2, "func"):
+        return 9
+
+    if !tokenTextAt(tokens, 3, "("):
+        return 10
+
+    if !tokenTextAt(tokens, 4, "1"):
+        return 11
+
+    if !tokenTextAt(tokens, 5, ","):
+        return 12
+
+    if !tokenTextAt(tokens, 6, "2"):
+        return 13
+
+    if !tokenTextAt(tokens, 7, "+"):
+        return 14
+
+    if !tokenTextAt(tokens, 8, "3"):
+        return 15
+
+    if !tokenTextAt(tokens, 9, ")"):
+        return 16
+
+    return 0}
 
 
 private fun fieldAccessExpressionTest() -> int
@@ -293,6 +410,14 @@ private fun fieldAccessExpressionTest() -> int
     if access == null:
         return 2
 
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 5:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "a") || !tokenTextAt(tokens, 1, ".") || !tokenTextAt(tokens, 2, "b") || !tokenTextAt(tokens, 3, ".") || !tokenTextAt(tokens, 4, "c"):
+        return 4
+
     return 0
 }
 
@@ -304,6 +429,15 @@ private fun postfixExpressionTest() -> int
 
     if !hasRootMethodCall("x--", "pred"):
         return 2
+
+    val expression: pointer<Expression> = parseExpressionText("x++")
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 2:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "x") || !tokenTextAt(tokens, 1, "++"):
+        return 4
 
     return 0
 }
@@ -349,6 +483,14 @@ private fun typeCastExpressionTest() -> int
 
     if blobType.getMemSize() != 64:
         return 8
+
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 5:
+        return 9
+
+    if !tokenTextAt(tokens, 0, "1") || !tokenTextAt(tokens, 1, "+") || !tokenTextAt(tokens, 2, "1") || !tokenTextAt(tokens, 3, "as") || !tokenTextAt(tokens, 4, "double"):
+        return 10
 
     return 0
 }
@@ -405,6 +547,14 @@ private fun infixExpressionTest() -> int
 
     if nestedLeftCall == null || String.streq(nestedLeftCall.getCallName(), "plus") == false:
         return 12
+
+    val tokens: pointer<ArrayList> = priorityExpression.getAllTokens()
+
+    if tokens == null || tokens.length != 5:
+        return 13
+
+    if !tokenTextAt(tokens, 0, "1") || !tokenTextAt(tokens, 1, "+") || !tokenTextAt(tokens, 2, "2") || !tokenTextAt(tokens, 3, "*") || !tokenTextAt(tokens, 4, "3"):
+        return 14
 
     return 0
 }
@@ -467,6 +617,14 @@ private fun mixedExpressionTest() -> int
 
     if thirdArg == null || thirdArg.getKind() != Expression.TYPE_CAST_KIND:
         return 13
+
+    val tokens: pointer<ArrayList> = expression.getAllTokens()
+
+    if tokens == null || tokens.length != 29:
+        return 14
+
+    if !tokenTextAt(tokens, 0, "f") || !tokenTextAt(tokens, 1, "(") || !tokenTextAt(tokens, 21, ",") || !tokenTextAt(tokens, 26, "-") || !tokenTextAt(tokens, 28, "--"):
+        return 15
 
     return 0
 }

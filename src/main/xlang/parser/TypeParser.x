@@ -112,13 +112,13 @@ struct TypeParser
 
         if nextToken == null || nextToken.kind != Tokenizer.LESS:
         {
-            val parsedType: pointer<Type> = new Type(null, token.text, 0)
+            val parsedType: pointer<Type> = new Type(null, token.text, 0).addToken(token)
             this.result = new ParseContainer(this.id, parsedType)
             return 1
         }
 
 
-        val parsedType: pointer<Type> = new Type(null, token.text, 0)
+        val parsedType: pointer<Type> = new Type(null, token.text, 0).addToken(token).addToken(nextToken)
         var consumed: int = 2
 
         while index + consumed < tokens.length():
@@ -155,6 +155,7 @@ struct TypeParser
             if delimiter.kind == Tokenizer.GREATER:
             {
                 consumed++
+                parsedType.addToken(delimiter)
                 this.result = new ParseContainer(this.id, parsedType)
                 return consumed
             }
@@ -162,6 +163,7 @@ struct TypeParser
             if delimiter.kind != Tokenizer.COMMA:
                 break
 
+            parsedType.addToken(delimiter)
             consumed++
         }
 
@@ -213,7 +215,7 @@ struct TypeParser
 
                 if (memSize as long) == size:
                 {
-                    val parsedType: pointer<Type> = new Type(null, blobToken.text, memSize)
+                    val parsedType: pointer<Type> = new Type(null, blobToken.text, memSize).addToken(blobToken).addToken(leftBracket).addToken(sizeToken).addToken(rightBracket)
                     this.result = new ParseContainer(this.id, parsedType)
                     return 4
                 }

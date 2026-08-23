@@ -20,9 +20,13 @@
  *
  *
  */
+@file.class("Expression") 
 package xlang.compiler.parser
 
 import xlang.Operation
+import xlang.lexer.Token
+import xlang.lexer.TokenPosition
+import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
@@ -80,11 +84,14 @@ struct Expression
 
     private var root: pointer<*>
 
+    private var extraTokens: pointer<ArrayList>
+
 
     private fun __init__(kind: int, root: pointer<*>)
     {
         this.kind = kind
         this.root = root
+        this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
@@ -92,6 +99,66 @@ struct Expression
 
 
     fun getRoot() -> pointer<*> = this.root
+
+
+    fun addExtraToken(token: pointer<Token>) -> pointer<Expression>
+    {
+        if token != null:
+            this.extraTokens.push(token)
+
+        return this
+    }
+
+
+    fun clone() -> pointer<Expression>
+    {
+        val result: pointer<Expression> = new Expression(this.kind, this.root)
+        result.extraTokens.addAll(result.extraTokens.length, this.extraTokens)
+        return result
+    }
+
+
+    fun getAllTokens() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        var rootTokens: pointer<ArrayList> = null
+
+        if this.kind == ATOM_KIND:
+        {
+            val atom: pointer<Atom> = this.root as pointer<Atom>
+            rootTokens = atom.getAllTokens()
+        }
+        elif this.kind == METHOD_CALL_KIND:
+        {
+            val call: pointer<MethodCall> = this.root as pointer<MethodCall>
+            rootTokens = call.getAllTokens()
+        }
+        elif this.kind == FIELD_ACCESS_KIND:
+        {
+            val access: pointer<FieldAccess> = this.root as pointer<FieldAccess>
+            rootTokens = access.getAllTokens()
+        }
+        elif this.kind == INDEX_ACCESS_KIND:
+        {
+            val access: pointer<IndexAccess> = this.root as pointer<IndexAccess>
+            rootTokens = access.getAllTokens()
+        }
+        elif this.kind == TYPE_CAST_KIND:
+        {
+            val cast: pointer<TypeCast> = this.root as pointer<TypeCast>
+            rootTokens = cast.getAllTokens()
+        }
+        else:
+            return null
+
+        if rootTokens != null:
+            result.addAll(result.length, rootTokens)
+
+        result.addAll(result.length, this.extraTokens)
+        result.setCmparator(TokenPosition.compareToken)
+        result.sort()
+        return result
+    }
 
 
     fun toString() -> pointer<StringBuilder>

@@ -18,11 +18,14 @@
  *
  *
  *
- *
  */
+@file.class("TypeCast")
 package xlang.compiler.parser
 
 import xlang.compiler.Type
+import xlang.lexer.Token
+import xlang.lexer.TokenPosition
+import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
@@ -32,11 +35,23 @@ struct TypeCast
 
     private var targetType: pointer<Type>
 
+    private var extraTokens: pointer<ArrayList>
+
 
     fun __init__(expression: pointer<Expression>, targetType: pointer<Type>)
     {
         this.expression = expression
         this.targetType = targetType
+        this.extraTokens = new ArrayList(sizeof(Token))
+    }
+
+
+    fun addExtraToken(token: pointer<Token>) -> pointer<TypeCast>
+    {
+        if token != null:
+            this.extraTokens.push(token)
+
+        return this
     }
 
 
@@ -52,20 +67,41 @@ struct TypeCast
     }
 
 
+    fun getAllTokens() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+
+        if this.expression != null:
+        {
+            val tokens: pointer<ArrayList> = this.expression.getAllTokens()
+
+            if tokens != null:
+                result.addAll(result.length, tokens)
+        }
+
+        if this.targetType != null:
+        {
+            val typeTokens: pointer<ArrayList> = this.targetType.getAllTokens()
+
+            if typeTokens != null:
+                result.addAll(result.length, typeTokens)
+        }
+
+        result.addAll(result.length, this.extraTokens)
+        result.setCmparator(TokenPosition.compareToken)
+        result.sort()
+        return result
+    }
+
+
     fun toString() -> pointer<StringBuilder>
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
         sb.append('(')
-
-        if this.targetType != null:
-            sb.append(this.targetType.getTypeName())
-
+        sb.append(this.targetType.getTypeName())
         sb.append(")(")
-
-        if this.expression != null:
-            sb.append(this.expression.toString())
-
+        sb.append(this.expression.toString())
         sb.append(')')
 
         return sb
