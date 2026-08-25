@@ -1,0 +1,95 @@
+{
+    "type": "compiler_parser_rules",
+
+    "package": "xlang.compiler.parser",
+    "class": "Parser",
+    "imports": [
+        "xlang.compiler.Type",
+        "xlang.compiler.lexer.Tokenizer",
+        "xlang.lexer.Token",
+        "xlang.compiler.parser.expression.Expression",
+        "xlang.compiler.parser.statement.ExprStatement",
+        "xlang.compiler.parser.statement.Statement",
+        "xlang.compiler.parser.statement.ReturnStatement"
+    ],
+    "constants": [
+        
+    ],
+    "rules": [
+        {
+            "class": "Statement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$ExprStatement" }], "action": "makeFromExprStatement" },
+                { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeFromReturnStatement" }
+            ]
+        },
+        {
+            "class": "ExprStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFromExpression" }
+            ]
+        },
+        {
+            "class": "ReturnStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFromReturn" },
+                { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFromReturn" }
+            ]
+        }
+    ],
+    "others": [
+        [   "private inline fun getStatementContainerValue(results: pointer<ArrayList>, index: int) -> pointer<*>",
+            "{",
+            "    val slot: pointer<pointer<*>> = results.get(index) as pointer<pointer<*>>",
+            "    val container: pointer<ParseContainer> = slot.deref as pointer<ParseContainer>",
+            "",
+            "    return container.getValue()",
+            "}" ],
+
+
+        [   "private inline fun getStatementContainerValue(results: pointer<ArrayList>) -> pointer<*> =",
+            "    getStatementContainerValue(results, 0)",
+            "" ],
+
+
+        [   "private inline fun makeFromExprStatement(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val exprStatement: pointer<ExprStatement> = getStatementContainerValue(results) as pointer<ExprStatement>",
+            "    return Statement.fromExprStatement(exprStatement)",
+            "}" ],
+
+
+        [   "private inline fun makeFromReturnStatement(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val returnStatement: pointer<ReturnStatement> = getStatementContainerValue(results) as pointer<ReturnStatement>",
+            "    return Statement.fromReturnStatement(returnStatement)",
+            "}" ],
+
+
+        [   "private inline fun makeFromExpression(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getStatementContainerValue(results) as pointer<Expression>",
+            "",
+            "    return new ExprStatement(expression)",
+            "}" ],
+        
+
+        [   "private inline fun makeFromReturn(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val returnSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val returnToken: pointer<Token> = returnSlot.deref as pointer<Token>",
+            "    var result: pointer<ReturnStatement> = if results.length <= 2:",
+            "        new ReturnStatement()",
+            "    else:",
+            "    {",
+            "        val expression: pointer<Expression> = getStatementContainerValue(results, 1) as pointer<Expression>",
+            "        new ReturnStatement(expression)",
+            "    }",
+            "",
+            "    return result.addExtraToken(returnToken)",
+            "}" ]
+    ]
+}

@@ -68,6 +68,8 @@ struct Expression
 
     private var extraTokens: pointer<ArrayList>
 
+    private val inferredType: pointer<Type>
+
 
     private fun __init__(kind: int, root: pointer<*>)
     {
@@ -81,6 +83,13 @@ struct Expression
 
 
     fun getRoot() -> pointer<*> = this.root
+
+
+    fun setType(inferredType: pointer<Type>) -> pointer<Atom>
+    {
+        this.inferredType = inferredType
+        return this
+    }
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<Expression>

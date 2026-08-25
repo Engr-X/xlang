@@ -58,12 +58,31 @@ struct Atom
     }
 
 
-    fun infer() -> pointer<Type>
+    fun setType(inferredType: pointer<Type>) -> pointer<Atom>
     {
-        // this.inferredType = if this.kind == NULL_IMM_KIND
-
-        return  this.inferredType
+        this.inferredType = inferredType
+        return this
     }
+
+
+    fun simpleInfer() -> pointer<Type> =
+        this.inferredType = if this.kind == NULL_IMM_KIND:
+                Type.voidType()
+            elif this.kind == BOOL_IMM_KIND:
+                Type.boolType()
+            elif this.kind == CHAR_IMM_KIND:
+                Type.charType()
+            elif this.kind == INTEGER_IMM_KIND:
+                Type.intType()
+            elif this.kind == LONG_IMM_KIND:
+                Type.longType()
+            elif this.kind == FLOAT_IMM_KIND:
+                Type.floatType()
+            elif this.kind == DOUBLE_IMM_KIND:
+                Type.floatType()
+            elif this.kind == STRING_IMM_KIND:
+                Type.earlyStringType()
+            else: null
 
 
     fun getAllTokens() -> pointer<ArrayList>

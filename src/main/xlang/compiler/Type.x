@@ -71,12 +71,22 @@ struct Type
 
 
     /**
-    * Creates the built-in signed byte type descriptor.
-    *
-    * The memory size is one byte.
-    *
-    * The byte type represents an 8-bit signed integer value.
-    */
+     * Creates the built-in signed char type descriptor.
+     *
+     * The memory size is one byte.
+     *
+     * The char type represents an 32-bit signed character value.
+     */
+    static fun charType() -> pointer<Type> = new Type("xlang.primary", "char", 8)
+
+
+    /**
+     * Creates the built-in signed byte type descriptor.
+     *
+     * The memory size is one byte.
+     *
+     * The byte type represents an 8-bit signed integer value.
+     */
     static fun byteType() -> pointer<Type> = new Type("xlang.primary", "byte", 1)
 
 
@@ -154,6 +164,17 @@ struct Type
      * - The blob contents are managed by the owner of the value.
      */
     static fun blobType(memSize: int) -> pointer<Type> = new Type("xlang.primary", "blob", memSize)
+
+
+    /* Returns the primitive string type used by the compiler bootstrap stage.
+     *
+     * Early string is represented as pointer<char>.
+     * The pointer size is 8 bytes and points to a null-terminated character array.
+     *
+     * This is a temporary low-level representation before the standard String type
+     * is initialized.
+     */
+    static fun earlyStringType() -> pointer<Type> = new Type("xlang.primary", "pointer", 8).addTypeArgument(charType())
 
 
     /**

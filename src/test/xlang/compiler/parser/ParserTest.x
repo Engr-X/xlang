@@ -32,6 +32,7 @@ import xlang.compiler.parser.expression.FieldAccess
 import xlang.compiler.parser.expression.IndexAccess
 import xlang.compiler.parser.expression.MethodCall
 import xlang.compiler.parser.expression.TypeCast
+import xlang.compiler.parser.statement.ExprStatement
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
@@ -61,6 +62,7 @@ fun genTest() -> pointer<TestGroup>
     val infixExpressionTC: pointer<TestCase> = new TestCase("infixExpression", infixExpressionTest)
     val compoundOperatorExpressionTC: pointer<TestCase> = new TestCase("compoundOperatorExpression", compoundOperatorExpressionTest)
     val mixedExpressionTC: pointer<TestCase> = new TestCase("mixedExpression", mixedExpressionTest)
+    val exprStatementTC: pointer<TestCase> = new TestCase("exprStatement", exprStatementTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
     val atomExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomExpressionTC, null)
@@ -74,6 +76,7 @@ fun genTest() -> pointer<TestGroup>
     val infixExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, infixExpressionTC, null)
     val compoundOperatorExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, compoundOperatorExpressionTC, null)
     val mixedExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, mixedExpressionTC, null)
+    val exprStatementUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, exprStatementTC, null)
 
     result.addTestUnion(atomParserUnion)
     result.addTestUnion(functionCallExpressionUnion)
@@ -88,6 +91,7 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(infixExpressionUnion)
     result.addTestUnion(compoundOperatorExpressionUnion)
     result.addTestUnion(mixedExpressionUnion)
+    result.addTestUnion(exprStatementUnion)
 
     return result
 }
@@ -158,6 +162,31 @@ private fun atomParserTest() -> int
     return 0
 }
 
+
+
+private fun exprStatementTest() -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize("x + 1;")
+    val statement: pointer<ExprStatement> = Parser.parseExprStatement(tokens)
+
+    if statement == null:
+        return 1
+
+    val expression: pointer<Expression> = statement.getExpression()
+
+    if expression == null:
+        return 2
+
+    val builder: pointer<StringBuilder> = expression.toString()
+    val actual: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
+
+    builder.toString(actual)
+
+    if !String.streq(actual, "plus(x, 1)"):
+        return 3
+
+    return 0
+}
 
 private fun functionCallExpressionTest() -> int
 {
