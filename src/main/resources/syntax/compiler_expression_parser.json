@@ -266,210 +266,6 @@
             "}" ],
 
 
-        [   "private fun makeAtom(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val slot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val token: pointer<Token> = slot.deref as pointer<Token>",
-            "",
-            "    if token.kind == Tokenizer.KW_NULL:",
-            "        return new Atom(Atom.NULL_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.KW_TRUE || token.kind == Tokenizer.KW_FALSE:",
-            "        return new Atom(Atom.BOOL_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_CHAR:",
-            "        return new Atom(Atom.CHAR_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_STRING:",
-            "        return new Atom(Atom.STRING_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_INTEGER:",
-            "        return new Atom(Atom.INTEGER_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_LONG:",
-            "        return new Atom(Atom.LONG_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_FLOAT:",
-            "        return new Atom(Atom.FLOAT_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_DOUBLE || token.kind == Tokenizer.TK_LONG_DOUBLE:",
-            "        return new Atom(Atom.DOUBLE_IMM_KIND, results)",
-            "    elif token.kind == Tokenizer.TK_IDENTIFIER:",
-            "        return new Atom(Atom.IDENTIFIER_KIND, results)",
-            "    else:",
-            "        return null",
-            "}" ],
-        
-
-        [   "private fun makeSExpression(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val commaSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
-            "    val expression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
-            "",
-            "    return new SExpression(expression).addExtraToken(commaToken)",
-            "}" ],
-
-
-        [   "private fun makeExpressionTuple0(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val rightParenSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val leftParen: pointer<Token> = leftParenSlot.deref as pointer<Token>",
-            "    val rightParen: pointer<Token> = rightParenSlot.deref as pointer<Token>",
-            "",
-            "    return new ExpressionTuple().addExtraToken(leftParen).addExtraToken(rightParen)",
-            "}" ],
-
-
-        [   "private fun makeExpressionTuple(results: pointer<ArrayList>, rightParenIndex: int) -> pointer<ExpressionTuple>",
-            "{",
-            "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val leftParen: pointer<Token> = leftParenSlot.deref as pointer<Token>",
-            "    val firstExpression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
-            "    val sExpressions: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
-            "    val rightParenSlot: pointer<pointer<*>> = results.get(rightParenIndex) as pointer<pointer<*>>",
-            "    val rightParen: pointer<Token> = rightParenSlot.deref as pointer<Token>",
-            "    val expressions: pointer<ArrayList> = SExpression.unwrap(sExpressions)",
-            "    val extraTokens: pointer<ArrayList> = SExpression.unwrapExtraTokens(sExpressions)",
-            "",
-            "    expressions.pushFront(firstExpression.ref)",
-            "",
-            "    return new ExpressionTuple(expressions).addExtraTokens(extraTokens).addExtraToken(leftParen).addExtraToken(rightParen)",
-            "}" ],
-
-
-        [   "private fun makeExpressionTuple1(results: pointer<ArrayList>) -> pointer<*> = makeExpressionTuple(results, 3)" ],
-
-
-        [   "private fun makeExpressionTuple2(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val tuple: pointer<ExpressionTuple> = makeExpressionTuple(results, 4)",
-            "    val commaSlot: pointer<pointer<*>> = results.get(3) as pointer<pointer<*>>",
-            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
-            "",
-            "    return tuple.addExtraToken(commaToken)",
-            "}" ],
-
-
-        [   "private fun makeListLiteral0(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftBracketSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val rightBracketSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val leftBracket: pointer<Token> = leftBracketSlot.deref as pointer<Token>",
-            "    val rightBracket: pointer<Token> = rightBracketSlot.deref as pointer<Token>",
-            "",
-            "    return new ListLiteral().addExtraToken(leftBracket).addExtraToken(rightBracket)",
-            "}" ],
-
-
-        [   "private fun makeListLiteral(results: pointer<ArrayList>, rightBracketIndex: int) -> pointer<ListLiteral>",
-            "{",
-            "    val leftBracketSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val leftBracket: pointer<Token> = leftBracketSlot.deref as pointer<Token>",
-            "    val firstExpression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
-            "    val sExpressions: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
-            "    val rightBracketSlot: pointer<pointer<*>> = results.get(rightBracketIndex) as pointer<pointer<*>>",
-            "    val rightBracket: pointer<Token> = rightBracketSlot.deref as pointer<Token>",
-            "    val expressions: pointer<ArrayList> = SExpression.unwrap(sExpressions)",
-            "    val extraTokens: pointer<ArrayList> = SExpression.unwrapExtraTokens(sExpressions)",
-            "",
-            "    expressions.pushFront(firstExpression.ref)",
-            "",
-            "    return new ListLiteral(expressions).addExtraTokens(extraTokens).addExtraToken(leftBracket).addExtraToken(rightBracket)",
-            "}" ],
-
-
-        [   "private fun makeListLiteral1(results: pointer<ArrayList>) -> pointer<*> = makeListLiteral(results, 3)" ],
-
-
-        [   "private fun makeListLiteral2(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val list: pointer<ListLiteral> = makeListLiteral(results, 4)",
-            "    val commaSlot: pointer<pointer<*>> = results.get(3) as pointer<pointer<*>>",
-            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
-            "",
-            "    return list.addExtraToken(commaToken)",
-            "}" ],
-
-
-        [   "private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
-            "    return Expression.fromAtom(atom)",
-            "}" ],
-
-
-        [   "private fun makeExprFromFuncCall(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val nameSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
-            "    val tuple: pointer<ExpressionTuple> = getContainerValue(results, 1) as pointer<ExpressionTuple>",
-            "",
-            "    val call: pointer<MethodCall> = new MethodCall(null, nameToken.text).setArguments(tuple)",
-            "    call.addExtraToken(nameToken)",
-            "",
-            "    return Expression.fromMethodCall(call)",
-            "}" ],
-
-
-        [   "private fun makeExprFromMethodCall(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "    val dotSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val dotToken: pointer<Token> = dotSlot.deref as pointer<Token>",
-            "    val nameSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
-            "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
-            "    val tuple: pointer<ExpressionTuple> = getContainerValue(results, 3) as pointer<ExpressionTuple>",
-            "",
-            "    val call: pointer<MethodCall> = new MethodCall(host, nameToken.text).setArguments(tuple)",
-            "    call.addExtraToken(dotToken).addExtraToken(nameToken)",
-            "",
-            "    return Expression.fromMethodCall(call)",
-            "}" ],
-
-
-        [   "private fun makeExprFromIndexAccess(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "    val list: pointer<ListLiteral> = getContainerValue(results, 1) as pointer<ListLiteral>",
-            "",
-            "    val access: pointer<IndexAccess> = new IndexAccess(host, list)",
-            "",
-            "    return Expression.fromIndexAccess(access)",
-            "}" ],
-
-
-        [   "private fun makeExprFromFieldAccess(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "    val dotSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val dotToken: pointer<Token> = dotSlot.deref as pointer<Token>",
-            "    val fieldSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
-            "    val fieldToken: pointer<Token> = fieldSlot.deref as pointer<Token>",
-            "    val expression: pointer<Expression> = Expression.fromFieldAccess(host, fieldToken.text)",
-            "",
-            "    return expression.addExtraToken(dotToken).addExtraToken(fieldToken)",
-            "}" ],
-
-
-        [   "private fun makeExprFromTypeCast(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "    val asSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val asToken: pointer<Token> = asSlot.deref as pointer<Token>",
-            "    val targetType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
-            "    val cast: pointer<TypeCast> = new TypeCast(expression, targetType)",
-            "    val result: pointer<Expression> = Expression.fromTypeCast(cast)",
-            "",
-            "    return result.addExtraToken(asToken)",
-            "}" ],
-
-
-        [   "private fun makeExprFromParen(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
-            "    val rightParenSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
-            "    val leftParen: pointer<Token> = leftParenSlot.deref as pointer<Token>",
-            "    val rightParen: pointer<Token> = rightParenSlot.deref as pointer<Token>",
-            "    val expression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
-            "    val result: pointer<Expression> = expression.clone()",
-            "",
-            "    return result.addExtraToken(leftParen).addExtraToken(rightParen)",
-            "}" ],
 
 
         [   "private fun makeExprFromPrefixWith(",
@@ -491,11 +287,6 @@
             "",
             "    return result.addExtraToken(opToken)",
             "}" ],
-
-
-        [   "private fun makeExprFromPrefix(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromPrefixWith(results, ExpressionDesugar.fromPrefix)",
-            "" ],
 
 
         [   "private fun makeExprFromInfixWith(",
@@ -520,11 +311,6 @@
             "}" ],
 
 
-        [   "private fun makeExprFromInfix(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.fromInfix)",
-            "" ],
-
-
         [   "private fun makeExprFromAssignWith(results: pointer<ArrayList>, subOp: pointer<Operation>) -> pointer<*>",
             "{",
             "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
@@ -543,101 +329,6 @@
             "",
             "    return result.addExtraToken(opToken)",
             "}" ],
-
-
-        [   "private fun makeExprFromCompare(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.fromCompare)",
-            "" ],
-
-
-        [   "private fun makeExprFromNotRefEqual(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotRefEqual)",
-            "" ],
-
-
-        [   "private fun makeExprFromNotEqual(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotEqual)",
-            "" ],
-
-
-        [   "private fun makeExprFromBitwiseNand(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseNand)",
-            "" ],
-
-
-        [   "private fun makeExprFromBitwiseNor(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseNor)",
-            "" ],
-
-
-        [   "private fun makeExprFromBitwiseXor(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseXor)",
-            "" ],
-
-
-        [   "private fun makeExprFromBitwiseXnor(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseXnor)",
-            "" ],
-
-
-        [   "private fun makeExprFromImplies(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeImplies)",
-            "" ],
-
-
-        [   "private fun makeExprFromNimplies(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNimplies)",
-            "" ],
-
-            
-        [   "private fun makeExprFromIff(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeIff)",
-            "" ],
-
-
-        [   "private fun makeExprFromNiff(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNiff)",
-            "" ],
-
-            
-        [   "private fun makeExprFromLogicalXor(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalXor)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalXnor(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalXnor)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalNand(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNand)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalImplies(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalImplies)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalNimplies(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNimplies)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalIff(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalIff)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalNiff(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNiff)",
-            "" ],
-
-
-        [   "private fun makeExprFromLogicalNor(results: pointer<ArrayList>) -> pointer<*> =",
-            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNor)",
-            "" ],
 
 
         [   "private fun makeExprFromPostfixWith(",
@@ -661,8 +352,226 @@
             "}" ],
 
 
+        [   "private fun makeExprFromAssignWithBuilder(",
+            "    results: pointer<ArrayList>,",
+            "    build: (pointer<Operation>, pointer<Expression>, pointer<Expression>) -> pointer<Expression>) -> pointer<*>",
+            "{",
+            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
+            "    val op: pointer<Operation> = toOperation(opToken, Operation.INFIX_TYPE)",
+            "",
+            "    if op == null:",
+            "        return null",
+            "",
+            "    val left: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val right: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
+            "    val value: pointer<Expression> = build(op, left, right)",
+            "",
+            "    if value == null:",
+            "        return null",
+            "",
+            "    val result: pointer<Expression> = ExpressionDesugar.fromAssignWith(op, left, value, null)",
+            "",
+            "    if result == null:",
+            "        return null",
+            "",
+            "    return result.addExtraToken(opToken)",
+            "}" ],
+
+
+        [   "private fun makeExprFromFuncCall(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
+            "    val tuple: pointer<ExpressionTuple> = getContainerValue(results, 1) as pointer<ExpressionTuple>",
+            "",
+            "    val call: pointer<MethodCall> = new MethodCall(null, nameToken.text).setArguments(tuple)",
+            "    call.addExtraToken(nameToken)",
+            "",
+            "    return Expression.fromMethodCall(call)",
+            "}" ],
+
+
+        [   "private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
+            "    return Expression.fromAtom(atom)",
+            "}" ],
+
+
+        [   "private fun makeExprFromParen(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val rightParenSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "    val leftParen: pointer<Token> = leftParenSlot.deref as pointer<Token>",
+            "    val rightParen: pointer<Token> = rightParenSlot.deref as pointer<Token>",
+            "    val expression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
+            "    val result: pointer<Expression> = expression.clone()",
+            "",
+            "    return result.addExtraToken(leftParen).addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private fun makeExprFromPrefix(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromPrefixWith(results, ExpressionDesugar.fromPrefix)",
+            "" ],
+
+
+        [   "private fun makeExprFromIndexAccess(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val list: pointer<ListLiteral> = getContainerValue(results, 1) as pointer<ListLiteral>",
+            "",
+            "    val access: pointer<IndexAccess> = new IndexAccess(host, list)",
+            "",
+            "    return Expression.fromIndexAccess(access)",
+            "}" ],
+
+
+        [   "private fun makeExprFromMethodCall(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val dotSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val dotToken: pointer<Token> = dotSlot.deref as pointer<Token>",
+            "    val nameSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
+            "    val tuple: pointer<ExpressionTuple> = getContainerValue(results, 3) as pointer<ExpressionTuple>",
+            "",
+            "    val call: pointer<MethodCall> = new MethodCall(host, nameToken.text).setArguments(tuple)",
+            "    call.addExtraToken(dotToken).addExtraToken(nameToken)",
+            "",
+            "    return Expression.fromMethodCall(call)",
+            "}" ],
+
+
+        [   "private fun makeExprFromFieldAccess(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val dotSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val dotToken: pointer<Token> = dotSlot.deref as pointer<Token>",
+            "    val fieldSlot: pointer<pointer<*>> = results.get(2) as pointer<pointer<*>>",
+            "    val fieldToken: pointer<Token> = fieldSlot.deref as pointer<Token>",
+            "    val expression: pointer<Expression> = Expression.fromFieldAccess(host, fieldToken.text)",
+            "",
+            "    return expression.addExtraToken(dotToken).addExtraToken(fieldToken)",
+            "}" ],
+
+
         [   "private fun makeExprFromPostfix(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromPostfixWith(results, ExpressionDesugar.fromPostfix)",
+            "" ],
+
+
+        [   "private fun makeExprFromTypeCast(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val asSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val asToken: pointer<Token> = asSlot.deref as pointer<Token>",
+            "    val targetType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
+            "    val cast: pointer<TypeCast> = new TypeCast(expression, targetType)",
+            "    val result: pointer<Expression> = Expression.fromTypeCast(cast)",
+            "",
+            "    return result.addExtraToken(asToken)",
+            "}" ],
+
+
+        [   "private fun makeExprFromInfix(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.fromInfix)",
+            "" ],
+
+
+        [   "private fun makeExprFromCompare(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.fromCompare)",
+            "" ],
+
+
+        [   "private fun makeExprFromNotRefEqual(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotRefEqual)",
+            "" ],
+
+
+        [   "private fun makeExprFromNotEqual(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNotEqual)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseNand(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseNand)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseXor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseXor)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseXnor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseXnor)",
+            "" ],
+
+
+        [   "private fun makeExprFromBitwiseNor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeBitwiseNor)",
+            "" ],
+
+
+        [   "private fun makeExprFromImplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeImplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromNimplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNimplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromIff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeIff)",
+            "" ],
+
+
+        [   "private fun makeExprFromNiff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeNiff)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNand(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNand)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalXor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalXor)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalXnor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalXnor)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNor(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNor)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalImplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalImplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNimplies(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNimplies)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalIff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalIff)",
+            "" ],
+
+
+        [   "private fun makeExprFromLogicalNiff(results: pointer<ArrayList>) -> pointer<*> =",
+            "    makeExprFromInfixWith(results, ExpressionDesugar.makeLogicalNiff)",
             "" ],
 
 
@@ -720,32 +629,6 @@
             "    makeExprFromAssignWith(results, OP_USHR)",
             "" ],
 
-        [   "private fun makeExprFromAssignWithBuilder(",
-            "    results: pointer<ArrayList>,",
-            "    build: (pointer<Operation>, pointer<Expression>, pointer<Expression>) -> pointer<Expression>) -> pointer<*>",
-            "{",
-            "    val opSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
-            "    val opToken: pointer<Token> = opSlot.deref as pointer<Token>",
-            "    val op: pointer<Operation> = toOperation(opToken, Operation.INFIX_TYPE)",
-            "",
-            "    if op == null:",
-            "        return null",
-            "",
-            "    val left: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "    val right: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
-            "    val value: pointer<Expression> = build(op, left, right)",
-            "",
-            "    if value == null:",
-            "        return null",
-            "",
-            "    val result: pointer<Expression> = ExpressionDesugar.fromAssignWith(op, left, value, null)",
-            "",
-            "    if result == null:",
-            "        return null",
-            "",
-            "    return result.addExtraToken(opToken)",
-            "}" ],
-
 
         [   "private fun makeExprFromBitwiseAndAssign(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromAssignWith(results, OP_BITWISE_AND)",
@@ -764,6 +647,134 @@
 
         [   "private fun makeExprFromBitwiseNorAssign(results: pointer<ArrayList>) -> pointer<*> =",
             "    makeExprFromAssignWithBuilder(results, ExpressionDesugar.makeBitwiseNor)",
-            "" ]
+            "" ],
+
+
+
+
+        [   "private fun makeAtom(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val slot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val token: pointer<Token> = slot.deref as pointer<Token>",
+            "",
+            "    if token.kind == Tokenizer.KW_NULL:",
+            "        return new Atom(Atom.NULL_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.KW_TRUE || token.kind == Tokenizer.KW_FALSE:",
+            "        return new Atom(Atom.BOOL_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_CHAR:",
+            "        return new Atom(Atom.CHAR_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_STRING:",
+            "        return new Atom(Atom.STRING_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_INTEGER:",
+            "        return new Atom(Atom.INTEGER_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_LONG:",
+            "        return new Atom(Atom.LONG_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_FLOAT:",
+            "        return new Atom(Atom.FLOAT_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_DOUBLE || token.kind == Tokenizer.TK_LONG_DOUBLE:",
+            "        return new Atom(Atom.DOUBLE_IMM_KIND, results)",
+            "    elif token.kind == Tokenizer.TK_IDENTIFIER:",
+            "        return new Atom(Atom.IDENTIFIER_KIND, results)",
+            "    else:",
+            "        return null",
+            "}" ],
+
+
+
+
+        [   "private fun makeSExpression(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val commaSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
+            "    val expression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
+            "",
+            "    return new SExpression(expression).addExtraToken(commaToken)",
+            "}" ],
+
+
+
+
+        [   "private fun makeExpressionTuple(results: pointer<ArrayList>, rightParenIndex: int) -> pointer<ExpressionTuple>",
+            "{",
+            "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val leftParen: pointer<Token> = leftParenSlot.deref as pointer<Token>",
+            "    val firstExpression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
+            "    val sExpressions: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
+            "    val rightParenSlot: pointer<pointer<*>> = results.get(rightParenIndex) as pointer<pointer<*>>",
+            "    val rightParen: pointer<Token> = rightParenSlot.deref as pointer<Token>",
+            "    val expressions: pointer<ArrayList> = SExpression.unwrap(sExpressions)",
+            "    val extraTokens: pointer<ArrayList> = SExpression.unwrapExtraTokens(sExpressions)",
+            "",
+            "    expressions.pushFront(firstExpression.ref)",
+            "",
+            "    return new ExpressionTuple(expressions).addExtraTokens(extraTokens).addExtraToken(leftParen).addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private fun makeExpressionTuple0(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val rightParenSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val leftParen: pointer<Token> = leftParenSlot.deref as pointer<Token>",
+            "    val rightParen: pointer<Token> = rightParenSlot.deref as pointer<Token>",
+            "",
+            "    return new ExpressionTuple().addExtraToken(leftParen).addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private fun makeExpressionTuple1(results: pointer<ArrayList>) -> pointer<*> = makeExpressionTuple(results, 3)" ],
+
+
+        [   "private fun makeExpressionTuple2(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val tuple: pointer<ExpressionTuple> = makeExpressionTuple(results, 4)",
+            "    val commaSlot: pointer<pointer<*>> = results.get(3) as pointer<pointer<*>>",
+            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
+            "",
+            "    return tuple.addExtraToken(commaToken)",
+            "}" ],
+
+
+
+
+        [   "private fun makeListLiteral(results: pointer<ArrayList>, rightBracketIndex: int) -> pointer<ListLiteral>",
+            "{",
+            "    val leftBracketSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val leftBracket: pointer<Token> = leftBracketSlot.deref as pointer<Token>",
+            "    val firstExpression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
+            "    val sExpressions: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
+            "    val rightBracketSlot: pointer<pointer<*>> = results.get(rightBracketIndex) as pointer<pointer<*>>",
+            "    val rightBracket: pointer<Token> = rightBracketSlot.deref as pointer<Token>",
+            "    val expressions: pointer<ArrayList> = SExpression.unwrap(sExpressions)",
+            "    val extraTokens: pointer<ArrayList> = SExpression.unwrapExtraTokens(sExpressions)",
+            "",
+            "    expressions.pushFront(firstExpression.ref)",
+            "",
+            "    return new ListLiteral(expressions).addExtraTokens(extraTokens).addExtraToken(leftBracket).addExtraToken(rightBracket)",
+            "}" ],
+
+
+        [   "private fun makeListLiteral0(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftBracketSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val rightBracketSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val leftBracket: pointer<Token> = leftBracketSlot.deref as pointer<Token>",
+            "    val rightBracket: pointer<Token> = rightBracketSlot.deref as pointer<Token>",
+            "",
+            "    return new ListLiteral().addExtraToken(leftBracket).addExtraToken(rightBracket)",
+            "}" ],
+
+
+        [   "private fun makeListLiteral1(results: pointer<ArrayList>) -> pointer<*> = makeListLiteral(results, 3)" ],
+
+
+        [   "private fun makeListLiteral2(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val list: pointer<ListLiteral> = makeListLiteral(results, 4)",
+            "    val commaSlot: pointer<pointer<*>> = results.get(3) as pointer<pointer<*>>",
+            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
+            "",
+            "    return list.addExtraToken(commaToken)",
+            "}" ]
     ]
 }
