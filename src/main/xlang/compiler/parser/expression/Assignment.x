@@ -69,7 +69,7 @@ struct Assignment
             val tokens: pointer<ArrayList> = this.target.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
         if this.value != null:
@@ -77,10 +77,10 @@ struct Assignment
             val tokens: pointer<ArrayList> = this.value.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

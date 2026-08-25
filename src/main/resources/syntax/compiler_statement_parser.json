@@ -10,7 +10,8 @@
         "xlang.compiler.parser.expression.Expression",
         "xlang.compiler.parser.statement.ExprStatement",
         "xlang.compiler.parser.statement.Statement",
-        "xlang.compiler.parser.statement.ReturnStatement"
+        "xlang.compiler.parser.statement.ReturnStatement",
+        "xlang.compiler.parser.statement.ExpressionList"
     ],
     "constants": [
         
@@ -20,64 +21,80 @@
             "class": "Statement",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$ExprStatement" }], "action": "makeFromExprStatement" },
-                { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeFromReturnStatement" }
+                { "patterns": [{ "kind": "$ExprStatement" }], "action": "makeStmtFrom_ExprStatement" },
+                { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeStmtFrom_ReturnStmt" }
             ]
         },
         {
             "class": "ExprStatement",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFromExpression" }
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeExprStmt" }
+            ]
+        },
+        {
+            "class": "ExpressionList",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$ExpressionList" }], "action": "makeExprList" },
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSingleExprList" }
             ]
         },
         {
             "class": "ReturnStatement",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFromReturn" },
-                { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFromReturn" }
+                { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" },
+                { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" }
             ]
         }
     ],
     "others": [
-        [   "private inline fun getStatementContainerValue(results: pointer<ArrayList>, index: int) -> pointer<*>",
+        [   "private inline fun makeStmtFrom_ExprStatement(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val slot: pointer<pointer<*>> = results.get(index) as pointer<pointer<*>>",
-            "    val container: pointer<ParseContainer> = slot.deref as pointer<ParseContainer>",
-            "",
-            "    return container.getValue()",
-            "}" ],
-
-
-        [   "private inline fun getStatementContainerValue(results: pointer<ArrayList>) -> pointer<*> =",
-            "    getStatementContainerValue(results, 0)",
-            "" ],
-
-
-        [   "private inline fun makeFromExprStatement(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val exprStatement: pointer<ExprStatement> = getStatementContainerValue(results) as pointer<ExprStatement>",
+            "    val exprStatement: pointer<ExprStatement> = getContainerValue(results, 0) as pointer<ExprStatement>",
             "    return Statement.fromExprStatement(exprStatement)",
             "}" ],
 
 
-        [   "private inline fun makeFromReturnStatement(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private inline fun makeStmtFrom_ReturnStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val returnStatement: pointer<ReturnStatement> = getStatementContainerValue(results) as pointer<ReturnStatement>",
+            "    val returnStatement: pointer<ReturnStatement> = getContainerValue(results, 0) as pointer<ReturnStatement>",
             "    return Statement.fromReturnStatement(returnStatement)",
             "}" ],
 
 
-        [   "private inline fun makeFromExpression(results: pointer<ArrayList>) -> pointer<*>",
+
+
+        [   "private inline fun makeExprStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val expression: pointer<Expression> = getStatementContainerValue(results) as pointer<Expression>",
-            "",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
             "    return new ExprStatement(expression)",
+            "}" ],
+
+
+
+        [   "private inline fun makeExprList(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val commaSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
+            "    val exprList: pointer<ExpressionList> = getContainerValue(results, 2) as pointer<ExpressionList>",
+            "",
+            "    return new ExpressionList(expression).addExtraToken(commaToken).addExpressions(exprList)",
+            "}" ],
+
+
+        [   "private inline fun makeSingleExprList(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    return new ExpressionList(expression)",
             "}" ],
         
 
-        [   "private inline fun makeFromReturn(results: pointer<ArrayList>) -> pointer<*>",
+            
+
+        [   "private inline fun makeReturnStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val returnSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
             "    val returnToken: pointer<Token> = returnSlot.deref as pointer<Token>",
@@ -85,7 +102,7 @@
             "        new ReturnStatement()",
             "    else:",
             "    {",
-            "        val expression: pointer<Expression> = getStatementContainerValue(results, 1) as pointer<Expression>",
+            "        val expression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
             "        new ReturnStatement(expression)",
             "    }",
             "",

@@ -19,6 +19,7 @@
  *
  *
  */
+@file.class("Statement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression
@@ -69,7 +70,7 @@ struct Statement
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
 
         if this.root != null:
         {
@@ -87,113 +88,11 @@ struct Statement
 
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result
-    }
-}
-
-
-struct ExprStatement
-{
-    private val expr: pointer<Expression>
-
-    private var extraTokens: pointer<ArrayList>
-
-
-    fun __init__(expr: pointer<Expression>)
-    {
-        this.expr = expr
-        this.extraTokens = new ArrayList(sizeof(Token))
-    }
-
-
-    fun getExpression() -> pointer<Expression> = this.expr
-
-
-    fun addExtraToken(token: pointer<Token>) -> pointer<ExprStatement>
-    {
-        if token != null:
-            this.extraTokens.push(token)
-
-        return this
-    }
-
-
-    fun getAllTokens() -> pointer<ArrayList>
-    {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-
-        if this.expr != null:
-        {
-            val tokens: pointer<ArrayList> = this.expr.getAllTokens()
-
-            if tokens != null:
-                result.addAll(result.length, tokens)
-        }
-
-        result.addAll(result.length, this.extraTokens)
-        result.setCmparator(TokenPosition.compareToken)
-        result.sort()
-        return result
-    }
-}
-
-
-struct ReturnStatement
-{
-    private val expr: pointer<Expression>
-
-    private var extraTokens: pointer<ArrayList>
-
-
-    fun __init__()
-    {
-        this.expr = null
-        this.extraTokens = new ArrayList(sizeof(Token))
-    }
-
-
-    fun __init__(expr: pointer<Expression>)
-    {
-        this.expr = expr
-        this.extraTokens = new ArrayList(sizeof(Token))
-    }
-
-
-    fun haveReturnValue() -> bool = this.expr != null
-
-
-    fun getExpression() -> pointer<Expression> = this.expr
-
-
-    fun getAllTokens() -> pointer<ArrayList>
-    {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-
-        if this.expr != null:
-        {
-            val tokens: pointer<ArrayList> = this.expr.getAllTokens()
-
-            if tokens != null:
-                result.addAll(result.length, tokens)
-        }
-
-        result.addAll(result.length, this.extraTokens)
-        result.setCmparator(TokenPosition.compareToken)
-        result.sort()
-        return result
-    }
-
-
-    fun addExtraToken(token: pointer<Token>) -> pointer<ReturnStatement>
-    {
-        if token != null:
-            this.extraTokens.push(token)
-
-        return this
     }
 }

@@ -78,7 +78,7 @@ struct MethodCall
     fun setArguments(arguments: pointer<ExpressionTuple>) -> pointer<MethodCall>
     {
         this.arguments = arguments.getList()
-        this.extraTokens.addAll(this.extraTokens.length, arguments.getExtraTokens())
+        this.extraTokens.pushAll(arguments.getExtraTokens())
         return this
     }
     
@@ -112,7 +112,7 @@ struct MethodCall
             val tokens: pointer<ArrayList> = this.host.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
         for (var i = 0; i < this.arguments.length; i++):
@@ -125,10 +125,10 @@ struct MethodCall
             val tokens: pointer<ArrayList> = argument.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

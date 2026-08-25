@@ -24,7 +24,7 @@
 package xlang.parser
 
 import xlang.compiler.lexer.Tokenizer
-import xlang.compiler.parser.Parser
+import xlang.parser.util.ParserRef
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.parser.util.PatternList
@@ -99,21 +99,25 @@ private fun atomRule() -> pointer<Rule> =
     new Rule(new PatternList().pushRegex(Tokenizer.TK_INTEGER), makeExpr, Rule.STARTER_ROLE, 0)
 
 
+private fun atomParserRef() -> pointer<ParserRef> =
+    ParserRef.fromRecursiveDown(EXPR_ID).addRule(atomRule())
+
+
 private fun plusRule(priority: int) -> pointer<Rule> =
     new Rule(
         new PatternList()
-            .pushRef(Parser.ATOM_PARSER)
+            .pushRef(atomParserRef())
             .pushRegex(Tokenizer.PLUS)
-            .pushRef(Parser.ATOM_PARSER),
+            .pushRef(atomParserRef()),
         makeExpr, Rule.CONTINUATION_ROLE, priority)
 
 
 private fun starRule(priority: int) -> pointer<Rule> =
     new Rule(
         new PatternList()
-            .pushRef(Parser.ATOM_PARSER)
+            .pushRef(atomParserRef())
             .pushRegex(Tokenizer.STAR)
-            .pushRef(Parser.ATOM_PARSER),
+            .pushRef(atomParserRef()),
         makeExpr, Rule.CONTINUATION_ROLE, priority)
 
 

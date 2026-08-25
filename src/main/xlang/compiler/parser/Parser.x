@@ -17,6 +17,7 @@ import xlang.compiler.parser.expression.MethodCall
 import xlang.compiler.parser.expression.SExpression
 import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.statement.ExprStatement
+import xlang.compiler.parser.statement.ExpressionList
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
 import xlang.lexer.Token
@@ -33,14 +34,15 @@ import xlang.util.ArrayList
 val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)
 
 
-private val ATOM_PARSER_ID: int = 1
-private val EXPRESSION_PARSER_ID: int = 2
+private val EXPRESSION_PARSER_ID: int = 1
+private val ATOM_PARSER_ID: int = 2
 private val SEXPRESSION_PARSER_ID: int = 3
 private val EXPRESSION_TUPLE_PARSER_ID: int = 4
 private val LIST_LITERAL_PARSER_ID: int = 5
 private val STATEMENT_PARSER_ID: int = 6
 private val EXPR_STATEMENT_PARSER_ID: int = 7
-private val RETURN_STATEMENT_PARSER_ID: int = 8
+private val EXPRESSION_LIST_PARSER_ID: int = 8
+private val RETURN_STATEMENT_PARSER_ID: int = 9
 
 
 private inline fun getContainerValue(results: pointer<ArrayList>, index: int) -> pointer<*>
@@ -50,10 +52,6 @@ private inline fun getContainerValue(results: pointer<ArrayList>, index: int) ->
 
     return container.getValue()
 }
-
-private inline fun getContainerValue(results: pointer<ArrayList>) -> pointer<*> =
-    getContainerValue(results, 0)
-
 
 private fun makeAtom(results: pointer<ArrayList>) -> pointer<*>
 {
@@ -167,7 +165,7 @@ private fun makeListLiteral2(results: pointer<ArrayList>) -> pointer<*>
 
 private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>
 {
-    val atom: pointer<Atom> = getContainerValue(results) as pointer<Atom>
+    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>
     return Expression.fromAtom(atom)
 }
 
@@ -498,38 +496,41 @@ private fun makeExprFromBitwiseNorAssign(results: pointer<ArrayList>) -> pointer
     makeExprFromAssignWithBuilder(results, ExpressionDesugar.makeBitwiseNor)
 
 
-private inline fun getStatementContainerValue(results: pointer<ArrayList>, index: int) -> pointer<*>
+private inline fun makeStmtFrom_ExprStatement(results: pointer<ArrayList>) -> pointer<*>
 {
-    val slot: pointer<pointer<*>> = results.get(index) as pointer<pointer<*>>
-    val container: pointer<ParseContainer> = slot.deref as pointer<ParseContainer>
-
-    return container.getValue()
-}
-
-private inline fun getStatementContainerValue(results: pointer<ArrayList>) -> pointer<*> =
-    getStatementContainerValue(results, 0)
-
-
-private inline fun makeFromExprStatement(results: pointer<ArrayList>) -> pointer<*>
-{
-    val exprStatement: pointer<ExprStatement> = getStatementContainerValue(results) as pointer<ExprStatement>
+    val exprStatement: pointer<ExprStatement> = getContainerValue(results, 0) as pointer<ExprStatement>
     return Statement.fromExprStatement(exprStatement)
 }
 
-private inline fun makeFromReturnStatement(results: pointer<ArrayList>) -> pointer<*>
+private inline fun makeStmtFrom_ReturnStmt(results: pointer<ArrayList>) -> pointer<*>
 {
-    val returnStatement: pointer<ReturnStatement> = getStatementContainerValue(results) as pointer<ReturnStatement>
+    val returnStatement: pointer<ReturnStatement> = getContainerValue(results, 0) as pointer<ReturnStatement>
     return Statement.fromReturnStatement(returnStatement)
 }
 
-private inline fun makeFromExpression(results: pointer<ArrayList>) -> pointer<*>
+private inline fun makeExprStmt(results: pointer<ArrayList>) -> pointer<*>
 {
-    val expression: pointer<Expression> = getStatementContainerValue(results) as pointer<Expression>
-
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
     return new ExprStatement(expression)
 }
 
-private inline fun makeFromReturn(results: pointer<ArrayList>) -> pointer<*>
+private inline fun makeExprList(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
+    val commaSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>
+    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>
+    val exprList: pointer<ExpressionList> = getContainerValue(results, 2) as pointer<ExpressionList>
+
+    return new ExpressionList(expression).addExtraToken(commaToken).addExpressions(exprList)
+}
+
+private inline fun makeSingleExprList(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
+    return new ExpressionList(expression)
+}
+
+private inline fun makeReturnStmt(results: pointer<ArrayList>) -> pointer<*>
 {
     val returnSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>
     val returnToken: pointer<Token> = returnSlot.deref as pointer<Token>
@@ -537,7 +538,7 @@ private inline fun makeFromReturn(results: pointer<ArrayList>) -> pointer<*>
         new ReturnStatement()
     else:
     {
-        val expression: pointer<Expression> = getStatementContainerValue(results, 1) as pointer<Expression>
+        val expression: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
         new ReturnStatement(expression)
     }
 
@@ -545,10 +546,10 @@ private inline fun makeFromReturn(results: pointer<ArrayList>) -> pointer<*>
 }
 
 
-val ATOM_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ATOM_PARSER_ID)
-
 private val EXPRESSION_PARSER_SPECIFIC: pointer<PrattParser> = new PrattParser()
 val EXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromPratt(EXPRESSION_PARSER_ID, EXPRESSION_PARSER_SPECIFIC)
+
+val ATOM_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ATOM_PARSER_ID)
 
 val SEXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(SEXPRESSION_PARSER_ID)
 
@@ -559,6 +560,8 @@ val LIST_LITERAL_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(LIST_L
 val STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(STATEMENT_PARSER_ID)
 
 val EXPR_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EXPR_STATEMENT_PARSER_ID)
+
+val EXPRESSION_LIST_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EXPRESSION_LIST_PARSER_ID)
 
 val RETURN_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(RETURN_STATEMENT_PARSER_ID)
 
@@ -815,18 +818,6 @@ private fun toOperation(token: pointer<Token>, fixity: int) -> pointer<Operation
     return null
 }
 
-private val ATOM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_NULL), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_TRUE), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FALSE), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_CHAR), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_STRING), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_INTEGER), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_LONG), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_FLOAT), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE8: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_DOUBLE), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE9: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_LONG_DOUBLE), makeAtom, Rule.STARTER_ROLE, 0)
-private val ATOM_RULE10: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER), makeAtom, Rule.STARTER_ROLE, 0)
-
 private val EXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRef(EXPRESSION_TUPLE_PARSER), makeExprFromFuncCall, Rule.STARTER_ROLE, 240)
 private val EXPRESSION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(ATOM_PARSER), makeExprFromAtom, Rule.STARTER_ROLE, 230)
 private val EXPRESSION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.RIGHT_PAREN), makeExprFromParen, Rule.STARTER_ROLE, OP_PAREN)
@@ -895,6 +886,18 @@ private val EXPRESSION_RULE64: pointer<Rule> = new Rule(new PatternList().pushRe
 private val EXPRESSION_RULE65: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.PIPE_EQUAL).pushRef(EXPRESSION_PARSER), makeExprFromBitwiseOrAssign, Rule.CONTINUATION_ROLE, OP_BITWISE_OR_ASSIGN)
 private val EXPRESSION_RULE66: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.BANG_PIPE_EQUAL).pushRef(EXPRESSION_PARSER), makeExprFromBitwiseNorAssign, Rule.CONTINUATION_ROLE, OP_BITWISE_NOR_ASSIGN)
 
+private val ATOM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_NULL), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_TRUE), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FALSE), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_CHAR), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_STRING), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_INTEGER), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_LONG), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_FLOAT), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE8: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_DOUBLE), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE9: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_LONG_DOUBLE), makeAtom, Rule.STARTER_ROLE, 0)
+private val ATOM_RULE10: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER), makeAtom, Rule.STARTER_ROLE, 0)
+
 private val SEXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.COMMA).pushRef(EXPRESSION_PARSER), makeSExpression, Rule.STARTER_ROLE, 0)
 
 private val EXPRESSION_TUPLE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.RIGHT_PAREN), makeExpressionTuple0, Rule.STARTER_ROLE, 0)
@@ -905,39 +908,27 @@ private val LIST_LITERAL_RULE0: pointer<Rule> = new Rule(new PatternList().pushR
 private val LIST_LITERAL_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACKET).pushRef(EXPRESSION_PARSER).pushRefs(new ParserRefs(SEXPRESSION_PARSER)).pushRegex(Tokenizer.RIGHT_BRACKET), makeListLiteral1, Rule.STARTER_ROLE, 0)
 private val LIST_LITERAL_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACKET).pushRef(EXPRESSION_PARSER).pushRefs(new ParserRefs(SEXPRESSION_PARSER)).pushRegex(Tokenizer.COMMA).pushRegex(Tokenizer.RIGHT_BRACKET), makeListLiteral2, Rule.STARTER_ROLE, 0)
 
-private val STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPR_STATEMENT_PARSER), makeFromExprStatement, Rule.STARTER_ROLE, 0)
-private val STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(RETURN_STATEMENT_PARSER), makeFromReturnStatement, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPR_STATEMENT_PARSER), makeStmtFrom_ExprStatement, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(RETURN_STATEMENT_PARSER), makeStmtFrom_ReturnStmt, Rule.STARTER_ROLE, 0)
 
-private val EXPR_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFromExpression, Rule.STARTER_ROLE, 0)
+private val EXPR_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeExprStmt, Rule.STARTER_ROLE, 0)
 
-private val RETURN_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_RETURN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFromReturn, Rule.STARTER_ROLE, 0)
-private val RETURN_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_RETURN).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFromReturn, Rule.STARTER_ROLE, 0)
+private val EXPRESSION_LIST_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COMMA).pushRef(EXPRESSION_LIST_PARSER), makeExprList, Rule.STARTER_ROLE, 0)
+private val EXPRESSION_LIST_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSingleExprList, Rule.STARTER_ROLE, 0)
 
-private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
+private val RETURN_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_RETURN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeReturnStmt, Rule.STARTER_ROLE, 0)
+private val RETURN_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_RETURN).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeReturnStmt, Rule.STARTER_ROLE, 0)
+
 private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13).addRule(EXPRESSION_RULE14).addRule(EXPRESSION_RULE15).addRule(EXPRESSION_RULE16).addRule(EXPRESSION_RULE17).addRule(EXPRESSION_RULE18).addRule(EXPRESSION_RULE19).addRule(EXPRESSION_RULE20).addRule(EXPRESSION_RULE21).addRule(EXPRESSION_RULE22).addRule(EXPRESSION_RULE23).addRule(EXPRESSION_RULE24).addRule(EXPRESSION_RULE25).addRule(EXPRESSION_RULE26).addRule(EXPRESSION_RULE27).addRule(EXPRESSION_RULE28).addRule(EXPRESSION_RULE29).addRule(EXPRESSION_RULE30).addRule(EXPRESSION_RULE31).addRule(EXPRESSION_RULE32).addRule(EXPRESSION_RULE33).addRule(EXPRESSION_RULE34).addRule(EXPRESSION_RULE35).addRule(EXPRESSION_RULE36).addRule(EXPRESSION_RULE37).addRule(EXPRESSION_RULE38).addRule(EXPRESSION_RULE39).addRule(EXPRESSION_RULE40).addRule(EXPRESSION_RULE41).addRule(EXPRESSION_RULE42).addRule(EXPRESSION_RULE43).addRule(EXPRESSION_RULE44).addRule(EXPRESSION_RULE45).addRule(EXPRESSION_RULE46).addRule(EXPRESSION_RULE47).addRule(EXPRESSION_RULE48).addRule(EXPRESSION_RULE49).addRule(EXPRESSION_RULE50).addRule(EXPRESSION_RULE51).addRule(EXPRESSION_RULE52).addRule(EXPRESSION_RULE53).addRule(EXPRESSION_RULE54).addRule(EXPRESSION_RULE55).addRule(EXPRESSION_RULE56).addRule(EXPRESSION_RULE57).addRule(EXPRESSION_RULE58).addRule(EXPRESSION_RULE59).addRule(EXPRESSION_RULE60).addRule(EXPRESSION_RULE61).addRule(EXPRESSION_RULE62).addRule(EXPRESSION_RULE63).addRule(EXPRESSION_RULE64).addRule(EXPRESSION_RULE65).addRule(EXPRESSION_RULE66)
+private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
 private val SEXPRESSION_PARSER_SETUP: pointer<ParserRef> = SEXPRESSION_PARSER.addRule(SEXPRESSION_RULE0)
 private val EXPRESSION_TUPLE_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_TUPLE_PARSER.addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
 private val LIST_LITERAL_PARSER_SETUP: pointer<ParserRef> = LIST_LITERAL_PARSER.addRule(LIST_LITERAL_RULE0).addRule(LIST_LITERAL_RULE1).addRule(LIST_LITERAL_RULE2)
 private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1)
 private val EXPR_STATEMENT_PARSER_SETUP: pointer<ParserRef> = EXPR_STATEMENT_PARSER.addRule(EXPR_STATEMENT_RULE0)
+private val EXPRESSION_LIST_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_LIST_PARSER.addRule(EXPRESSION_LIST_RULE0).addRule(EXPRESSION_LIST_RULE1)
 private val RETURN_STATEMENT_PARSER_SETUP: pointer<ParserRef> = RETURN_STATEMENT_PARSER.addRule(RETURN_STATEMENT_RULE0).addRule(RETURN_STATEMENT_RULE1)
 
-
-fun parseAtom(input: pointer<TokenList>) -> pointer<Atom>
-{
-    if input == null:
-        return null
-
-    if ATOM_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = ATOM_PARSER.getResult()
-
-    if result == null || result.isKind(ATOM_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<Atom>
-}
 
 fun parseExpression(input: pointer<TokenList>) -> pointer<Expression>
 {
@@ -953,6 +944,22 @@ fun parseExpression(input: pointer<TokenList>) -> pointer<Expression>
         return null
 
     return result.getValue() as pointer<Expression>
+}
+
+fun parseAtom(input: pointer<TokenList>) -> pointer<Atom>
+{
+    if input == null:
+        return null
+
+    if ATOM_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = ATOM_PARSER.getResult()
+
+    if result == null || result.isKind(ATOM_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<Atom>
 }
 
 fun parseSExpression(input: pointer<TokenList>) -> pointer<SExpression>
@@ -1033,6 +1040,22 @@ fun parseExprStatement(input: pointer<TokenList>) -> pointer<ExprStatement>
         return null
 
     return result.getValue() as pointer<ExprStatement>
+}
+
+fun parseExpressionList(input: pointer<TokenList>) -> pointer<ExpressionList>
+{
+    if input == null:
+        return null
+
+    if EXPRESSION_LIST_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = EXPRESSION_LIST_PARSER.getResult()
+
+    if result == null || result.isKind(EXPRESSION_LIST_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<ExpressionList>
 }
 
 fun parseReturnStatement(input: pointer<TokenList>) -> pointer<ReturnStatement>

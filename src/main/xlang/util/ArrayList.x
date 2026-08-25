@@ -355,27 +355,66 @@ struct ArrayList
 
     
     /**
-     * Appends one element by copying tsize bytes from item.
+     * Appends an element to this list by copying {@code tsize} bytes from the given source.
      *
-     * The source pointer is only used during the copy. After push() returns, the
-     * stored element is independent from the source storage.
+     * <p>The source memory is only accessed during this operation. After this method
+     * returns, the stored element is completely independent from the original memory
+     * referenced by {@code item}.</p>
      *
-     * Preconditions:
-     * - item must point to at least tsize readable bytes.
-     * - item should not point into this list's internal buffer if this push may
-     *   trigger resize(), because resize() can move that buffer before the copy.
+     * <p><b>Preconditions:</b></p>
+     * <ul>
+     *   <li>{@code item} must reference at least {@code tsize} readable bytes.</li>
+     *   <li>{@code item} should not point into this list's internal storage if this
+     *       operation may cause a resize, because resizing can relocate the internal
+     *       buffer before the copy is performed.</li>
+     * </ul>
      *
-     * Postconditions:
-     * - The previous length becomes the index of the inserted element.
-     * - length is increased by 1.
-     */
-    fun push(item: pointer<*>)
+     * <p><b>Postconditions:</b></p>
+     * <ul>
+     *   <li>The element is inserted at the index equal to the previous length.</li>
+     *   <li>The length of this list is increased by one.</li>
+     * </ul>
+     *
+     * @param item              the source memory address containing the element to append
+     * @return                  this list instance
+    */
+    fun push(item: pointer<*>) -> pointer<ArrayList>
     {
         if this.length + 1 >= ((this.capacity as double) * this.loadFactor) as int:
             this.resize(1)
 
         this.copyToSlot(this.length, item)
         this.length++
+        return this
+    }
+
+
+    /**
+     * Appends all elements from the specified list to the end of this list.
+     *
+     * <p>The elements are copied from the source list. After this method returns,
+     * the stored elements are independent from the source list's internal storage.</p>
+     *
+     * <p><b>Preconditions:</b></p>
+     * <ul>
+     *   <li>{@code items} must reference a valid {@code ArrayList} instance.</li>
+     *   <li>The source list must remain valid during the copy operation.</li>
+     * </ul>
+     *
+     * <p><b>Postconditions:</b></p>
+     * <ul>
+     *   <li>All elements from {@code items} are appended after the current last element.</li>
+     *   <li>The previous length becomes the starting index of the inserted elements.</li>
+     *   <li>The length of this list is increased by the number of elements copied.</li>
+     * </ul>
+     *
+     * @param items             the list whose elements will be appended
+     * @return                  this list instance
+     */
+    fun pushAll(items: pointer<ArrayList>) -> pointer<ArrayList>
+    {
+        this.addAll(this.length, items)
+        return this
     }
 
 

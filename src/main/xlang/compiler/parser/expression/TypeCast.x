@@ -76,7 +76,7 @@ struct TypeCast
             val tokens: pointer<ArrayList> = this.expression.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
         if this.targetType != null:
@@ -84,10 +84,10 @@ struct TypeCast
             val typeTokens: pointer<ArrayList> = this.targetType.getAllTokens()
 
             if typeTokens != null:
-                result.addAll(result.length, typeTokens)
+                result.pushAll(typeTokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

@@ -75,7 +75,7 @@ struct ExpressionTuple
     fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<ExpressionTuple>
     {
         if tokens != null:
-            this.extraTokens.addAll(this.extraTokens.length, tokens)
+            this.extraTokens.pushAll(tokens)
 
         return this
     }
@@ -98,10 +98,10 @@ struct ExpressionTuple
             if tokens == null:
                 continue
 
-            result.addAll(result.length, tokens)
+            result.pushAll(tokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
 
         result.setCmparator(TokenPosition.compareToken)
         result.sort()

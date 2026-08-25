@@ -78,7 +78,7 @@ struct SExpression
             val sExpression: pointer<SExpression> = container.getValue() as pointer<SExpression>
 
             if sExpression != null:
-                result.addAll(result.length, sExpression.extraTokens)
+                result.pushAll(sExpression.extraTokens)
         }
 
         return result
@@ -118,10 +118,10 @@ struct SExpression
             val tokens: pointer<ArrayList> = this.expression.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

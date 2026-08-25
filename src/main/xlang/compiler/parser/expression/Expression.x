@@ -104,7 +104,7 @@ struct Expression
     fun clone() -> pointer<Expression>
     {
         val result: pointer<Expression> = new Expression(this.kind, this.root)
-        result.extraTokens.addAll(result.extraTokens.length, this.extraTokens)
+        result.extraTokens.pushAll(this.extraTokens)
         return result
     }
 
@@ -148,9 +148,9 @@ struct Expression
             return null
 
         if rootTokens != null:
-            result.addAll(result.length, rootTokens)
+            result.pushAll(rootTokens)
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

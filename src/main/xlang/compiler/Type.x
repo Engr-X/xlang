@@ -361,7 +361,7 @@ struct Type
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
-        result.addAll(result.length, this.tokens)
+        result.pushAll(this.tokens)
 
         for (var i: int = 0; i < this.length; i++):
         {
@@ -373,7 +373,7 @@ struct Type
             val tokens: pointer<ArrayList> = typeArgument.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
         result.setCmparator(TokenPosition.compareToken)

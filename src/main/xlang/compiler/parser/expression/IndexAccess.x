@@ -47,7 +47,7 @@ struct IndexAccess
         else:
         {
             this.indices = indices.getList()
-            this.extraTokens.addAll(this.extraTokens.length, indices.getExtraTokens())
+            this.extraTokens.pushAll(indices.getExtraTokens())
         }
     }
 
@@ -94,7 +94,7 @@ struct IndexAccess
             val tokens: pointer<ArrayList> = this.host.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
         for (var i = 0; i < this.indices.length; i++):
@@ -107,10 +107,10 @@ struct IndexAccess
             val tokens: pointer<ArrayList> = index.getAllTokens()
 
             if tokens != null:
-                result.addAll(result.length, tokens)
+                result.pushAll(tokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

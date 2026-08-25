@@ -428,6 +428,15 @@ struct TokenList
         this.tokens.push(token)
 
 
+    /**
+     * Inserts all elements from the specified list at the given index.
+     *
+     * <p>The elements are copied from {@code items} and added to this list.
+     * If {@code items} is null or empty, no operation is performed.</p>
+     *
+     * @param index the index where elements are inserted
+     * @param items the list containing elements to add
+     */
     fun addAll(index: int, items: pointer<ArrayList>)
     {
         if items == null || items.length <= 0:

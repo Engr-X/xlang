@@ -74,7 +74,7 @@ struct ListLiteral
     fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<ListLiteral>
     {
         if tokens != null:
-            this.extraTokens.addAll(this.extraTokens.length, tokens)
+            this.extraTokens.pushAll(tokens)
 
         return this
     }
@@ -97,10 +97,10 @@ struct ListLiteral
             if tokens == null:
                 continue
 
-            result.addAll(result.length, tokens)
+            result.pushAll(tokens)
         }
 
-        result.addAll(result.length, this.extraTokens)
+        result.pushAll(this.extraTokens)
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result

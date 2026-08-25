@@ -24,23 +24,6 @@
     ],
     "rules": [
         {
-            "class": "Atom",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_NULL" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.KW_TRUE" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.KW_FALSE" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_CHAR" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_STRING" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_INTEGER" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_LONG" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_FLOAT" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_DOUBLE" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_LONG_DOUBLE" }], "action": "makeAtom" },
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeAtom" }
-            ]
-        },
-        {
             "class": "Expression",
             "parser": "pratt",
             "operations": [
@@ -231,6 +214,23 @@
             ]
         },
         {
+            "class": "Atom",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_NULL" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.KW_TRUE" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FALSE" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_CHAR" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_STRING" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_INTEGER" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_LONG" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_FLOAT" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_DOUBLE" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_LONG_DOUBLE" }], "action": "makeAtom" },
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeAtom" }
+            ]
+        },
+        {
             "class": "SExpression",
             "parser": "recursively-down",
             "sub_rules": [
@@ -264,11 +264,6 @@
             "",
             "    return container.getValue()",
             "}" ],
-
-
-        [   "private inline fun getContainerValue(results: pointer<ArrayList>) -> pointer<*> =",
-            "    getContainerValue(results, 0)",
-            "" ],
 
 
         [   "private fun makeAtom(results: pointer<ArrayList>) -> pointer<*>",
@@ -393,7 +388,7 @@
 
         [   "private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val atom: pointer<Atom> = getContainerValue(results) as pointer<Atom>",
+            "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
             "    return Expression.fromAtom(atom)",
             "}" ],
 
