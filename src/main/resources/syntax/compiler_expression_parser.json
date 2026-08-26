@@ -390,8 +390,6 @@
             "",
             "    return Expression.fromMethodCall(call)",
             "}" ],
-
-
         [   "private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",

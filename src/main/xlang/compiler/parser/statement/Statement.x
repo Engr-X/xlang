@@ -32,11 +32,24 @@ struct Statement
 {
     static val EXPRESSION_TYPE: int = 0
 
-    static val RETURN_TYPE: int = 1
+    static val EXPRESSION_LIST_TYPE: int = 1
+
+    static val VARIABLE_DEFINE_TYPE: int = 2
+
+    static val RETURN_TYPE: int = 3
 
 
     static fun fromExprStatement(expr: pointer<ExprStatement>) -> pointer<Statement> =
         new Statement(EXPRESSION_TYPE, expr)
+
+
+    static fun fromExprListStatement(expr: pointer<ExprListStatement>) -> pointer<Statement> =
+        new Statement(EXPRESSION_LIST_TYPE, expr)
+
+
+    static fun fromVariableDefine(variableDefine: pointer<VariableDefine>) -> pointer<Statement> =
+        new Statement(VARIABLE_DEFINE_TYPE, variableDefine)
+
 
     static fun fromReturnStatement(statement: pointer<ReturnStatement>) -> pointer<Statement> =
         new Statement(RETURN_TYPE, statement)
@@ -66,6 +79,12 @@ struct Statement
     }
 
 
+    fun getKind() -> int = this.kind
+
+
+    fun getRoot() -> pointer<*> = this.root
+
+
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
@@ -74,9 +93,21 @@ struct Statement
 
         if this.root != null:
         {
-            var tokens: pointer<ArrayList> = if this.kind == EXPRESSION_TYPE:
+            var tokens: pointer<ArrayList> = null
+
+            if this.kind == EXPRESSION_TYPE:
             {
                 val statement: pointer<ExprStatement> = this.root as pointer<ExprStatement>
+                tokens = statement.getAllTokens()
+            }
+            elif this.kind == EXPRESSION_LIST_TYPE:
+            {
+                val statement: pointer<ExprListStatement> = this.root as pointer<ExprListStatement>
+                tokens = statement.getAllTokens()
+            }
+            elif this.kind == VARIABLE_DEFINE_TYPE:
+            {
+                val statement: pointer<VariableDefine> = this.root as pointer<VariableDefine>
                 tokens = statement.getAllTokens()
             }
             elif this.kind == RETURN_TYPE:
@@ -84,7 +115,6 @@ struct Statement
                 val statement: pointer<ReturnStatement> = this.root as pointer<ReturnStatement>
                 tokens = statement.getAllTokens()
             }
-            else: null
 
 
             if tokens != null:

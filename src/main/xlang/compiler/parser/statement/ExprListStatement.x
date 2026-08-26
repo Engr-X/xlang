@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("ExpressionList")
+@file.class("ExprListStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression
@@ -28,7 +28,7 @@ import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
 
 
-struct ExpressionList
+struct ExprListStatement
 {
     private val exprList: pointer<ArrayList>
 
@@ -43,7 +43,7 @@ struct ExpressionList
     }
 
 
-    fun addExpression(expr: pointer<Expression>) -> pointer<ExpressionList>
+    fun addExpression(expr: pointer<Expression>) -> pointer<ExprListStatement>
     {
         if expr != null:
             this.exprList.push(expr)
@@ -52,7 +52,7 @@ struct ExpressionList
     }
 
 
-    fun addExpressions(exprs: pointer<ArrayList>) -> pointer<ExpressionList>
+    fun addExpressions(exprs: pointer<ArrayList>) -> pointer<ExprListStatement>
     {
         if exprs != null:
             this.exprList.pushAll(exprs)
@@ -61,7 +61,7 @@ struct ExpressionList
     }
 
 
-    fun addExpressions(other: pointer<ExpressionList>) -> pointer<ExpressionList>
+    fun addExpressions(other: pointer<ExprListStatement>) -> pointer<ExprListStatement>
     {
         if other != null:
             this.exprList.pushAll(other.exprList)
@@ -73,12 +73,28 @@ struct ExpressionList
     fun getExpressions() -> pointer<ArrayList> = this.exprList.clone()
 
 
-    fun addExtraToken(token: pointer<Token>) -> pointer<ExpressionList>
+    fun addExtraToken(token: pointer<Token>) -> pointer<ExprListStatement>
     {
         if token != null:
             this.extraTokens.push(token)
 
         return this
+    }
+
+
+    fun expand() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(ExprStatement))
+
+        for (var i = 0; i < this.exprList.length; i++):
+        {
+            val expression: pointer<Expression> = this.exprList.get(i) as pointer<Expression>
+
+            if expression != null:
+                result.push(new ExprStatement(expression))
+        }
+
+        return result
     }
 
 

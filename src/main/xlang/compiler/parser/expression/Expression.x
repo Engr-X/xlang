@@ -62,6 +62,7 @@ struct Expression
     inline static fun fromAssignment(assignment: pointer<Assignment>) -> pointer<Expression> = new Expression(ASSIGNMENT_KIND, assignment)
 
 
+
     private var kind: int
 
     private var root: pointer<*>
@@ -144,7 +145,7 @@ struct Expression
             val assignment: pointer<Assignment> = this.root as pointer<Assignment>
             rootTokens = assignment.getAllTokens()
         }
-        else:
+else:
             return null
 
         if rootTokens != null:
@@ -195,6 +196,6 @@ struct Expression
             return assignment.toString()
         }
 
-        return new StringBuilder()
+return new StringBuilder()
     }
 }
