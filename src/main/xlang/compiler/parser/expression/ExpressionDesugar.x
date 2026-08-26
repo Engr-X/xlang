@@ -71,8 +71,7 @@ struct ExpressionDesugar
         if subOp != null:
             value = ExpressionDesugar.fromInfix(subOp, exp1, exp2)
 
-        val assignment: pointer<Assignment> = new Assignment(exp1, value)
-        return Expression.fromAssignment(assignment)
+        return Expression.fromAssignment(exp1, value)
     }
 
 

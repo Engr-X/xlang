@@ -229,9 +229,7 @@ private fun makeExprFromIndexAccess(results: pointer<ArrayList>) -> pointer<*>
     val host: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
     val list: pointer<ListLiteral> = getContainerValue(results, 1) as pointer<ListLiteral>
 
-    val access: pointer<IndexAccess> = new IndexAccess(host, list)
-
-    return Expression.fromIndexAccess(access)
+    return Expression.fromIndexAccess(host, list)
 }
 
 private fun makeExprFromMethodCall(results: pointer<ArrayList>) -> pointer<*>
@@ -271,8 +269,7 @@ private fun makeExprFromTypeCast(results: pointer<ArrayList>) -> pointer<*>
     val asSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>
     val asToken: pointer<Token> = asSlot.deref as pointer<Token>
     val targetType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>
-    val cast: pointer<TypeCast> = new TypeCast(expression, targetType)
-    val result: pointer<Expression> = Expression.fromTypeCast(cast)
+    val result: pointer<Expression> = Expression.fromTypeCast(expression, targetType)
 
     return result.addExtraToken(asToken)
 }

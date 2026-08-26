@@ -55,13 +55,16 @@ struct Expression
     inline static fun fromMethodCall(method: pointer<MethodCall>) -> pointer<Expression> = new Expression(METHOD_CALL_KIND, method) 
 
 
-    inline static fun fromIndexAccess(access: pointer<IndexAccess>) -> pointer<Expression> = new Expression(INDEX_ACCESS_KIND, access)
+    inline static fun fromIndexAccess(host: pointer<Expression>, indices: pointer<ListLiteral>) -> pointer<Expression> = 
+        new Expression(INDEX_ACCESS_KIND, new IndexAccess(host, indices))
 
 
-    inline static fun fromTypeCast(castTo: pointer<TypeCast>) -> pointer<Expression> = new Expression(TYPE_CAST_KIND, castTo)
+    inline static fun fromTypeCast(expression: pointer<Expression>, targetType: pointer<Type>) -> pointer<Expression> = 
+        new Expression(TYPE_CAST_KIND, new TypeCast(expression, targetType))
 
 
-    inline static fun fromAssignment(assignment: pointer<Assignment>) -> pointer<Expression> = new Expression(ASSIGNMENT_KIND, assignment)
+    inline static fun fromAssignment(target: pointer<Expression>, value: pointer<Expression>) -> pointer<Expression> = 
+        new Expression(ASSIGNMENT_KIND, new Assignment(target, value))
 
     
     inline static fun fromNewIdentifier(ident: pointer<NewIdentifier>) -> pointer<Expression> = new Expression(NEW_IDENTIFIER_KIND, ident)
