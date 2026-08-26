@@ -16,6 +16,8 @@
         "xlang.compiler.parser.expression.IndexAccess",
         "xlang.compiler.parser.expression.ListLiteral",
         "xlang.compiler.parser.expression.MethodCall",
+        "xlang.compiler.parser.expression.NewFunction",
+        "xlang.compiler.parser.expression.NewIdentifier",
         "xlang.compiler.parser.expression.SExpression",
         "xlang.compiler.parser.expression.TypeCast"
     ],
@@ -110,6 +112,8 @@
                 { "symbol": "!|=", "function_name": "bitwiseNorAssign", "fixity": "Operation.INFIX_TYPE", "associativity": "Operation.RIGHT_ASSOC", "priority": 10 }
             ],
             "sub_rules": [
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromNewFunc", "priority": 250 },
+                { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExprFromNewIdent", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExprFromAtom", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExprFromParen" },
@@ -378,6 +382,33 @@
             "    return result.addExtraToken(opToken)",
             "}" ],
 
+
+        [   "private fun makeExprFromNewFunc(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val newSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val newToken: pointer<Token> = newSlot.deref as pointer<Token>",
+            "    val nameSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
+            "    val tuple: pointer<ExpressionTuple> = getContainerValue(results, 2) as pointer<ExpressionTuple>",
+            "",
+            "    val function: pointer<NewFunction> = new NewFunction(nameToken.text).setArguments(tuple)",
+            "    function.addExtraToken(newToken).addExtraToken(nameToken)",
+            "",
+            "    return Expression.fromNewFunction(function)",
+            "}" ],
+
+        [   "private fun makeExprFromNewIdent(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val newSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val newToken: pointer<Token> = newSlot.deref as pointer<Token>",
+            "    val nameSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val nameToken: pointer<Token> = nameSlot.deref as pointer<Token>",
+            "",
+            "    val ident: pointer<NewIdentifier> = new NewIdentifier(nameToken.text)",
+            "    ident.addExtraToken(newToken).addExtraToken(nameToken)",
+            "",
+            "    return Expression.fromNewIdentifier(ident)",
+            "}" ],
 
         [   "private fun makeExprFromFuncCall(results: pointer<ArrayList>) -> pointer<*>",
             "{",

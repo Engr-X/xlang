@@ -43,12 +43,13 @@ struct Atom
     static val IDENTIFIER_KIND: int = 8
     static val STATEMENT_ATOM_KIND: int = 9
 
-    
+
     private val kind: int
     
     private val tokens: pointer<ArrayList>
 
     private val inferredType: pointer<Type>
+    
 
 
     fun __init__(kind: int, tokens: pointer<ArrayList>)

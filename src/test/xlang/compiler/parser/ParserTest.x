@@ -31,6 +31,8 @@ import xlang.compiler.parser.expression.Expression
 import xlang.compiler.parser.expression.FieldAccess
 import xlang.compiler.parser.expression.IndexAccess
 import xlang.compiler.parser.expression.MethodCall
+import xlang.compiler.parser.expression.NewFunction
+import xlang.compiler.parser.expression.NewIdentifier
 import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
@@ -54,6 +56,7 @@ fun genTest() -> pointer<TestGroup>
     val result: pointer<TestGroup> = new TestGroup("xlang.compiler.parser.Parser")
     val atomParserTC: pointer<TestCase> = new TestCase("atomParser", atomParserTest)
     val functionCallExpressionTC: pointer<TestCase> = new TestCase("functionCallExpression", functionCallExpressionTest)
+    val newExpressionTC: pointer<TestCase> = new TestCase("newExpression", newExpressionTest)
     val atomExpressionTC: pointer<TestCase> = new TestCase("atomExpression", atomExpressionTest)
     val parenthesizedExpressionTC: pointer<TestCase> = new TestCase("parenthesizedExpression", parenthesizedExpressionTest)
     val prefixExpressionTC: pointer<TestCase> = new TestCase("prefixExpression", prefixExpressionTest)
@@ -68,6 +71,7 @@ fun genTest() -> pointer<TestGroup>
     val statementTC: pointer<TestCase> = new TestCase("statement", statementTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
+    val newExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, newExpressionTC, null)
     val atomExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomExpressionTC, null)
     val parenthesizedExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedExpressionTC, null)
     val prefixExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, prefixExpressionTC, null)
@@ -83,6 +87,7 @@ fun genTest() -> pointer<TestGroup>
 
     result.addTestUnion(atomParserUnion)
     result.addTestUnion(functionCallExpressionUnion)
+    result.addTestUnion(newExpressionUnion)
     result.addTestUnion(atomExpressionUnion)
     result.addTestUnion(parenthesizedExpressionUnion)
     result.addTestUnion(prefixExpressionUnion)
@@ -232,6 +237,61 @@ private fun statementTest() -> int
         return 11
 
     if !tokenTextAt(returnTokens, 0, "return") || !tokenTextAt(returnTokens, 1, "y") || !tokenTextAt(returnTokens, 2, "+") || !tokenTextAt(returnTokens, 3, "1"):
+        return 12
+
+    return 0
+}
+
+private fun newExpressionTest() -> int
+{
+    val identExpression: pointer<Expression> = parseExpressionText("new Foo")
+
+    if identExpression == null || identExpression.getKind() != Expression.NEW_IDENTIFIER_KIND:
+        return 1
+
+    val ident: pointer<NewIdentifier> = identExpression.getRoot() as pointer<NewIdentifier>
+
+    if ident == null || !String.streq(ident.getIdentifier(), "Foo"):
+        return 2
+
+    if !expressionTextEquals("new Foo", "new Foo"):
+        return 3
+
+    val identTokens: pointer<ArrayList> = identExpression.getAllTokens()
+
+    if identTokens == null || identTokens.length != 2:
+        return 4
+
+    if !tokenTextAt(identTokens, 0, "new") || !tokenTextAt(identTokens, 1, "Foo"):
+        return 5
+
+    val funcExpression: pointer<Expression> = parseExpressionText("new Foo(1, x + 2)")
+
+    if funcExpression == null || funcExpression.getKind() != Expression.NEW_FUNCTION_KIND:
+        return 6
+
+    val function: pointer<NewFunction> = funcExpression.getRoot() as pointer<NewFunction>
+
+    if function == null || !String.streq(function.getHost(), "Foo"):
+        return 7
+
+    if function.argumentsCount() != 2:
+        return 8
+
+    val secondArgument: pointer<Expression> = function.getArgument(1)
+
+    if secondArgument == null || secondArgument.getKind() != Expression.METHOD_CALL_KIND:
+        return 9
+
+    if !expressionTextEquals("new Foo(1, x + 2)", "new Foo(1, plus(x, 2))"):
+        return 10
+
+    val funcTokens: pointer<ArrayList> = funcExpression.getAllTokens()
+
+    if funcTokens == null || funcTokens.length != 9:
+        return 11
+
+    if !tokenTextAt(funcTokens, 0, "new") || !tokenTextAt(funcTokens, 1, "Foo") || !tokenTextAt(funcTokens, 2, "(") || !tokenTextAt(funcTokens, 3, "1") || !tokenTextAt(funcTokens, 4, ",") || !tokenTextAt(funcTokens, 5, "x") || !tokenTextAt(funcTokens, 6, "+") || !tokenTextAt(funcTokens, 7, "2") || !tokenTextAt(funcTokens, 8, ")"):
         return 12
 
     return 0
