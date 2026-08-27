@@ -732,6 +732,118 @@ struct ArrayList
 
 
     /**
+     * Merges two adjacent sorted ranges into one sorted range.
+     *
+     * The ranges are half-open:
+     * - [left, middle)
+     * - [middle, right)
+     *
+     * The merged bytes are first written to {@code buffer}, then copied back
+     * into this list's backing storage. Equal elements are taken from the left
+     * range first, so the sort remains stable.
+     *
+     * Preconditions:
+     * - buffer must point to at least length * tsize writable bytes.
+     * - left, middle and right must describe valid adjacent ranges.
+     * - Both input ranges must already be sorted using this list's comparator.
+     *
+     * Postconditions:
+     * - Slots in [left, right) are sorted in this list's backing storage.
+     * - The list length and capacity are unchanged.
+     *
+     * @param buffer            temporary merge storage
+     * @param left              inclusive start index of the left range
+     * @param middle            exclusive end of the left range and start of the right range
+     * @param right             exclusive end index of the right range
+     */
+    private fun merge(buffer: pointer<byte>, left: int, middle: int, right: int)
+    {
+        val elementSize: int = this.tsize
+        var leftIndex: int = left
+        var rightIndex: int = middle
+        var destIndex: int = left
+
+        while leftIndex < middle && rightIndex < right:
+        {
+            val leftItem: pointer<byte> = this.data + leftIndex * elementSize
+            val rightItem: pointer<byte> = this.data + rightIndex * elementSize
+            val destItem: pointer<byte> = buffer + destIndex * elementSize
+
+            if this.cmp(leftItem, rightItem) <= 0:
+            {
+                System.memcopy(destItem, leftItem, elementSize)
+                leftIndex++
+            }
+            else:
+            {
+                System.memcopy(destItem, rightItem, elementSize)
+                rightIndex++
+            }
+
+            destIndex++
+        }
+
+        while leftIndex < middle:
+        {
+            System.memcopy(
+                buffer + destIndex * elementSize,
+                this.data + leftIndex * elementSize,
+                elementSize)
+            leftIndex++
+            destIndex++
+        }
+
+        while rightIndex < right:
+        {
+            System.memcopy(
+                buffer + destIndex * elementSize,
+                this.data + rightIndex * elementSize,
+                elementSize)
+            rightIndex++
+            destIndex++
+        }
+
+        System.memcopy(
+            this.data + left * elementSize,
+            buffer + left * elementSize,
+            (right - left) * elementSize)
+    }
+
+
+    /**
+     * Recursively sorts a half-open range using merge sort.
+     *
+     * The range [left, right) is split into two halves until it reaches single
+     * element ranges. Each pair of sorted halves is then merged back into this
+     * list's backing storage with merge().
+     *
+     * Preconditions:
+     * - buffer must point to at least length * tsize writable bytes.
+     * - left and right must describe a valid half-open range.
+     * - this.cmp must define the desired ordering.
+     *
+     * Postconditions:
+     * - Slots in [left, right) are sorted.
+     * - The list length and capacity are unchanged.
+     *
+     * @param buffer            temporary merge storage reused by recursive calls
+     * @param left              inclusive range start
+     * @param right             exclusive range end
+     */
+    private fun mergeSort(buffer: pointer<byte>, left: int, right: int)
+    {
+        if right - left <= 1:
+            return
+
+        val middle: int = left + (right - left) / 2
+
+        this.mergeSort(buffer, left, middle)
+        this.mergeSort(buffer, middle, right)
+        this.merge(buffer, left, middle, right)
+    }
+    
+
+    /**
      * Sorts all initialized elements using the configured comparator.
      *
      * The operation rearranges the element bytes in place and does not change
@@ -743,28 +855,13 @@ struct ArrayList
      */
     fun sort() -> pointer<ArrayList>
     {
-        val elementSize: int = this.tsize
-        val item: blob[elementSize]
+        if this.length <= 1:
+            return this
 
-        for (var i = 1; i < this.length; i++):
-        {
-            System.memcopy(item as pointer<*>, this.data + i * elementSize, elementSize)
+        val bufferSize: int = this.length * this.tsize
+        val buffer: blob[bufferSize]
 
-            var destIndex: int = i
-
-            while destIndex > 0:
-            {
-                val previous: pointer<byte> = this.data + (destIndex - 1) * elementSize
-
-                if this.cmp(previous, item as pointer<*>) <= 0:
-                    break
-
-                System.memcopy(this.data + destIndex * elementSize, previous, elementSize)
-                destIndex--
-            }
-
-            System.memcopy(this.data + destIndex * elementSize, item as pointer<*>, elementSize)
-        }
+        this.mergeSort(buffer as pointer<byte>, 0, this.length)
 
         return this
     }

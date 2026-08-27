@@ -26,6 +26,7 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.string.StringBuilder
 
 
 struct Statement
@@ -48,7 +49,11 @@ struct Statement
 
 
     static fun fromVariableDefine(variableDefine: pointer<VariableDefine>) -> pointer<Statement> =
-        new Statement(VARIABLE_DEFINE_TYPE, variableDefine)
+        new Statement(VARIABLE_DEFINE_TYPE, new VariableDefines(variableDefine))
+
+
+    static fun fromVariableDefines(variableDefines: pointer<VariableDefines>) -> pointer<Statement> =
+        new Statement(VARIABLE_DEFINE_TYPE, variableDefines)
 
 
     static fun fromReturnStatement(statement: pointer<ReturnStatement>) -> pointer<Statement> =
@@ -107,7 +112,7 @@ struct Statement
             }
             elif this.kind == VARIABLE_DEFINE_TYPE:
             {
-                val statement: pointer<VariableDefine> = this.root as pointer<VariableDefine>
+                val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
                 tokens = statement.getAllTokens()
             }
             elif this.kind == RETURN_TYPE:
@@ -124,5 +129,38 @@ struct Statement
         result.setCmparator(TokenPosition.compareToken)
         result.sort()
         return result
+    }
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        if this.root == null:
+            return new StringBuilder()
+
+        if this.kind == EXPRESSION_TYPE:
+        {
+            val statement: pointer<ExprStatement> = this.root as pointer<ExprStatement>
+            return statement.toString()
+        }
+
+        if this.kind == EXPRESSION_LIST_TYPE:
+        {
+            val statement: pointer<ExprListStatement> = this.root as pointer<ExprListStatement>
+            return statement.toString()
+        }
+
+        if this.kind == VARIABLE_DEFINE_TYPE:
+        {
+            val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
+            return statement.toString()
+        }
+
+        if this.kind == RETURN_TYPE:
+        {
+            val statement: pointer<ReturnStatement> = this.root as pointer<ReturnStatement>
+            return statement.toString()
+        }
+
+        return new StringBuilder()
     }
 }

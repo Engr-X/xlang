@@ -38,6 +38,7 @@ import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
+import xlang.compiler.parser.statement.VariableDefines
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
@@ -181,67 +182,215 @@ private fun atomParserTest() -> int
 
 private fun statementTest() -> int
 {
-    val exprStatement: pointer<Statement> = parseStatementText("x + 1;")
+    val exprStatementResult: int = statementExprStatementRuleTest()
 
-    if exprStatement == null || exprStatement.getKind() != Statement.EXPRESSION_TYPE:
-        return 1
+    if exprStatementResult != 0:
+        return exprStatementResult
 
-    val exprRoot: pointer<ExprStatement> = exprStatement.getRoot() as pointer<ExprStatement>
+    val exprListStatementResult: int = statementExprListStatementRuleTest()
 
-    if exprRoot == null || exprRoot.getExpression() == null:
-        return 2
+    if exprListStatementResult != 0:
+        return 10 + exprListStatementResult
 
-    val exprTokens: pointer<ArrayList> = exprStatement.getAllTokens()
+    val varDefineResult: int = statementVarDefineRuleTest()
 
-    if exprTokens == null || exprTokens.length != 3:
-        return 3
+    if varDefineResult != 0:
+        return 20 + varDefineResult
 
-    if !tokenTextAt(exprTokens, 0, "x") || !tokenTextAt(exprTokens, 1, "+") || !tokenTextAt(exprTokens, 2, "1"):
-        return 4
+    val valDefineResult: int = statementValDefineRuleTest()
 
-    val exprListStatement: pointer<Statement> = parseStatementText("x, y + 1;")
+    if valDefineResult != 0:
+        return 30 + valDefineResult
 
-    if exprListStatement == null || exprListStatement.getKind() != Statement.EXPRESSION_LIST_TYPE:
-        return 5
+    val varDefinesResult: int = statementVarDefinesRuleTest()
 
-    val exprListRoot: pointer<ExprListStatement> = exprListStatement.getRoot() as pointer<ExprListStatement>
-    var expressions: pointer<ArrayList> = null
+    if varDefinesResult != 0:
+        return 40 + varDefinesResult
 
-    if exprListRoot != null:
-        expressions = exprListRoot.getExpressions()
+    val valDefinesResult: int = statementValDefinesRuleTest()
 
-    if expressions == null || expressions.length != 2:
-        return 6
+    if valDefinesResult != 0:
+        return 50 + valDefinesResult
 
-    val exprListTokens: pointer<ArrayList> = exprListStatement.getAllTokens()
+    val returnStatementResult: int = statementReturnRuleTest()
 
-    if exprListTokens == null || exprListTokens.length != 5:
-        return 7
-
-    if !tokenTextAt(exprListTokens, 0, "x") || !tokenTextAt(exprListTokens, 1, ",") || !tokenTextAt(exprListTokens, 2, "y") || !tokenTextAt(exprListTokens, 3, "+") || !tokenTextAt(exprListTokens, 4, "1"):
-        return 8
-
-    val returnStatement: pointer<Statement> = parseStatementText("return y + 1;")
-
-    if returnStatement == null || returnStatement.getKind() != Statement.RETURN_TYPE:
-        return 9
-
-    val returnRoot: pointer<ReturnStatement> = returnStatement.getRoot() as pointer<ReturnStatement>
-
-    if returnRoot == null || !returnRoot.haveReturnValue():
-        return 10
-
-    val returnTokens: pointer<ArrayList> = returnStatement.getAllTokens()
-
-    if returnTokens == null || returnTokens.length != 4:
-        return 11
-
-    if !tokenTextAt(returnTokens, 0, "return") || !tokenTextAt(returnTokens, 1, "y") || !tokenTextAt(returnTokens, 2, "+") || !tokenTextAt(returnTokens, 3, "1"):
-        return 12
+    if returnStatementResult != 0:
+        return 60 + returnStatementResult
 
     return 0
 }
 
+
+private fun statementExprStatementRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("x + 1;")
+
+    if statement == null || statement.getKind() != Statement.EXPRESSION_TYPE:
+        return 1
+
+    val root: pointer<ExprStatement> = statement.getRoot() as pointer<ExprStatement>
+
+    if root == null || root.getExpression() == null:
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 3:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "x") || !tokenTextAt(tokens, 1, "+") || !tokenTextAt(tokens, 2, "1"):
+        return 4
+
+    return 0
+}
+
+
+private fun statementExprListStatementRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("x, y + 1;")
+
+    if statement == null || statement.getKind() != Statement.EXPRESSION_LIST_TYPE:
+        return 1
+
+    val root: pointer<ExprListStatement> = statement.getRoot() as pointer<ExprListStatement>
+    var expressions: pointer<ArrayList> = null
+
+    if root != null:
+        expressions = root.getExpressions()
+
+    if expressions == null || expressions.length != 2:
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 5:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "x") || !tokenTextAt(tokens, 1, ",") || !tokenTextAt(tokens, 2, "y") || !tokenTextAt(tokens, 3, "+") || !tokenTextAt(tokens, 4, "1"):
+        return 4
+
+    return 0
+}
+
+
+private fun statementVarDefineRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("var x = 1;")
+
+    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
+        return 1
+
+    val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+
+    if root == null || !root.canModified():
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 4:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "var") || !tokenTextAt(tokens, 1, "x") || !tokenTextAt(tokens, 2, "=") || !tokenTextAt(tokens, 3, "1"):
+        return 4
+
+    return 0
+}
+
+
+private fun statementValDefineRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("val y: int = 2;")
+
+    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
+        return 1
+
+    val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+
+    if root == null || root.canModified():
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 6:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "val") || !tokenTextAt(tokens, 1, "y") || !tokenTextAt(tokens, 2, ":") || !tokenTextAt(tokens, 3, "int") || !tokenTextAt(tokens, 4, "=") || !tokenTextAt(tokens, 5, "2"):
+        return 4
+
+    return 0
+}
+
+
+private fun statementVarDefinesRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("var x = 1, y = 2")
+
+    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
+        return 1
+
+    val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+
+    if root == null || !root.canModified():
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 8:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "var") || !tokenTextAt(tokens, 1, "x") || !tokenTextAt(tokens, 2, "=") || !tokenTextAt(tokens, 3, "1") || !tokenTextAt(tokens, 4, ",") || !tokenTextAt(tokens, 5, "y") || !tokenTextAt(tokens, 6, "=") || !tokenTextAt(tokens, 7, "2"):
+        return 4
+
+    return 0
+}
+
+
+private fun statementValDefinesRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("val a = 1, b: int = 2")
+
+    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
+        return 1
+
+    val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+
+    if root == null || root.canModified():
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 10:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "val") || !tokenTextAt(tokens, 1, "a") || !tokenTextAt(tokens, 2, "=") || !tokenTextAt(tokens, 3, "1") || !tokenTextAt(tokens, 4, ",") || !tokenTextAt(tokens, 5, "b") || !tokenTextAt(tokens, 6, ":") || !tokenTextAt(tokens, 7, "int") || !tokenTextAt(tokens, 8, "=") || !tokenTextAt(tokens, 9, "2"):
+        return 4
+
+    return 0
+}
+
+
+private fun statementReturnRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("return y + 1;")
+
+    if statement == null || statement.getKind() != Statement.RETURN_TYPE:
+        return 1
+
+    val root: pointer<ReturnStatement> = statement.getRoot() as pointer<ReturnStatement>
+
+    if root == null || !root.haveReturnValue():
+        return 2
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 4:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "return") || !tokenTextAt(tokens, 1, "y") || !tokenTextAt(tokens, 2, "+") || !tokenTextAt(tokens, 3, "1"):
+        return 4
+
+    return 0
+}
 private fun newExpressionTest() -> int
 {
     val identExpression: pointer<Expression> = parseExpressionText("new Foo")

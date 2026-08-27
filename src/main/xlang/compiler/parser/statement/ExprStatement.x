@@ -26,6 +26,7 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.string.StringBuilder
 
 
 struct ExprStatement
@@ -71,4 +72,10 @@ struct ExprStatement
         result.sort()
         return result
     }
+
+
+    fun toString() -> pointer<StringBuilder> = 
+        if this.expr == null:
+            new StringBuilder()
+        else: this.expr.toString()
 }

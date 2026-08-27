@@ -30,6 +30,7 @@ import xlang.compiler.Type
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.string.StringBuilder
 
 
 struct VariableDefine
@@ -51,6 +52,7 @@ struct VariableDefine
 
     fun __init__(varName: pointer<char>, assignExpr: pointer<Expression>)
     {
+        this.modifier = CONST_MODIFIER
         this.declaredType = null
         this.varName = varName
         this.assignExpr = assignExpr
@@ -60,6 +62,7 @@ struct VariableDefine
 
     fun __init__(declaredType: pointer<Type>, varName: pointer<char>, assignExpr: pointer<Expression>)
     {
+        this.modifier = CONST_MODIFIER
         this.declaredType = declaredType
         this.varName = varName
         this.assignExpr = assignExpr
@@ -90,6 +93,9 @@ struct VariableDefine
     }
 
 
+    fun canModified() -> bool = this.modifier == MUT_MODIFIER
+
+
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
@@ -118,5 +124,28 @@ struct VariableDefine
     }
 
 
-    fun canModified() -> bool = this.modifier == MUT_MODIFIER
+    fun toString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = if this.canModified():
+            new StringBuilder("var ")
+        else:
+            new StringBuilder("val ")
+
+        if this.varName != null:
+            sb.append(this.varName)
+
+        if this.declaredType != null:
+        {
+            sb.append(": ")
+            sb.append(this.declaredType.getTypeName())
+        }
+
+        if this.assignExpr != null:
+        {
+            sb.append(" = ")
+            sb.append(this.assignExpr.toString())
+        }
+
+        return sb
+    }
 }

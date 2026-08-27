@@ -30,6 +30,7 @@ import xlang.compiler.Type
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.string.StringBuilder
 
 
 struct VariableDefines
@@ -48,6 +49,24 @@ struct VariableDefines
         this.defines = new ArrayList(sizeof(VariableDefine))
         this.extraTokens = new ArrayList(sizeof(Token))
         this.defines.push(varDef)
+    }
+
+
+    fun addDefine(varDef: pointer<VariableDefine>) -> pointer<VariableDefines>
+    {
+        if varDef != null:
+            this.defines.push(varDef)
+
+        return this
+    }
+
+
+    fun addDefines(varDefs: pointer<VariableDefines>) -> pointer<VariableDefines>
+    {
+        if varDefs != null && varDefs.defines != null:
+            this.defines.pushAll(varDefs.defines)
+
+        return this
     }
 
 
@@ -88,6 +107,17 @@ struct VariableDefines
     }
 
 
+    fun canModified() -> bool
+    {
+        if this.defines.length <= 0:
+            return false
+
+        val variableDefine: pointer<VariableDefine> = this.defines.get(0) as pointer<VariableDefine>
+
+        return variableDefine != null && variableDefine.canModified()
+    }
+
+
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
@@ -112,13 +142,21 @@ struct VariableDefines
     }
 
 
-    fun canModified() -> bool
+    fun toString() -> pointer<StringBuilder>
     {
-        if this.defines.length <= 0:
-            return false
+        val sb: pointer<StringBuilder> = new StringBuilder()
 
-        val variableDefine: pointer<VariableDefine> = this.defines.get(0) as pointer<VariableDefine>
+        for (var i = 0; i < this.defines.length; i++):
+        {
+            val variableDefine: pointer<VariableDefine> = this.defines.get(i) as pointer<VariableDefine>
 
-        return variableDefine != null && variableDefine.canModified()
+            if variableDefine == null:
+                continue
+
+            sb.append(variableDefine.toString())
+            sb.append(",\n")
+        }
+
+        return sb
     }
 }

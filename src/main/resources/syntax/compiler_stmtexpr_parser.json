@@ -1,0 +1,21 @@
+{
+    "type": "compiler_parser_rules",
+
+    "package": "xlang.compiler.parser",
+    "class": "Parser",
+    "imports": [
+        "xlang.compiler.parser.stmtexpr.BlockExpr",
+        "xlang.compiler.parser.stmtexpr.StatementExpression"
+    ],
+    "constants": [
+        
+    ],
+    "rules": [
+        {
+            "class": "BlockExpr"
+        }
+    ],
+    "others": [
+        
+    ]
+}

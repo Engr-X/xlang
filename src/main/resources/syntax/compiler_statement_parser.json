@@ -12,7 +12,9 @@
         "xlang.compiler.parser.statement.Statement",
         "xlang.compiler.parser.statement.ReturnStatement",
         "xlang.compiler.parser.statement.ExprListStatement",
-        "xlang.compiler.parser.statement.VariableDefine"
+        "xlang.compiler.parser.statement.VariableDefine",
+        "xlang.compiler.parser.statement.VariableDefines",
+        "xlang.compiler.parser.statement.Statements"
     ],
     "constants": [
         
@@ -27,6 +29,8 @@
 
                 { "patterns": [{ "kind": "Tokenizer.KW_VAR" }, { "kind": "$VariableDefine" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" } ], "action": "makeStmtFrom_VariableDefine" },
                 { "patterns": [{ "kind": "Tokenizer.KW_VAL" }, { "kind": "$VariableDefine" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" } ], "action": "makeStmtFrom_VariableDefine" },
+                { "patterns": [{ "kind": "Tokenizer.KW_VAR" }, { "kind": "$VariableDefines" }], "action": "makeStmtFrom_VariableDefines" },
+                { "patterns": [{ "kind": "Tokenizer.KW_VAL" }, { "kind": "$VariableDefines" }], "action": "makeStmtFrom_VariableDefines" },
 
                 { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeStmtFrom_ReturnStmt" }
             ]
@@ -55,11 +59,27 @@
             ]
         },
         {
+            "class": "VariableDefines",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$VariableDefine" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$VariableDefines" }], "action": "makeVarDefsIt" },
+                { "patterns": [{ "kind": "$VariableDefine" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVariableDefines" }
+            ]
+        },
+        {
             "class": "ReturnStatement",
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" },
                 { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" }
+            ]
+        },
+        {
+            "class": "Statements",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Statement" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$Statements" }], "action": "makeStmtsIt" },
+                { "patterns": [{ "kind": "$Statement" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSingleStmts" }
             ]
         }
     ],
@@ -92,6 +112,21 @@
             "    return statement.addExtraToken(varToken)",
             "}" ],
 
+
+        [   "private inline fun makeStmtFrom_VariableDefines(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val varSlot: pointer<pointer<*>> = results.get(0) as pointer<pointer<*>>",
+            "    val varToken: pointer<Token> = varSlot.deref as pointer<Token>",
+            "    val variableDefines: pointer<VariableDefines> = getContainerValue(results, 1) as pointer<VariableDefines>",
+            "",
+            "    var statement: pointer<Statement> = if varToken.kind == Tokenizer.KW_VAL:",
+            "         Statement.fromVariableDefines(variableDefines.markAsConst())",
+            "    else:",
+            "         Statement.fromVariableDefines(variableDefines.markAsMut())",
+            "",
+            "    return statement.addExtraToken(varToken)",
+            "}" ],
+            
 
         [   "private inline fun makeStmtFrom_ReturnStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
@@ -126,6 +161,23 @@
             "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
             "    return new ExprListStatement(expression)",
             "}" ],
+
+
+        [   "private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
+            "    val right: pointer<Statements> = getContainerValue(results, 2) as pointer<Statements>",
+            "",
+            "    return new Statements(statement).addStatements(right)",
+            "}" ],
+
+
+        [   "private inline fun makeSingleStmts(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
+            "",
+            "    return new Statements(statement)",
+            "}" ],
         
 
             
@@ -141,6 +193,24 @@
             "    return new VariableDefine(nameToken.text, expression).addExtraToken(nameToken).addExtraToken(equalToken)",
             "}" ],
 
+
+        [   "private inline fun makeVarDefsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val first: pointer<VariableDefine> = getContainerValue(results, 0) as pointer<VariableDefine>",
+            "    val commaSlot: pointer<pointer<*>> = results.get(1) as pointer<pointer<*>>",
+            "    val commaToken: pointer<Token> = commaSlot.deref as pointer<Token>",
+            "    val second: pointer<VariableDefines> = getContainerValue(results, 2) as pointer<VariableDefines>",
+            "",
+            "    return new VariableDefines(first).addExtraToken(commaToken).addDefines(second)",
+            "}" ],
+
+
+        [   "private inline fun makeVariableDefines(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val variableDefine: pointer<VariableDefine> = getContainerValue(results, 0) as pointer<VariableDefine>",
+            "",
+            "    return new VariableDefines(variableDefine)",
+            "}" ],
 
         [   "private inline fun makeVariableDefineWithType(results: pointer<ArrayList>) -> pointer<*>",
             "{",

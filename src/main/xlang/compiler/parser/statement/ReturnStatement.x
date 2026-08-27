@@ -26,6 +26,7 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.string.StringBuilder
 
 
 struct ReturnStatement
@@ -80,5 +81,19 @@ struct ReturnStatement
             this.extraTokens.push(token)
 
         return this
+    }
+
+
+    fun toString() -> pointer<StringBuilder>
+    {
+        val sb: pointer<StringBuilder> = new StringBuilder("return")
+
+        if this.expr != null:
+        {
+            sb.append(" ")
+            sb.append(this.expr.toString())
+        }
+
+        return sb
     }
 }
