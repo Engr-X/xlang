@@ -4,6 +4,9 @@
     "package": "xlang.compiler.parser",
     "class": "Parser",
     "imports": [
+        "xlang.compiler.lexer.Tokenizer",
+        "xlang.lexer.Token",
+        "xlang.compiler.parser.statement.Statements",
         "xlang.compiler.parser.stmtexpr.BlockExpr",
         "xlang.compiler.parser.stmtexpr.StatementExpression"
     ],
@@ -12,10 +15,32 @@
     ],
     "rules": [
         {
-            "class": "BlockExpr"
+            "class": "BlockExpr",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "Tokenizer.RIGHT_BRACE" }], "action": "makeEmptyBlockExpr" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "$Statements" }, { "kind": "Tokenizer.RIGHT_BRACE" }], "action": "makeBlockExpr" }
+            ]
         }
     ],
     "others": [
-        
+        [   "private fun makeEmptyBlockExpr(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftBrace: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val rightBrace: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "",
+            "    return new BlockExpr().addExtraToken(leftBrace).addExtraToken(rightBrace)",
+            "}" ],
+
+
+        [   "private fun makeBlockExpr(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftBrace: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val statements: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>",
+            "    val rightBrace: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "",
+            "    return new BlockExpr(statements.getStatements())",
+            "       .addExtraToken(leftBrace).addExtraToken(rightBrace)",
+            "}" ]
     ]
 }

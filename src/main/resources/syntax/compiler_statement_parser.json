@@ -36,6 +36,14 @@
             ]
         },
         {
+            "class": "Statements",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Statement" }, { "kind": "$Statements" }], "action": "makeStmtsIt" },
+                { "patterns": [{ "kind": "$Statement" }], "action": "makeSingleStmts" }
+            ]
+        },
+        {
             "class": "ExprStatement",
             "parser": "recursively-down",
             "sub_rules": [
@@ -72,14 +80,6 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" },
                 { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" }
-            ]
-        },
-        {
-            "class": "Statements",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$Statement" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$Statements" }], "action": "makeStmtsIt" },
-                { "patterns": [{ "kind": "$Statement" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSingleStmts" }
             ]
         }
     ],
@@ -134,6 +134,23 @@
 
 
 
+            
+         [   "private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
+            "    val right: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>",
+            "",
+            "    return new Statements(statement).addStatements(right)",
+            "}" ],
+
+
+        [   "private inline fun makeSingleStmts(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
+            "",
+            "    return new Statements(statement)",
+            "}" ],
+
 
         [   "private inline fun makeExprStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
@@ -157,23 +174,6 @@
             "{",
             "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
             "    return new ExprListStatement(expression)",
-            "}" ],
-
-
-        [   "private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
-            "    val right: pointer<Statements> = getContainerValue(results, 2) as pointer<Statements>",
-            "",
-            "    return new Statements(statement).addStatements(right)",
-            "}" ],
-
-
-        [   "private inline fun makeSingleStmts(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
-            "",
-            "    return new Statements(statement)",
             "}" ],
         
 

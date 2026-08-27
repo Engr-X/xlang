@@ -66,24 +66,29 @@ struct Atom
     }
 
 
-    fun simpleInfer() -> pointer<Type> =
-        this.inferredType = if this.kind == NULL_IMM_KIND:
-                Type.voidType()
-            elif this.kind == BOOL_IMM_KIND:
-                Type.boolType()
-            elif this.kind == CHAR_IMM_KIND:
-                Type.charType()
-            elif this.kind == INTEGER_IMM_KIND:
-                Type.intType()
-            elif this.kind == LONG_IMM_KIND:
-                Type.longType()
-            elif this.kind == FLOAT_IMM_KIND:
-                Type.floatType()
-            elif this.kind == DOUBLE_IMM_KIND:
-                Type.floatType()
-            elif this.kind == STRING_IMM_KIND:
-                Type.earlyStringType()
-            else: null
+    fun simpleInfer() -> pointer<Type>
+    {
+        if this.kind == NULL_IMM_KIND:
+            this.inferredType = Type.voidType()
+        elif this.kind == BOOL_IMM_KIND:
+            this.inferredType = Type.boolType()
+        elif this.kind == CHAR_IMM_KIND:
+            this.inferredType = Type.charType()
+        elif this.kind == INTEGER_IMM_KIND:
+            this.inferredType = Type.intType()
+        elif this.kind == LONG_IMM_KIND:
+            this.inferredType = Type.longType()
+        elif this.kind == FLOAT_IMM_KIND:
+            this.inferredType = Type.floatType()
+        elif this.kind == DOUBLE_IMM_KIND:
+            this.inferredType = Type.floatType()
+        elif this.kind == STRING_IMM_KIND:
+            this.inferredType = Type.earlyStringType()
+        else:
+            this.inferredType = null
+
+        return this.inferredType
+    }
 
 
     fun getAllTokens() -> pointer<ArrayList>

@@ -38,7 +38,21 @@ import xlang.util.string.StringBuilder
 
 fun main()
 {
-    parseExpressionLoop()
+    parseStatementLoop()
+}
+
+
+private fun skipLineTerminators(tokens: pointer<TokenList>)
+{
+    while tokens != null && tokens.length() > 0:
+    {
+        val token: pointer<Token> = tokens.get(0)
+
+        if token == null || token.kind != Tokenizer.TK_LINE_TERMINATOR:
+            return
+
+        tokens.remove(0, 1)
+    }
 }
 
 
@@ -57,7 +71,7 @@ fun parseExpressionLoop()
         if length == 0:
             continue
 
-        val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
+        val tokens: pointer<TokenList> = Tokenizer.fullTokenize(input)
         val expression: pointer<Expression> = Parser.parseExpression(tokens)
 
         if expression == null:
@@ -65,6 +79,8 @@ fun parseExpressionLoop()
             putln("failed to parse expression")
             continue
         }
+
+        // skipLineTerminators(tokens)
 
         if tokens.length() > 0 && !tokens.get(0).isEOF():
         {
@@ -91,6 +107,7 @@ fun parseExpressionLoop()
     }
 }
 
+
 fun parseStatementLoop()
 {
     val inputSpace: blob[1024]
@@ -115,7 +132,7 @@ fun parseStatementLoop()
         input[length] = '\n'
         input[length + 1] = 0
 
-        val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
+        val tokens: pointer<TokenList> = Tokenizer.fullTokenize(input)
         val statement: pointer<Statement> = Parser.parseStatement(tokens)
 
         if statement == null:
@@ -123,6 +140,8 @@ fun parseStatementLoop()
             putln("failed to parse statement")
             continue
         }
+
+        // skipLineTerminators(tokens)
 
         if tokens.length() > 0 && !tokens.get(0).isEOF():
         {

@@ -25,6 +25,7 @@ package xlang.compiler.parser.expression
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
+import xlang.compiler.parser.stmtexpr.BlockExpr
 import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
@@ -40,6 +41,7 @@ struct Expression
     static val ASSIGNMENT_KIND: int = 7
     static val NEW_IDENTIFIER_KIND: int = 8
     static val NEW_FUNCTION_KIND: int = 9
+    static val BLOCK_EXPR_KIND: int = 10
 
 
     static fun fromAtom(atom: pointer<Atom>) -> pointer<Expression> = new Expression(ATOM_KIND, atom)
@@ -71,6 +73,9 @@ struct Expression
 
 
     inline static fun fromNewFunction(function: pointer<NewFunction>) -> pointer<Expression> = new Expression(NEW_FUNCTION_KIND, function)
+
+
+    inline static fun fromBlockExpr(block: pointer<BlockExpr>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
 
 
 
@@ -124,47 +129,53 @@ struct Expression
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-        var rootTokens: pointer<ArrayList> = if this.kind == ATOM_KIND:
+        var rootTokens: pointer<ArrayList> = null
+
+        if this.kind == ATOM_KIND:
         {
             val atom: pointer<Atom> = this.root as pointer<Atom>
-            atom.getAllTokens()
+            rootTokens = atom.getAllTokens()
         }
         elif this.kind == METHOD_CALL_KIND:
         {
             val call: pointer<MethodCall> = this.root as pointer<MethodCall>
-            call.getAllTokens()
+            rootTokens = call.getAllTokens()
         }
         elif this.kind == FIELD_ACCESS_KIND:
         {
             val access: pointer<FieldAccess> = this.root as pointer<FieldAccess>
-            access.getAllTokens()
+            rootTokens = access.getAllTokens()
         }
         elif this.kind == INDEX_ACCESS_KIND:
         {
             val access: pointer<IndexAccess> = this.root as pointer<IndexAccess>
-            access.getAllTokens()
+            rootTokens = access.getAllTokens()
         }
         elif this.kind == TYPE_CAST_KIND:
         {
             val cast: pointer<TypeCast> = this.root as pointer<TypeCast>
-            cast.getAllTokens()
+            rootTokens = cast.getAllTokens()
         }
         elif this.kind == ASSIGNMENT_KIND:
         {
             val assignment: pointer<Assignment> = this.root as pointer<Assignment>
-            assignment.getAllTokens()
+            rootTokens = assignment.getAllTokens()
         }
         elif this.kind == NEW_IDENTIFIER_KIND:
         {
             val ident: pointer<NewIdentifier> = this.root as pointer<NewIdentifier>
-            ident.getAllTokens()
+            rootTokens = ident.getAllTokens()
         }
         elif this.kind == NEW_FUNCTION_KIND:
         {
             val function: pointer<NewFunction> = this.root as pointer<NewFunction>
-            function.getAllTokens()
+            rootTokens = function.getAllTokens()
         }
-        else: null
+        elif this.kind == BLOCK_EXPR_KIND:
+        {
+            val block: pointer<BlockExpr> = this.root as pointer<BlockExpr>
+            rootTokens = block.getAllTokens()
+        }
 
         if rootTokens != null:
             result.pushAll(rootTokens)
@@ -176,45 +187,54 @@ struct Expression
     }
 
 
-    fun toString() -> pointer<StringBuilder> = if this.kind == ATOM_KIND:
+    fun toString() -> pointer<StringBuilder>
+    {
+        if this.kind == ATOM_KIND:
         {
             val atom: pointer<Atom> = this.root as pointer<Atom>
-            atom.toString()
+            return atom.toString()
         }
         elif this.kind == METHOD_CALL_KIND:
         {
             val call: pointer<MethodCall> = this.root as pointer<MethodCall>
-            call.toString()
+            return call.toString()
         }
         elif this.kind == FIELD_ACCESS_KIND:
         {
             val access: pointer<FieldAccess> = this.root as pointer<FieldAccess>
-            access.toString()
+            return access.toString()
         }
         elif this.kind == INDEX_ACCESS_KIND:
         {
             val access: pointer<IndexAccess> = this.root as pointer<IndexAccess>
-            access.toString()
+            return access.toString()
         }
         elif this.kind == TYPE_CAST_KIND:
         {
             val cast: pointer<TypeCast> = this.root as pointer<TypeCast>
-            cast.toString()
+            return cast.toString()
         }
         elif this.kind == ASSIGNMENT_KIND:
         {
             val assignment: pointer<Assignment> = this.root as pointer<Assignment>
-            assignment.toString()
+            return assignment.toString()
         }
         elif this.kind == NEW_IDENTIFIER_KIND:
         {
             val ident: pointer<NewIdentifier> = this.root as pointer<NewIdentifier>
-            ident.toString()
+            return ident.toString()
         }
         elif this.kind == NEW_FUNCTION_KIND:
         {
             val function: pointer<NewFunction> = this.root as pointer<NewFunction>
-            function.toString()
+            return function.toString()
         }
-        else: new StringBuilder()
+        elif this.kind == BLOCK_EXPR_KIND:
+        {
+            val block: pointer<BlockExpr> = this.root as pointer<BlockExpr>
+            return block.toString()
+        }
+
+        return new StringBuilder()
+    }
 }

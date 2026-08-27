@@ -46,14 +46,6 @@ struct BlockExpr
     }
 
 
-    fun __init__(statement: pointer<Statement>)
-    {
-        this.statements = new ArrayList(sizeof(Statement))
-        this.extraTokens = new ArrayList(sizeof(Token))
-        this.statements.push(statement)
-    }
-
-
     fun __init__(statements: pointer<ArrayList>)
     {
         this.statements = statements.clone()
