@@ -20,7 +20,8 @@
         "xlang.compiler.parser.expression.NewFunction",
         "xlang.compiler.parser.expression.NewIdentifier",
         "xlang.compiler.parser.expression.TypeCast",
-        "xlang.compiler.parser.stmtexpr.BlockExpr"
+        "xlang.compiler.parser.stmtexpr.BlockExpr",
+        "xlang.compiler.parser.stmtexpr.IfBranch"
     ],
     "constants": [
         "val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)"
@@ -117,6 +118,7 @@
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExprFromNewIdent", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$BlockExpr" }], "action": "makeExprFromBlockExpr", "priority": 230 },
+                { "role": "starter", "patterns": [{ "kind": "$IfBranch" }], "action": "makeExprFromIfBranch", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExprFromAtom", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExprFromParen" },
 
@@ -437,6 +439,13 @@
             "{",
             "    val block: pointer<BlockExpr> = getContainerValue(results, 0) as pointer<BlockExpr>",
             "    return Expression.fromBlockExpr(block)",
+            "}" ],
+
+
+        [   "private fun makeExprFromIfBranch(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val branch: pointer<IfBranch> = getContainerValue(results, 0) as pointer<IfBranch>",
+            "    return Expression.fromIfBranch(branch)",
             "}" ],
 
 

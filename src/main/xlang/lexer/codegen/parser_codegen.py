@@ -529,6 +529,28 @@ def getSubRulePriority(sub_rule: JsonObject) -> int:
 
     return priority
 
+
+def getSubRuleAfter(sub_rule: JsonObject) -> str | None:
+    after = sub_rule.get("after", None)
+
+    if after is None:
+        return None
+
+    if not isinstance(after, str) or not after:
+        raise ValueError(f"parser sub rule after must be a non-empty string: {sub_rule!r}")
+
+    return after
+
+
+def appendSubRuleAfter(rule_ctor: str, sub_rule: JsonObject) -> str:
+    after = getSubRuleAfter(sub_rule)
+
+    if after is None:
+        return rule_ctor
+
+    return f"{rule_ctor}.setAfterFun({after})"
+
+
 def getResultConstructor(rule: JsonObject) -> str:
     value = rule.get(
         "result_constructor",
@@ -902,6 +924,8 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
                 else:
                     rule_ctor = f"new Rule({pattern_expr}, {action}, {role_expr}, {operation_expr})"
 
+                rule_ctor = appendSubRuleAfter(rule_ctor, sub_rule)
+
                 lines.append(
                     f"{indent}private val {rule_name}: pointer<Rule> = {rule_ctor}"
                 )
@@ -921,9 +945,14 @@ def genParserDecls(rules: list[JsonObject], tabs: int) -> str:
             if action is None:
                 raise ValueError(f"recursive parser sub rule must have an action: {sub_rule!r}")
 
+            rule_ctor = appendSubRuleAfter(
+                f"new Rule({pattern_expr}, {action}, Rule.STARTER_ROLE, {priority})",
+                sub_rule,
+            )
+
             lines.append(
                 f"{indent}private val {rule_name}: pointer<Rule> = "
-                f"new Rule({pattern_expr}, {action}, Rule.STARTER_ROLE, {priority})"
+                f"{rule_ctor}"
             )
 
         lines.append("")

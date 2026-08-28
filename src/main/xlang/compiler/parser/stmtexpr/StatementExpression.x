@@ -30,10 +30,6 @@ import xlang.util.string.StringBuilder
 
 struct StatementExpression
 {
-    static fun compareTokenPosition(left: pointer<*>, right: pointer<*>) -> int =
-        TokenPosition.compareToken(left, right)
-
-
     static val BLOCK_KIND: int = 1
 
     static val IF_KIND: int = 2
@@ -82,7 +78,7 @@ struct StatementExpression
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         result.pushAll(this.extraTokens)
-        result.setCmparator(StatementExpression.compareTokenPosition)
+        result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }

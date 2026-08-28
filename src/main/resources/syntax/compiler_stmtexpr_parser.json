@@ -6,8 +6,11 @@
     "imports": [
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
+        "xlang.compiler.parser.expression.Expression",
+        "xlang.compiler.parser.statement.Statement",
         "xlang.compiler.parser.statement.Statements",
         "xlang.compiler.parser.stmtexpr.BlockExpr",
+        "xlang.compiler.parser.stmtexpr.IfBranch",
         "xlang.compiler.parser.stmtexpr.StatementExpression"
     ],
     "constants": [
@@ -20,6 +23,14 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "Tokenizer.RIGHT_BRACE" }], "action": "makeEmptyBlockExpr" },
                 { "patterns": [{ "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "$Statements" }, { "kind": "Tokenizer.RIGHT_BRACE" }], "action": "makeBlockExpr" }
+            ]
+        },
+        {
+            "class": "IfBranch",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "$Statements" }, { "kind": "Tokenizer.RIGHT_BRACE" }], "action": "makeIfBranchFromStmts" },
+                { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeIfBranchFromStmt", "after": "prependLineTerminator" }
             ]
         }
     ],
@@ -41,6 +52,48 @@
             "",
             "    return new BlockExpr(statements.getStatements())",
             "       .addExtraToken(leftBrace).addExtraToken(rightBrace)",
+            "}" ],
+
+
+        [   "private fun makeIfBranchFromStmts(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val leftBrace: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val statements: pointer<Statements> = getContainerValue(results, 4) as pointer<Statements>",
+            "    val rightBrace: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "",
+            "    return new IfBranch(condition, statements.getStatements())",
+            "       .addExtraToken(ifToken).addExtraToken(colonToken)",
+            "       .addExtraToken(leftBrace).addExtraToken(rightBrace)",
+            "}" ],
+
+
+        [   "private fun makeIfBranchFromStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>",
+            "    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))",
+            "    statements.push(statement)",
+            "",
+            "    return new IfBranch(condition, statements)",
+            "       .addExtraToken(ifToken).addExtraToken(colonToken)",
+            "}" ],
+
+
+        [   "private fun prependLineTerminator(tokens: pointer<TokenList>) -> pointer<TokenList>",
+            "{",
+            "    if tokens == null || tokens.length() <= 0:",
+            "        return tokens",
+            "",
+            "    val first: pointer<Token> = tokens.get(0)",
+            "    val terminator: pointer<Token> = new Token(Tokenizer.TK_LINE_TERMINATOR, first.pos, \"\\n\")",
+            "    tokens.pushFront(terminator)",
+            "",
+            "    return tokens",
             "}" ]
     ]
 }

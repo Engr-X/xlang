@@ -59,7 +59,7 @@ struct HashSet
         this.length = 0
         this.cmp = cmp
         this.list = new ArrayList(tsize)
-        this.list.setCmparator(cmp)
+        this.list.setComparator(cmp)
     }
 
 

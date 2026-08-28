@@ -68,7 +68,7 @@ struct NewIdentifier
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         result.pushAll(this.extraTokens)
-        result.setCmparator(TokenPosition.compareToken)
+        result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }
@@ -174,7 +174,7 @@ struct NewFunction
         }
 
         result.pushAll(this.extraTokens)
-        result.setCmparator(TokenPosition.compareToken)
+        result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }

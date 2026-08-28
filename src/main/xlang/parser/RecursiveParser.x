@@ -271,6 +271,10 @@ struct RecursiveParser
         }
 
         this.result = new ParseContainer(this.id, constructedResult)
+
+        // call after
+        rule.afterFun(token)
+
         matchLength.deref = consumed
 
         return true

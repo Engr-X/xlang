@@ -429,6 +429,22 @@ struct TokenList
 
 
     /**
+     * Inserts a token at the beginning of the list.
+     *
+     * Existing tokens keep their relative order and are shifted one position
+     * toward the end of the list. The inserted token becomes index zero.
+     *
+     * The caller must provide a valid token pointer.
+     *
+     * @param token             the token to insert at the front
+     *
+     * @warning                 Passing an invalid or null token pointer may cause undefined behavior.
+     */
+    fun pushFront(token: pointer<Token>):
+        this.tokens.pushFront(token)
+
+
+    /**
      * Inserts all elements from the specified list at the given index.
      *
      * <p>The elements are copied from {@code items} and added to this list.

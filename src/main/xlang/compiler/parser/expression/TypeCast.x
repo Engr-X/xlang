@@ -88,7 +88,7 @@ struct TypeCast
         }
 
         result.pushAll(this.extraTokens)
-        result.setCmparator(TokenPosition.compareToken)
+        result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }

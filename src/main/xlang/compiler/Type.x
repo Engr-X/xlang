@@ -376,7 +376,7 @@ struct Type
                 result.pushAll(tokens)
         }
 
-        result.setCmparator(TokenPosition.compareToken)
+        result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }

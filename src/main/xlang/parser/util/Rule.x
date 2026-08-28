@@ -37,6 +37,9 @@ import xlang.util.ArrayList
  */
 struct Rule
 {
+    private static fun identAfter(input: pointer<TokenList>) -> pointer<TokenList> = input
+
+
     static val STARTER_ROLE: int = 0
 
     static val CONTINUATION_ROLE: int = 1
@@ -45,6 +48,8 @@ struct Rule
     private val pattern: pointer<PatternList>
 
     private var resultConstructor: (pointer<ArrayList>) -> pointer<*>
+
+    private var afterFun: (pointer<TokenList>) -> pointer<TokenList>
 
     private var operation: pointer<Operation>
 
@@ -60,6 +65,7 @@ struct Rule
         this.operation = operation
         this.priority = operation.priority
         this.role = role
+        this.afterFun = identAfter
     }
 
 
@@ -70,6 +76,14 @@ struct Rule
         this.operation = null
         this.priority = priority
         this.role = role
+        this.afterFun = identAfter
+    }
+
+
+    fun setAfterFun(funPtr: (pointer<TokenList>) -> pointer<TokenList>) -> pointer<Rule>
+    {
+        this.afterFun = funPtr
+        return this
     }
 
 

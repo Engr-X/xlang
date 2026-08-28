@@ -231,7 +231,7 @@ struct ArrayList
      * caller-provided item as the second argument. It must return 0 when the two
      * values should be treated as equal.
      */
-    fun setCmparator(cmp: (pointer<*>, pointer<*>) -> int):
+    fun setComparator(cmp: (pointer<*>, pointer<*>) -> int):
         this.cmp = cmp
 
 
@@ -848,7 +848,7 @@ struct ArrayList
      *
      * The operation rearranges the element bytes in place and does not change
      * the list length or capacity. The comparator must define the desired
-     * ordering and should be configured with setCmparator() before this method
+     * ordering and should be configured with setComparator() before this method
      * is called.
      *
      * @return                  this list after sorting.

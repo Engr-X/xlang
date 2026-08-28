@@ -30,10 +30,6 @@ import xlang.util.string.StringBuilder
 
 struct BlockExpr
 {
-    static fun compareTokenPosition(left: pointer<*>, right: pointer<*>) -> int =
-        TokenPosition.compareToken(left, right)
-
-
     private var statements: pointer<ArrayList>
 
     private var extraTokens: pointer<ArrayList>
@@ -48,7 +44,7 @@ struct BlockExpr
 
     fun __init__(statements: pointer<ArrayList>)
     {
-        this.statements = statements.clone()
+        this.statements = statements
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
@@ -92,7 +88,7 @@ struct BlockExpr
         }
 
         result.pushAll(this.extraTokens)
-        result.setCmparator(BlockExpr.compareTokenPosition)
+        result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }

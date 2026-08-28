@@ -332,7 +332,7 @@ private fun indexOfTest() -> int
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
-    list.setCmparator(intCmp)
+    list.setComparator(intCmp)
 
     value.deref = 11
     list.push(value)
@@ -368,7 +368,7 @@ private fun removeTest() -> int
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
-    list.setCmparator(intCmp)
+    list.setComparator(intCmp)
 
     value.deref = 7
     list.push(value)
@@ -446,7 +446,7 @@ private fun comparatorTest() -> int
     if list.length != 3:
         return 3
 
-    list.setCmparator(intCmp)
+    list.setComparator(intCmp)
 
     if list.indexOf(value) != 1:
         return 4
@@ -509,7 +509,7 @@ private fun sortTest() -> int
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
-    list.setCmparator(intCmp)
+    list.setComparator(intCmp)
 
     value.deref = 4
     list.push(value)
