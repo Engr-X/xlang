@@ -61,6 +61,9 @@ struct BlockExpr
     fun getStatements() -> pointer<ArrayList> = this.statements.clone()
 
 
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+
+
     fun addExtraToken(token: pointer<Token>) -> pointer<BlockExpr>
     {
         if token != null:

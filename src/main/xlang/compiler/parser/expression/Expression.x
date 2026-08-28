@@ -81,7 +81,10 @@ struct Expression
     inline static fun fromBlockExpr(block: pointer<BlockExpr>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
 
 
-    inline static fun fromIfBranch(block: pointer<IfBranch>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, block)
+    inline static fun fromIfBranch(branch: pointer<IfBranch>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, branch)
+
+
+    inline static fun fromIfElseBranch(branch: pointer<IfElseBranch>) -> pointer<Expression> = new Expression(IFELSE_BRANCH_KIND, branch)
 
 
 
@@ -185,6 +188,11 @@ struct Expression
             val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
             branch.getAllTokens()
         }
+        elif this.kind == IFELSE_BRANCH_KIND:
+        {
+            val branch: pointer<IfElseBranch> = this.root as pointer<IfElseBranch>
+            branch.getAllTokens()
+        }
         else: null
 
         if rootTokens != null:
@@ -245,6 +253,11 @@ struct Expression
         elif this.kind == IF_BRANCH_KIND
         {
             val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
+            branch.toString()
+        }
+        elif this.kind == IFELSE_BRANCH_KIND:
+        {
+            val branch: pointer<IfElseBranch> = this.root as pointer<IfElseBranch>
             branch.toString()
         }
         else: new StringBuilder()

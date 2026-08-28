@@ -37,6 +37,8 @@ struct Statement
 
     static val VARIABLE_DEFINE_TYPE: int = 2
 
+    static val VARIABLE_DEFINES_TYPE: int = 3
+
     static val RETURN_TYPE: int = 3
 
 
@@ -49,11 +51,11 @@ struct Statement
 
 
     static fun fromVariableDefine(variableDefine: pointer<VariableDefine>) -> pointer<Statement> =
-        new Statement(VARIABLE_DEFINE_TYPE, new VariableDefines(variableDefine))
+        new Statement(VARIABLE_DEFINE_TYPE, variableDefine)
 
 
     static fun fromVariableDefines(variableDefines: pointer<VariableDefines>) -> pointer<Statement> =
-        new Statement(VARIABLE_DEFINE_TYPE, variableDefines)
+        new Statement(VARIABLE_DEFINES_TYPE, variableDefines)
 
 
     static fun fromReturnStatement(statement: pointer<ReturnStatement>) -> pointer<Statement> =
@@ -132,35 +134,33 @@ struct Statement
     }
 
 
-    fun toString() -> pointer<StringBuilder>
-    {
+    fun toString() -> pointer<StringBuilder> = 
         if this.root == null:
-            return new StringBuilder()
-
-        if this.kind == EXPRESSION_TYPE:
+            new StringBuilder()
+        elif this.kind == EXPRESSION_TYPE:
         {
             val statement: pointer<ExprStatement> = this.root as pointer<ExprStatement>
-            return statement.toString()
+            statement.toString()
         }
-
-        if this.kind == EXPRESSION_LIST_TYPE:
+        elif this.kind == EXPRESSION_LIST_TYPE:
         {
             val statement: pointer<ExprListStatement> = this.root as pointer<ExprListStatement>
-            return statement.toString()
+            statement.toString()
         }
-
-        if this.kind == VARIABLE_DEFINE_TYPE:
+        elif this.kind == VARIABLE_DEFINE_TYPE:
+        {
+            val statement: pointer<VariableDefine> = this.root as pointer<VariableDefine> 
+            statement.toString()
+        }
+        elif this.kind == VARIABLE_DEFINES_TYPE:
         {
             val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
-            return statement.toString()
+            statement.toString()
         }
-
-        if this.kind == RETURN_TYPE:
+        elif this.kind == RETURN_TYPE:
         {
             val statement: pointer<ReturnStatement> = this.root as pointer<ReturnStatement>
-            return statement.toString()
+            statement.toString()
         }
-
-        return new StringBuilder()
-    }
+        else: new StringBuilder()
 }
