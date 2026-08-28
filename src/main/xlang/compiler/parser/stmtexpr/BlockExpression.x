@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("BlockExpr")
+@file.class("BlockExpression")
 package xlang.compiler.parser.stmtexpr
 
 import xlang.lexer.Token
@@ -28,7 +28,7 @@ import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
-struct BlockExpr
+struct BlockExpression
 {
     private var statements: pointer<ArrayList>
 
@@ -49,7 +49,7 @@ struct BlockExpr
     }
 
 
-    fun addStatement(statement: pointer<Statement>) -> pointer<BlockExpr>
+    fun addStatement(statement: pointer<Statement>) -> pointer<BlockExpression>
     {
         if statement != null:
             this.statements.push(statement)
@@ -64,7 +64,7 @@ struct BlockExpr
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
 
 
-    fun addExtraToken(token: pointer<Token>) -> pointer<BlockExpr>
+    fun addExtraToken(token: pointer<Token>) -> pointer<BlockExpression>
     {
         if token != null:
             this.extraTokens.push(token)

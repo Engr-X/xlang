@@ -25,8 +25,8 @@ package xlang.compiler.parser.expression
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
-import xlang.compiler.parser.stmtexpr.BlockExpr
-import xlang.compiler.parser.stmtexpr.IfBranch
+import xlang.compiler.parser.stmtexpr.BlockExpression
+import xlang.compiler.parser.stmtexpr.IfExpression
 import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
@@ -78,13 +78,13 @@ struct Expression
     inline static fun fromNewFunction(function: pointer<NewFunction>) -> pointer<Expression> = new Expression(NEW_FUNCTION_KIND, function)
 
 
-    inline static fun fromBlockExpr(block: pointer<BlockExpr>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
+    inline static fun fromBlockExpr(block: pointer<BlockExpression>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
 
 
-    // inline static fun fromIfBranch(branch: pointer<IfBranch>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, branch)
+    // inline static fun fromIfExpr(branch: pointer<IfExpression>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, branch)
 
 
-    inline static fun fromIfElseBranch(branch: pointer<IfElseBranch>) -> pointer<Expression> = new Expression(IFELSE_BRANCH_KIND, branch)
+    inline static fun fromIfElseExpr(branch: pointer<IfElseExpression>) -> pointer<Expression> = new Expression(IFELSE_BRANCH_KIND, branch)
 
 
 
@@ -180,17 +180,17 @@ struct Expression
         }
         elif this.kind == BLOCK_EXPR_KIND:
         {
-            val block: pointer<BlockExpr> = this.root as pointer<BlockExpr>
+            val block: pointer<BlockExpression> = this.root as pointer<BlockExpression>
             block.getAllTokens()
         }
         // elif this.kind == IF_BRANCH_KIND:
         // {
-        //     val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
+        //     val branch: pointer<IfExpression> = this.root as pointer<IfExpression>
         //     branch.getAllTokens()
         // }
         elif this.kind == IFELSE_BRANCH_KIND:
         {
-            val branch: pointer<IfElseBranch> = this.root as pointer<IfElseBranch>
+            val branch: pointer<IfElseExpression> = this.root as pointer<IfElseExpression>
             branch.getAllTokens()
         }
         else: null
@@ -247,17 +247,17 @@ struct Expression
         }
         elif this.kind == BLOCK_EXPR_KIND:
         {
-            val block: pointer<BlockExpr> = this.root as pointer<BlockExpr>
+            val block: pointer<BlockExpression> = this.root as pointer<BlockExpression>
             block.toString()
         }
         // elif this.kind == IF_BRANCH_KIND
         // {
-        //     val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
+        //     val branch: pointer<IfExpression> = this.root as pointer<IfExpression>
         //     branch.toString()
         // }
         elif this.kind == IFELSE_BRANCH_KIND:
         {
-            val branch: pointer<IfElseBranch> = this.root as pointer<IfElseBranch>
+            val branch: pointer<IfElseExpression> = this.root as pointer<IfElseExpression>
             branch.toString()
         }
         else: new StringBuilder()

@@ -41,7 +41,7 @@ import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
 import xlang.compiler.parser.statement.VariableDefine
 import xlang.compiler.parser.statement.VariableDefines
-import xlang.compiler.parser.stmtexpr.BlockExpr
+import xlang.compiler.parser.stmtexpr.BlockExpression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
@@ -552,7 +552,7 @@ private fun blockExpressionTest() -> int
     if expression == null || expression.getKind() != Expression.BLOCK_EXPR_KIND:
         return 1
 
-    val block: pointer<BlockExpr> = expression.getRoot() as pointer<BlockExpr>
+    val block: pointer<BlockExpression> = expression.getRoot() as pointer<BlockExpression>
 
     if block == null:
         return 2

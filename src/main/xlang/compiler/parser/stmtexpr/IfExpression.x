@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("IfBranch")
+@file.class("IfExpression")
 package xlang.compiler.parser.stmtexpr
 
 import xlang.compiler.parser.expression.Expression
@@ -30,7 +30,7 @@ import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
-struct IfBranch
+struct IfExpression
 {
     private var condition: pointer<Expression>
 
@@ -64,7 +64,7 @@ struct IfBranch
     fun getStatements() -> pointer<ArrayList> = this.statements.clone()
 
 
-    fun addExtraToken(token: pointer<Token>) -> pointer<IfBranch>
+    fun addExtraToken(token: pointer<Token>) -> pointer<IfExpression>
     {
         if token != null:
             this.extraTokens.push(token)
@@ -73,7 +73,7 @@ struct IfBranch
     }
 
 
-    fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<IfBranch>
+    fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<IfExpression>
     {
         if tokens != null:
             this.extraTokens.pushAll(tokens)
@@ -85,8 +85,8 @@ struct IfBranch
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
 
 
-    fun toIfElseBranch() -> pointer<IfElseBranch> =
-        new IfElseBranch()
+    fun toIfElseExpr() -> pointer<IfElseExpression> =
+        new IfElseExpression()
             .setCondition(this.condition)
             .addIfStatements(this.getStatements())
             .addExtraTokens(this.getExtraTokens())

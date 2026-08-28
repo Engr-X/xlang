@@ -25,9 +25,9 @@ import xlang.compiler.parser.statement.Statement
 import xlang.compiler.parser.statement.Statements
 import xlang.compiler.parser.statement.VariableDefine
 import xlang.compiler.parser.statement.VariableDefines
-import xlang.compiler.parser.stmtexpr.BlockExpr
-import xlang.compiler.parser.stmtexpr.IfBranch
-import xlang.compiler.parser.stmtexpr.IfElseBranch
+import xlang.compiler.parser.stmtexpr.BlockExpression
+import xlang.compiler.parser.stmtexpr.IfExpression
+import xlang.compiler.parser.stmtexpr.IfElseExpression
 import xlang.compiler.parser.stmtexpr.StatementExpression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
@@ -218,20 +218,20 @@ private fun makeExprFromAtom(results: pointer<ArrayList>) -> pointer<*>
 
 private fun makeExprFromBlockExpr(results: pointer<ArrayList>) -> pointer<*>
 {
-    val block: pointer<BlockExpr> = getContainerValue(results, 0) as pointer<BlockExpr>
+    val block: pointer<BlockExpression> = getContainerValue(results, 0) as pointer<BlockExpression>
     return Expression.fromBlockExpr(block)
 }
 
-private fun makeExprFromIfBranch(results: pointer<ArrayList>) -> pointer<*>
+private fun makeExprFromIfExpr(results: pointer<ArrayList>) -> pointer<*>
 {
-    val branch: pointer<IfBranch> = getContainerValue(results, 0) as pointer<IfBranch>
-    return Expression.fromIfElseBranch(branch.toIfElseBranch())
+    val branch: pointer<IfExpression> = getContainerValue(results, 0) as pointer<IfExpression>
+    return Expression.fromIfElseExpr(branch.toIfElseExpr())
 }
 
-private fun makeExprFromIfElseBranch(results: pointer<ArrayList>) -> pointer<*>
+private fun makeExprFromIfElseExpr(results: pointer<ArrayList>) -> pointer<*>
 {
-    val branch: pointer<IfElseBranch> = getContainerValue(results, 0) as pointer<IfElseBranch>
-    return Expression.fromIfElseBranch(branch)
+    val branch: pointer<IfElseExpression> = getContainerValue(results, 0) as pointer<IfElseExpression>
+    return Expression.fromIfElseExpr(branch)
 }
 
 private fun makeExprFromParen(results: pointer<ArrayList>) -> pointer<*>
@@ -675,7 +675,7 @@ private fun makeEmptyBlockExpr(results: pointer<ArrayList>) -> pointer<*>
     val leftBrace: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val rightBrace: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
 
-    return new BlockExpr().addExtraToken(leftBrace).addExtraToken(rightBrace)
+    return new BlockExpression().addExtraToken(leftBrace).addExtraToken(rightBrace)
 }
 
 private fun makeBlockExpr(results: pointer<ArrayList>) -> pointer<*>
@@ -684,23 +684,23 @@ private fun makeBlockExpr(results: pointer<ArrayList>) -> pointer<*>
     val statements: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>
     val rightBrace: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
 
-    return new BlockExpr(statements.getStatements())
+    return new BlockExpression(statements.getStatements())
        .addExtraToken(leftBrace).addExtraToken(rightBrace)
 }
 
-private fun makeIfBranchFromStmts(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfExprFromStmts(results: pointer<ArrayList>) -> pointer<*>
 {
     val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
-    val block: pointer<BlockExpr> = getContainerValue(results, 3) as pointer<BlockExpr>
+    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>
 
-    return new IfBranch(condition, block.getStatements())
+    return new IfExpression(condition, block.getStatements())
        .addExtraToken(ifToken).addExtraToken(colonToken)
        .addExtraTokens(block.getExtraTokens())
 }
 
-private fun makeIfBranchFromStmt(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfExprFromStmt(results: pointer<ArrayList>) -> pointer<*>
 {
     val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
@@ -709,17 +709,17 @@ private fun makeIfBranchFromStmt(results: pointer<ArrayList>) -> pointer<*>
     val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))
     statements.push(statement)
 
-    return new IfBranch(condition, statements)
+    return new IfExpression(condition, statements)
        .addExtraToken(ifToken).addExtraToken(colonToken)
 }
 
-private fun makeIfElseBranchFinalB(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprFinalB(results: pointer<ArrayList>) -> pointer<*>
 {
     val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
-    val block: pointer<BlockExpr> = getContainerValue(results, 3) as pointer<BlockExpr>
-    val instance1: pointer<IfElseBranch> = getContainerValue(results, 5) as pointer<IfElseBranch>
+    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>
+    val instance1: pointer<IfElseExpression> = getContainerValue(results, 5) as pointer<IfElseExpression>
 
     return instance1.setCondition(condition)
        .addIfStatements(block.getStatements())
@@ -727,106 +727,106 @@ private fun makeIfElseBranchFinalB(results: pointer<ArrayList>) -> pointer<*>
        .addExtraTokens(block.getExtraTokens())
 }
 
-private fun makeIfElseBranchFinalS(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprFinalS(results: pointer<ArrayList>) -> pointer<*>
 {
     val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
     val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
-    val instance1: pointer<IfElseBranch> = getContainerValue(results, 4) as pointer<IfElseBranch>
+    val instance1: pointer<IfElseExpression> = getContainerValue(results, 4) as pointer<IfElseExpression>
 
     return instance1.setCondition(condition)
        .addIfStatement(statement)
        .addExtraToken(ifToken).addExtraToken(colonToken)
 }
 
-private fun makeIfElseBranchFromElifB(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprFromElifB(results: pointer<ArrayList>) -> pointer<*>
 {
     val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
-    val block: pointer<BlockExpr> = getContainerValue(results, 3) as pointer<BlockExpr>
-    val instance1: pointer<IfElseBranch> = new IfElseBranch()
+    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>
+    val instance1: pointer<IfElseExpression> = new IfElseExpression()
        .setCondition(condition)
        .addIfStatements(block.getStatements())
        .addExtraTokens(block.getExtraTokens())
 
-    val expr: pointer<Expression> = Expression.fromIfElseBranch(instance1)
+    val expr: pointer<Expression> = Expression.fromIfElseExpr(instance1)
     val stmt: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expr))
 
-    return new IfElseBranch(stmt)
+    return new IfElseExpression(stmt)
        .addExtraToken(elifToken).addExtraToken(colonToken)
 }
 
-private fun makeIfElseBranchItB(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprItB(results: pointer<ArrayList>) -> pointer<*>
 {
     val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
-    val block: pointer<BlockExpr> = getContainerValue(results, 3) as pointer<BlockExpr>
-    val instance1: pointer<IfElseBranch> = getContainerValue(results, 5) as pointer<IfElseBranch>
+    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>
+    val instance1: pointer<IfElseExpression> = getContainerValue(results, 5) as pointer<IfElseExpression>
 
     instance1.setCondition(condition)
        .addIfStatements(block.getStatements())
        .addExtraTokens(block.getExtraTokens())
-    val expr: pointer<Expression> = Expression.fromIfElseBranch(instance1)
+    val expr: pointer<Expression> = Expression.fromIfElseExpr(instance1)
     val stmt: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expr))
 
-    return new IfElseBranch(stmt)
+    return new IfElseExpression(stmt)
        .addExtraToken(elifToken).addExtraToken(colonToken)
 }
 
-private fun makeIfElseBranchFromElifS(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprFromElifS(results: pointer<ArrayList>) -> pointer<*>
 {
     val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
     val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
-    val instance1: pointer<IfElseBranch> = new IfElseBranch()
+    val instance1: pointer<IfElseExpression> = new IfElseExpression()
        .setCondition(condition)
        .addIfStatement(statement)
-    val expr: pointer<Expression> = Expression.fromIfElseBranch(instance1)
+    val expr: pointer<Expression> = Expression.fromIfElseExpr(instance1)
     val stmt: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expr))
 
-    return new IfElseBranch(stmt)
+    return new IfElseExpression(stmt)
        .addExtraToken(elifToken).addExtraToken(colonToken)
 }
 
-private fun makeIfElseBranchItS(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprItS(results: pointer<ArrayList>) -> pointer<*>
 {
     val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
     val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
-    val instance1: pointer<IfElseBranch> = getContainerValue(results, 4) as pointer<IfElseBranch>
+    val instance1: pointer<IfElseExpression> = getContainerValue(results, 4) as pointer<IfElseExpression>
 
     instance1.setCondition(condition)
        .addIfStatement(statement)
-    val expr: pointer<Expression> = Expression.fromIfElseBranch(instance1)
+    val expr: pointer<Expression> = Expression.fromIfElseExpr(instance1)
     val stmt: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expr))
 
-    return new IfElseBranch(stmt)
+    return new IfElseExpression(stmt)
        .addExtraToken(elifToken).addExtraToken(colonToken)
 }
 
-private fun makeIfElseBranchFromElseB(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprFromElseB(results: pointer<ArrayList>) -> pointer<*>
 {
     val elseToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
-    val block: pointer<BlockExpr> = getContainerValue(results, 2) as pointer<BlockExpr>
+    val block: pointer<BlockExpression> = getContainerValue(results, 2) as pointer<BlockExpression>
 
-    return new IfElseBranch(block.getStatements())
+    return new IfElseExpression(block.getStatements())
        .addExtraToken(elseToken).addExtraToken(colonToken)
        .addExtraTokens(block.getExtraTokens())
 }
 
-private fun makeIfElseBranchFromElseS(results: pointer<ArrayList>) -> pointer<*>
+private fun makeIfElseExprFromElseS(results: pointer<ArrayList>) -> pointer<*>
 {
     val elseToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
     val statement: pointer<Statement> = getContainerValue(results, 2) as pointer<Statement>
 
-    return new IfElseBranch(statement)
+    return new IfElseExpression(statement)
        .addExtraToken(elseToken).addExtraToken(colonToken)
 }
 
@@ -1130,8 +1130,8 @@ private fun toOperation(token: pointer<Token>, fixity: int) -> pointer<Operation
 private val EXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_NEW).pushRegex(Tokenizer.TK_IDENTIFIER).pushRef(EXPRESSION_TUPLE_PARSER), makeExprFromNewFunc, Rule.STARTER_ROLE, 250)
 private val EXPRESSION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_NEW).pushRegex(Tokenizer.TK_IDENTIFIER), makeExprFromNewIdent, Rule.STARTER_ROLE, 240)
 private val EXPRESSION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRef(EXPRESSION_TUPLE_PARSER), makeExprFromFuncCall, Rule.STARTER_ROLE, 240)
-private val EXPRESSION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(IF_ELSE_CHAIN_PARSER), makeExprFromIfElseBranch, Rule.STARTER_ROLE, 240)
-private val EXPRESSION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRef(IF_BRANCH_PARSER), makeExprFromIfBranch, Rule.STARTER_ROLE, 230)
+private val EXPRESSION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(IF_ELSE_CHAIN_PARSER), makeExprFromIfElseExpr, Rule.STARTER_ROLE, 240)
+private val EXPRESSION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRef(IF_BRANCH_PARSER), makeExprFromIfExpr, Rule.STARTER_ROLE, 230)
 private val EXPRESSION_RULE5: pointer<Rule> = new Rule(new PatternList().pushRef(BLOCK_EXPR_PARSER), makeExprFromBlockExpr, Rule.STARTER_ROLE, 230)
 private val EXPRESSION_RULE6: pointer<Rule> = new Rule(new PatternList().pushRef(ATOM_PARSER), makeExprFromAtom, Rule.STARTER_ROLE, 230)
 private val EXPRESSION_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.RIGHT_PAREN), makeExprFromParen, Rule.STARTER_ROLE, OP_PAREN)
@@ -1251,17 +1251,17 @@ private val RETURN_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().p
 private val BLOCK_EXPR_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRegex(Tokenizer.RIGHT_BRACE), makeEmptyBlockExpr, Rule.STARTER_ROLE, 0)
 private val BLOCK_EXPR_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRef(STATEMENTS_PARSER).pushRegex(Tokenizer.RIGHT_BRACE), makeBlockExpr, Rule.STARTER_ROLE, 0)
 
-private val IF_BRANCH_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER), makeIfBranchFromStmts, Rule.STARTER_ROLE, 0)
-private val IF_BRANCH_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfBranchFromStmt, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
+private val IF_BRANCH_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER), makeIfExprFromStmts, Rule.STARTER_ROLE, 0)
+private val IF_BRANCH_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfExprFromStmt, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
 
-private val IF_ELSE_CHAIN_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseBranchFinalB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_CHAIN_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseBranchFinalS, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_CHAIN_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseBranchItB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_CHAIN_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseBranchItS, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_CHAIN_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER), makeIfElseBranchFromElseB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_CHAIN_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseBranchFromElseS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
-private val IF_ELSE_CHAIN_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER), makeIfElseBranchFromElifB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_CHAIN_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseBranchFromElifS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
+private val IF_ELSE_CHAIN_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseExprFinalB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_CHAIN_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseExprFinalS, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_CHAIN_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseExprItB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_CHAIN_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_CHAIN_PARSER), makeIfElseExprItS, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_CHAIN_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER), makeIfElseExprFromElseB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_CHAIN_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseExprFromElseS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
+private val IF_ELSE_CHAIN_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_EXPR_PARSER), makeIfElseExprFromElifB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_CHAIN_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseExprFromElifS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
 
 private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13).addRule(EXPRESSION_RULE14).addRule(EXPRESSION_RULE15).addRule(EXPRESSION_RULE16).addRule(EXPRESSION_RULE17).addRule(EXPRESSION_RULE18).addRule(EXPRESSION_RULE19).addRule(EXPRESSION_RULE20).addRule(EXPRESSION_RULE21).addRule(EXPRESSION_RULE22).addRule(EXPRESSION_RULE23).addRule(EXPRESSION_RULE24).addRule(EXPRESSION_RULE25).addRule(EXPRESSION_RULE26).addRule(EXPRESSION_RULE27).addRule(EXPRESSION_RULE28).addRule(EXPRESSION_RULE29).addRule(EXPRESSION_RULE30).addRule(EXPRESSION_RULE31).addRule(EXPRESSION_RULE32).addRule(EXPRESSION_RULE33).addRule(EXPRESSION_RULE34).addRule(EXPRESSION_RULE35).addRule(EXPRESSION_RULE36).addRule(EXPRESSION_RULE37).addRule(EXPRESSION_RULE38).addRule(EXPRESSION_RULE39).addRule(EXPRESSION_RULE40).addRule(EXPRESSION_RULE41).addRule(EXPRESSION_RULE42).addRule(EXPRESSION_RULE43).addRule(EXPRESSION_RULE44).addRule(EXPRESSION_RULE45).addRule(EXPRESSION_RULE46).addRule(EXPRESSION_RULE47).addRule(EXPRESSION_RULE48).addRule(EXPRESSION_RULE49).addRule(EXPRESSION_RULE50).addRule(EXPRESSION_RULE51).addRule(EXPRESSION_RULE52).addRule(EXPRESSION_RULE53).addRule(EXPRESSION_RULE54).addRule(EXPRESSION_RULE55).addRule(EXPRESSION_RULE56).addRule(EXPRESSION_RULE57).addRule(EXPRESSION_RULE58).addRule(EXPRESSION_RULE59).addRule(EXPRESSION_RULE60).addRule(EXPRESSION_RULE61).addRule(EXPRESSION_RULE62).addRule(EXPRESSION_RULE63).addRule(EXPRESSION_RULE64).addRule(EXPRESSION_RULE65).addRule(EXPRESSION_RULE66).addRule(EXPRESSION_RULE67).addRule(EXPRESSION_RULE68).addRule(EXPRESSION_RULE69).addRule(EXPRESSION_RULE70).addRule(EXPRESSION_RULE71)
 private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
@@ -1472,7 +1472,7 @@ fun parseReturnStatement(input: pointer<TokenList>) -> pointer<ReturnStatement>
     return result.getValue() as pointer<ReturnStatement>
 }
 
-fun parseBlockExpr(input: pointer<TokenList>) -> pointer<BlockExpr>
+fun parseBlockExpr(input: pointer<TokenList>) -> pointer<BlockExpression>
 {
     if input == null:
         return null
@@ -1485,10 +1485,10 @@ fun parseBlockExpr(input: pointer<TokenList>) -> pointer<BlockExpr>
     if result == null || result.isKind(BLOCK_EXPR_PARSER_ID) == false:
         return null
 
-    return result.getValue() as pointer<BlockExpr>
+    return result.getValue() as pointer<BlockExpression>
 }
 
-fun parseIfBranch(input: pointer<TokenList>) -> pointer<IfBranch>
+fun parseIfExpr(input: pointer<TokenList>) -> pointer<IfExpression>
 {
     if input == null:
         return null
@@ -1501,10 +1501,10 @@ fun parseIfBranch(input: pointer<TokenList>) -> pointer<IfBranch>
     if result == null || result.isKind(IF_BRANCH_PARSER_ID) == false:
         return null
 
-    return result.getValue() as pointer<IfBranch>
+    return result.getValue() as pointer<IfExpression>
 }
 
-fun parseIfElseBranch(input: pointer<TokenList>) -> pointer<IfElseBranch>
+fun parseIfElseExpr(input: pointer<TokenList>) -> pointer<IfElseExpression>
 {
     if input == null:
         return null
@@ -1517,7 +1517,7 @@ fun parseIfElseBranch(input: pointer<TokenList>) -> pointer<IfElseBranch>
     if result == null || result.isKind(IF_ELSE_CHAIN_PARSER_ID) == false:
         return null
 
-    return result.getValue() as pointer<IfElseBranch>
+    return result.getValue() as pointer<IfElseExpression>
 }
 
 

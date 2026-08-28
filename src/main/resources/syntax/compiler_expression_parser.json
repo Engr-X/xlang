@@ -20,9 +20,9 @@
         "xlang.compiler.parser.expression.NewFunction",
         "xlang.compiler.parser.expression.NewIdentifier",
         "xlang.compiler.parser.expression.TypeCast",
-        "xlang.compiler.parser.stmtexpr.BlockExpr",
-        "xlang.compiler.parser.stmtexpr.IfBranch",
-        "xlang.compiler.parser.stmtexpr.IfElseBranch"
+        "xlang.compiler.parser.stmtexpr.BlockExpression",
+        "xlang.compiler.parser.stmtexpr.IfExpression",
+        "xlang.compiler.parser.stmtexpr.IfElseExpression"
     ],
     "constants": [
         "val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)"
@@ -118,9 +118,9 @@
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromNewFunc", "priority": 250 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExprFromNewIdent", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
-                { "role": "starter", "patterns": [{ "kind": "$IfElseBranch" }], "action": "makeExprFromIfElseBranch", "priority": 240 },
-                { "role": "starter", "patterns": [{ "kind": "$IfBranch" }], "action": "makeExprFromIfBranch", "priority": 230 },
-                { "role": "starter", "patterns": [{ "kind": "$BlockExpr" }], "action": "makeExprFromBlockExpr", "priority": 230 },
+                { "role": "starter", "patterns": [{ "kind": "$IfElseExpression" }], "action": "makeExprFromIfElseExpr", "priority": 240 },
+                { "role": "starter", "patterns": [{ "kind": "$IfExpression" }], "action": "makeExprFromIfExpr", "priority": 230 },
+                { "role": "starter", "patterns": [{ "kind": "$BlockExpression" }], "action": "makeExprFromBlockExpr", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExprFromAtom", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExprFromParen" },
 
@@ -439,22 +439,22 @@
 
         [   "private fun makeExprFromBlockExpr(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val block: pointer<BlockExpr> = getContainerValue(results, 0) as pointer<BlockExpr>",
+            "    val block: pointer<BlockExpression> = getContainerValue(results, 0) as pointer<BlockExpression>",
             "    return Expression.fromBlockExpr(block)",
             "}" ],
 
 
-        [   "private fun makeExprFromIfBranch(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromIfExpr(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val branch: pointer<IfBranch> = getContainerValue(results, 0) as pointer<IfBranch>",
-            "    return Expression.fromIfElseBranch(branch.toIfElseBranch())",
+            "    val branch: pointer<IfExpression> = getContainerValue(results, 0) as pointer<IfExpression>",
+            "    return Expression.fromIfElseExpr(branch.toIfElseExpr())",
             "}" ],
 
 
-        [   "private fun makeExprFromIfElseBranch(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExprFromIfElseExpr(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val branch: pointer<IfElseBranch> = getContainerValue(results, 0) as pointer<IfElseBranch>",
-            "    return Expression.fromIfElseBranch(branch)",
+            "    val branch: pointer<IfElseExpression> = getContainerValue(results, 0) as pointer<IfElseExpression>",
+            "    return Expression.fromIfElseExpr(branch)",
             "}" ],
 
 
