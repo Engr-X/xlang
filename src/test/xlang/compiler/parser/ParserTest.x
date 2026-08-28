@@ -39,6 +39,7 @@ import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
+import xlang.compiler.parser.statement.VariableDefine
 import xlang.compiler.parser.statement.VariableDefines
 import xlang.compiler.parser.stmtexpr.BlockExpr
 import xlang.lexer.Token
@@ -62,6 +63,7 @@ fun genTest() -> pointer<TestGroup>
     val newExpressionTC: pointer<TestCase> = new TestCase("newExpression", newExpressionTest)
     val atomExpressionTC: pointer<TestCase> = new TestCase("atomExpression", atomExpressionTest)
     val blockExpressionTC: pointer<TestCase> = new TestCase("blockExpression", blockExpressionTest)
+    val ifElseExpressionTC: pointer<TestCase> = new TestCase("ifElseExpression", ifElseExpressionTest)
     val parenthesizedExpressionTC: pointer<TestCase> = new TestCase("parenthesizedExpression", parenthesizedExpressionTest)
     val prefixExpressionTC: pointer<TestCase> = new TestCase("prefixExpression", prefixExpressionTest)
     val indexAccessExpressionTC: pointer<TestCase> = new TestCase("indexAccessExpression", indexAccessExpressionTest)
@@ -78,6 +80,7 @@ fun genTest() -> pointer<TestGroup>
     val newExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, newExpressionTC, null)
     val atomExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomExpressionTC, null)
     val blockExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, blockExpressionTC, null)
+    val ifElseExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, ifElseExpressionTC, null)
     val parenthesizedExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedExpressionTC, null)
     val prefixExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, prefixExpressionTC, null)
     val indexAccessExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, indexAccessExpressionTC, null)
@@ -95,6 +98,7 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(newExpressionUnion)
     result.addTestUnion(atomExpressionUnion)
     result.addTestUnion(blockExpressionUnion)
+    result.addTestUnion(ifElseExpressionUnion)
     result.addTestUnion(parenthesizedExpressionUnion)
     result.addTestUnion(prefixExpressionUnion)
     result.addTestUnion(indexAccessExpressionUnion)
@@ -292,7 +296,7 @@ private fun statementVarDefineRuleTest() -> int
     if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
         return 1
 
-    val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+    val root: pointer<VariableDefine> = statement.getRoot() as pointer<VariableDefine>
 
     if root == null || !root.canModified():
         return 2
@@ -316,7 +320,7 @@ private fun statementValDefineRuleTest() -> int
     if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
         return 1
 
-    val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+    val root: pointer<VariableDefine> = statement.getRoot() as pointer<VariableDefine>
 
     if root == null || root.canModified():
         return 2
@@ -337,7 +341,7 @@ private fun statementVarDefinesRuleTest() -> int
 {
     val statement: pointer<Statement> = parseStatementText("var x = 1, y = 2")
 
-    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
+    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINES_TYPE:
         return 1
 
     val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
@@ -361,7 +365,7 @@ private fun statementValDefinesRuleTest() -> int
 {
     val statement: pointer<Statement> = parseStatementText("val a = 1, b: int = 2")
 
-    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
+    if statement == null || statement.getKind() != Statement.VARIABLE_DEFINES_TYPE:
         return 1
 
     val root: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
@@ -601,7 +605,7 @@ private fun blockExpressionTest() -> int
     if statement == null || statement.getKind() != Statement.VARIABLE_DEFINE_TYPE:
         return 12
 
-    val defines: pointer<VariableDefines> = statement.getRoot() as pointer<VariableDefines>
+    val defines: pointer<VariableDefine> = statement.getRoot() as pointer<VariableDefine>
 
     if defines == null || defines.canModified():
         return 13
@@ -613,6 +617,56 @@ private fun blockExpressionTest() -> int
 
     if !tokenTextAt(statementTokens, 0, "val") || !tokenTextAt(statementTokens, 1, "a") || !tokenTextAt(statementTokens, 2, "=") || !tokenTextAt(statementTokens, 3, "{") || !tokenTextAt(statementTokens, 4, "val") || !tokenTextAt(statementTokens, 5, "b") || !tokenTextAt(statementTokens, 6, "=") || !tokenTextAt(statementTokens, 7, "10") || !tokenTextAt(statementTokens, 8, "return") || !tokenTextAt(statementTokens, 9, "b") || !tokenTextAt(statementTokens, 10, "*") || !tokenTextAt(statementTokens, 11, "2") || !tokenTextAt(statementTokens, 12, "}"):
         return 15
+
+    return 0
+}
+
+
+private fun ifElseExpressionTest() -> int
+{
+    val singleExpression: pointer<Expression> = parseFullExpressionText("if cond: 1 elif cond2: 2 else: 3")
+
+    if singleExpression == null || singleExpression.getKind() != Expression.IFELSE_BRANCH_KIND:
+        return 1
+
+    val singleTokens: pointer<ArrayList> = singleExpression.getAllTokens()
+
+    if singleTokens == null || singleTokens.length != 11:
+        return 2
+
+    if !tokenTextAt(singleTokens, 0, "if") || !tokenTextAt(singleTokens, 1, "cond") || !tokenTextAt(singleTokens, 2, ":") || !tokenTextAt(singleTokens, 3, "1"):
+        return 3
+
+    if !tokenTextAt(singleTokens, 4, "elif") || !tokenTextAt(singleTokens, 5, "cond2") || !tokenTextAt(singleTokens, 6, ":") || !tokenTextAt(singleTokens, 7, "2"):
+        return 4
+
+    if !tokenTextAt(singleTokens, 8, "else") || !tokenTextAt(singleTokens, 9, ":") || !tokenTextAt(singleTokens, 10, "3"):
+        return 5
+
+    val blockExpression: pointer<Expression> = parseFullExpressionText("if cond: {1} elif cond2: {2} else: {3}")
+
+    if blockExpression == null || blockExpression.getKind() != Expression.IFELSE_BRANCH_KIND:
+        return 6
+
+    val blockTokens: pointer<ArrayList> = blockExpression.getAllTokens()
+
+    if blockTokens == null || blockTokens.length != 17:
+        return 7
+
+    if !tokenTextAt(blockTokens, 0, "if") || !tokenTextAt(blockTokens, 1, "cond") || !tokenTextAt(blockTokens, 2, ":"):
+        return 8
+
+    if !tokenTextAt(blockTokens, 3, "{") || !tokenTextAt(blockTokens, 4, "1") || !tokenTextAt(blockTokens, 5, "}"):
+        return 9
+
+    if !tokenTextAt(blockTokens, 6, "elif") || !tokenTextAt(blockTokens, 7, "cond2") || !tokenTextAt(blockTokens, 8, ":"):
+        return 10
+
+    if !tokenTextAt(blockTokens, 9, "{") || !tokenTextAt(blockTokens, 10, "2") || !tokenTextAt(blockTokens, 11, "}"):
+        return 11
+
+    if !tokenTextAt(blockTokens, 12, "else") || !tokenTextAt(blockTokens, 13, ":") || !tokenTextAt(blockTokens, 14, "{") || !tokenTextAt(blockTokens, 15, "3") || !tokenTextAt(blockTokens, 16, "}"):
+        return 12
 
     return 0
 }

@@ -43,7 +43,7 @@ struct Expression
     static val NEW_IDENTIFIER_KIND: int = 8
     static val NEW_FUNCTION_KIND: int = 9
     static val BLOCK_EXPR_KIND: int = 10
-    static val IF_BRANCH_KIND: int = 11
+    // static val IF_BRANCH_KIND: int = 11
     static val IFELSE_BRANCH_KIND: int = 12
 
 
@@ -81,7 +81,7 @@ struct Expression
     inline static fun fromBlockExpr(block: pointer<BlockExpr>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
 
 
-    inline static fun fromIfBranch(branch: pointer<IfBranch>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, branch)
+    // inline static fun fromIfBranch(branch: pointer<IfBranch>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, branch)
 
 
     inline static fun fromIfElseBranch(branch: pointer<IfElseBranch>) -> pointer<Expression> = new Expression(IFELSE_BRANCH_KIND, branch)
@@ -183,11 +183,11 @@ struct Expression
             val block: pointer<BlockExpr> = this.root as pointer<BlockExpr>
             block.getAllTokens()
         }
-        elif this.kind == IF_BRANCH_KIND:
-        {
-            val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
-            branch.getAllTokens()
-        }
+        // elif this.kind == IF_BRANCH_KIND:
+        // {
+        //     val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
+        //     branch.getAllTokens()
+        // }
         elif this.kind == IFELSE_BRANCH_KIND:
         {
             val branch: pointer<IfElseBranch> = this.root as pointer<IfElseBranch>
@@ -250,11 +250,11 @@ struct Expression
             val block: pointer<BlockExpr> = this.root as pointer<BlockExpr>
             block.toString()
         }
-        elif this.kind == IF_BRANCH_KIND
-        {
-            val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
-            branch.toString()
-        }
+        // elif this.kind == IF_BRANCH_KIND
+        // {
+        //     val branch: pointer<IfBranch> = this.root as pointer<IfBranch>
+        //     branch.toString()
+        // }
         elif this.kind == IFELSE_BRANCH_KIND:
         {
             val branch: pointer<IfElseBranch> = this.root as pointer<IfElseBranch>

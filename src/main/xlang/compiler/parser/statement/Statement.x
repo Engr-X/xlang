@@ -39,7 +39,7 @@ struct Statement
 
     static val VARIABLE_DEFINES_TYPE: int = 3
 
-    static val RETURN_TYPE: int = 3
+    static val RETURN_TYPE: int = 4
 
 
     static fun fromExprStatement(expr: pointer<ExprStatement>) -> pointer<Statement> =
@@ -113,6 +113,11 @@ struct Statement
                 tokens = statement.getAllTokens()
             }
             elif this.kind == VARIABLE_DEFINE_TYPE:
+            {
+                val statement: pointer<VariableDefine> = this.root as pointer<VariableDefine>
+                tokens = statement.getAllTokens()
+            }
+            elif this.kind == VARIABLE_DEFINES_TYPE:
             {
                 val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
                 tokens = statement.getAllTokens()

@@ -16,8 +16,8 @@ val banBefore: pointer<HashSet> = initBanBefore()
 
 
 var normalizerIsInit: bool = false
-val ruleLength: int = 9
-val rulesSpace: blob[sizeof(pointer<NormalizeRule>) * 9]
+val ruleLength: int = 10
+val rulesSpace: blob[sizeof(pointer<NormalizeRule>) * 10]
 val rulePtr: pointer<pointer<NormalizeRule>> = rulesSpace as pointer<pointer<NormalizeRule>>
 
 
@@ -190,6 +190,22 @@ private fun insertLineTerminatorBeforeElse(fsm: pointer<NormalizeFSM>, tokens: p
     return true
 }
 
+private fun insertLineTerminatorBeforeElif(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool
+{
+    if tokens == null || tokens.length != 2:
+        return false
+
+    val previous: pointer<Token> = tokens.get(0) as pointer<Token>
+    val elifToken: pointer<Token> = tokens.get(1) as pointer<Token>
+
+    if previous.kind == Tokenizer.TK_LINE_TERMINATOR:
+        return false
+
+    val terminator: pointer<Token> = new Token(Tokenizer.TK_LINE_TERMINATOR, elifToken.pos, "\n")
+    fsm.insertToken(terminator)
+    return true
+}
+
 private fun isBanToken(set: pointer<HashSet>, token: pointer<Token>) -> bool
 {
     if set == null || token == null:
@@ -329,9 +345,10 @@ private fun normalizerInit()
     rulePtr[3] = new NormalizeRule(3, NormalizeFSM.DEFAULT, exitBracket).addPattern(Tokenizer.RIGHT_BRACKET).setPivot(0)
     rulePtr[4] = new NormalizeRule(4, NormalizeFSM.DEFAULT, deleteLineTerminatorInPair).addPattern(Tokenizer.TK_LINE_TERMINATOR).setPivot(0)
     rulePtr[5] = new NormalizeRule(5, NormalizeFSM.DEFAULT, insertLineTerminatorAroundRightBrace).addPattern(Token.AnyKind).addPattern(Tokenizer.RIGHT_BRACE).addPattern(Token.AnyKind).setPivot(0)
-    rulePtr[6] = new NormalizeRule(6, NormalizeFSM.DEFAULT, insertLineTerminatorBeforeElse).addPattern(Token.AnyKind).addPattern(Tokenizer.KW_ELSE).setPivot(1)
-    rulePtr[7] = new NormalizeRule(7, NormalizeFSM.DEFAULT, deleteLineTerminatorBeforeBanToken).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(0)
-    rulePtr[8] = new NormalizeRule(8, NormalizeFSM.DEFAULT, deleteLineTerminatorAfterBanToken).addPattern(Token.AnyKind).addPattern(Tokenizer.TK_LINE_TERMINATOR).setPivot(1)
+    rulePtr[6] = new NormalizeRule(6, NormalizeFSM.DEFAULT, insertLineTerminatorBeforeElif).addPattern(Token.AnyKind).addPattern(Tokenizer.KW_ELIF).setPivot(1)
+    rulePtr[7] = new NormalizeRule(7, NormalizeFSM.DEFAULT, insertLineTerminatorBeforeElse).addPattern(Token.AnyKind).addPattern(Tokenizer.KW_ELSE).setPivot(1)
+    rulePtr[8] = new NormalizeRule(8, NormalizeFSM.DEFAULT, deleteLineTerminatorBeforeBanToken).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(0)
+    rulePtr[9] = new NormalizeRule(9, NormalizeFSM.DEFAULT, deleteLineTerminatorAfterBanToken).addPattern(Token.AnyKind).addPattern(Tokenizer.TK_LINE_TERMINATOR).setPivot(1)
     normalizerIsInit = true
 }
 

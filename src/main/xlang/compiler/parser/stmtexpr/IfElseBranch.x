@@ -41,43 +41,65 @@ struct IfElseBranch
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(condition: pointer<Expression>, ifStatements: pointer<ArrayList>)
+    fun __init__()
     {
-        this.condition = condition
-        this.ifStatements = ifStatements
+        this.condition = null
+        this.ifStatements = new ArrayList(sizeof(Statement))
         this.elseStatements = new ArrayList(sizeof(Statement))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(condition: pointer<Expression>, ifStatement: pointer<Statement>)
+    fun __init__(elseStatements: pointer<ArrayList>)
     {
-        this.condition = condition
+        this.condition = null
+        this.ifStatements = new ArrayList(sizeof(Statement))
+        this.elseStatements = elseStatements
+        this.extraTokens = new ArrayList(sizeof(Token))
+    }
+
+
+    fun __init__(elseStatement: pointer<Statement>)
+    {
+        this.condition = null
         this.ifStatements = new ArrayList(sizeof(Statement))
         this.elseStatements = new ArrayList(sizeof(Statement))
         this.extraTokens = new ArrayList(sizeof(Token))
 
-        if ifStatement != null:
-            this.ifStatements.push(ifStatement)
+        if elseStatement != null:
+            this.elseStatements.push(elseStatement)
     }
 
 
-    fun setElseStatement(statement: pointer<Statement>) -> pointer<IfElseBranch>
+    fun setCondition(expr: pointer<Expression>) -> pointer<IfElseBranch>
+    {
+        this.condition = expr
+        return this
+    }
+
+
+    fun addIfStatement(statement: pointer<Statement>) -> pointer<IfElseBranch>
     {
         if statement != null:
-            this.elseStatements.push(statement)
+            this.ifStatements.push(statement)
 
         return this
     }
 
 
-    fun setElseStatements(statements: pointer<ArrayList>) -> pointer<IfElseBranch>
+    fun addIfStatements(statement: pointer<ArrayList>) -> pointer<IfElseBranch>
     {
-        if statements != null:
-            this.elseStatements.pushAll(statements)
+        if statement != null:
+            this.ifStatements.pushAll(statement)
 
         return this
     }
+
+
+    fun haveIfStatement() -> bool = this.ifStatements.length > 0
+
+
+    fun haveElseStatement() -> bool = this.elseStatements.length > 0
 
 
     fun getCondition() -> pointer<Expression> = this.condition
@@ -160,7 +182,10 @@ struct IfElseBranch
         val sb: pointer<StringBuilder> = new StringBuilder()
 
         if this.condition != null:
+        {
+            sb.append("(if ")
             sb.append(this.condition.toString())
+        }
 
         sb.append(":\n")
 
@@ -175,18 +200,24 @@ struct IfElseBranch
             sb.append("\n")
         }
 
-        sb.append("else:\n")
 
-        for (var i = 0; i < this.elseStatements.length; i++):
+        if this.haveElseStatement()
         {
-            val statement: pointer<Statement> = this.elseStatements.get(i) as pointer<Statement>
+            sb.append("else:\n")
 
-            if statement == null:
-                continue
+            for (var i = 0; i < this.elseStatements.length; i++):
+            {
+                val statement: pointer<Statement> = this.elseStatements.get(i) as pointer<Statement>
 
-            sb.append(statement.toString())
-            sb.append("\n")
+                if statement == null:
+                    continue
+
+                sb.append(statement.toString())
+                sb.append("\n")
+            }
         }
+
+        sb.append(")\n")
 
         return sb
     }

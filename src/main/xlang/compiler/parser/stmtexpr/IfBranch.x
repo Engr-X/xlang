@@ -85,6 +85,13 @@ struct IfBranch
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
 
 
+    fun toIfElseBranch() -> pointer<IfElseBranch> =
+        new IfElseBranch()
+            .setCondition(this.condition)
+            .addIfStatements(this.getStatements())
+            .addExtraTokens(this.getExtraTokens())
+
+
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
@@ -114,29 +121,5 @@ struct IfBranch
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
-    }
-
-
-    fun toString() -> pointer<StringBuilder>
-    {
-        val sb: pointer<StringBuilder> = new StringBuilder()
-
-        if this.condition != null:
-            sb.append(this.condition.toString())
-
-        sb.append(":\n")
-
-        for (var i = 0; i < this.statements.length; i++):
-        {
-            val statement: pointer<Statement> = this.statements.get(i) as pointer<Statement>
-
-            if statement == null:
-                continue
-
-            sb.append(statement.toString())
-            sb.append("\n")
-        }
-
-        return sb
     }
 }

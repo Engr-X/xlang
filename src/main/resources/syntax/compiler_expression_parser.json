@@ -118,7 +118,7 @@
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromNewFunc", "priority": 250 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExprFromNewIdent", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
-                { "role": "starter", "patterns": [{ "kind": "$IfElseBranch" }], "action": "makeExprFromIfElseBranch", "priority": 230 },
+                { "role": "starter", "patterns": [{ "kind": "$IfElseBranch" }], "action": "makeExprFromIfElseBranch", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$IfBranch" }], "action": "makeExprFromIfBranch", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "$BlockExpr" }], "action": "makeExprFromBlockExpr", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExprFromAtom", "priority": 230 },
@@ -447,7 +447,7 @@
         [   "private fun makeExprFromIfBranch(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val branch: pointer<IfBranch> = getContainerValue(results, 0) as pointer<IfBranch>",
-            "    return Expression.fromIfBranch(branch)",
+            "    return Expression.fromIfElseBranch(branch.toIfElseBranch())",
             "}" ],
 
 
