@@ -3,7 +3,7 @@ package xlang.compiler.parser
 
 
 import xlang.Operation
-import xlang.compiler.Type
+import xlang.compiler.NormalType
 import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
 import xlang.compiler.parser.expression.Atom
@@ -287,7 +287,7 @@ private fun makeExprFromTypeCast(results: pointer<ArrayList>) -> pointer<*>
 {
     val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
     val asToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
-    val targetType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>
+    val targetType: pointer<NormalType> = getContainerValue(results, 2) as pointer<NormalType>
     val result: pointer<Expression> = Expression.fromTypeCast(expression, targetType)
 
     return result.addExtraToken(asToken)
@@ -646,7 +646,7 @@ private inline fun makeVariableDefineWithType(results: pointer<ArrayList>) -> po
 {
     val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
-    val declaredType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>
+    val declaredType: pointer<NormalType> = getContainerValue(results, 2) as pointer<NormalType>
     val equalToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
     val expression: pointer<Expression> = getContainerValue(results, 4) as pointer<Expression>
 

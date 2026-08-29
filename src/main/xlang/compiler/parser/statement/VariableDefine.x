@@ -26,7 +26,7 @@ import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
 import xlang.compiler.parser.expression.Atom
 import xlang.compiler.parser.expression.Expression
-import xlang.compiler.Type
+import xlang.compiler.NormalType
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
@@ -41,7 +41,7 @@ struct VariableDefine
 
     private var modifier: int
 
-    private var declaredType: pointer<Type>
+    private var declaredType: pointer<NormalType>
 
     private var varName: pointer<char>
 
@@ -60,7 +60,7 @@ struct VariableDefine
     }
 
 
-    fun __init__(declaredType: pointer<Type>, varName: pointer<char>, assignExpr: pointer<Expression>)
+    fun __init__(declaredType: pointer<NormalType>, varName: pointer<char>, assignExpr: pointer<Expression>)
     {
         this.modifier = CONST_MODIFIER
         this.declaredType = declaredType
@@ -137,7 +137,7 @@ struct VariableDefine
         if this.declaredType != null:
         {
             sb.append(": ")
-            sb.append(this.declaredType.getTypeName())
+            sb.append(this.declaredType.toString())
         }
 
         if this.assignExpr != null:

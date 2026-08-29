@@ -48,7 +48,7 @@ struct Atom
     
     private val tokens: pointer<ArrayList>
 
-    private val inferredType: pointer<Type>
+    private val inferredType: pointer<NormalType>
     
 
 
@@ -59,30 +59,30 @@ struct Atom
     }
 
 
-    fun setType(inferredType: pointer<Type>) -> pointer<Atom>
+    fun setType(inferredType: pointer<NormalType>) -> pointer<Atom>
     {
         this.inferredType = inferredType
         return this
     }
 
 
-    fun simpleInfer() -> pointer<Type> =
+    fun simpleInfer() -> pointer<NormalType> =
         this.inferredType = if this.kind == NULL_IMM_KIND:
-                Type.voidType()
+                NormalType.voidType()
             elif this.kind == BOOL_IMM_KIND:
-                Type.boolType()
+                NormalType.boolType()
             elif this.kind == CHAR_IMM_KIND:
-                Type.charType()
+                NormalType.charType()
             elif this.kind == INTEGER_IMM_KIND:
-                Type.intType()
+                NormalType.intType()
             elif this.kind == LONG_IMM_KIND:
-                Type.longType()
+                NormalType.longType()
             elif this.kind == FLOAT_IMM_KIND:
-                Type.floatType()
+                NormalType.floatType()
             elif this.kind == DOUBLE_IMM_KIND:
-                Type.floatType()
+                NormalType.floatType()
             elif this.kind == STRING_IMM_KIND:
-                Type.earlyStringType()
+                NormalType.earlyStringType()
             else: null
 
 

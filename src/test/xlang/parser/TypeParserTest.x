@@ -24,7 +24,7 @@
 @file.class("TypeParserTest")
 package xlang.parser
 
-import xlang.compiler.Type
+import xlang.compiler.NormalType
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.TokenList
 import xlang.test.TestCase
@@ -67,7 +67,7 @@ private fun pointerVoidTest() -> int
     if container == null || !container.isKind(1):
         return 3
 
-    val parsedType: pointer<Type> = container.getValue() as pointer<Type>
+    val parsedType: pointer<NormalType> = container.getValue() as pointer<NormalType>
 
     if parsedType == null:
         return 4
@@ -75,12 +75,12 @@ private fun pointerVoidTest() -> int
     if parsedType.length != 1:
         return 5
 
-    val typeArgument: pointer<Type> = parsedType.getTypeArgument(0)
+    val typeArgument: pointer<NormalType> = parsedType.getTypeArgument(0)
 
     if typeArgument == null:
         return 6
 
-    if !typeArgument.equals(Type.voidType()):
+    if !typeArgument.equals(NormalType.voidType()):
         return 7
 
     return 0

@@ -27,7 +27,7 @@ package xlang.parser
 
 import xlang.Diagnostic
 import xlang.SourceLocation
-import xlang.compiler.Type
+import xlang.compiler.NormalType
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
 import xlang.lexer.TokenList
@@ -78,7 +78,7 @@ struct TypeParser
         {
             if this.depth >= 1:
             {
-                val parsedType: pointer<Type> = Type.voidType().addToken(token)
+                val parsedType: pointer<NormalType> = NormalType.voidType().addToken(token)
                 this.result = new ParseContainer(this.id, parsedType)
                 return 1
             }
@@ -139,13 +139,13 @@ struct TypeParser
 
         if nextToken == null || nextToken.kind != Tokenizer.LESS:
         {
-            val parsedType: pointer<Type> = new Type(null, token.text, 0).addToken(token)
+            val parsedType: pointer<NormalType> = new NormalType(null, token.text, 0).addToken(token)
             this.result = new ParseContainer(this.id, parsedType)
             return 1
         }
 
 
-        val parsedType: pointer<Type> = new Type(null, token.text, 0).addToken(token).addToken(nextToken)
+        val parsedType: pointer<NormalType> = new NormalType(null, token.text, 0).addToken(token).addToken(nextToken)
         this.depth++
         var consumed: int = 2
 
@@ -163,7 +163,7 @@ struct TypeParser
             }
 
             val argumentResult: pointer<ParseContainer> = argumentParser.getResult()
-            val typeArgument: pointer<Type> = argumentResult.getValue() as pointer<Type>
+            val typeArgument: pointer<NormalType> = argumentResult.getValue() as pointer<NormalType>
 
             parsedType.addTypeArgument(typeArgument)
             consumed += argumentLength
@@ -247,7 +247,7 @@ struct TypeParser
 
                 if (memSize as long) == size:
                 {
-                    val parsedType: pointer<Type> = new Type(null, blobToken.text, memSize).addToken(blobToken).addToken(leftBracket).addToken(sizeToken).addToken(rightBracket)
+                    val parsedType: pointer<NormalType> = new NormalType(null, blobToken.text, memSize).addToken(blobToken).addToken(leftBracket).addToken(sizeToken).addToken(rightBracket)
                     this.result = new ParseContainer(this.id, parsedType)
                     return 4
                 }

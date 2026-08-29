@@ -4,7 +4,7 @@
     "package": "xlang.compiler.parser",
     "class": "Parser",
     "imports": [
-        "xlang.compiler.Type",
+        "xlang.compiler.NormalType",
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Assignment",
@@ -142,7 +142,7 @@
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_PLUS" }], "operation": "succ", "action": "makeExprFromPostfix" },
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_MINUS" }], "operation": "pred", "action": "makeExprFromPostfix" },
 
-                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_AS" }, { "kind": "$Type" }], "action": "makeExprFromTypeCast", "priority": 200 },
+                { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.KW_AS" }, { "kind": "$NormalType" }], "action": "makeExprFromTypeCast", "priority": 200 },
                 
                 { "role": "continuation", "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.DOUBLE_STAR"}, { "kind": "$Expression" }], "operation": "pow", "action": "makeExprFromInfix" },
 
@@ -517,7 +517,7 @@
             "{",
             "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
             "    val asToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val targetType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
+            "    val targetType: pointer<NormalType> = getContainerValue(results, 2) as pointer<NormalType>",
             "    val result: pointer<Expression> = Expression.fromTypeCast(expression, targetType)",
             "",
             "    return result.addExtraToken(asToken)",

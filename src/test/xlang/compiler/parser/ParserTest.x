@@ -23,7 +23,7 @@
 @file.class("ParserTest")
 package xlang.compiler.parser
 
-import xlang.compiler.Type
+import xlang.compiler.NormalType
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
@@ -917,9 +917,17 @@ private fun typeCastExpressionTest() -> int
     if cast == null || cast.getExpression() == null:
         return 3
 
-    val targetType: pointer<Type> = cast.getTargetType()
+    val targetType: pointer<NormalType> = cast.getTargetType()
 
-    if targetType == null || !String.streq(targetType.getTypeName(), "double"):
+    if targetType == null:
+        return 4
+
+    val targetTypeText: pointer<StringBuilder> = targetType.toString()
+    val targetTypeChars: pointer<char> = System.allocMemory((targetTypeText.length + 1) * sizeof(char)) as pointer<char>
+
+    targetTypeText.toString(targetTypeChars)
+
+    if !String.streq(targetTypeChars, "double."):
         return 4
 
     val blobExpression: pointer<Expression> = parseExpressionText("1 as blob[64]")
@@ -932,9 +940,17 @@ private fun typeCastExpressionTest() -> int
     if blobCast == null:
         return 6
 
-    val blobType: pointer<Type> = blobCast.getTargetType()
+    val blobType: pointer<NormalType> = blobCast.getTargetType()
 
-    if blobType == null || !String.streq(blobType.getTypeName(), "blob"):
+    if blobType == null:
+        return 7
+
+    val blobTypeText: pointer<StringBuilder> = blobType.toString()
+    val blobTypeChars: pointer<char> = System.allocMemory((blobTypeText.length + 1) * sizeof(char)) as pointer<char>
+
+    blobTypeText.toString(blobTypeChars)
+
+    if !String.streq(blobTypeChars, "blob."):
         return 7
 
     if blobType.getMemSize() != 64:
