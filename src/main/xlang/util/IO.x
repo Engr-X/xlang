@@ -47,7 +47,7 @@ import xlang.System
  *
  * This is a low-level native binding used by higher-level file helpers.
  * It reads the file size in binary mode so the result matches the number of
- * bytes that readFileToBuffer expects to copy.
+ * bytes that readFileToBuffer expects to clone.
  *
  * @param path              pointer to the null-terminated file path
  *

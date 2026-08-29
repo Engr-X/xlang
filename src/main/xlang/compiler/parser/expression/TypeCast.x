@@ -63,7 +63,7 @@ struct TypeCast
         if this.targetType == null:
             return null
 
-        return this.targetType.copy()
+        return this.targetType.clone()
     }
 
 

@@ -132,7 +132,7 @@ struct LexPosition
  * The input state contains the source text, its length, the current
  * lexical position and the previously processed character.
  *
- * This structure does not copy or own the source text or position object.
+ * This structure does not clone or own the source text or position object.
  *
  * The caller must ensure that the referenced text and position remain
  * valid for as long as the LexInput object uses them.

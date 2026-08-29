@@ -467,17 +467,17 @@ private fun comparatorTest() -> int
 
     value.deref = 6
 
-    val copy: pointer<ArrayList> = list.sublist(0, list.length)
+    val clone: pointer<ArrayList> = list.sublist(0, list.length)
 
-    if copy == null:
+    if clone == null:
         return 9
 
-    if !copy.contains(value):
+    if !clone.contains(value):
         return 10
 
     value.deref = 4
 
-    if copy.indexOf(value) != 0:
+    if clone.indexOf(value) != 0:
         return 11
 
     val seeded: pointer<ArrayList> = new ArrayList(sizeof(int), 2, 0.75, intCmp)

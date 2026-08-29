@@ -294,7 +294,7 @@ struct TypeParser
             greaterCount = 1
         else:
         {
-            list.push(token.copy())
+            list.push(token.clone())
             return list
         }
 

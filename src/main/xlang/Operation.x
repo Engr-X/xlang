@@ -103,7 +103,7 @@ struct Operation
     /**
      * Points to the null-terminated textual symbol of this operator.
      *
-     * The constructor creates an independent copy of the supplied string.
+     * The constructor creates an independent clone of the supplied string.
      */
     private val symbol: pointer<char>
 
@@ -185,7 +185,7 @@ struct Operation
 
 
     /**
-     * Returns a copy of the textual operator symbol.
+     * Returns a clone of the textual operator symbol.
      *
      * @return                  copied null-terminated operator symbol
      */
@@ -193,7 +193,7 @@ struct Operation
 
 
     /**
-     * Returns a copy of the lowering function name for this operator.
+     * Returns a clone of the lowering function name for this operator.
      *
      * @return                  copied null-terminated function name, or null when absent
      */

@@ -222,7 +222,7 @@ fun strdup(src: pointer<char>) -> pointer<char>
 /**
  * Copies at most maxCopyLength characters into a destination buffer safely.
  *
- * The copy stops when either the requested length is reached or the source
+ * The clone stops when either the requested length is reached or the source
  * null terminator is encountered.
  *
  * The destination is always null-terminated.
@@ -231,7 +231,7 @@ fun strdup(src: pointer<char>) -> pointer<char>
  *
  * @param dest              pointer to the destination buffer
  * @param src               pointer to the source null-terminated string
- * @param maxCopyLength     maximum number of source characters to copy
+ * @param maxCopyLength     maximum number of source characters to clone
  *
  * @return                  number of characters copied, excluding the null terminator
  */
@@ -290,7 +290,7 @@ fun strcat(dest: pointer<char>, src: pointer<char>)
  * @param dest              pointer to the destination buffer
  * @param src               pointer to the source null-terminated string
  * @param start             zero-based start index in the source string
- * @param length            maximum number of characters to copy
+ * @param length            maximum number of characters to clone
  *
  * @return                  number of characters copied, excluding the null terminator
  */

@@ -178,7 +178,7 @@ struct TokenPosition
  * is created. EOF tokens always use the shared EOF_STRING value instead
  * of duplicating the supplied text.
  *
- * The Token object does not copy or own the TokenPosition object.
+ * The Token object does not clone or own the TokenPosition object.
  * The caller must keep the position valid while the token uses it.
  */
 struct Token
@@ -222,7 +222,7 @@ struct Token
     /**
      * Points to the textual representation of the token.
      *
-     * For ordinary tokens, this is an independent copy of the supplied
+     * For ordinary tokens, this is an independent clone of the supplied
      * text. For EOF tokens, this points to the shared EOF_STRING value.
      */
     var text: pointer<char>
@@ -308,7 +308,7 @@ struct Token
     }
 
 
-    fun copy() -> pointer<Token>
+    fun clone() -> pointer<Token>
     {
         if this.errorInfo == null:
             return new Token(this.kind, this.pos, this.text)
@@ -534,7 +534,7 @@ struct TokenList
 
 
     /**
-     * Creates a copy of the internal token array.
+     * Creates a clone of the internal token array.
      *
      * The returned ArrayList can be modified independently from the
      * original list structure.

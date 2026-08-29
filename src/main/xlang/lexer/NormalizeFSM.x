@@ -60,7 +60,7 @@ private fun noopNormalizeAction(fsm: pointer<NormalizeFSM>, tokens: pointer<Arra
  * Each index can hold at most one inserted token. Inserting another token
  * at the same index replaces the previously recorded token.
  *
- * The receiver does not copy Token objects. The caller must ensure that
+ * The receiver does not clone Token objects. The caller must ensure that
  * all referenced tokens remain valid while the result list uses them.
  */
 struct NormalizeReceiver

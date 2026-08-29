@@ -394,7 +394,7 @@ struct PrattParser
 
                 // add to result
                 val matchedToken: pointer<Token> = token.get(cursor + consumed)
-                val resultToken: pointer<Token> = matchedToken.copy()
+                val resultToken: pointer<Token> = matchedToken.clone()
                 val resultItem: pointer<*> = resultToken as pointer<*>
 
                 results.push(resultItem.ref)
@@ -596,7 +596,7 @@ struct PrattParser
                 }
 
                 val matchedToken: pointer<Token> = token.get(cursor + consumed)
-                val resultToken: pointer<Token> = matchedToken.copy()
+                val resultToken: pointer<Token> = matchedToken.clone()
                 val resultItem: pointer<*> = resultToken as pointer<*>
 
                 results.push(resultItem.ref)

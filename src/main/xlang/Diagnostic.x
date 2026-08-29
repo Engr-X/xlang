@@ -221,7 +221,7 @@ struct Diagnostic
     * directly to the Diagnostic constructor.
     *
     * location may be null when the error cannot be associated with a specific
-    * source range. This function does not copy or validate the location list.
+    * source range. This function does not clone or validate the location list.
     *
     * The caller must provide a valid null-terminated message and is responsible
     * for managing the lifetime of the returned Diagnostic.
@@ -265,7 +265,7 @@ struct Diagnostic
      * directly to the Diagnostic constructor.
      *
      * location may be null when the internal error cannot be associated with a
-     * specific source range. This function does not copy or validate the
+     * specific source range. This function does not clone or validate the
      * location list.
      *
      * The caller must provide a valid null-terminated message and is responsible

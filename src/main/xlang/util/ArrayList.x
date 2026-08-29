@@ -239,7 +239,7 @@ struct ArrayList
      * Returns the raw backing buffer pointer.
      *
      * The returned pointer is the start address of the internal contiguous
-     * storage, not a copy. Element i begins at:
+     * storage, not a clone. Element i begins at:
      *     arrayPtr() + i * tsize
      *
      * This is mainly for bulk operations that need direct access to the stored
@@ -285,17 +285,17 @@ struct ArrayList
      * - item must point to at least tsize readable bytes.
      *
      * Postconditions:
-     * - The slot at index contains a byte copy of item.
+     * - The slot at index contains a byte clone of item.
      *
-     * @param index             index of the slot to copy into
-     * @param item              pointer to the source bytes to copy
+     * @param index             index of the slot to clone into
+     * @param item              pointer to the source bytes to clone
      */
     private inline fun copyToSlot(index: int, item: pointer<*>):
         System.memcopy(this.data + index * this.tsize, item, this.tsize)
 
 
     /**
-     * Allocates a standalone byte copy of one initialized slot.
+     * Allocates a standalone byte clone of one initialized slot.
      *
      * The returned pointer does not point into this list's backing buffer, so it
      * remains readable after removeAt(), pop(), popFront(), or later resizes.
@@ -366,7 +366,7 @@ struct ArrayList
      *   <li>{@code item} must reference at least {@code tsize} readable bytes.</li>
      *   <li>{@code item} should not point into this list's internal storage if this
      *       operation may cause a resize, because resizing can relocate the internal
-     *       buffer before the copy is performed.</li>
+     *       buffer before the clone is performed.</li>
      * </ul>
      *
      * <p><b>Postconditions:</b></p>
@@ -398,7 +398,7 @@ struct ArrayList
      * <p><b>Preconditions:</b></p>
      * <ul>
      *   <li>{@code items} must reference a valid {@code ArrayList} instance.</li>
-     *   <li>The source list must remain valid during the copy operation.</li>
+     *   <li>The source list must remain valid during the clone operation.</li>
      * </ul>
      *
      * <p><b>Postconditions:</b></p>
@@ -481,7 +481,7 @@ struct ArrayList
 
 
     /**
-     * Removes the last element and returns a standalone copy of its bytes.
+     * Removes the last element and returns a standalone clone of its bytes.
      *
      * The returned pointer does not point into this list. It remains readable
      * after the list is mutated. Empty lists return null.
@@ -499,7 +499,7 @@ struct ArrayList
 
 
     /**
-     * Removes the first element and returns a standalone copy of its bytes.
+     * Removes the first element and returns a standalone clone of its bytes.
      *
      * Existing elements are shifted left by one slot. The returned pointer does
      * not point into this list, so it is not affected by that shift. Empty lists
@@ -521,7 +521,7 @@ struct ArrayList
      * Inserts a contiguous range of elements before index.
      *
      * length is counted in element slots, not bytes. The copied byte count is
-     * length * tsize. The source pointer is only used during the copy; after
+     * length * tsize. The source pointer is only used during the clone; after
      * addAll() returns, stored elements are independent from the source storage.
      *
      * For pointer<T> elements, src must point to a contiguous range of
@@ -694,7 +694,7 @@ struct ArrayList
      *
      * Postconditions:
      * - length is unchanged.
-     * - If index is valid, slot index contains a byte copy of item.
+     * - If index is valid, slot index contains a byte clone of item.
      */
     fun set(index: int, item: pointer<*>)
     {

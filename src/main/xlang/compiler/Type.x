@@ -289,14 +289,14 @@ struct Type
 
 
     /**
-     * Creates an independent copy of this Type.
+     * Creates an independent clone of this Type.
      *
      * The copied Type duplicates pointer fields instead of sharing this Type's
      * internal strings or type argument list.
      *
      * @return                  copied Type
      */
-    fun copy() -> pointer<Type>
+    fun clone() -> pointer<Type>
     {
         val result: pointer<Type> = new Type(this.packageName, this.typeName, this.memSize)
 
@@ -312,7 +312,7 @@ struct Type
 
             if typeArgument != null:
             {
-                val copiedArgument: pointer<Type> = typeArgument.copy()
+                val copiedArgument: pointer<Type> = typeArgument.clone()
                 result.addTypeArgument(copiedArgument)
             }
         }
@@ -322,21 +322,19 @@ struct Type
 
 
     /**
-     * Returns a copy of the simple type name.
+     * Returns a clone of the simple type name.
      *
      * @return                  copied null-terminated simple type name
      */
-    fun getTypeName() -> pointer<char> =
-        String.strdup(this.typeName)
+    fun getTypeName() -> pointer<char> = String.strdup(this.typeName)
 
 
     /**
-     * Returns a copy of the package name.
+     * Returns a clone of the package name.
      *
      * @return                  copied null-terminated package name, or null when absent
      */
-    fun getPackageName() -> pointer<char> =
-        String.strdup(this.packageName)
+    fun getPackageName() -> pointer<char> = String.strdup(this.packageName)
 
 
     /**
@@ -385,7 +383,7 @@ struct Type
     /**
      * Returns the nested type argument at index.
      *
-     * The returned Type is an independent copy. Mutating it does not modify the
+     * The returned Type is an independent clone. Mutating it does not modify the
      * Type stored inside this object's internal type argument list.
      *
      * @param index             type argument index
@@ -399,7 +397,7 @@ struct Type
         if typeArgument == null:
             return null
 
-        return typeArgument.copy()
+        return typeArgument.clone()
     }
 
 

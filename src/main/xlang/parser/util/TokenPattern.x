@@ -40,7 +40,7 @@ import xlang.util.string.String
  * The kind condition is checked before the regular-expression condition.
  *
  * The regular-expression string is duplicated during construction, so the
- * PatternAtom keeps an independent copy of the supplied pattern.
+ * PatternAtom keeps an independent clone of the supplied pattern.
  *
  * The caller is responsible for eventually releasing the copied regex if
  * the runtime does not manage allocated string memory automatically.
@@ -84,7 +84,7 @@ struct PatternAtom
      * @param kind              the required token kind, or Token.AnyKind.
      * @param regex             the optional token-text regular expression.
      *
-     * @note                    The constructor creates an independent copy of regex.
+     * @note                    The constructor creates an independent clone of regex.
      *
      * @warning                 If String.strdup does not accept null, passing a null regex
      *                          causes undefined behavior.
