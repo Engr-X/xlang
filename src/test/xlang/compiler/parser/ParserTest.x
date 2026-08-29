@@ -23,7 +23,7 @@
 @file.class("ParserTest")
 package xlang.compiler.parser
 
-import xlang.compiler.NormalType
+import xlang.compiler.Type
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
@@ -917,7 +917,7 @@ private fun typeCastExpressionTest() -> int
     if cast == null || cast.getExpression() == null:
         return 3
 
-    val targetType: pointer<NormalType> = cast.getTargetType()
+    val targetType: pointer<Type> = cast.getTargetType()
 
     if targetType == null:
         return 4
@@ -940,7 +940,7 @@ private fun typeCastExpressionTest() -> int
     if blobCast == null:
         return 6
 
-    val blobType: pointer<NormalType> = blobCast.getTargetType()
+    val blobType: pointer<Type> = blobCast.getTargetType()
 
     if blobType == null:
         return 7
@@ -953,7 +953,12 @@ private fun typeCastExpressionTest() -> int
     if !String.streq(blobTypeChars, "blob."):
         return 7
 
-    if blobType.getMemSize() != 64:
+    val blobTypeTokens: pointer<ArrayList> = blobType.getAllTokens()
+
+    if blobTypeTokens == null || blobTypeTokens.length != 4:
+        return 8
+
+    if !tokenTextAt(blobTypeTokens, 0, "blob") || !tokenTextAt(blobTypeTokens, 1, "[") || !tokenTextAt(blobTypeTokens, 2, "64") || !tokenTextAt(blobTypeTokens, 3, "]"):
         return 8
 
     val tokens: pointer<ArrayList> = expression.getAllTokens()

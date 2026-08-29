@@ -24,9 +24,12 @@
 @file.class("TypeParserTest")
 package xlang.parser
 
-import xlang.compiler.NormalType
+import xlang.compiler.Type
 import xlang.compiler.lexer.Tokenizer
+import xlang.lexer.Token
 import xlang.lexer.TokenList
+import xlang.util.ArrayList
+import xlang.util.string.String
 import xlang.test.TestCase
 import xlang.test.TestGroup
 import xlang.test.TestUnion
@@ -50,6 +53,17 @@ fun genTest() -> pointer<TestGroup>
 }
 
 
+private fun tokenTextAt(tokens: pointer<ArrayList>, index: int, text: pointer<char>) -> bool
+{
+    if tokens == null || index < 0 || index >= tokens.length:
+        return false
+
+    val token: pointer<Token> = tokens.get(index) as pointer<Token>
+
+    return token != null && String.streq(token.text, text)
+}
+
+
 private fun pointerVoidTest() -> int
 {
     val tokens: pointer<TokenList> = Tokenizer.tokenize("pointer<*>")
@@ -67,20 +81,20 @@ private fun pointerVoidTest() -> int
     if container == null || !container.isKind(1):
         return 3
 
-    val parsedType: pointer<NormalType> = container.getValue() as pointer<NormalType>
+    val parsedType: pointer<Type> = container.getValue() as pointer<Type>
 
     if parsedType == null:
         return 4
 
-    if parsedType.length != 1:
+    val typeTokens: pointer<ArrayList> = parsedType.getAllTokens()
+
+    if typeTokens == null || typeTokens.length != 4:
         return 5
 
-    val typeArgument: pointer<NormalType> = parsedType.getTypeArgument(0)
-
-    if typeArgument == null:
+    if !tokenTextAt(typeTokens, 0, "pointer") || !tokenTextAt(typeTokens, 1, "<"):
         return 6
 
-    if !typeArgument.equals(NormalType.voidType()):
+    if !tokenTextAt(typeTokens, 2, "*") || !tokenTextAt(typeTokens, 3, ">"):
         return 7
 
     return 0

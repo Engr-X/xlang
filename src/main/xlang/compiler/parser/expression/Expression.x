@@ -64,7 +64,7 @@ struct Expression
         new Expression(INDEX_ACCESS_KIND, new IndexAccess(host, indices))
 
 
-    inline static fun fromTypeCast(expression: pointer<Expression>, targetType: pointer<NormalType>) -> pointer<Expression> = 
+    inline static fun fromTypeCast(expression: pointer<Expression>, targetType: pointer<Type>) -> pointer<Expression> = 
         new Expression(TYPE_CAST_KIND, new TypeCast(expression, targetType))
 
 
@@ -94,7 +94,7 @@ struct Expression
 
     private var extraTokens: pointer<ArrayList>
 
-    private val inferredType: pointer<NormalType>
+    private val inferredType: pointer<Type>
 
 
     private fun __init__(kind: int, root: pointer<*>)
@@ -111,7 +111,7 @@ struct Expression
     fun getRoot() -> pointer<*> = this.root
 
 
-    fun setType(inferredType: pointer<NormalType>) -> pointer<Atom>
+    fun setType(inferredType: pointer<Type>) -> pointer<Atom>
     {
         this.inferredType = inferredType
         return this

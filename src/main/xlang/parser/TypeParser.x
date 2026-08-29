@@ -28,6 +28,7 @@ package xlang.parser
 import xlang.Diagnostic
 import xlang.SourceLocation
 import xlang.compiler.NormalType
+import xlang.compiler.Type
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
 import xlang.lexer.TokenList
@@ -60,6 +61,20 @@ struct TypeParser
 
 
     fun parse(tokens: pointer<TokenList>, index: int) -> int
+    {
+        val consumed: int = this.parseNormal(tokens, index)
+
+        if this.haveError(consumed):
+            return -1
+
+        val normalType: pointer<NormalType> = this.result.getValue() as pointer<NormalType>
+
+        this.result = new ParseContainer(this.id, Type.fromNormal(normalType))
+        return consumed
+    }
+
+
+    private fun parseNormal(tokens: pointer<TokenList>, index: int) -> int
     {
         this.reset()
 
@@ -153,7 +168,7 @@ struct TypeParser
         {
             val argumentParser: pointer<TypeParser> = this.clone()
             argumentParser.depth = this.depth
-            val argumentLength: int = argumentParser.parse(tokens, index + consumed)
+            val argumentLength: int = argumentParser.parseNormal(tokens, index + consumed)
 
             if argumentParser.haveError(argumentLength):
             {

@@ -4,7 +4,7 @@
     "package": "xlang.compiler.parser",
     "class": "Parser",
     "imports": [
-        "xlang.compiler.NormalType",
+        "xlang.compiler.Type",
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Expression",
@@ -63,7 +63,7 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "action": "makeVariableDefine" },
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$NormalType" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "action": "makeVariableDefineWithType" }
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "action": "makeVariableDefineWithType" }
             ]
         },
         {
@@ -210,7 +210,7 @@
             "{",
             "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val declaredType: pointer<NormalType> = getContainerValue(results, 2) as pointer<NormalType>",
+            "    val declaredType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
             "    val equalToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
             "    val expression: pointer<Expression> = getContainerValue(results, 4) as pointer<Expression>",
             "",

@@ -22,7 +22,7 @@
 @file.class("TypeCast")
 package xlang.compiler.parser.expression
 
-import xlang.compiler.NormalType
+import xlang.compiler.Type
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
@@ -33,12 +33,12 @@ struct TypeCast
 {
     private var expression: pointer<Expression>
 
-    private var targetType: pointer<NormalType>
+    private var targetType: pointer<Type>
 
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(expression: pointer<Expression>, targetType: pointer<NormalType>)
+    fun __init__(expression: pointer<Expression>, targetType: pointer<Type>)
     {
         this.expression = expression
         this.targetType = targetType
@@ -58,7 +58,7 @@ struct TypeCast
     fun getExpression() -> pointer<Expression> = this.expression
 
 
-    fun getTargetType() -> pointer<NormalType>
+    fun getTargetType() -> pointer<Type>
     {
         if this.targetType == null:
             return null
