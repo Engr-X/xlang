@@ -7,6 +7,8 @@
         "xlang.compiler.Type",
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
+        "xlang.lexer.TokenPosition",
+        "xlang.compiler.parser.expression.Atom",
         "xlang.compiler.parser.expression.Expression",
         "xlang.compiler.parser.statement.ExprStatement",
         "xlang.compiler.parser.statement.Statement",
@@ -59,9 +61,13 @@
             "class": "WhileStatement",
             "parser": "recursively-down",
             "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_LOOP" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$ElseStatement" }], "action": "makeLoopStmtFromBlockElse" },
+                { "patterns": [{ "kind": "Tokenizer.KW_LOOP" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$ElseStatement" }], "action": "makeLoopStmtFromStmtElse" },
+                { "patterns": [{ "kind": "Tokenizer.KW_LOOP" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeLoopStmtFromBlock" },
+                { "patterns": [{ "kind": "Tokenizer.KW_LOOP" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeLoopStmtFromStmt" },
+
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$ElseStatement" }], "action": "makeWhileStmtFromBlockElse" },
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$ElseStatement" }], "action": "makeWhileStmtFromStmtElse" },
-
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeWhileStmtFromBlock" },
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeWhileStmtFromStmt" }
             ]
@@ -214,6 +220,18 @@
             "    return result",
             "}" ],
 
+        
+        [   "private inline fun makeLoopCondition() -> pointer<Expression>",
+            "{",
+            "    val position: pointer<TokenPosition> = TokenPosition.autoGenPos()",
+            "    val token: pointer<Token> = new Token(Tokenizer.KW_TRUE, position, \"true\")",
+            "    val tokens: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))",
+            "    val resultItem: pointer<*> = token as pointer<*>",
+            "",
+            "    tokens.push(resultItem.ref)",
+            "    return Expression.fromAtom(new Atom(Atom.BOOL_IMM_KIND, tokens))",
+            "}" ],
+
 
         [   "private inline fun makeWhileStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
@@ -244,6 +262,71 @@
             "    return new WhileStatement(condition, block.getStatements())",
             "       .addExtraTokens(extraTokens)",
             "       .addExtraTokens(block.getExtraTokens())",
+            "}" ],
+
+        
+        [   "private inline fun makeLoopStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val statement: pointer<Statement> = getContainerValue(results, 2) as pointer<Statement>",
+            "    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))",
+            "    statements.push(statement)",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(loopToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new WhileStatement(makeLoopCondition(), statements).addExtraTokens(extraTokens)",
+            "}" ],
+
+
+        [   "private inline fun makeLoopStmtFromBlock(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val block: pointer<Block> = getContainerValue(results, 2) as pointer<Block>",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(loopToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new WhileStatement(makeLoopCondition(), block.getStatements())",
+            "       .addExtraTokens(extraTokens)",
+            "       .addExtraTokens(block.getExtraTokens())",
+            "}" ],
+
+
+        [   "private inline fun makeLoopStmtFromStmtElse(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val statement: pointer<Statement> = getContainerValue(results, 2) as pointer<Statement>",
+            "    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 3) as pointer<ElseStatement>",
+            "    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))",
+            "    statements.push(statement)",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(loopToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new WhileStatement(makeLoopCondition(), statements, elseStatement.getStatements())",
+            "       .addExtraTokens(extraTokens)",
+            "       .addExtraTokens(elseStatement.getExtraTokens())",
+            "}" ],
+
+
+        [   "private inline fun makeLoopStmtFromBlockElse(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val block: pointer<Block> = getContainerValue(results, 2) as pointer<Block>",
+            "    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 4) as pointer<ElseStatement>",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(loopToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new WhileStatement(makeLoopCondition(), block.getStatements(), elseStatement.getStatements())",
+            "       .addExtraTokens(extraTokens)",
+            "       .addExtraTokens(block.getExtraTokens())",
+            "       .addExtraTokens(elseStatement.getExtraTokens())",
             "}" ],
 
 

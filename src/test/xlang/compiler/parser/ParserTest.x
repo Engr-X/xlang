@@ -239,15 +239,20 @@ private fun statementTest() -> int
     if whileStatementResult != 0:
         return 70 + whileStatementResult
 
+    val loopStatementResult: int = statementLoopRuleTest()
+
+    if loopStatementResult != 0:
+        return 80 + loopStatementResult
+
     val nestedWhileStatementResult: int = statementNestedWhileRuleTest()
 
     if nestedWhileStatementResult != 0:
-        return 80 + nestedWhileStatementResult
+        return 90 + nestedWhileStatementResult
 
     val nestedIfStatementResult: int = statementNestedIfRuleTest()
 
     if nestedIfStatementResult != 0:
-        return 90 + nestedIfStatementResult
+        return 100 + nestedIfStatementResult
 
     return 0
 }
@@ -468,6 +473,45 @@ private fun statementWhileRuleTest() -> int
 
     if !tokenTextAt(tokens, 6, "else") || !tokenTextAt(tokens, 7, ":") || !tokenTextAt(tokens, 8, "a") || !tokenTextAt(tokens, 9, "=") || !tokenTextAt(tokens, 10, "2"):
         return 10
+
+    return 0
+}
+
+
+private fun statementLoopRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("loop: a = 1 else: a = 2")
+
+    if statement == null || statement.getKind() != Statement.WHILE_TYPE:
+        return 1
+
+    val root: pointer<WhileStatement> = statement.getRoot() as pointer<WhileStatement>
+
+    if root == null || root.getCondition() == null || !root.haveElseStatement():
+        return 2
+
+    val bodyStatements: pointer<ArrayList> = root.getBodyStatements()
+    val elseStatements: pointer<ArrayList> = root.getElseStatements()
+
+    if bodyStatements == null || bodyStatements.length != 1:
+        return 3
+
+    if elseStatements == null || elseStatements.length != 1:
+        return 4
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 11:
+        return 5
+
+    if !tokenTextAt(tokens, 0, "true") || !tokenTextAt(tokens, 1, "loop") || !tokenTextAt(tokens, 2, ":"):
+        return 6
+
+    if !tokenTextAt(tokens, 3, "a") || !tokenTextAt(tokens, 4, "=") || !tokenTextAt(tokens, 5, "1"):
+        return 7
+
+    if !tokenTextAt(tokens, 6, "else") || !tokenTextAt(tokens, 7, ":") || !tokenTextAt(tokens, 8, "a") || !tokenTextAt(tokens, 9, "=") || !tokenTextAt(tokens, 10, "2"):
+        return 8
 
     return 0
 }

@@ -33,6 +33,7 @@ import xlang.compiler.parser.stmtexpr.IfExpression
 import xlang.compiler.parser.stmtexpr.StatementExpression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
+import xlang.lexer.TokenPosition
 import xlang.parser.ParseContainer
 import xlang.parser.PrattParser
 import xlang.parser.util.ParserRef
@@ -637,6 +638,17 @@ private inline fun makeElseStmtFromBlock(results: pointer<ArrayList>) -> pointer
     return result
 }
 
+private inline fun makeLoopCondition() -> pointer<Expression>
+{
+    val position: pointer<TokenPosition> = TokenPosition.autoGenPos()
+    val token: pointer<Token> = new Token(Tokenizer.KW_TRUE, position, "true")
+    val tokens: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
+    val resultItem: pointer<*> = token as pointer<*>
+
+    tokens.push(resultItem.ref)
+    return Expression.fromAtom(new Atom(Atom.BOOL_IMM_KIND, tokens))
+}
+
 private inline fun makeWhileStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>
 {
     val whileToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
@@ -665,6 +677,67 @@ private inline fun makeWhileStmtFromBlock(results: pointer<ArrayList>) -> pointe
     return new WhileStatement(condition, block.getStatements())
        .addExtraTokens(extraTokens)
        .addExtraTokens(block.getExtraTokens())
+}
+
+private inline fun makeLoopStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val statement: pointer<Statement> = getContainerValue(results, 2) as pointer<Statement>
+    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))
+    statements.push(statement)
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(loopToken)
+    extraTokens.push(colonToken)
+
+    return new WhileStatement(makeLoopCondition(), statements).addExtraTokens(extraTokens)
+}
+
+private inline fun makeLoopStmtFromBlock(results: pointer<ArrayList>) -> pointer<*>
+{
+    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val block: pointer<Block> = getContainerValue(results, 2) as pointer<Block>
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(loopToken)
+    extraTokens.push(colonToken)
+
+    return new WhileStatement(makeLoopCondition(), block.getStatements())
+       .addExtraTokens(extraTokens)
+       .addExtraTokens(block.getExtraTokens())
+}
+
+private inline fun makeLoopStmtFromStmtElse(results: pointer<ArrayList>) -> pointer<*>
+{
+    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val statement: pointer<Statement> = getContainerValue(results, 2) as pointer<Statement>
+    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 3) as pointer<ElseStatement>
+    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))
+    statements.push(statement)
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(loopToken)
+    extraTokens.push(colonToken)
+
+    return new WhileStatement(makeLoopCondition(), statements, elseStatement.getStatements())
+       .addExtraTokens(extraTokens)
+       .addExtraTokens(elseStatement.getExtraTokens())
+}
+
+private inline fun makeLoopStmtFromBlockElse(results: pointer<ArrayList>) -> pointer<*>
+{
+    val loopToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val block: pointer<Block> = getContainerValue(results, 2) as pointer<Block>
+    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 4) as pointer<ElseStatement>
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(loopToken)
+    extraTokens.push(colonToken)
+
+    return new WhileStatement(makeLoopCondition(), block.getStatements(), elseStatement.getStatements())
+       .addExtraTokens(extraTokens)
+       .addExtraTokens(block.getExtraTokens())
+       .addExtraTokens(elseStatement.getExtraTokens())
 }
 
 private inline fun makeWhileStmtFromStmtElse(results: pointer<ArrayList>) -> pointer<*>
@@ -1348,10 +1421,14 @@ private val STATEMENTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef
 private val ELSE_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeElseStmtFromBlock, Rule.STARTER_ROLE, 0)
 private val ELSE_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeElseStmtFromStmt, Rule.STARTER_ROLE, 0)
 
-private val WHILE_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(ELSE_STATEMENT_PARSER), makeWhileStmtFromBlockElse, Rule.STARTER_ROLE, 0)
-private val WHILE_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(ELSE_STATEMENT_PARSER), makeWhileStmtFromStmtElse, Rule.STARTER_ROLE, 0)
-private val WHILE_STATEMENT_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeWhileStmtFromBlock, Rule.STARTER_ROLE, 0)
-private val WHILE_STATEMENT_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeWhileStmtFromStmt, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_LOOP).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(ELSE_STATEMENT_PARSER), makeLoopStmtFromBlockElse, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_LOOP).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(ELSE_STATEMENT_PARSER), makeLoopStmtFromStmtElse, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_LOOP).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeLoopStmtFromBlock, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_LOOP).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeLoopStmtFromStmt, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(ELSE_STATEMENT_PARSER), makeWhileStmtFromBlockElse, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(ELSE_STATEMENT_PARSER), makeWhileStmtFromStmtElse, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeWhileStmtFromBlock, Rule.STARTER_ROLE, 0)
+private val WHILE_STATEMENT_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeWhileStmtFromStmt, Rule.STARTER_ROLE, 0)
 
 private val EXPR_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeExprStmt, Rule.STARTER_ROLE, 0)
 
@@ -1390,7 +1467,7 @@ private val LIST_LITERAL_PARSER_SETUP: pointer<ParserRef> = LIST_LITERAL_PARSER.
 private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1).addRule(STATEMENT_RULE2).addRule(STATEMENT_RULE3).addRule(STATEMENT_RULE4).addRule(STATEMENT_RULE5).addRule(STATEMENT_RULE6).addRule(STATEMENT_RULE7)
 private val STATEMENTS_PARSER_SETUP: pointer<ParserRef> = STATEMENTS_PARSER.addRule(STATEMENTS_RULE0).addRule(STATEMENTS_RULE1)
 private val ELSE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = ELSE_STATEMENT_PARSER.addRule(ELSE_STATEMENT_RULE0).addRule(ELSE_STATEMENT_RULE1)
-private val WHILE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = WHILE_STATEMENT_PARSER.addRule(WHILE_STATEMENT_RULE0).addRule(WHILE_STATEMENT_RULE1).addRule(WHILE_STATEMENT_RULE2).addRule(WHILE_STATEMENT_RULE3)
+private val WHILE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = WHILE_STATEMENT_PARSER.addRule(WHILE_STATEMENT_RULE0).addRule(WHILE_STATEMENT_RULE1).addRule(WHILE_STATEMENT_RULE2).addRule(WHILE_STATEMENT_RULE3).addRule(WHILE_STATEMENT_RULE4).addRule(WHILE_STATEMENT_RULE5).addRule(WHILE_STATEMENT_RULE6).addRule(WHILE_STATEMENT_RULE7)
 private val EXPR_STATEMENT_PARSER_SETUP: pointer<ParserRef> = EXPR_STATEMENT_PARSER.addRule(EXPR_STATEMENT_RULE0)
 private val EXPR_LIST_STATEMENT_PARSER_SETUP: pointer<ParserRef> = EXPR_LIST_STATEMENT_PARSER.addRule(EXPR_LIST_STATEMENT_RULE0).addRule(EXPR_LIST_STATEMENT_RULE1)
 private val VARIABLE_DEFINE_PARSER_SETUP: pointer<ParserRef> = VARIABLE_DEFINE_PARSER.addRule(VARIABLE_DEFINE_RULE0).addRule(VARIABLE_DEFINE_RULE1)
