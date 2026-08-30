@@ -34,9 +34,9 @@ import xlang.util.string.StringBuilder
  * Wraps one concrete type representation.
  *
  * Type is the public type node used by parser and semantic-facing structures.
- * For now it only wraps a Type host. Keeping this wrapper small makes it
- * possible to add other type shapes later, such as function types, without
- * forcing every parser node to know about every concrete representation.
+ * It can wrap a normal named type or a function type. Keeping this wrapper
+ * small makes it possible to add other type shapes later without forcing every
+ * parser node to know about every concrete representation.
  *
  * Type does not own extra source tokens. The concrete host keeps its own tokens,
  * and this wrapper only exposes an empty extra-token list for callers that use a
@@ -48,6 +48,11 @@ struct Type
      * Identifies a Type wrapper whose host is a NormalType.
      */
     private static val NORMAL_KIND: int = 1
+
+    /**
+     * Identifies a Type wrapper whose host is a FunctionType.
+     */
+    private static val FUNCTION_KIND: int = 2
 
 
     /**
@@ -195,13 +200,27 @@ struct Type
     static fun fromNormal(normalType: pointer<NormalType>) -> pointer<Type> =
         new Type(NORMAL_KIND, normalType)
 
+
+    /**
+     * Creates a Type wrapper from a function type value.
+     *
+     * This is the named constructor used when parser or semantic code has built
+     * a FunctionType payload and needs to lift it into the public Type
+     * abstraction.
+     *
+     * @param functionType      function type to wrap
+     *
+     * @return                  Type wrapper containing functionType
+     */
+    static fun fromFunction(functionType: pointer<FunctionType>) -> pointer<Type> =
+        new Type(FUNCTION_KIND, functionType)
+
     
     /**
      * Stores the concrete type representation wrapped by this Type.
      *
-     * The current implementation accepts only Type. Later variants can be
-     * added by widening this wrapper rather than changing every AST node that
-     * refers to Type.
+     * The kind field decides whether this pointer is interpreted as NormalType,
+     * FunctionType or a future concrete type payload.
      */
     private var host: pointer<*>
 
@@ -211,7 +230,7 @@ struct Type
     private var kind: int
 
     /**
-     * Initializes a Type wrapper around a Type host.
+     * Initializes a Type wrapper around a concrete host.
      *
      * The host pointer is stored directly. Ownership and copying stay with the
      * caller or with the concrete type object.
@@ -255,6 +274,11 @@ struct Type
             val type: pointer<NormalType> = this.host as pointer<NormalType>
             type.getAllTokens()
         }
+        elif this.kind == FUNCTION_KIND:
+        {
+            val type: pointer<FunctionType> = this.host as pointer<FunctionType>
+            type.getAllTokens()
+        }
         else:  new ArrayList(sizeof(Token))
 
 
@@ -274,6 +298,11 @@ struct Type
             val type: pointer<NormalType> = this.host as pointer<NormalType>
             Type.fromNormal(type.clone())
         }
+        elif this.kind == FUNCTION_KIND:
+        {
+            val type: pointer<FunctionType> = this.host as pointer<FunctionType>
+            Type.fromFunction(type.clone())
+        }
         else: new Type(this.kind, this.host)
 
 
@@ -291,6 +320,11 @@ struct Type
         elif this.kind == NORMAL_KIND:
         {
             val type: pointer<NormalType> = this.host as pointer<NormalType>
+            type.toString()
+        }
+        elif this.kind == FUNCTION_KIND:
+        {
+            val type: pointer<FunctionType> = this.host as pointer<FunctionType>
             type.toString()
         }
         else: new StringBuilder()

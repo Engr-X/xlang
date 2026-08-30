@@ -27,6 +27,7 @@ package xlang.parser
 
 import xlang.Diagnostic
 import xlang.SourceLocation
+import xlang.compiler.FunctionType
 import xlang.compiler.NormalType
 import xlang.compiler.Type
 import xlang.compiler.lexer.Tokenizer
@@ -62,6 +63,24 @@ struct TypeParser
 
     fun parse(tokens: pointer<TokenList>, index: int) -> int
     {
+        if index >= 0 && index < tokens.length():
+        {
+            val token: pointer<Token> = tokens.get(index)
+
+            if token.kind == Tokenizer.LEFT_PAREN:
+            {
+                val consumed: int = this.parseFunction(tokens, index)
+
+                if this.haveError(consumed):
+                    return -1
+
+                val functionType: pointer<FunctionType> = this.result.getValue() as pointer<FunctionType>
+
+                this.result = new ParseContainer(this.id, Type.fromFunction(functionType))
+                return consumed
+            }
+        }
+
         val consumed: int = this.parseNormal(tokens, index)
 
         if this.haveError(consumed):
@@ -70,6 +89,221 @@ struct TypeParser
         val normalType: pointer<NormalType> = this.result.getValue() as pointer<NormalType>
 
         this.result = new ParseContainer(this.id, Type.fromNormal(normalType))
+        return consumed
+    }
+
+
+    private fun parseFunction(tokens: pointer<TokenList>, index: int) -> int
+    {
+        this.reset()
+
+        if index < 0 || index >= tokens.length():
+        {
+            this.error = Diagnostic.makeInternalError(
+                Diagnostic.EMPTY_INPUT,
+                new ArrayList(sizeof(SourceLocation)),
+                Diagnostic.EMPTY_INPUT_MSG)
+            return -1
+        }
+
+        val leftParen: pointer<Token> = tokens.get(index)
+
+        if leftParen.kind != Tokenizer.LEFT_PAREN:
+        {
+            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+            val location: pointer<SourceLocation> = new SourceLocation(
+                tokens.filePath,
+                leftParen.pos.offset,
+                leftParen.pos.line,
+                leftParen.pos.column,
+                leftParen.pos.length)
+
+            locations.push(location)
+            this.error = Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE_TYPE,
+                locations,
+                Diagnostic.CANNOT_PARSE_TYPE_MSG)
+            return -1
+        }
+
+        val parameters: pointer<ArrayList> = new ArrayList(sizeof(Type))
+        val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        extraTokens.push(leftParen)
+
+        var consumed: int = 1
+        var closed: bool = false
+
+        if index + consumed < tokens.length():
+        {
+            val nextToken: pointer<Token> = tokens.get(index + consumed)
+
+            if nextToken.kind == Tokenizer.RIGHT_PAREN:
+            {
+                extraTokens.push(nextToken)
+                consumed++
+                closed = true
+            }
+        }
+
+        while !closed && index + consumed < tokens.length():
+        {
+            val parameterParser: pointer<TypeParser> = this.clone()
+            val parameterLength: int = parameterParser.parse(tokens, index + consumed)
+
+            if parameterParser.haveError(parameterLength):
+            {
+                this.error = parameterParser.getError()
+                return -1
+            }
+
+            val parameterResult: pointer<ParseContainer> = parameterParser.getResult()
+            val parameterType: pointer<Type> = parameterResult.getValue() as pointer<Type>
+
+            parameters.push(parameterType)
+            consumed += parameterLength
+
+            if index + consumed >= tokens.length():
+                break
+
+            val delimiter: pointer<Token> = tokens.get(index + consumed)
+
+            if delimiter.kind == Tokenizer.RIGHT_PAREN:
+            {
+                extraTokens.push(delimiter)
+                consumed++
+                closed = true
+                break
+            }
+
+            if delimiter.kind != Tokenizer.COMMA:
+            {
+                val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+                val location: pointer<SourceLocation> = new SourceLocation(
+                    tokens.filePath,
+                    delimiter.pos.offset,
+                    delimiter.pos.line,
+                    delimiter.pos.column,
+                    delimiter.pos.length)
+
+                locations.push(location)
+                this.error = Diagnostic.makeError(
+                    Diagnostic.CANNOT_PARSE_TYPE,
+                    locations,
+                    Diagnostic.CANNOT_PARSE_TYPE_MSG)
+                return -1
+            }
+
+            extraTokens.push(delimiter)
+            consumed++
+        }
+
+        if !closed:
+        {
+            var errorIndex: int = index + consumed
+
+            if errorIndex >= tokens.length():
+                errorIndex = tokens.length() - 1
+
+            val errorToken: pointer<Token> = tokens.get(errorIndex)
+            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+            val location: pointer<SourceLocation> = new SourceLocation(
+                tokens.filePath,
+                errorToken.pos.offset,
+                errorToken.pos.line,
+                errorToken.pos.column,
+                errorToken.pos.length)
+
+            locations.push(location)
+            this.error = Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE_TYPE,
+                locations,
+                Diagnostic.CANNOT_PARSE_TYPE_MSG)
+            return -1
+        }
+
+        if index + consumed >= tokens.length():
+        {
+            val errorToken: pointer<Token> = tokens.get(tokens.length() - 1)
+            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+            val location: pointer<SourceLocation> = new SourceLocation(
+                tokens.filePath,
+                errorToken.pos.offset,
+                errorToken.pos.line,
+                errorToken.pos.column,
+                errorToken.pos.length)
+
+            locations.push(location)
+            this.error = Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE_TYPE,
+                locations,
+                Diagnostic.CANNOT_PARSE_TYPE_MSG)
+            return -1
+        }
+
+        val arrow: pointer<Token> = tokens.get(index + consumed)
+
+        if arrow.kind != Tokenizer.ARROW:
+        {
+            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+            val location: pointer<SourceLocation> = new SourceLocation(
+                tokens.filePath,
+                arrow.pos.offset,
+                arrow.pos.line,
+                arrow.pos.column,
+                arrow.pos.length)
+
+            locations.push(location)
+            this.error = Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE_TYPE,
+                locations,
+                Diagnostic.CANNOT_PARSE_TYPE_MSG)
+            return -1
+        }
+
+        extraTokens.push(arrow)
+        consumed++
+
+        if index + consumed >= tokens.length():
+        {
+            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+            val location: pointer<SourceLocation> = new SourceLocation(
+                tokens.filePath,
+                arrow.pos.offset,
+                arrow.pos.line,
+                arrow.pos.column,
+                arrow.pos.length)
+
+            locations.push(location)
+            this.error = Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE_TYPE,
+                locations,
+                Diagnostic.CANNOT_PARSE_TYPE_MSG)
+            return -1
+        }
+
+        val returnParser: pointer<TypeParser> = this.clone()
+        val returnLength: int = returnParser.parse(tokens, index + consumed)
+
+        if returnParser.haveError(returnLength):
+        {
+            this.error = returnParser.getError()
+            return -1
+        }
+
+        val returnResult: pointer<ParseContainer> = returnParser.getResult()
+        val returnType: pointer<Type> = returnResult.getValue() as pointer<Type>
+
+        consumed += returnLength
+
+        val parsedType: pointer<FunctionType> = new FunctionType(parameters, returnType)
+
+        for (var i = 0; i < extraTokens.length; i++):
+        {
+            val token: pointer<Token> = extraTokens.get(i) as pointer<Token>
+            parsedType.addExtraToken(token)
+        }
+
+        this.result = new ParseContainer(this.id, parsedType)
         return consumed
     }
 
