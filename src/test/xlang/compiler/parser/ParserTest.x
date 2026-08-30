@@ -41,7 +41,8 @@ import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
 import xlang.compiler.parser.statement.VariableDefine
 import xlang.compiler.parser.statement.VariableDefines
-import xlang.compiler.parser.stmtexpr.BlockExpression
+import xlang.compiler.parser.statement.WhileStatement
+import xlang.compiler.parser.stmtexpr.Block
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
@@ -233,6 +234,21 @@ private fun statementTest() -> int
     if returnStatementResult != 0:
         return 60 + returnStatementResult
 
+    val whileStatementResult: int = statementWhileRuleTest()
+
+    if whileStatementResult != 0:
+        return 70 + whileStatementResult
+
+    val nestedWhileStatementResult: int = statementNestedWhileRuleTest()
+
+    if nestedWhileStatementResult != 0:
+        return 80 + nestedWhileStatementResult
+
+    val nestedIfStatementResult: int = statementNestedIfRuleTest()
+
+    if nestedIfStatementResult != 0:
+        return 90 + nestedIfStatementResult
+
     return 0
 }
 
@@ -407,6 +423,157 @@ private fun statementReturnRuleTest() -> int
 
     return 0
 }
+
+
+private fun statementWhileRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("while cond: a = 1 else: a = 2")
+
+    if statement == null || statement.getKind() != Statement.WHILE_TYPE:
+        return 1
+
+    val root: pointer<WhileStatement> = statement.getRoot() as pointer<WhileStatement>
+
+    if root == null || root.getCondition() == null || !root.haveElseStatement():
+        return 2
+
+    val bodyStatements: pointer<ArrayList> = root.getBodyStatements()
+    val elseStatements: pointer<ArrayList> = root.getElseStatements()
+
+    if bodyStatements == null || bodyStatements.length != 1:
+        return 3
+
+    if elseStatements == null || elseStatements.length != 1:
+        return 4
+
+    val bodyStatement: pointer<Statement> = bodyStatements.get(0) as pointer<Statement>
+    val elseStatement: pointer<Statement> = elseStatements.get(0) as pointer<Statement>
+
+    if bodyStatement == null || bodyStatement.getKind() != Statement.EXPRESSION_TYPE:
+        return 5
+
+    if elseStatement == null || elseStatement.getKind() != Statement.EXPRESSION_TYPE:
+        return 6
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 11:
+        return 7
+
+    if !tokenTextAt(tokens, 0, "while") || !tokenTextAt(tokens, 1, "cond") || !tokenTextAt(tokens, 2, ":"):
+        return 8
+
+    if !tokenTextAt(tokens, 3, "a") || !tokenTextAt(tokens, 4, "=") || !tokenTextAt(tokens, 5, "1"):
+        return 9
+
+    if !tokenTextAt(tokens, 6, "else") || !tokenTextAt(tokens, 7, ":") || !tokenTextAt(tokens, 8, "a") || !tokenTextAt(tokens, 9, "=") || !tokenTextAt(tokens, 10, "2"):
+        return 10
+
+    return 0
+}
+
+
+private fun statementNestedWhileRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("while cond: {while inner: {a = 1}}")
+
+    if statement == null || statement.getKind() != Statement.WHILE_TYPE:
+        return 1
+
+    val root: pointer<WhileStatement> = statement.getRoot() as pointer<WhileStatement>
+
+    if root == null || root.getCondition() == null || root.haveElseStatement():
+        return 2
+
+    val bodyStatements: pointer<ArrayList> = root.getBodyStatements()
+
+    if bodyStatements == null || bodyStatements.length != 1:
+        return 3
+
+    val nestedStatement: pointer<Statement> = bodyStatements.get(0) as pointer<Statement>
+
+    if nestedStatement == null || nestedStatement.getKind() != Statement.WHILE_TYPE:
+        return 4
+
+    val nestedWhile: pointer<WhileStatement> = nestedStatement.getRoot() as pointer<WhileStatement>
+
+    if nestedWhile == null || nestedWhile.getCondition() == null || nestedWhile.haveElseStatement():
+        return 5
+
+    val nestedBodyStatements: pointer<ArrayList> = nestedWhile.getBodyStatements()
+
+    if nestedBodyStatements == null || nestedBodyStatements.length != 1:
+        return 6
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 13:
+        return 7
+
+    if !tokenTextAt(tokens, 0, "while") || !tokenTextAt(tokens, 1, "cond") || !tokenTextAt(tokens, 2, ":") || !tokenTextAt(tokens, 3, "{"):
+        return 8
+
+    if !tokenTextAt(tokens, 4, "while") || !tokenTextAt(tokens, 5, "inner") || !tokenTextAt(tokens, 6, ":") || !tokenTextAt(tokens, 7, "{"):
+        return 9
+
+    if !tokenTextAt(tokens, 8, "a") || !tokenTextAt(tokens, 9, "=") || !tokenTextAt(tokens, 10, "1") || !tokenTextAt(tokens, 11, "}") || !tokenTextAt(tokens, 12, "}"):
+        return 10
+
+    return 0
+}
+
+
+private fun statementNestedIfRuleTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("while cond: {if flag: {a = 1} else: {a = 2}}")
+
+    if statement == null || statement.getKind() != Statement.WHILE_TYPE:
+        return 1
+
+    val root: pointer<WhileStatement> = statement.getRoot() as pointer<WhileStatement>
+
+    if root == null || root.getCondition() == null || root.haveElseStatement():
+        return 2
+
+    val bodyStatements: pointer<ArrayList> = root.getBodyStatements()
+
+    if bodyStatements == null || bodyStatements.length != 1:
+        return 3
+
+    val ifStatement: pointer<Statement> = bodyStatements.get(0) as pointer<Statement>
+
+    if ifStatement == null || ifStatement.getKind() != Statement.EXPRESSION_TYPE:
+        return 4
+
+    val exprStatement: pointer<ExprStatement> = ifStatement.getRoot() as pointer<ExprStatement>
+
+    if exprStatement == null || exprStatement.getExpression() == null:
+        return 5
+
+    if exprStatement.getExpression().getKind() != Expression.IFELSE_BRANCH_KIND:
+        return 6
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null || tokens.length != 20:
+        return 7
+
+    if !tokenTextAt(tokens, 0, "while") || !tokenTextAt(tokens, 1, "cond") || !tokenTextAt(tokens, 2, ":") || !tokenTextAt(tokens, 3, "{"):
+        return 8
+
+    if !tokenTextAt(tokens, 4, "if") || !tokenTextAt(tokens, 5, "flag") || !tokenTextAt(tokens, 6, ":") || !tokenTextAt(tokens, 7, "{"):
+        return 9
+
+    if !tokenTextAt(tokens, 8, "a") || !tokenTextAt(tokens, 9, "=") || !tokenTextAt(tokens, 10, "1") || !tokenTextAt(tokens, 11, "}"):
+        return 10
+
+    if !tokenTextAt(tokens, 12, "else") || !tokenTextAt(tokens, 13, ":") || !tokenTextAt(tokens, 14, "{") || !tokenTextAt(tokens, 15, "a") || !tokenTextAt(tokens, 16, "=") || !tokenTextAt(tokens, 17, "2") || !tokenTextAt(tokens, 18, "}") || !tokenTextAt(tokens, 19, "}"):
+        return 11
+
+    return 0
+}
+
+
 private fun newExpressionTest() -> int
 {
     val identExpression: pointer<Expression> = parseExpressionText("new Foo")
@@ -552,7 +719,7 @@ private fun blockExpressionTest() -> int
     if expression == null || expression.getKind() != Expression.BLOCK_EXPR_KIND:
         return 1
 
-    val block: pointer<BlockExpression> = expression.getRoot() as pointer<BlockExpression>
+    val block: pointer<Block> = expression.getRoot() as pointer<Block>
 
     if block == null:
         return 2

@@ -48,6 +48,19 @@ import xlang.util.string.StringBuilder
 struct TokenPosition
 {
     /**
+     * Creates a synthetic position for parser-generated nodes.
+     *
+     * Parser desugaring may create tokens or AST nodes that do not correspond
+     * to a concrete source range. This helper gives those generated values a
+     * stable zero position instead of borrowing an unrelated user-written
+     * token position.
+     *
+     * @return                  position with offset, line, column and length set to 0
+     */
+    static fun autoGenPos() -> pointer<TokenPosition> = new TokenPosition(0, 0, 0, 0)
+
+
+    /**
      * Compares two token positions in source order.
      *
      * Null positions sort before non-null positions. Non-null positions are

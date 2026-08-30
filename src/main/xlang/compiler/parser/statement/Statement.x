@@ -41,6 +41,8 @@ struct Statement
 
     static val RETURN_TYPE: int = 4
 
+    static val WHILE_TYPE: int = 5
+
 
     static fun fromExprStatement(expr: pointer<ExprStatement>) -> pointer<Statement> =
         new Statement(EXPRESSION_TYPE, expr)
@@ -60,6 +62,10 @@ struct Statement
 
     static fun fromReturnStatement(statement: pointer<ReturnStatement>) -> pointer<Statement> =
         new Statement(RETURN_TYPE, statement)
+
+
+    static fun fromWhileStatement(statement: pointer<WhileStatement>) -> pointer<Statement> =
+        new Statement(WHILE_TYPE, statement)
 
 
     private var kind: int
@@ -100,33 +106,37 @@ struct Statement
 
         if this.root != null:
         {
-            var tokens: pointer<ArrayList> = null
-
-            if this.kind == EXPRESSION_TYPE:
+            var tokens: pointer<ArrayList> = if this.kind == EXPRESSION_TYPE:
             {
                 val statement: pointer<ExprStatement> = this.root as pointer<ExprStatement>
-                tokens = statement.getAllTokens()
+                statement.getAllTokens()
             }
             elif this.kind == EXPRESSION_LIST_TYPE:
             {
                 val statement: pointer<ExprListStatement> = this.root as pointer<ExprListStatement>
-                tokens = statement.getAllTokens()
+                statement.getAllTokens()
             }
             elif this.kind == VARIABLE_DEFINE_TYPE:
             {
                 val statement: pointer<VariableDefine> = this.root as pointer<VariableDefine>
-                tokens = statement.getAllTokens()
+                statement.getAllTokens()
             }
             elif this.kind == VARIABLE_DEFINES_TYPE:
             {
                 val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
-                tokens = statement.getAllTokens()
+                statement.getAllTokens()
+            }
+            elif this.kind == WHILE_TYPE:
+            {
+                val statement: pointer<WhileStatement> = this.root as pointer<WhileStatement>
+                statement.getAllTokens()
             }
             elif this.kind == RETURN_TYPE:
             {
                 val statement: pointer<ReturnStatement> = this.root as pointer<ReturnStatement>
-                tokens = statement.getAllTokens()
+                statement.getAllTokens()
             }
+            else: null
 
 
             if tokens != null:
@@ -160,6 +170,11 @@ struct Statement
         elif this.kind == VARIABLE_DEFINES_TYPE:
         {
             val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
+            statement.toString()
+        }
+        elif this.kind == WHILE_TYPE:
+        {
+            val statement: pointer<WhileStatement> = this.root as pointer<WhileStatement>
             statement.toString()
         }
         elif this.kind == RETURN_TYPE:

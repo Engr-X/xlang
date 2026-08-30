@@ -79,31 +79,27 @@ struct ExpressionDesugar
     {
         val functionName: pointer<char> = op.getFunctionName()
 
-        if String.streq(functionName, "greater"):
-            return ExpressionDesugar.compareSign(exp1, exp2, 1)
-
-        if String.streq(functionName, "less"):
-            return ExpressionDesugar.compareSign(exp1, exp2, -1)
-
-        if String.streq(functionName, "greaterEqual"):
+        return if String.streq(functionName, "greater"):
+            ExpressionDesugar.compareSign(exp1, exp2, 1)
+        elif String.streq(functionName, "less"):
+            ExpressionDesugar.compareSign(exp1, exp2, -1)
+        elif String.streq(functionName, "greaterEqual"):
         {
             val call: pointer<MethodCall> = new MethodCall(null, "logicalOr")
                 .addArgument(ExpressionDesugar.compareSign(exp1, exp2, 1))
                 .addArgument(ExpressionDesugar.compareSign(exp1, exp2, 0))
 
-            return Expression.fromMethodCall(call)
+            Expression.fromMethodCall(call)
         }
-
-        if String.streq(functionName, "lessEqual"):
+        elif String.streq(functionName, "lessEqual"):
         {
             val call: pointer<MethodCall> = new MethodCall(null, "logicalOr")
                 .addArgument(ExpressionDesugar.compareSign(exp1, exp2, -1))
                 .addArgument(ExpressionDesugar.compareSign(exp1, exp2, 0))
 
-            return Expression.fromMethodCall(call)
+            Expression.fromMethodCall(call)
         }
-
-        return null
+        else: null
     }
 
 
@@ -345,7 +341,7 @@ struct ExpressionDesugar
         val text: pointer<char> = System.allocMemory(16 * sizeof(char)) as pointer<char>
         TypeConvert.intToString(text, value, 10)
 
-        val position: pointer<TokenPosition> = new TokenPosition(-1, -1, -1, 0)
+        val position: pointer<TokenPosition> = TokenPosition.autoGenPos()
         val token: pointer<Token> = new Token(Tokenizer.TK_INTEGER, position, text)
         val tokens: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
         val resultItem: pointer<*> = token as pointer<*>

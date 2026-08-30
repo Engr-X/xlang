@@ -10,7 +10,7 @@
         "xlang.compiler.parser.statement.ExprStatement",
         "xlang.compiler.parser.statement.Statement",
         "xlang.compiler.parser.statement.Statements",
-        "xlang.compiler.parser.stmtexpr.BlockExpression",
+        "xlang.compiler.parser.stmtexpr.Block",
         "xlang.compiler.parser.stmtexpr.IfExpression",
         "xlang.compiler.parser.stmtexpr.IfElseExpression",
         "xlang.compiler.parser.stmtexpr.StatementExpression"
@@ -20,7 +20,7 @@
     ],
     "rules": [
         {
-            "class": "BlockExpression",
+            "class": "Block",
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "Tokenizer.RIGHT_BRACE" }], "action": "makeEmptyBlockExpr" },
@@ -31,7 +31,7 @@
             "class": "IfExpression",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$BlockExpression" }], "action": "makeIfExprFromStmts" },
+                { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }], "action": "makeIfExprFromStmts" },
                 { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeIfExprFromStmt", "after": "prependLineTerminator" }
             ]
         },
@@ -39,14 +39,14 @@
             "class": "IfElseExpression",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$BlockExpression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$IfElseExpression" }], "action": "makeIfElseExprFinalB" },
+                { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$IfElseExpression" }], "action": "makeIfElseExprFinalB" },
                 { "patterns": [{ "kind": "Tokenizer.KW_IF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$IfElseExpression" }], "action": "makeIfElseExprFinalS" },
-                { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$BlockExpression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$IfElseExpression" }], "action": "makeIfElseExprItB" },
+                { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$IfElseExpression" }], "action": "makeIfElseExprItB" },
                 { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$IfElseExpression" }], "action": "makeIfElseExprItS"},
 
-                { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$BlockExpression" }], "action": "makeIfElseExprFromElseB" },
+                { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }], "action": "makeIfElseExprFromElseB" },
                 { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeIfElseExprFromElseS", "after": "prependLineTerminator" },
-                { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$BlockExpression" }], "action": "makeIfElseExprFromElifB" },
+                { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }], "action": "makeIfElseExprFromElifB" },
                 { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeIfElseExprFromElifS", "after": "prependLineTerminator" }
             ]
         }
@@ -57,7 +57,7 @@
             "    val leftBrace: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val rightBrace: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
             "",
-            "    return new BlockExpression().addExtraToken(leftBrace).addExtraToken(rightBrace)",
+            "    return new Block().addExtraToken(leftBrace).addExtraToken(rightBrace)",
             "}" ],
 
 
@@ -67,7 +67,7 @@
             "    val statements: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>",
             "    val rightBrace: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "",
-            "    return new BlockExpression(statements.getStatements())",
+            "    return new Block(statements.getStatements())",
             "       .addExtraToken(leftBrace).addExtraToken(rightBrace)",
             "}" ],
 
@@ -77,7 +77,7 @@
             "    val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>",
+            "    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>",
             "",
             "    return new IfExpression(condition, block.getStatements())",
             "       .addExtraToken(ifToken).addExtraToken(colonToken)",
@@ -104,7 +104,7 @@
             "    val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>",
+            "    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>",
             "    val instance1: pointer<IfElseExpression> = getContainerValue(results, 5) as pointer<IfElseExpression>",
             "",
             "    return instance1.setCondition(condition)",
@@ -133,7 +133,7 @@
             "    val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>",
+            "    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>",
             "    val instance1: pointer<IfElseExpression> = new IfElseExpression()",
             "       .setCondition(condition)",
             "       .addIfStatements(block.getStatements())",
@@ -152,7 +152,7 @@
             "    val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val block: pointer<BlockExpression> = getContainerValue(results, 3) as pointer<BlockExpression>",
+            "    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>",
             "    val instance1: pointer<IfElseExpression> = getContainerValue(results, 5) as pointer<IfElseExpression>",
             "",
             "    instance1.setCondition(condition)",
@@ -205,7 +205,7 @@
             "{",
             "    val elseToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val block: pointer<BlockExpression> = getContainerValue(results, 2) as pointer<BlockExpression>",
+            "    val block: pointer<Block> = getContainerValue(results, 2) as pointer<Block>",
             "",
             "    return new IfElseExpression(block.getStatements())",
             "       .addExtraToken(elseToken).addExtraToken(colonToken)",

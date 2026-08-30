@@ -20,7 +20,7 @@
         "xlang.compiler.parser.expression.NewFunction",
         "xlang.compiler.parser.expression.NewIdentifier",
         "xlang.compiler.parser.expression.TypeCast",
-        "xlang.compiler.parser.stmtexpr.BlockExpression",
+        "xlang.compiler.parser.stmtexpr.Block",
         "xlang.compiler.parser.stmtexpr.IfExpression",
         "xlang.compiler.parser.stmtexpr.IfElseExpression"
     ],
@@ -120,7 +120,7 @@
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$IfElseExpression" }], "action": "makeExprFromIfElseExpr", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$IfExpression" }], "action": "makeExprFromIfExpr", "priority": 230 },
-                { "role": "starter", "patterns": [{ "kind": "$BlockExpression" }], "action": "makeExprFromBlockExpr", "priority": 230 },
+                { "role": "starter", "patterns": [{ "kind": "$Block" }], "action": "makeExprFromBlockExpr", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "$Atom" }], "action": "makeExprFromAtom", "priority": 230 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "operation": "$paren", "action": "makeExprFromParen" },
 
@@ -439,7 +439,7 @@
 
         [   "private fun makeExprFromBlockExpr(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val block: pointer<BlockExpression> = getContainerValue(results, 0) as pointer<BlockExpression>",
+            "    val block: pointer<Block> = getContainerValue(results, 0) as pointer<Block>",
             "    return Expression.fromBlockExpr(block)",
             "}" ],
 

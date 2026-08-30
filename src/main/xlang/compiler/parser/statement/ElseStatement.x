@@ -19,8 +19,8 @@
  *
  *
  */
-@file.class("BlockExpression")
-package xlang.compiler.parser.stmtexpr
+@file.class("ElseStatement")
+package xlang.compiler.parser.statement
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
@@ -28,7 +28,7 @@ import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
-struct BlockExpression
+struct ElseStatement
 {
     private var statements: pointer<ArrayList>
 
@@ -49,10 +49,20 @@ struct BlockExpression
     }
 
 
-    fun addStatement(statement: pointer<Statement>) -> pointer<BlockExpression>
+    fun __init__(statement: pointer<Statement>)
     {
+        this.statements = new ArrayList(sizeof(Statement))
+        this.extraTokens = new ArrayList(sizeof(Token))
+
         if statement != null:
             this.statements.push(statement)
+    }
+
+
+    fun addExtraToken(token: pointer<Token>) -> pointer<ElseStatement>
+    {
+        if token != null:
+            this.extraTokens.push(token)
 
         return this
     }
@@ -62,15 +72,6 @@ struct BlockExpression
 
 
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
-
-
-    fun addExtraToken(token: pointer<Token>) -> pointer<BlockExpression>
-    {
-        if token != null:
-            this.extraTokens.push(token)
-
-        return this
-    }
 
 
     fun getAllTokens() -> pointer<ArrayList>
@@ -101,7 +102,7 @@ struct BlockExpression
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
-        sb.append("{\n")
+        sb.append("else:\n")
 
         for (var i: int = 0; i < this.statements.length; i++):
         {
@@ -114,7 +115,6 @@ struct BlockExpression
             sb.append("\n")
         }
 
-        sb.append("}\n")
         return sb
     }
 }

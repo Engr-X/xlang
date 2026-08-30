@@ -25,7 +25,7 @@ package xlang.compiler.parser.expression
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
-import xlang.compiler.parser.stmtexpr.BlockExpression
+import xlang.compiler.parser.stmtexpr.Block
 import xlang.compiler.parser.stmtexpr.IfExpression
 import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
@@ -78,7 +78,7 @@ struct Expression
     inline static fun fromNewFunction(function: pointer<NewFunction>) -> pointer<Expression> = new Expression(NEW_FUNCTION_KIND, function)
 
 
-    inline static fun fromBlockExpr(block: pointer<BlockExpression>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
+    inline static fun fromBlockExpr(block: pointer<Block>) -> pointer<Expression> = new Expression(BLOCK_EXPR_KIND, block)
 
 
     // inline static fun fromIfExpr(branch: pointer<IfExpression>) -> pointer<Expression> = new Expression(IF_BRANCH_KIND, branch)
@@ -180,7 +180,7 @@ struct Expression
         }
         elif this.kind == BLOCK_EXPR_KIND:
         {
-            val block: pointer<BlockExpression> = this.root as pointer<BlockExpression>
+            val block: pointer<Block> = this.root as pointer<Block>
             block.getAllTokens()
         }
         // elif this.kind == IF_BRANCH_KIND:
@@ -247,7 +247,7 @@ struct Expression
         }
         elif this.kind == BLOCK_EXPR_KIND:
         {
-            val block: pointer<BlockExpression> = this.root as pointer<BlockExpression>
+            val block: pointer<Block> = this.root as pointer<Block>
             block.toString()
         }
         // elif this.kind == IF_BRANCH_KIND
