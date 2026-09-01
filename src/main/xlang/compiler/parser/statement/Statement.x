@@ -43,6 +43,8 @@ struct Statement
 
     static val WHILE_TYPE: int = 5
 
+    static val FOR_TYPE: int = 6
+
 
     static fun fromExprStatement(expr: pointer<ExprStatement>) -> pointer<Statement> =
         new Statement(EXPRESSION_TYPE, expr)
@@ -66,6 +68,10 @@ struct Statement
 
     static fun fromWhileStatement(statement: pointer<WhileStatement>) -> pointer<Statement> =
         new Statement(WHILE_TYPE, statement)
+
+
+    static fun fromForStatement(statement: pointer<ForStatement>) -> pointer<Statement> =
+        new Statement(FOR_TYPE, statement)
 
 
     private var kind: int
@@ -96,6 +102,25 @@ struct Statement
 
 
     fun getRoot() -> pointer<*> = this.root
+
+
+    fun expand() -> pointer<ArrayList> =
+        if this.kind == VARIABLE_DEFINES_TYPE:
+        {
+            val statement: pointer<VariableDefines> = this.root as pointer<VariableDefines>
+            statement.expand()
+        }
+        elif this.kind == EXPRESSION_LIST_TYPE:
+        {
+            val statement: pointer<ExprListStatement> = this.root as pointer<ExprListStatement>
+            statement.expand()
+        }
+        elif this.kind == FOR_TYPE:
+        {
+            val statement: pointer<ForStatement> = this.root as pointer<ForStatement>
+            statement.expand()
+        }
+        else: new ArrayList(sizeof(Statement)).push(this)
 
 
     fun getAllTokens() -> pointer<ArrayList>
@@ -129,6 +154,11 @@ struct Statement
             elif this.kind == WHILE_TYPE:
             {
                 val statement: pointer<WhileStatement> = this.root as pointer<WhileStatement>
+                statement.getAllTokens()
+            }
+            elif this.kind == FOR_TYPE:
+            {
+                val statement: pointer<ForStatement> = this.root as pointer<ForStatement>
                 statement.getAllTokens()
             }
             elif this.kind == RETURN_TYPE:
@@ -175,6 +205,11 @@ struct Statement
         elif this.kind == WHILE_TYPE:
         {
             val statement: pointer<WhileStatement> = this.root as pointer<WhileStatement>
+            statement.toString()
+        }
+        elif this.kind == FOR_TYPE:
+        {
+            val statement: pointer<ForStatement> = this.root as pointer<ForStatement>
             statement.toString()
         }
         elif this.kind == RETURN_TYPE:

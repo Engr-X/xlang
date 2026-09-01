@@ -19,6 +19,8 @@
         "xlang.compiler.parser.statement.Statements",
         "xlang.compiler.parser.statement.ElseStatement",
         "xlang.compiler.parser.statement.WhileStatement",
+        "xlang.compiler.parser.statement.ForHeader",
+        "xlang.compiler.parser.statement.ForStatement",
         "xlang.compiler.parser.stmtexpr.Block"
     ],
     "constants": [
@@ -38,6 +40,7 @@
                 { "patterns": [{ "kind": "Tokenizer.KW_VAL" }, { "kind": "$VariableDefines" }], "action": "makeStmtFrom_VariableDefines" },
 
                 { "patterns": [{ "kind": "$WhileStatement" }], "action": "makeStmtFrom_WhileStmt" },
+                { "patterns": [{ "kind": "$ForStatement" }], "action": "makeStmtFrom_ForStmt" },
                 { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeStmtFrom_ReturnStmt" }
             ]
         },
@@ -70,6 +73,64 @@
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$ElseStatement" }], "action": "makeWhileStmtFromStmtElse" },
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeWhileStmtFromBlock" },
                 { "patterns": [{ "kind": "Tokenizer.KW_WHILE" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeWhileStmtFromStmt" }
+            ]
+        },
+        {
+            "class": "VariableDefines",
+            "parser_name": "FOR_HEADER_VARIABLE_DEFINES_PARSER",
+            "parse_function": "parseForHeaderVariableDefines",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$VariableDefine" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$ForHeaderVariableDefines" }], "action": "makeForHeaderVarDefsIt" },
+                { "patterns": [{ "kind": "$VariableDefine" }], "action": "makeForHeaderVariableDefines" }
+            ]
+        },
+        {
+            "class": "ExprListStatement",
+            "parser_name": "FOR_HEADER_EXPR_LIST_STATEMENT_PARSER",
+            "parse_function": "parseForHeaderExprListStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$ForHeaderExprListStatement" }], "action": "makeForHeaderExprList" },
+                { "patterns": [{ "kind": "$Expression" }], "action": "makeForHeaderSingleExprList" }
+            ]
+        },
+        {
+            "class": "Statement",
+            "parser_name": "FOR_HEADER_STATEMENT_PARSER",
+            "parse_function": "parseForHeaderStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_VAR" }, { "kind": "$VariableDefine" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$ForHeaderVariableDefines" }], "action": "makeForHeaderStmtFromVarDefines" },
+                { "patterns": [{ "kind": "Tokenizer.KW_VAL" }, { "kind": "$VariableDefine" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$ForHeaderVariableDefines" }], "action": "makeForHeaderStmtFromVarDefines" },
+                { "patterns": [{ "kind": "Tokenizer.KW_VAR" }, { "kind": "$VariableDefine" }], "action": "makeForHeaderStmtFromVarDefine" },
+                { "patterns": [{ "kind": "Tokenizer.KW_VAL" }, { "kind": "$VariableDefine" }], "action": "makeForHeaderStmtFromVarDefine" },
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$ForHeaderExprListStatement" }], "action": "makeForHeaderStmtFromExprList" },
+                { "patterns": [{ "kind": "$Expression" }], "action": "makeForHeaderStmtFromExpr" }
+            ]
+        },
+        {
+            "class": "ForHeader",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderICS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderIC" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderIS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderCS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderI" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderC" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyForHeader" }
+            ]
+        },
+        {
+            "class": "ForStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$ElseStatement" }], "action": "makeForStmtFromBlockElse" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$ElseStatement" }], "action": "makeForStmtFromStmtElse" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeForStmtFromBlock" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeForStmtFromStmt" }
             ]
         },
         {
@@ -169,6 +230,13 @@
             "}" ],
 
 
+        [   "private inline fun makeStmtFrom_ForStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val forStatement: pointer<ForStatement> = getContainerValue(results, 0) as pointer<ForStatement>",
+            "    return Statement.fromForStatement(forStatement)",
+            "}" ],
+
+
 
             
          [   "private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>",
@@ -230,6 +298,288 @@
             "",
             "    tokens.push(resultItem.ref)",
             "    return Expression.fromAtom(new Atom(Atom.BOOL_IMM_KIND, tokens))",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderVarDefsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val first: pointer<VariableDefine> = getContainerValue(results, 0) as pointer<VariableDefine>",
+            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val second: pointer<VariableDefines> = getContainerValue(results, 2) as pointer<VariableDefines>",
+            "",
+            "    return new VariableDefines(first).addExtraToken(commaToken).addDefines(second)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderVariableDefines(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val variableDefine: pointer<VariableDefine> = getContainerValue(results, 0) as pointer<VariableDefine>",
+            "",
+            "    return new VariableDefines(variableDefine)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderExprList(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val exprList: pointer<ExprListStatement> = getContainerValue(results, 2) as pointer<ExprListStatement>",
+            "",
+            "    return new ExprListStatement(expression).addExtraToken(commaToken).addExpressions(exprList)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderSingleExprList(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "",
+            "    return new ExprListStatement(expression)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderStmtFromVarDefines(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val varToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val first: pointer<VariableDefine> = getContainerValue(results, 1) as pointer<VariableDefine>",
+            "    val commaToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val second: pointer<VariableDefines> = getContainerValue(results, 3) as pointer<VariableDefines>",
+            "    val variableDefines: pointer<VariableDefines> = new VariableDefines(first).addExtraToken(commaToken).addDefines(second)",
+            "",
+            "    var statement: pointer<Statement> = if varToken.kind == Tokenizer.KW_VAL:",
+            "         Statement.fromVariableDefines(variableDefines.markAsConst())",
+            "    else:",
+            "         Statement.fromVariableDefines(variableDefines.markAsMut())",
+            "",
+            "    return statement.addExtraToken(varToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderStmtFromVarDefine(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val varToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val variableDefine: pointer<VariableDefine> = getContainerValue(results, 1) as pointer<VariableDefine>",
+            "",
+            "    var statement: pointer<Statement> = if varToken.kind == Tokenizer.KW_VAL:",
+            "         Statement.fromVariableDefine(variableDefine.markAsConst())",
+            "    else:",
+            "         Statement.fromVariableDefine(variableDefine.markAsMut())",
+            "",
+            "    return statement.addExtraToken(varToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderStmtFromExprList(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val exprList: pointer<ExprListStatement> = getContainerValue(results, 2) as pointer<ExprListStatement>",
+            "",
+            "    return Statement.fromExprListStatement(",
+            "        new ExprListStatement(expression).addExtraToken(commaToken).addExpressions(exprList))",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderStmtFromExpr(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
+            "",
+            "    return Statement.fromExprStatement(new ExprStatement(expression))",
+            "}" ],
+
+
+        [   "private inline fun buildForHeader(",
+            "    initStmt: pointer<Statement>,",
+            "    condition: pointer<Expression>,",
+            "    stepStmt: pointer<Statement>,",
+            "    leftParenToken: pointer<Token>,",
+            "    firstSemicolonToken: pointer<Token>,",
+            "    secondSemicolonToken: pointer<Token>,",
+            "    thirdSemicolonToken: pointer<Token>,",
+            "    rightParenToken: pointer<Token>) -> pointer<ForHeader>",
+            "{",
+            "    return new ForHeader(initStmt, condition, stepStmt)",
+            "       .addExtraToken(leftParenToken)",
+            "       .addExtraToken(firstSemicolonToken)",
+            "       .addExtraToken(secondSemicolonToken)",
+            "       .addExtraToken(thirdSemicolonToken)",
+            "       .addExtraToken(rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderICS(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val condition: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val stepStmt: pointer<Statement> = getContainerValue(results, 5) as pointer<Statement>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(initStmt, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderIC(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val condition: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(initStmt, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderIS(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val stepStmt: pointer<Statement> = getContainerValue(results, 4) as pointer<Statement>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(initStmt, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderCS(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val condition: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val stepStmt: pointer<Statement> = getContainerValue(results, 4) as pointer<Statement>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(null, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderI(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(initStmt, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderC(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val condition: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(null, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForHeaderS(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val stepStmt: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(null, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyForHeader(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "",
+            "    return buildForHeader(null, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "}" ],
+
+
+        [   "private inline fun makeForStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>",
+            "    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))",
+            "    statements.push(statement)",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(forToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new ForStatement(header, statements).addExtraTokens(extraTokens)",
+            "}" ],
+
+
+        [   "private inline fun makeForStmtFromBlock(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(forToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new ForStatement(header, block.getStatements())",
+            "       .addExtraTokens(extraTokens)",
+            "       .addExtraTokens(block.getExtraTokens())",
+            "}" ],
+
+
+        [   "private inline fun makeForStmtFromStmtElse(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>",
+            "    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 4) as pointer<ElseStatement>",
+            "    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))",
+            "    statements.push(statement)",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(forToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new ForStatement(header, statements, elseStatement.getStatements())",
+            "       .addExtraTokens(extraTokens)",
+            "       .addExtraTokens(elseStatement.getExtraTokens())",
+            "}" ],
+
+
+        [   "private inline fun makeForStmtFromBlockElse(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>",
+            "    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 5) as pointer<ElseStatement>",
+            "    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))",
+            "    extraTokens.push(forToken)",
+            "    extraTokens.push(colonToken)",
+            "",
+            "    return new ForStatement(header, block.getStatements(), elseStatement.getStatements())",
+            "       .addExtraTokens(extraTokens)",
+            "       .addExtraTokens(block.getExtraTokens())",
+            "       .addExtraTokens(elseStatement.getExtraTokens())",
             "}" ],
 
 

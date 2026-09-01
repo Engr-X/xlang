@@ -33,27 +33,27 @@ struct WhileStatement
 {
     private var condition: pointer<Expression>
 
-    private val bodyStatements: pointer<ArrayList>
+    private val bodyStmts: pointer<ArrayList>
 
-    private val elseStatements: pointer<ArrayList>
+    private val elseStmts: pointer<ArrayList>
 
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(condition: pointer<Expression>, bodyStatements: pointer<ArrayList>)
+    fun __init__(condition: pointer<Expression>, bodyStmts: pointer<ArrayList>)
     {
         this.condition = condition
-        this.bodyStatements = bodyStatements
-        this.elseStatements = new ArrayList(sizeof(Statement))
+        this.bodyStmts = bodyStmts
+        this.elseStmts = new ArrayList(sizeof(Statement))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(condition: pointer<Expression>, bodyStatements: pointer<ArrayList>, elseStatements: pointer<ArrayList>)
+    fun __init__(condition: pointer<Expression>, bodyStmts: pointer<ArrayList>, elseStmts: pointer<ArrayList>)
     {
         this.condition = condition
-        this.bodyStatements = bodyStatements
-        this.elseStatements = elseStatements
+        this.bodyStmts = bodyStmts
+        this.elseStmts = elseStmts
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
@@ -61,13 +61,13 @@ struct WhileStatement
     fun getCondition() -> pointer<Expression> = this.condition
 
 
-    fun getBodyStatements() -> pointer<ArrayList> = this.bodyStatements.clone()
+    fun getBodyStatements() -> pointer<ArrayList> = this.bodyStmts.clone()
 
 
-    fun getElseStatements() -> pointer<ArrayList> = this.elseStatements.clone()
+    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts.clone()
 
 
-    fun haveElseStatement() -> bool = this.elseStatements.length > 0
+    fun haveElseStatement() -> bool = this.elseStmts.length > 0
 
 
     fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<WhileStatement>
@@ -94,9 +94,9 @@ struct WhileStatement
                 result.pushAll(tokens)
         }
 
-        for (var i: int = 0; i < this.bodyStatements.length; i++):
+        for (var i: int = 0; i < this.bodyStmts.length; i++):
         {
-            val statement: pointer<Statement> = this.bodyStatements.get(i) as pointer<Statement>
+            val statement: pointer<Statement> = this.bodyStmts.get(i) as pointer<Statement>
 
             if statement == null:
                 continue
@@ -107,9 +107,9 @@ struct WhileStatement
                 result.pushAll(tokens)
         }
 
-        for (var i: int = 0; i < this.elseStatements.length; i++):
+        for (var i: int = 0; i < this.elseStmts.length; i++):
         {
-            val statement: pointer<Statement> = this.elseStatements.get(i) as pointer<Statement>
+            val statement: pointer<Statement> = this.elseStmts.get(i) as pointer<Statement>
 
             if statement == null:
                 continue
@@ -138,9 +138,9 @@ struct WhileStatement
 
         sb.append(":\n")
 
-        for (var i: int = 0; i < this.bodyStatements.length; i++):
+        for (var i: int = 0; i < this.bodyStmts.length; i++):
         {
-            val statement: pointer<Statement> = this.bodyStatements.get(i) as pointer<Statement>
+            val statement: pointer<Statement> = this.bodyStmts.get(i) as pointer<Statement>
 
             if statement == null:
                 continue
@@ -153,9 +153,9 @@ struct WhileStatement
         {
             sb.append("else:\n")
 
-            for (var i: int = 0; i < this.elseStatements.length; i++):
+            for (var i: int = 0; i < this.elseStmts.length; i++):
             {
-                val statement: pointer<Statement> = this.elseStatements.get(i) as pointer<Statement>
+                val statement: pointer<Statement> = this.elseStmts.get(i) as pointer<Statement>
 
                 if statement == null:
                     continue

@@ -118,6 +118,22 @@ struct VariableDefines
     }
 
 
+    fun expand() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Statement))
+
+        for (var i = 0; i < this.defines.length; i++):
+        {
+            val variableDefine: pointer<VariableDefine> = this.defines.get(i) as pointer<VariableDefine>
+
+            if variableDefine != null:
+                result.push(Statement.fromVariableDefine(variableDefine))
+        }
+
+        return result
+    }
+
+
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))

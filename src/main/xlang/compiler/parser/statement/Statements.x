@@ -82,6 +82,24 @@ struct Statements
     fun getStatements() -> pointer<ArrayList> = this.statements.clone()
 
 
+    fun expand() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Statement))
+
+        for (var i = 0; i < this.statements.length; i++):
+        {
+            val statement: pointer<Statement> = this.statements.get(i) as pointer<Statement>
+
+            if statement == null:
+                continue
+
+            result.pushAll(statement.expand())
+        }
+
+        return result
+    }
+
+
     fun getAllTokens() -> pointer<ArrayList>
     {
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))

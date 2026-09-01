@@ -21,6 +21,8 @@ import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.statement.ElseStatement
 import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
+import xlang.compiler.parser.statement.ForHeader
+import xlang.compiler.parser.statement.ForStatement
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
 import xlang.compiler.parser.statement.Statements
@@ -55,14 +57,19 @@ private val STATEMENT_PARSER_ID: int = 6
 private val STATEMENTS_PARSER_ID: int = 7
 private val ELSE_STATEMENT_PARSER_ID: int = 8
 private val WHILE_STATEMENT_PARSER_ID: int = 9
-private val EXPR_STATEMENT_PARSER_ID: int = 10
-private val EXPR_LIST_STATEMENT_PARSER_ID: int = 11
-private val VARIABLE_DEFINE_PARSER_ID: int = 12
-private val VARIABLE_DEFINES_PARSER_ID: int = 13
-private val RETURN_STATEMENT_PARSER_ID: int = 14
-private val BLOCK_PARSER_ID: int = 15
-private val IF_EXPRESSION_PARSER_ID: int = 16
-private val IF_ELSE_EXPRESSION_PARSER_ID: int = 17
+private val FOR_HEADER_VARIABLE_DEFINES_PARSER_ID: int = 10
+private val FOR_HEADER_EXPR_LIST_STATEMENT_PARSER_ID: int = 11
+private val FOR_HEADER_STATEMENT_PARSER_ID: int = 12
+private val FOR_HEADER_PARSER_ID: int = 13
+private val FOR_STATEMENT_PARSER_ID: int = 14
+private val EXPR_STATEMENT_PARSER_ID: int = 15
+private val EXPR_LIST_STATEMENT_PARSER_ID: int = 16
+private val VARIABLE_DEFINE_PARSER_ID: int = 17
+private val VARIABLE_DEFINES_PARSER_ID: int = 18
+private val RETURN_STATEMENT_PARSER_ID: int = 19
+private val BLOCK_PARSER_ID: int = 20
+private val IF_EXPRESSION_PARSER_ID: int = 21
+private val IF_ELSE_EXPRESSION_PARSER_ID: int = 22
 
 
 private inline fun getContainerValue(results: pointer<ArrayList>, index: int, unwrapContainer: bool) -> pointer<*>
@@ -592,6 +599,12 @@ private inline fun makeStmtFrom_WhileStmt(results: pointer<ArrayList>) -> pointe
     return Statement.fromWhileStatement(whileStatement)
 }
 
+private inline fun makeStmtFrom_ForStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val forStatement: pointer<ForStatement> = getContainerValue(results, 0) as pointer<ForStatement>
+    return Statement.fromForStatement(forStatement)
+}
+
 private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>
 {
     val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>
@@ -647,6 +660,267 @@ private inline fun makeLoopCondition() -> pointer<Expression>
 
     tokens.push(resultItem.ref)
     return Expression.fromAtom(new Atom(Atom.BOOL_IMM_KIND, tokens))
+}
+
+private inline fun makeForHeaderVarDefsIt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val first: pointer<VariableDefine> = getContainerValue(results, 0) as pointer<VariableDefine>
+    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val second: pointer<VariableDefines> = getContainerValue(results, 2) as pointer<VariableDefines>
+
+    return new VariableDefines(first).addExtraToken(commaToken).addDefines(second)
+}
+
+private inline fun makeForHeaderVariableDefines(results: pointer<ArrayList>) -> pointer<*>
+{
+    val variableDefine: pointer<VariableDefine> = getContainerValue(results, 0) as pointer<VariableDefine>
+
+    return new VariableDefines(variableDefine)
+}
+
+private inline fun makeForHeaderExprList(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
+    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val exprList: pointer<ExprListStatement> = getContainerValue(results, 2) as pointer<ExprListStatement>
+
+    return new ExprListStatement(expression).addExtraToken(commaToken).addExpressions(exprList)
+}
+
+private inline fun makeForHeaderSingleExprList(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
+
+    return new ExprListStatement(expression)
+}
+
+private inline fun makeForHeaderStmtFromVarDefines(results: pointer<ArrayList>) -> pointer<*>
+{
+    val varToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val first: pointer<VariableDefine> = getContainerValue(results, 1) as pointer<VariableDefine>
+    val commaToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val second: pointer<VariableDefines> = getContainerValue(results, 3) as pointer<VariableDefines>
+    val variableDefines: pointer<VariableDefines> = new VariableDefines(first).addExtraToken(commaToken).addDefines(second)
+
+    var statement: pointer<Statement> = if varToken.kind == Tokenizer.KW_VAL:
+         Statement.fromVariableDefines(variableDefines.markAsConst())
+    else:
+         Statement.fromVariableDefines(variableDefines.markAsMut())
+
+    return statement.addExtraToken(varToken)
+}
+
+private inline fun makeForHeaderStmtFromVarDefine(results: pointer<ArrayList>) -> pointer<*>
+{
+    val varToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val variableDefine: pointer<VariableDefine> = getContainerValue(results, 1) as pointer<VariableDefine>
+
+    var statement: pointer<Statement> = if varToken.kind == Tokenizer.KW_VAL:
+         Statement.fromVariableDefine(variableDefine.markAsConst())
+    else:
+         Statement.fromVariableDefine(variableDefine.markAsMut())
+
+    return statement.addExtraToken(varToken)
+}
+
+private inline fun makeForHeaderStmtFromExprList(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
+    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val exprList: pointer<ExprListStatement> = getContainerValue(results, 2) as pointer<ExprListStatement>
+
+    return Statement.fromExprListStatement(
+        new ExprListStatement(expression).addExtraToken(commaToken).addExpressions(exprList))
+}
+
+private inline fun makeForHeaderStmtFromExpr(results: pointer<ArrayList>) -> pointer<*>
+{
+    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>
+
+    return Statement.fromExprStatement(new ExprStatement(expression))
+}
+
+private inline fun buildForHeader(
+    initStmt: pointer<Statement>,
+    condition: pointer<Expression>,
+    stepStmt: pointer<Statement>,
+    leftParenToken: pointer<Token>,
+    firstSemicolonToken: pointer<Token>,
+    secondSemicolonToken: pointer<Token>,
+    thirdSemicolonToken: pointer<Token>,
+    rightParenToken: pointer<Token>) -> pointer<ForHeader>
+{
+    return new ForHeader(initStmt, condition, stepStmt)
+       .addExtraToken(leftParenToken)
+       .addExtraToken(firstSemicolonToken)
+       .addExtraToken(secondSemicolonToken)
+       .addExtraToken(thirdSemicolonToken)
+       .addExtraToken(rightParenToken)
+}
+
+private inline fun makeForHeaderICS(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val condition: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val stepStmt: pointer<Statement> = getContainerValue(results, 5) as pointer<Statement>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>
+
+    return buildForHeader(initStmt, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForHeaderIC(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val condition: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>
+
+    return buildForHeader(initStmt, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForHeaderIS(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
+    val stepStmt: pointer<Statement> = getContainerValue(results, 4) as pointer<Statement>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>
+
+    return buildForHeader(initStmt, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForHeaderCS(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val condition: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
+    val stepStmt: pointer<Statement> = getContainerValue(results, 4) as pointer<Statement>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>
+
+    return buildForHeader(null, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForHeaderI(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+
+    return buildForHeader(initStmt, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForHeaderC(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val condition: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+
+    return buildForHeader(null, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForHeaderS(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val stepStmt: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+
+    return buildForHeader(null, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeEmptyForHeader(results: pointer<ArrayList>) -> pointer<*>
+{
+    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
+    val rightParenToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+
+    return buildForHeader(null, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)
+}
+
+private inline fun makeForStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>
+    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
+    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))
+    statements.push(statement)
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(forToken)
+    extraTokens.push(colonToken)
+
+    return new ForStatement(header, statements).addExtraTokens(extraTokens)
+}
+
+private inline fun makeForStmtFromBlock(results: pointer<ArrayList>) -> pointer<*>
+{
+    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>
+    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(forToken)
+    extraTokens.push(colonToken)
+
+    return new ForStatement(header, block.getStatements())
+       .addExtraTokens(extraTokens)
+       .addExtraTokens(block.getExtraTokens())
+}
+
+private inline fun makeForStmtFromStmtElse(results: pointer<ArrayList>) -> pointer<*>
+{
+    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>
+    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
+    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 4) as pointer<ElseStatement>
+    val statements: pointer<ArrayList> = new ArrayList(sizeof(Statement))
+    statements.push(statement)
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(forToken)
+    extraTokens.push(colonToken)
+
+    return new ForStatement(header, statements, elseStatement.getStatements())
+       .addExtraTokens(extraTokens)
+       .addExtraTokens(elseStatement.getExtraTokens())
+}
+
+private inline fun makeForStmtFromBlockElse(results: pointer<ArrayList>) -> pointer<*>
+{
+    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>
+    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val block: pointer<Block> = getContainerValue(results, 3) as pointer<Block>
+    val elseStatement: pointer<ElseStatement> = getContainerValue(results, 5) as pointer<ElseStatement>
+    val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
+    extraTokens.push(forToken)
+    extraTokens.push(colonToken)
+
+    return new ForStatement(header, block.getStatements(), elseStatement.getStatements())
+       .addExtraTokens(extraTokens)
+       .addExtraTokens(block.getExtraTokens())
+       .addExtraTokens(elseStatement.getExtraTokens())
 }
 
 private inline fun makeWhileStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>
@@ -1041,6 +1315,16 @@ val ELSE_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ELSE
 
 val WHILE_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(WHILE_STATEMENT_PARSER_ID)
 
+val FOR_HEADER_VARIABLE_DEFINES_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FOR_HEADER_VARIABLE_DEFINES_PARSER_ID)
+
+val FOR_HEADER_EXPR_LIST_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FOR_HEADER_EXPR_LIST_STATEMENT_PARSER_ID)
+
+val FOR_HEADER_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FOR_HEADER_STATEMENT_PARSER_ID)
+
+val FOR_HEADER_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FOR_HEADER_PARSER_ID)
+
+val FOR_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FOR_STATEMENT_PARSER_ID)
+
 val EXPR_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EXPR_STATEMENT_PARSER_ID)
 
 val EXPR_LIST_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EXPR_LIST_STATEMENT_PARSER_ID)
@@ -1413,7 +1697,8 @@ private val STATEMENT_RULE3: pointer<Rule> = new Rule(new PatternList().pushRege
 private val STATEMENT_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_VAR).pushRef(VARIABLE_DEFINES_PARSER), makeStmtFrom_VariableDefines, Rule.STARTER_ROLE, 0)
 private val STATEMENT_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_VAL).pushRef(VARIABLE_DEFINES_PARSER), makeStmtFrom_VariableDefines, Rule.STARTER_ROLE, 0)
 private val STATEMENT_RULE6: pointer<Rule> = new Rule(new PatternList().pushRef(WHILE_STATEMENT_PARSER), makeStmtFrom_WhileStmt, Rule.STARTER_ROLE, 0)
-private val STATEMENT_RULE7: pointer<Rule> = new Rule(new PatternList().pushRef(RETURN_STATEMENT_PARSER), makeStmtFrom_ReturnStmt, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE7: pointer<Rule> = new Rule(new PatternList().pushRef(FOR_STATEMENT_PARSER), makeStmtFrom_ForStmt, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE8: pointer<Rule> = new Rule(new PatternList().pushRef(RETURN_STATEMENT_PARSER), makeStmtFrom_ReturnStmt, Rule.STARTER_ROLE, 0)
 
 private val STATEMENTS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(STATEMENT_PARSER).pushRef(STATEMENTS_PARSER), makeStmtsIt, Rule.STARTER_ROLE, 0)
 private val STATEMENTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(STATEMENT_PARSER), makeSingleStmts, Rule.STARTER_ROLE, 0)
@@ -1429,6 +1714,33 @@ private val WHILE_STATEMENT_RULE4: pointer<Rule> = new Rule(new PatternList().pu
 private val WHILE_STATEMENT_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(ELSE_STATEMENT_PARSER), makeWhileStmtFromStmtElse, Rule.STARTER_ROLE, 0)
 private val WHILE_STATEMENT_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeWhileStmtFromBlock, Rule.STARTER_ROLE, 0)
 private val WHILE_STATEMENT_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_WHILE).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeWhileStmtFromStmt, Rule.STARTER_ROLE, 0)
+
+private val FOR_HEADER_VARIABLE_DEFINES_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(VARIABLE_DEFINE_PARSER).pushRegex(Tokenizer.COMMA).pushRef(FOR_HEADER_VARIABLE_DEFINES_PARSER), makeForHeaderVarDefsIt, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_VARIABLE_DEFINES_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(VARIABLE_DEFINE_PARSER), makeForHeaderVariableDefines, Rule.STARTER_ROLE, 0)
+
+private val FOR_HEADER_EXPR_LIST_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COMMA).pushRef(FOR_HEADER_EXPR_LIST_STATEMENT_PARSER), makeForHeaderExprList, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_EXPR_LIST_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER), makeForHeaderSingleExprList, Rule.STARTER_ROLE, 0)
+
+private val FOR_HEADER_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_VAR).pushRef(VARIABLE_DEFINE_PARSER).pushRegex(Tokenizer.COMMA).pushRef(FOR_HEADER_VARIABLE_DEFINES_PARSER), makeForHeaderStmtFromVarDefines, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_VAL).pushRef(VARIABLE_DEFINE_PARSER).pushRegex(Tokenizer.COMMA).pushRef(FOR_HEADER_VARIABLE_DEFINES_PARSER), makeForHeaderStmtFromVarDefines, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_STATEMENT_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_VAR).pushRef(VARIABLE_DEFINE_PARSER), makeForHeaderStmtFromVarDefine, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_STATEMENT_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_VAL).pushRef(VARIABLE_DEFINE_PARSER), makeForHeaderStmtFromVarDefine, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_STATEMENT_RULE4: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COMMA).pushRef(FOR_HEADER_EXPR_LIST_STATEMENT_PARSER), makeForHeaderStmtFromExprList, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_STATEMENT_RULE5: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER), makeForHeaderStmtFromExpr, Rule.STARTER_ROLE, 0)
+
+private val FOR_HEADER_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderICS, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderIC, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderIS, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.SEMICOLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderCS, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderI, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.SEMICOLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderC, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRef(FOR_HEADER_STATEMENT_PARSER).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeForHeaderS, Rule.STARTER_ROLE, 0)
+private val FOR_HEADER_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.SEMICOLON).pushRegex(Tokenizer.RIGHT_PAREN), makeEmptyForHeader, Rule.STARTER_ROLE, 0)
+
+private val FOR_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FOR).pushRef(FOR_HEADER_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(ELSE_STATEMENT_PARSER), makeForStmtFromBlockElse, Rule.STARTER_ROLE, 0)
+private val FOR_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FOR).pushRef(FOR_HEADER_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(ELSE_STATEMENT_PARSER), makeForStmtFromStmtElse, Rule.STARTER_ROLE, 0)
+private val FOR_STATEMENT_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FOR).pushRef(FOR_HEADER_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeForStmtFromBlock, Rule.STARTER_ROLE, 0)
+private val FOR_STATEMENT_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FOR).pushRef(FOR_HEADER_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeForStmtFromStmt, Rule.STARTER_ROLE, 0)
 
 private val EXPR_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeExprStmt, Rule.STARTER_ROLE, 0)
 
@@ -1464,10 +1776,15 @@ private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RUL
 private val EXPRESSIONS_PARSER_SETUP: pointer<ParserRef> = EXPRESSIONS_PARSER.addRule(EXPRESSIONS_RULE0).addRule(EXPRESSIONS_RULE1)
 private val EXPRESSION_TUPLE_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_TUPLE_PARSER.addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
 private val LIST_LITERAL_PARSER_SETUP: pointer<ParserRef> = LIST_LITERAL_PARSER.addRule(LIST_LITERAL_RULE0).addRule(LIST_LITERAL_RULE1).addRule(LIST_LITERAL_RULE2)
-private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1).addRule(STATEMENT_RULE2).addRule(STATEMENT_RULE3).addRule(STATEMENT_RULE4).addRule(STATEMENT_RULE5).addRule(STATEMENT_RULE6).addRule(STATEMENT_RULE7)
+private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1).addRule(STATEMENT_RULE2).addRule(STATEMENT_RULE3).addRule(STATEMENT_RULE4).addRule(STATEMENT_RULE5).addRule(STATEMENT_RULE6).addRule(STATEMENT_RULE7).addRule(STATEMENT_RULE8)
 private val STATEMENTS_PARSER_SETUP: pointer<ParserRef> = STATEMENTS_PARSER.addRule(STATEMENTS_RULE0).addRule(STATEMENTS_RULE1)
 private val ELSE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = ELSE_STATEMENT_PARSER.addRule(ELSE_STATEMENT_RULE0).addRule(ELSE_STATEMENT_RULE1)
 private val WHILE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = WHILE_STATEMENT_PARSER.addRule(WHILE_STATEMENT_RULE0).addRule(WHILE_STATEMENT_RULE1).addRule(WHILE_STATEMENT_RULE2).addRule(WHILE_STATEMENT_RULE3).addRule(WHILE_STATEMENT_RULE4).addRule(WHILE_STATEMENT_RULE5).addRule(WHILE_STATEMENT_RULE6).addRule(WHILE_STATEMENT_RULE7)
+private val FOR_HEADER_VARIABLE_DEFINES_PARSER_SETUP: pointer<ParserRef> = FOR_HEADER_VARIABLE_DEFINES_PARSER.addRule(FOR_HEADER_VARIABLE_DEFINES_RULE0).addRule(FOR_HEADER_VARIABLE_DEFINES_RULE1)
+private val FOR_HEADER_EXPR_LIST_STATEMENT_PARSER_SETUP: pointer<ParserRef> = FOR_HEADER_EXPR_LIST_STATEMENT_PARSER.addRule(FOR_HEADER_EXPR_LIST_STATEMENT_RULE0).addRule(FOR_HEADER_EXPR_LIST_STATEMENT_RULE1)
+private val FOR_HEADER_STATEMENT_PARSER_SETUP: pointer<ParserRef> = FOR_HEADER_STATEMENT_PARSER.addRule(FOR_HEADER_STATEMENT_RULE0).addRule(FOR_HEADER_STATEMENT_RULE1).addRule(FOR_HEADER_STATEMENT_RULE2).addRule(FOR_HEADER_STATEMENT_RULE3).addRule(FOR_HEADER_STATEMENT_RULE4).addRule(FOR_HEADER_STATEMENT_RULE5)
+private val FOR_HEADER_PARSER_SETUP: pointer<ParserRef> = FOR_HEADER_PARSER.addRule(FOR_HEADER_RULE0).addRule(FOR_HEADER_RULE1).addRule(FOR_HEADER_RULE2).addRule(FOR_HEADER_RULE3).addRule(FOR_HEADER_RULE4).addRule(FOR_HEADER_RULE5).addRule(FOR_HEADER_RULE6).addRule(FOR_HEADER_RULE7)
+private val FOR_STATEMENT_PARSER_SETUP: pointer<ParserRef> = FOR_STATEMENT_PARSER.addRule(FOR_STATEMENT_RULE0).addRule(FOR_STATEMENT_RULE1).addRule(FOR_STATEMENT_RULE2).addRule(FOR_STATEMENT_RULE3)
 private val EXPR_STATEMENT_PARSER_SETUP: pointer<ParserRef> = EXPR_STATEMENT_PARSER.addRule(EXPR_STATEMENT_RULE0)
 private val EXPR_LIST_STATEMENT_PARSER_SETUP: pointer<ParserRef> = EXPR_LIST_STATEMENT_PARSER.addRule(EXPR_LIST_STATEMENT_RULE0).addRule(EXPR_LIST_STATEMENT_RULE1)
 private val VARIABLE_DEFINE_PARSER_SETUP: pointer<ParserRef> = VARIABLE_DEFINE_PARSER.addRule(VARIABLE_DEFINE_RULE0).addRule(VARIABLE_DEFINE_RULE1)
@@ -1620,6 +1937,86 @@ fun parseWhileStatement(input: pointer<TokenList>) -> pointer<WhileStatement>
         return null
 
     return result.getValue() as pointer<WhileStatement>
+}
+
+fun parseForHeaderVariableDefines(input: pointer<TokenList>) -> pointer<VariableDefines>
+{
+    if input == null:
+        return null
+
+    if FOR_HEADER_VARIABLE_DEFINES_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = FOR_HEADER_VARIABLE_DEFINES_PARSER.getResult()
+
+    if result == null || result.isKind(FOR_HEADER_VARIABLE_DEFINES_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<VariableDefines>
+}
+
+fun parseForHeaderExprListStatement(input: pointer<TokenList>) -> pointer<ExprListStatement>
+{
+    if input == null:
+        return null
+
+    if FOR_HEADER_EXPR_LIST_STATEMENT_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = FOR_HEADER_EXPR_LIST_STATEMENT_PARSER.getResult()
+
+    if result == null || result.isKind(FOR_HEADER_EXPR_LIST_STATEMENT_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<ExprListStatement>
+}
+
+fun parseForHeaderStatement(input: pointer<TokenList>) -> pointer<Statement>
+{
+    if input == null:
+        return null
+
+    if FOR_HEADER_STATEMENT_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = FOR_HEADER_STATEMENT_PARSER.getResult()
+
+    if result == null || result.isKind(FOR_HEADER_STATEMENT_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<Statement>
+}
+
+fun parseForHeader(input: pointer<TokenList>) -> pointer<ForHeader>
+{
+    if input == null:
+        return null
+
+    if FOR_HEADER_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = FOR_HEADER_PARSER.getResult()
+
+    if result == null || result.isKind(FOR_HEADER_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<ForHeader>
+}
+
+fun parseForStatement(input: pointer<TokenList>) -> pointer<ForStatement>
+{
+    if input == null:
+        return null
+
+    if FOR_STATEMENT_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = FOR_STATEMENT_PARSER.getResult()
+
+    if result == null || result.isKind(FOR_STATEMENT_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<ForStatement>
 }
 
 fun parseExprStatement(input: pointer<TokenList>) -> pointer<ExprStatement>

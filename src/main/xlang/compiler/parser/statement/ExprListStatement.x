@@ -84,14 +84,17 @@ struct ExprListStatement
 
     fun expand() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(ExprStatement))
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Statement))
 
         for (var i = 0; i < this.exprList.length; i++):
         {
             val expression: pointer<Expression> = this.exprList.get(i) as pointer<Expression>
 
             if expression != null:
-                result.push(new ExprStatement(expression))
+            {
+                val exprStatement: pointer<ExprStatement> = new ExprStatement(expression)
+                result.push(Statement.fromExprStatement(exprStatement))
+            }
         }
 
         return result

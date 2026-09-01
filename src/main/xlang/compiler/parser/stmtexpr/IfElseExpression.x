@@ -34,9 +34,9 @@ struct IfElseExpression
 {
     private var condition: pointer<Expression>
 
-    private val ifStatements: pointer<ArrayList>
+    private val ifStmts: pointer<ArrayList>
 
-    private val elseStatements: pointer<ArrayList>
+    private val elseStmts: pointer<ArrayList>
 
     private var extraTokens: pointer<ArrayList>
 
@@ -44,17 +44,17 @@ struct IfElseExpression
     fun __init__()
     {
         this.condition = null
-        this.ifStatements = new ArrayList(sizeof(Statement))
-        this.elseStatements = new ArrayList(sizeof(Statement))
+        this.ifStmts = new ArrayList(sizeof(Statement))
+        this.elseStmts = new ArrayList(sizeof(Statement))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(elseStatements: pointer<ArrayList>)
+    fun __init__(elseStmts: pointer<ArrayList>)
     {
         this.condition = null
-        this.ifStatements = new ArrayList(sizeof(Statement))
-        this.elseStatements = elseStatements
+        this.ifStmts = new ArrayList(sizeof(Statement))
+        this.elseStmts = elseStmts
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
@@ -62,12 +62,12 @@ struct IfElseExpression
     fun __init__(elseStatement: pointer<Statement>)
     {
         this.condition = null
-        this.ifStatements = new ArrayList(sizeof(Statement))
-        this.elseStatements = new ArrayList(sizeof(Statement))
+        this.ifStmts = new ArrayList(sizeof(Statement))
+        this.elseStmts = new ArrayList(sizeof(Statement))
         this.extraTokens = new ArrayList(sizeof(Token))
 
         if elseStatement != null:
-            this.elseStatements.push(elseStatement)
+            this.elseStmts.push(elseStatement)
     }
 
 
@@ -81,7 +81,7 @@ struct IfElseExpression
     fun addIfStatement(statement: pointer<Statement>) -> pointer<IfElseExpression>
     {
         if statement != null:
-            this.ifStatements.push(statement)
+            this.ifStmts.push(statement)
 
         return this
     }
@@ -90,25 +90,25 @@ struct IfElseExpression
     fun addIfStatements(statement: pointer<ArrayList>) -> pointer<IfElseExpression>
     {
         if statement != null:
-            this.ifStatements.pushAll(statement)
+            this.ifStmts.pushAll(statement)
 
         return this
     }
 
 
-    fun haveIfStatement() -> bool = this.ifStatements.length > 0
+    fun haveIfStatement() -> bool = this.ifStmts.length > 0
 
 
-    fun haveElseStatement() -> bool = this.elseStatements.length > 0
+    fun haveElseStatement() -> bool = this.elseStmts.length > 0
 
 
     fun getCondition() -> pointer<Expression> = this.condition
 
 
-    fun getIfStatements() -> pointer<ArrayList> = this.ifStatements.clone()
+    fun getIfStatements() -> pointer<ArrayList> = this.ifStmts.clone()
 
 
-    fun getElseStatements() -> pointer<ArrayList> = this.elseStatements.clone()
+    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts.clone()
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<IfElseExpression>
@@ -144,9 +144,9 @@ struct IfElseExpression
                 result.pushAll(tokens)
         }
 
-        for (var i = 0; i < this.ifStatements.length; i++):
+        for (var i = 0; i < this.ifStmts.length; i++):
         {
-            val statement: pointer<Statement> = this.ifStatements.get(i) as pointer<Statement>
+            val statement: pointer<Statement> = this.ifStmts.get(i) as pointer<Statement>
 
             if statement == null:
                 continue
@@ -157,9 +157,9 @@ struct IfElseExpression
                 result.pushAll(tokens)
         }
 
-        for (var i = 0; i < this.elseStatements.length; i++):
+        for (var i = 0; i < this.elseStmts.length; i++):
         {
-            val statement: pointer<Statement> = this.elseStatements.get(i) as pointer<Statement>
+            val statement: pointer<Statement> = this.elseStmts.get(i) as pointer<Statement>
 
             if statement == null:
                 continue
@@ -189,9 +189,9 @@ struct IfElseExpression
 
         sb.append(":\n")
 
-        for (var i = 0; i < this.ifStatements.length; i++):
+        for (var i = 0; i < this.ifStmts.length; i++):
         {
-            val statement: pointer<Statement> = this.ifStatements.get(i) as pointer<Statement>
+            val statement: pointer<Statement> = this.ifStmts.get(i) as pointer<Statement>
 
             if statement == null:
                 continue
@@ -205,9 +205,9 @@ struct IfElseExpression
         {
             sb.append("else:\n")
 
-            for (var i = 0; i < this.elseStatements.length; i++):
+            for (var i = 0; i < this.elseStmts.length; i++):
             {
-                val statement: pointer<Statement> = this.elseStatements.get(i) as pointer<Statement>
+                val statement: pointer<Statement> = this.elseStmts.get(i) as pointer<Statement>
 
                 if statement == null:
                     continue
