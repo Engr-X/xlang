@@ -37,6 +37,7 @@ import xlang.compiler.parser.expression.NewIdentifier
 import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
+import xlang.compiler.parser.statement.ForStatement
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
 import xlang.compiler.parser.statement.VariableDefine
@@ -244,15 +245,25 @@ private fun statementTest() -> int
     if loopStatementResult != 0:
         return 80 + loopStatementResult
 
+    val forStatementResult: int = statementForRuleTest()
+
+    if forStatementResult != 0:
+        return 90 + forStatementResult
+
+    val forTokensResult: int = statementForGetAllTokensTest()
+
+    if forTokensResult != 0:
+        return 100 + forTokensResult
+
     val nestedWhileStatementResult: int = statementNestedWhileRuleTest()
 
     if nestedWhileStatementResult != 0:
-        return 90 + nestedWhileStatementResult
+        return 110 + nestedWhileStatementResult
 
     val nestedIfStatementResult: int = statementNestedIfRuleTest()
 
     if nestedIfStatementResult != 0:
-        return 100 + nestedIfStatementResult
+        return 120 + nestedIfStatementResult
 
     return 0
 }
@@ -512,6 +523,97 @@ private fun statementLoopRuleTest() -> int
 
     if !tokenTextAt(tokens, 6, "else") || !tokenTextAt(tokens, 7, ":") || !tokenTextAt(tokens, 8, "a") || !tokenTextAt(tokens, 9, "=") || !tokenTextAt(tokens, 10, "2"):
         return 8
+
+    return 0
+}
+
+
+private fun statementForRuleTest() -> int
+{
+    val stmtBody: pointer<Statement> = parseStatementText("for (var i = 0; i < 10; i++;): a = i")
+
+    if stmtBody == null || stmtBody.getKind() != Statement.FOR_TYPE:
+        return 1
+
+    val stmtFor: pointer<ForStatement> = stmtBody.getRoot() as pointer<ForStatement>
+
+    if stmtFor == null || stmtFor.getCondition() == null || stmtFor.haveElseStatement():
+        return 2
+
+    if stmtFor.getInitStatement() == null || stmtFor.getStepStatement() == null:
+        return 3
+
+    val stmtBodyStatements: pointer<ArrayList> = stmtFor.getBodyStatements()
+
+    if stmtBodyStatements == null || stmtBodyStatements.length != 1:
+        return 4
+
+    val stmtBodyStatement: pointer<Statement> = stmtBodyStatements.get(0) as pointer<Statement>
+
+    if stmtBodyStatement == null || stmtBodyStatement.getKind() != Statement.EXPRESSION_TYPE:
+        return 5
+
+    val blockElse: pointer<Statement> = parseStatementText("for (;;;): {a = 1} else: {a = 2}")
+
+    if blockElse == null || blockElse.getKind() != Statement.FOR_TYPE:
+        return 6
+
+    val blockFor: pointer<ForStatement> = blockElse.getRoot() as pointer<ForStatement>
+
+    if blockFor == null || blockFor.getCondition() != null || !blockFor.haveElseStatement():
+        return 7
+
+    if blockFor.getInitStatement() != null || blockFor.getStepStatement() != null:
+        return 8
+
+    val blockBodyStatements: pointer<ArrayList> = blockFor.getBodyStatements()
+    val blockElseStatements: pointer<ArrayList> = blockFor.getElseStatements()
+
+    if blockBodyStatements == null || blockBodyStatements.length != 1:
+        return 9
+
+    if blockElseStatements == null || blockElseStatements.length != 1:
+        return 10
+
+    return 0
+}
+
+
+private fun statementForGetAllTokensTest() -> int
+{
+    val statement: pointer<Statement> = parseStatementText("for (var i = 0; cond; i++;): {a = i} else: {a = 0}")
+
+    if statement == null || statement.getKind() != Statement.FOR_TYPE:
+        return 1
+
+    val tokens: pointer<ArrayList> = statement.getAllTokens()
+
+    if tokens == null:
+        return 2
+
+    if tokens.length != 26:
+        return 2
+
+    if !tokenTextAt(tokens, 0, "for") || !tokenTextAt(tokens, 1, "(") || !tokenTextAt(tokens, 2, "var") || !tokenTextAt(tokens, 3, "i"):
+        return 3
+
+    if !tokenTextAt(tokens, 4, "=") || !tokenTextAt(tokens, 5, "0") || !tokenTextAt(tokens, 6, ";"):
+        return 4
+
+    if !tokenTextAt(tokens, 7, "cond") || !tokenTextAt(tokens, 8, ";"):
+        return 5
+
+    if !tokenTextAt(tokens, 9, "i") || !tokenTextAt(tokens, 10, "++") || !tokenTextAt(tokens, 11, ";") || !tokenTextAt(tokens, 12, ")") || !tokenTextAt(tokens, 13, ":"):
+        return 6
+
+    if !tokenTextAt(tokens, 14, "{") || !tokenTextAt(tokens, 15, "a") || !tokenTextAt(tokens, 16, "=") || !tokenTextAt(tokens, 17, "i") || !tokenTextAt(tokens, 18, "}"):
+        return 7
+
+    if !tokenTextAt(tokens, 19, "else") || !tokenTextAt(tokens, 20, ":") || !tokenTextAt(tokens, 21, "{") || !tokenTextAt(tokens, 22, "a"):
+        return 8
+
+    if !tokenTextAt(tokens, 23, "=") || !tokenTextAt(tokens, 24, "0") || !tokenTextAt(tokens, 25, "}"):
+        return 9
 
     return 0
 }
