@@ -1,0 +1,126 @@
+{
+    "type": "compiler_parser_rules",
+
+    "package": "xlang.compiler.parser",
+    "class": "Parser",
+    "imports": [
+        "xlang.compiler.lexer.Tokenizer",
+        "xlang.lexer.Token",
+        "xlang.compiler.parser.program.ImportDeclaration",
+        "xlang.compiler.parser.program.Modifier",
+        "xlang.compiler.parser.program.ModifierList",
+        "xlang.compiler.parser.program.PackageDeclaration",
+        "xlang.compiler.parser.program.QualifiedName"
+    ],
+    "constants": [
+
+    ],
+    "rules": [
+        {
+            "class": "Modifier",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_PRIVATE" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_PROTECTED" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_PUBLIC" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_STATIC" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FINAL" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_INLINE" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_NATIVE" }], "action": "makeModifier" },
+                { "patterns": [{ "kind": "Tokenizer.KW_INTRINSIC" }], "action": "makeModifier" }
+            ]
+        },
+        {
+            "class": "ModifierList",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Modifier" }, { "kind": "$ModifierList" }], "action": "makeModifierListIt" },
+                { "patterns": [{ "kind": "$Modifier" }], "action": "makeModifierList" }
+            ]
+        },
+        {
+            "class": "QualifiedName",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.DOT" }, { "kind": "$QualifiedName" }], "action": "makeQualifiedNameIt" },
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeQualifiedName" }
+            ]
+        },
+        {
+            "class": "PackageDeclaration",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_PACKAGE" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePackageDeclaration" }
+            ]
+        },
+        {
+            "class": "ImportDeclaration",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeImportDeclaration" }
+            ]
+        }
+    ],
+    "others": [
+        [   "private inline fun makeModifier(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val token: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "",
+            "    return new Modifier(token.text).addExtraToken(token)",
+            "}" ],
+
+
+        [   "private inline fun makeModifierListIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>",
+            "    val modifierList: pointer<ModifierList> = getContainerValue(results, 1) as pointer<ModifierList>",
+            "",
+            "    return modifierList.pushFront(modifier)",
+            "}" ],
+
+
+        [   "private inline fun makeModifierList(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>",
+            "    return new ModifierList(modifier)",
+            "}" ],
+
+
+        [   "private inline fun makeQualifiedNameIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val dotToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 2) as pointer<QualifiedName>",
+            "",
+            "    return qualifiedName.pushFront(nameToken.text)",
+            "        .addExtraToken(nameToken)",
+            "        .addExtraToken(dotToken)",
+            "}" ],
+
+
+        [   "private inline fun makeQualifiedName(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "",
+            "    return new QualifiedName(nameToken.text).addExtraToken(nameToken)",
+            "}" ],
+
+
+        [   "private inline fun makePackageDeclaration(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val packageToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "",
+            "    return qualifiedName.toPackageDecl().addExtraToken(packageToken)",
+            "}" ],
+
+
+        [   "private inline fun makeImportDeclaration(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val importToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "",
+            "    return qualifiedName.toImportDeclaration().addExtraToken(importToken)",
+            "}" ]
+    ]
+}

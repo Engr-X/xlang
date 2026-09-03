@@ -48,55 +48,57 @@ val KW_DOUBLE: int = 110
 val KW_ELIF: int = 111
 val KW_ELSE: int = 112
 val KW_FALSE: int = 113
-val KW_FLOAT: int = 114
-val KW_FOR: int = 115
-val KW_FUN: int = 116
-val KW_IF: int = 117
-val KW_IFF: int = 118
-val KW_IMPLIES: int = 119
-val KW_IMPORT: int = 120
-val KW_INLINE: int = 121
-val KW_INT: int = 122
-val KW_INV: int = 123
-val KW_IS: int = 124
-val KW_LONG: int = 125
-val KW_LOOP: int = 126
-val KW_MUT: int = 127
-val KW_NAND: int = 128
-val KW_NATIVE: int = 129
-val KW_NEW: int = 130
-val KW_NIFF: int = 131
-val KW_NIMPLIES: int = 132
-val KW_NOR: int = 133
-val KW_NULL: int = 134
-val KW_OR: int = 135
-val KW_PACKAGE: int = 136
-val KW_PASS: int = 137
-val KW_POINTER: int = 138
-val KW_PRIVATE: int = 139
-val KW_PROTECTED: int = 140
-val KW_PUBLIC: int = 141
-val KW_REPEAT: int = 142
-val KW_RETURN: int = 143
-val KW_SHL: int = 144
-val KW_SHORT: int = 145
-val KW_SHR: int = 146
-val KW_STATIC: int = 147
-val KW_STRUCT: int = 148
-val KW_TRUE: int = 149
-val KW_UNTIL: int = 150
-val KW_USHR: int = 151
-val KW_VAL: int = 152
-val KW_VAR: int = 153
-val KW_VOID: int = 154
-val KW_WHILE: int = 155
-val KW_XNOR: int = 156
-val KW_XOR: int = 157
+val KW_FINAL: int = 114
+val KW_FLOAT: int = 115
+val KW_FOR: int = 116
+val KW_FUN: int = 117
+val KW_IF: int = 118
+val KW_IFF: int = 119
+val KW_IMPLIES: int = 120
+val KW_IMPORT: int = 121
+val KW_INLINE: int = 122
+val KW_INT: int = 123
+val KW_INTRINSIC: int = 124
+val KW_INV: int = 125
+val KW_IS: int = 126
+val KW_LONG: int = 127
+val KW_LOOP: int = 128
+val KW_MUT: int = 129
+val KW_NAND: int = 130
+val KW_NATIVE: int = 131
+val KW_NEW: int = 132
+val KW_NIFF: int = 133
+val KW_NIMPLIES: int = 134
+val KW_NOR: int = 135
+val KW_NULL: int = 136
+val KW_OR: int = 137
+val KW_PACKAGE: int = 138
+val KW_PASS: int = 139
+val KW_POINTER: int = 140
+val KW_PRIVATE: int = 141
+val KW_PROTECTED: int = 142
+val KW_PUBLIC: int = 143
+val KW_REPEAT: int = 144
+val KW_RETURN: int = 145
+val KW_SHL: int = 146
+val KW_SHORT: int = 147
+val KW_SHR: int = 148
+val KW_STATIC: int = 149
+val KW_STRUCT: int = 150
+val KW_TRUE: int = 151
+val KW_UNTIL: int = 152
+val KW_USHR: int = 153
+val KW_VAL: int = 154
+val KW_VAR: int = 155
+val KW_VOID: int = 156
+val KW_WHILE: int = 157
+val KW_XNOR: int = 158
+val KW_XOR: int = 159
 
 
-val keywordListLength: int = 58
+val keywordListLength: int = 60
 val keywordListSlotSize: int = 16
-val keywordTextSpace: blob[928 * sizeof(char)]
+val keywordTextSpace: blob[960 * sizeof(char)]
 val keywordTextList: pointer<char> = keywordTextSpace as pointer<char>
 
 
@@ -120,50 +122,52 @@ private fun keywordListInit()
     String.strcpy(getKeywordText(11), "elif")
     String.strcpy(getKeywordText(12), "else")
     String.strcpy(getKeywordText(13), "false")
-    String.strcpy(getKeywordText(14), "float")
-    String.strcpy(getKeywordText(15), "for")
-    String.strcpy(getKeywordText(16), "fun")
-    String.strcpy(getKeywordText(17), "if")
-    String.strcpy(getKeywordText(18), "iff")
-    String.strcpy(getKeywordText(19), "implies")
-    String.strcpy(getKeywordText(20), "import")
-    String.strcpy(getKeywordText(21), "inline")
-    String.strcpy(getKeywordText(22), "int")
-    String.strcpy(getKeywordText(23), "inv")
-    String.strcpy(getKeywordText(24), "is")
-    String.strcpy(getKeywordText(25), "long")
-    String.strcpy(getKeywordText(26), "loop")
-    String.strcpy(getKeywordText(27), "mut")
-    String.strcpy(getKeywordText(28), "nand")
-    String.strcpy(getKeywordText(29), "native")
-    String.strcpy(getKeywordText(30), "new")
-    String.strcpy(getKeywordText(31), "niff")
-    String.strcpy(getKeywordText(32), "nimplies")
-    String.strcpy(getKeywordText(33), "nor")
-    String.strcpy(getKeywordText(34), "null")
-    String.strcpy(getKeywordText(35), "or")
-    String.strcpy(getKeywordText(36), "package")
-    String.strcpy(getKeywordText(37), "pass")
-    String.strcpy(getKeywordText(38), "pointer")
-    String.strcpy(getKeywordText(39), "private")
-    String.strcpy(getKeywordText(40), "protected")
-    String.strcpy(getKeywordText(41), "public")
-    String.strcpy(getKeywordText(42), "repeat")
-    String.strcpy(getKeywordText(43), "return")
-    String.strcpy(getKeywordText(44), "shl")
-    String.strcpy(getKeywordText(45), "short")
-    String.strcpy(getKeywordText(46), "shr")
-    String.strcpy(getKeywordText(47), "static")
-    String.strcpy(getKeywordText(48), "struct")
-    String.strcpy(getKeywordText(49), "true")
-    String.strcpy(getKeywordText(50), "until")
-    String.strcpy(getKeywordText(51), "ushr")
-    String.strcpy(getKeywordText(52), "val")
-    String.strcpy(getKeywordText(53), "var")
-    String.strcpy(getKeywordText(54), "void")
-    String.strcpy(getKeywordText(55), "while")
-    String.strcpy(getKeywordText(56), "xnor")
-    String.strcpy(getKeywordText(57), "xor")
+    String.strcpy(getKeywordText(14), "final")
+    String.strcpy(getKeywordText(15), "float")
+    String.strcpy(getKeywordText(16), "for")
+    String.strcpy(getKeywordText(17), "fun")
+    String.strcpy(getKeywordText(18), "if")
+    String.strcpy(getKeywordText(19), "iff")
+    String.strcpy(getKeywordText(20), "implies")
+    String.strcpy(getKeywordText(21), "import")
+    String.strcpy(getKeywordText(22), "inline")
+    String.strcpy(getKeywordText(23), "int")
+    String.strcpy(getKeywordText(24), "intrinsic")
+    String.strcpy(getKeywordText(25), "inv")
+    String.strcpy(getKeywordText(26), "is")
+    String.strcpy(getKeywordText(27), "long")
+    String.strcpy(getKeywordText(28), "loop")
+    String.strcpy(getKeywordText(29), "mut")
+    String.strcpy(getKeywordText(30), "nand")
+    String.strcpy(getKeywordText(31), "native")
+    String.strcpy(getKeywordText(32), "new")
+    String.strcpy(getKeywordText(33), "niff")
+    String.strcpy(getKeywordText(34), "nimplies")
+    String.strcpy(getKeywordText(35), "nor")
+    String.strcpy(getKeywordText(36), "null")
+    String.strcpy(getKeywordText(37), "or")
+    String.strcpy(getKeywordText(38), "package")
+    String.strcpy(getKeywordText(39), "pass")
+    String.strcpy(getKeywordText(40), "pointer")
+    String.strcpy(getKeywordText(41), "private")
+    String.strcpy(getKeywordText(42), "protected")
+    String.strcpy(getKeywordText(43), "public")
+    String.strcpy(getKeywordText(44), "repeat")
+    String.strcpy(getKeywordText(45), "return")
+    String.strcpy(getKeywordText(46), "shl")
+    String.strcpy(getKeywordText(47), "short")
+    String.strcpy(getKeywordText(48), "shr")
+    String.strcpy(getKeywordText(49), "static")
+    String.strcpy(getKeywordText(50), "struct")
+    String.strcpy(getKeywordText(51), "true")
+    String.strcpy(getKeywordText(52), "until")
+    String.strcpy(getKeywordText(53), "ushr")
+    String.strcpy(getKeywordText(54), "val")
+    String.strcpy(getKeywordText(55), "var")
+    String.strcpy(getKeywordText(56), "void")
+    String.strcpy(getKeywordText(57), "while")
+    String.strcpy(getKeywordText(58), "xnor")
+    String.strcpy(getKeywordText(59), "xor")
 }
 
 
