@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("ImportDeclaration")
+#file.class("ImportDeclaration")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token
@@ -74,7 +74,7 @@ struct ImportDeclaration
 
     fun toString() -> pointer<StringBuilder>
     {
-        val sb: pointer<StringBuilder> = new StringBuilder("import ")
+        val sb: pointer<StringBuilder> = new StringBuilder("package ")
 
         for (var i = 0; i < this.qualifiedName.length; i++):
         {

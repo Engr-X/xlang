@@ -38,6 +38,7 @@ set(XLANG_COMPILER_PARSER_RULES
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_expression_parser.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_statement_parser.json"
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_stmtexpr_parser.json"
+    "${CMAKE_CURRENT_SOURCE_DIR}/resources/syntax/compiler_program_parser.json"
 )
 set(XLANG_COMPILER_TOKENIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/Tokenizer.x")
 set(XLANG_COMPILER_TOKEN_NORMALIZER "${CMAKE_CURRENT_SOURCE_DIR}/xlang/compiler/lexer/TokenNormalizer.x")

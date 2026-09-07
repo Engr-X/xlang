@@ -20,7 +20,7 @@
  *
  */
 
-@file.class("PrattParserTest")
+#file.class("PrattParserTest")
 package xlang.parser
 
 import xlang.compiler.lexer.Tokenizer

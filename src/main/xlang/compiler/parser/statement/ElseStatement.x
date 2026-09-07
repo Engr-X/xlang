@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("ElseStatement")
+#file.class("ElseStatement")
 package xlang.compiler.parser.statement
 
 import xlang.lexer.Token

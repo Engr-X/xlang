@@ -23,7 +23,7 @@
  *
  */
 
-@file.class("Operation")
+#file.class("Operation")
 package xlang
 
 import xlang.util.string.String

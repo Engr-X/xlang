@@ -147,7 +147,9 @@
         { "name": "QUESTION", "pattern": "?" },
         { "name": "COLON", "pattern": ":" },
         { "name": "DOT", "pattern": "." },
-        { "name": "BACKSLASH", "pattern": "\\" }
+        { "name": "BACKSLASH", "pattern": "\\" },
+        { "name": "HASH", "pattern": "#" },
+        { "name": "AT", "pattern": "@" }
     ],
     "defs": [
         { "key": "letter", "pattern": "[a-zA-Z]" },

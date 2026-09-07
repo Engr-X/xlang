@@ -23,7 +23,7 @@
  *
  */
 
-@file.class("IO")
+#file.class("IO")
 package xlang.util
 
 import xlang.System
@@ -53,7 +53,7 @@ import xlang.System
  *
  * @return                  file size in bytes, or a negative native error code
  */
-@native("filesize")
+#native("filesize")
 private native inline fun filesize(path: pointer<char>) -> int;
 
 
@@ -70,7 +70,7 @@ private native inline fun filesize(path: pointer<char>) -> int;
  *
  * @return                  number of bytes read, or a negative native error code
  */
-@native("read")
+#native("read")
 private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<char>) -> int;
 
 
@@ -114,7 +114,7 @@ fun readFile(path: pointer<char>) -> pointer<char>
  *
  * @return                  native status code, usually 0 on success
  */
-@native("enable_ansi_color")
+#native("enable_ansi_color")
 native inline fun enableANSIColor() -> int;
 
 
@@ -132,7 +132,7 @@ native inline fun enableANSIColor() -> int;
  *
  * @return                  number of characters written
  */
-@native("colored_sprint")
+#native("colored_sprint")
 native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color: int) -> int;
 
 
@@ -149,7 +149,7 @@ native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color
  *
  * @return                  number of characters written
  */
-@native("colored_sprintln")
+#native("colored_sprintln")
 native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, color: int) -> int;
 
 
@@ -161,5 +161,5 @@ native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, col
  *
  * @return                  number of characters read, or -1 on EOF or error
  */
-@native("read_line")
+#native("read_line")
 native inline fun readLine(dest: pointer<char>, capacity: int) -> int;

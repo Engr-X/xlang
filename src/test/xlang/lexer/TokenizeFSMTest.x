@@ -23,7 +23,7 @@
  *
  */
 
-@file.class("TokenizeFSMTest")
+#file.class("TokenizeFSMTest")
 package xlang.lexer
 
 import xlang.lexer.LexInput

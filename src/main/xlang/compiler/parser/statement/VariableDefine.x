@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("VariableDefine")
+#file.class("VariableDefine")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.lexer.Tokenizer

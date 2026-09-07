@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("PackageDeclaration")
+#file.class("PackageDeclaration")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

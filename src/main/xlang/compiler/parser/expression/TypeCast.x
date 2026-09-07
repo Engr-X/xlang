@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("TypeCast")
+#file.class("TypeCast")
 package xlang.compiler.parser.expression
 
 import xlang.compiler.Type

@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("ParserRef")
+#file.class("ParserRef")
 package xlang.parser.util
 
 import xlang.Diagnostic

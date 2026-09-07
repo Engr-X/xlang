@@ -20,7 +20,7 @@
  *
  */
 
-@file.class("ParserTest")
+#file.class("ParserTest")
 package xlang.compiler.parser
 
 import xlang.compiler.Type

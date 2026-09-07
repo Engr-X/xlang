@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("IndexAccess")
+#file.class("IndexAccess")
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

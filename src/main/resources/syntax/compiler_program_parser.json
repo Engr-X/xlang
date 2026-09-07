@@ -6,7 +6,14 @@
     "imports": [
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
+        "xlang.compiler.parser.expression.Atom",
+        "xlang.compiler.parser.expression.Atoms",
+        "xlang.compiler.parser.program.Annotation",
+        "xlang.compiler.parser.program.Annotations",
+        "xlang.compiler.parser.program.PreprocessSetting",
+        "xlang.compiler.parser.program.PreprocessSettings",
         "xlang.compiler.parser.program.ImportDeclaration",
+        "xlang.compiler.parser.program.ImportDeclarations",
         "xlang.compiler.parser.program.Modifier",
         "xlang.compiler.parser.program.ModifierList",
         "xlang.compiler.parser.program.PackageDeclaration",
@@ -39,6 +46,39 @@
             ]
         },
         {
+            "class": "PreprocessSetting",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeEmptyPreprocessSetting" },
+                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
+            ]
+        },
+        {
+            "class": "PreprocessSettings",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$PreprocessSetting" }, { "kind": "$PreprocessSettings" }], "action": "makePreprocessSettingsIt" },
+                { "patterns": [{ "kind": "$PreprocessSetting" }], "action": "makePreprocessSettings" }
+            ]
+        },
+        {
+            "class": "Annotation",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }], "action": "makeAnnotation" },
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyAnnotation" },
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" }
+            ]
+        },
+        {
+            "class": "Annotations",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Annotation" }, { "kind": "$Annotations" }], "action": "makeAnnotationsIt" },
+                { "patterns": [{ "kind": "$Annotation" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeAnnotations" }
+            ]
+        },
+        {
             "class": "QualifiedName",
             "parser": "recursively-down",
             "sub_rules": [
@@ -58,6 +98,14 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeImportDeclaration" }
+            ]
+        },
+        {
+            "class": "ImportDeclarations",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$ImportDeclaration" }, { "kind": "$ImportDeclarations" }], "action": "makeImportDeclarationsIt" },
+                { "patterns": [{ "kind": "$ImportDeclaration" }], "action": "makeImportDeclarations" }
             ]
         }
     ],
@@ -83,6 +131,107 @@
             "{",
             "    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>",
             "    return new ModifierList(modifier)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyPreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val hashToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "",
+            "    return new PreprocessSetting(qualifiedName, null)",
+            "        .addExtraToken(hashToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private inline fun makePreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val hashToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val value: pointer<Atoms> = getContainerValue(results, 3) as pointer<Atoms>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "",
+            "    return new PreprocessSetting(qualifiedName, value.getAtoms())",
+            "        .addExtraToken(hashToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private inline fun makePreprocessSettingsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val setting: pointer<PreprocessSetting> = getContainerValue(results, 0) as pointer<PreprocessSetting>",
+            "    val settings: pointer<PreprocessSettings> = getContainerValue(results, 1) as pointer<PreprocessSettings>",
+            "",
+            "    return settings.push(setting)",
+            "}" ],
+
+
+        [   "private inline fun makePreprocessSettings(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val setting: pointer<PreprocessSetting> = getContainerValue(results, 0) as pointer<PreprocessSetting>",
+            "",
+            "    return new PreprocessSettings(setting)",
+            "}" ],
+
+
+        [   "private inline fun makeAnnotation(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val atToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "",
+            "    return new Annotation(qualifiedName).addExtraToken(atToken)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyAnnotation(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val atToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "",
+            "    return new Annotation(qualifiedName, null)",
+            "        .addExtraToken(atToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private inline fun makeAnnotationWithValues(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val atToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val value: pointer<Atoms> = getContainerValue(results, 3) as pointer<Atoms>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "",
+            "    return new Annotation(qualifiedName, value.getAtoms())",
+            "        .addExtraToken(atToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private inline fun makeAnnotationsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>",
+            "    val annotations: pointer<Annotations> = getContainerValue(results, 1) as pointer<Annotations>",
+            "",
+            "    return annotations.push(annotation)",
+            "}" ],
+
+
+        [   "private inline fun makeAnnotations(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>",
+            "",
+            "    return new Annotations(annotation)",
             "}" ],
 
 
@@ -121,6 +270,24 @@
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "",
             "    return qualifiedName.toImportDeclaration().addExtraToken(importToken)",
+            "}" ],
+
+
+        [   "private inline fun makeImportDeclarationsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>",
+            "    val imports: pointer<ImportDeclarations> = getContainerValue(results, 1) as pointer<ImportDeclarations>",
+            "    val result: pointer<ImportDeclarations> = new ImportDeclarations()",
+            "",
+            "    return result.pushImport(importDeclaration).push(imports)",
+            "}" ],
+
+
+        [   "private inline fun makeImportDeclarations(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>",
+            "",
+            "    return new ImportDeclarations().pushImport(importDeclaration)",
             "}" ]
     ]
 }

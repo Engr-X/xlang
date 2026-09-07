@@ -1,4 +1,4 @@
-@file.class("Tokenizer")
+#file.class("Tokenizer")
 package xlang.compiler.lexer
 
 
@@ -229,6 +229,8 @@ val QUESTION: int = 1053
 val COLON: int = 1054
 val DOT: int = 1055
 val BACKSLASH: int = 1056
+val HASH: int = 1057
+val AT: int = 1058
 
 
 val TRIPLE_GREATER_EQUAL_PATTERN: pointer<char> = ">>>="
@@ -288,11 +290,13 @@ val QUESTION_PATTERN: pointer<char> = "?"
 val COLON_PATTERN: pointer<char> = ":"
 val DOT_PATTERN: pointer<char> = "."
 val BACKSLASH_PATTERN: pointer<char> = "\\"
+val HASH_PATTERN: pointer<char> = "#"
+val AT_PATTERN: pointer<char> = "@"
 
 
 var tokenizerIsInit: bool = false
-val ruleLength: int = 90
-val rulesSpace: blob[sizeof(pointer<TokenizeRule>) * 90]
+val ruleLength: int = 92
+val rulesSpace: blob[sizeof(pointer<TokenizeRule>) * 92]
 val rulePtr: pointer<pointer<TokenizeRule>> = rulesSpace as pointer<pointer<TokenizeRule>>
 val rule0: pointer<TokenizeRule> = new TokenizeRule(0, TokenizeFSM.DEFAULT, "\\0", eatEOF)
 val rule1: pointer<TokenizeRule> = new TokenizeRule(1, TokenizeFSM.DEFAULT, "//", beginLineComment)
@@ -365,25 +369,27 @@ val rule67: pointer<TokenizeRule> = new TokenizeRule(67, TokenizeFSM.DEFAULT, "\
 val rule68: pointer<TokenizeRule> = new TokenizeRule(68, TokenizeFSM.DEFAULT, ":", eatColon)
 val rule69: pointer<TokenizeRule> = new TokenizeRule(69, TokenizeFSM.DEFAULT, "\\.", eatDot)
 val rule70: pointer<TokenizeRule> = new TokenizeRule(70, TokenizeFSM.DEFAULT, "\\\\", eatBackslash)
-val rule71: pointer<TokenizeRule> = new TokenizeRule(71, TokenizeFSM.DEFAULT, "[a-zA-Z_][a-zA-Z0-9_]*", eatIdent)
-val rule72: pointer<TokenizeRule> = new TokenizeRule(72, TokenizeFSM.DEFAULT, ".", defaultError)
-val rule73: pointer<TokenizeRule> = new TokenizeRule(73, LINE_COMMENT_STATE, "\\0", eatEOF)
-val rule74: pointer<TokenizeRule> = new TokenizeRule(74, LINE_COMMENT_STATE, "\\r?\\n", endLineComment)
-val rule75: pointer<TokenizeRule> = new TokenizeRule(75, LINE_COMMENT_STATE, ".", skip)
-val rule76: pointer<TokenizeRule> = new TokenizeRule(76, BLOCK_COMMENT_STATE, "\\0", unterminatedBlockCommentError)
-val rule77: pointer<TokenizeRule> = new TokenizeRule(77, BLOCK_COMMENT_STATE, "\\*/", endBlockComment)
-val rule78: pointer<TokenizeRule> = new TokenizeRule(78, BLOCK_COMMENT_STATE, "\\r?\\n", skipNewLine)
-val rule79: pointer<TokenizeRule> = new TokenizeRule(79, BLOCK_COMMENT_STATE, ".", skip)
-val rule80: pointer<TokenizeRule> = new TokenizeRule(80, CHAR_STATE, "\\0", unterminatedCharError)
-val rule81: pointer<TokenizeRule> = new TokenizeRule(81, CHAR_STATE, "\\r?\\n", unterminatedCharError)
-val rule82: pointer<TokenizeRule> = new TokenizeRule(82, CHAR_STATE, "\\\\.", eatChar)
-val rule83: pointer<TokenizeRule> = new TokenizeRule(83, CHAR_STATE, "\\'", endChar)
-val rule84: pointer<TokenizeRule> = new TokenizeRule(84, CHAR_STATE, ".", eatChar)
-val rule85: pointer<TokenizeRule> = new TokenizeRule(85, STRING_STATE, "\\0", unterminatedStringError)
-val rule86: pointer<TokenizeRule> = new TokenizeRule(86, STRING_STATE, "\\r?\\n", unterminatedStringError)
-val rule87: pointer<TokenizeRule> = new TokenizeRule(87, STRING_STATE, "\\\\.", eatChar)
-val rule88: pointer<TokenizeRule> = new TokenizeRule(88, STRING_STATE, "\"", endString)
-val rule89: pointer<TokenizeRule> = new TokenizeRule(89, STRING_STATE, ".", eatChar)
+val rule71: pointer<TokenizeRule> = new TokenizeRule(71, TokenizeFSM.DEFAULT, "#", eatHash)
+val rule72: pointer<TokenizeRule> = new TokenizeRule(72, TokenizeFSM.DEFAULT, "@", eatAt)
+val rule73: pointer<TokenizeRule> = new TokenizeRule(73, TokenizeFSM.DEFAULT, "[a-zA-Z_][a-zA-Z0-9_]*", eatIdent)
+val rule74: pointer<TokenizeRule> = new TokenizeRule(74, TokenizeFSM.DEFAULT, ".", defaultError)
+val rule75: pointer<TokenizeRule> = new TokenizeRule(75, LINE_COMMENT_STATE, "\\0", eatEOF)
+val rule76: pointer<TokenizeRule> = new TokenizeRule(76, LINE_COMMENT_STATE, "\\r?\\n", endLineComment)
+val rule77: pointer<TokenizeRule> = new TokenizeRule(77, LINE_COMMENT_STATE, ".", skip)
+val rule78: pointer<TokenizeRule> = new TokenizeRule(78, BLOCK_COMMENT_STATE, "\\0", unterminatedBlockCommentError)
+val rule79: pointer<TokenizeRule> = new TokenizeRule(79, BLOCK_COMMENT_STATE, "\\*/", endBlockComment)
+val rule80: pointer<TokenizeRule> = new TokenizeRule(80, BLOCK_COMMENT_STATE, "\\r?\\n", skipNewLine)
+val rule81: pointer<TokenizeRule> = new TokenizeRule(81, BLOCK_COMMENT_STATE, ".", skip)
+val rule82: pointer<TokenizeRule> = new TokenizeRule(82, CHAR_STATE, "\\0", unterminatedCharError)
+val rule83: pointer<TokenizeRule> = new TokenizeRule(83, CHAR_STATE, "\\r?\\n", unterminatedCharError)
+val rule84: pointer<TokenizeRule> = new TokenizeRule(84, CHAR_STATE, "\\\\.", eatChar)
+val rule85: pointer<TokenizeRule> = new TokenizeRule(85, CHAR_STATE, "\\'", endChar)
+val rule86: pointer<TokenizeRule> = new TokenizeRule(86, CHAR_STATE, ".", eatChar)
+val rule87: pointer<TokenizeRule> = new TokenizeRule(87, STRING_STATE, "\\0", unterminatedStringError)
+val rule88: pointer<TokenizeRule> = new TokenizeRule(88, STRING_STATE, "\\r?\\n", unterminatedStringError)
+val rule89: pointer<TokenizeRule> = new TokenizeRule(89, STRING_STATE, "\\\\.", eatChar)
+val rule90: pointer<TokenizeRule> = new TokenizeRule(90, STRING_STATE, "\"", endString)
+val rule91: pointer<TokenizeRule> = new TokenizeRule(91, STRING_STATE, ".", eatChar)
 
 
 private inline fun eatEOF(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
@@ -774,6 +780,12 @@ private fun eatDot(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> poin
 private fun eatBackslash(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
     eatToken(input, BACKSLASH, dest)
 
+private fun eatHash(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
+    eatToken(input, HASH, dest)
+
+private fun eatAt(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> pointer<Token> =
+    eatToken(input, AT, dest)
+
 
 private fun tokenizerInit()
 {
@@ -867,6 +879,8 @@ private fun tokenizerInit()
     rulePtr[87] = rule87
     rulePtr[88] = rule88
     rulePtr[89] = rule89
+    rulePtr[90] = rule90
+    rulePtr[91] = rule91
     keywordListInit()
     tokenizerIsInit = true
 }

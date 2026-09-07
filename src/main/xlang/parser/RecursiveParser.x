@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("RecursiveParser")
+#file.class("RecursiveParser")
 package xlang.parser
 
 import xlang.Diagnostic

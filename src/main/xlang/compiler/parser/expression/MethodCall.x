@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("MethodCall")
+#file.class("MethodCall")
 package xlang.compiler.parser.expression
 
 import xlang.Operation

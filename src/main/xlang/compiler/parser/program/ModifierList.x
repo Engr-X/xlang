@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("ModifierList")
+#file.class("ModifierList")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

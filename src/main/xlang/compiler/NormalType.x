@@ -23,7 +23,7 @@
  *
  */
 
-@file.class("NormalType")
+#file.class("NormalType")
 package xlang.compiler
 
 import xlang.lexer.Token

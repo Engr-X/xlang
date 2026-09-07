@@ -1,4 +1,4 @@
-@file.class("TokenNormalizer")
+#file.class("TokenNormalizer")
 package xlang.compiler.lexer
 
 

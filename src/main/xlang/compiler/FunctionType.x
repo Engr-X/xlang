@@ -20,7 +20,7 @@
  *
  */
 
-@file.class("FunctionType")
+#file.class("FunctionType")
 package xlang.compiler
 
 import xlang.lexer.Token

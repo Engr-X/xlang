@@ -23,7 +23,7 @@
  *
  */
 
-@file.class("ParserUtil")
+#file.class("ParserUtil")
 package xlang.parser
 
 import xlang.Diagnostic

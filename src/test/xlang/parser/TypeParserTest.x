@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("TypeParserTest")
+#file.class("TypeParserTest")
 package xlang.parser
 
 import xlang.compiler.Type

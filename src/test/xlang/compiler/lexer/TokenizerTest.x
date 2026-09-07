@@ -22,7 +22,7 @@
  *
  */
 
-@file.class("TokenizerTest")
+#file.class("TokenizerTest")
 package xlang.compiler.lexer
 
 import xlang.compiler.lexer.Tokenizer

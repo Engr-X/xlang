@@ -64,10 +64,10 @@ def indent_of(tabs: int) -> str:
 
 
 def gen_file_class(class_name: str, tabs: int) -> str:
-    """Generate the @file.class annotation for a generated xlang source file."""
+    """Generate the #file.class annotation for a generated xlang source file."""
     indent = indent_of(tabs)
 
-    return f'{indent}@file.class("{class_name}")\n'
+    return f'{indent}#file.class("{class_name}")\n'
 
 
 def gen_package(package: str, tabs: int) -> str:

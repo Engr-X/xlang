@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("ParseContainer")
+#file.class("ParseContainer")
 package xlang.parser
 
 

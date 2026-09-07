@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("WhileStatement")
+#file.class("WhileStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression

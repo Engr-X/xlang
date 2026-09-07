@@ -20,7 +20,7 @@
  *
  *
  */
-@file.class("ExpressionDesugar")
+#file.class("ExpressionDesugar")
 package xlang.compiler.parser.expression
 
 import xlang.Operation

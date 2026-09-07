@@ -20,7 +20,7 @@
  *
  *
  */
-@file.class("Expression") 
+#file.class("Expression") 
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

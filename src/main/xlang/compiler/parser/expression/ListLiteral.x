@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("ListLiteral")
+#file.class("ListLiteral")
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

@@ -20,7 +20,7 @@
  *
  *
  */
-@file.class("ExpressionTuple") 
+#file.class("ExpressionTuple") 
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

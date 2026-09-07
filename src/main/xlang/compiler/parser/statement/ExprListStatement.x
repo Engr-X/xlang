@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("ExprListStatement")
+#file.class("ExprListStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression

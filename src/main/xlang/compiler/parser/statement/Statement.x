@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("Statement")
+#file.class("Statement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression

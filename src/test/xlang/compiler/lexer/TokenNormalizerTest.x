@@ -20,7 +20,7 @@
  *
  */
 
-@file.class("TokenNormalizerTest")
+#file.class("TokenNormalizerTest")
 package xlang.compiler.lexer
 
 import xlang.lexer.Token

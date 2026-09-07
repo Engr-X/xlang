@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("NormalizeFSMTest")
+#file.class("NormalizeFSMTest")
 package xlang.lexer
 
 import xlang.lexer.NormalizeReceiver

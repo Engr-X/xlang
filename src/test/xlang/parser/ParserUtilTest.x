@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("ParserUtilTest")
+#file.class("ParserUtilTest")
 package xlang.parser
 
 import xlang.Diagnostic

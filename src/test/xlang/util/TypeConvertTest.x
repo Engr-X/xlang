@@ -21,7 +21,7 @@
  *
  */
 
-@file.class("TypeConvertTest")
+#file.class("TypeConvertTest")
 package xlang.util
 
 import xlang.test.TestCase

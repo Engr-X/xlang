@@ -19,7 +19,7 @@
  *
  *
  */
-@file.class("IfElseExpression")
+#file.class("IfElseExpression")
 package xlang.compiler.parser.stmtexpr
 
 import xlang.compiler.parser.expression.Expression

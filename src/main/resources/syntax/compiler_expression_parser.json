@@ -9,6 +9,7 @@
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Assignment",
         "xlang.compiler.parser.expression.Atom",
+        "xlang.compiler.parser.expression.Atoms",
         "xlang.compiler.parser.expression.Expression",
         "xlang.compiler.parser.expression.Expressions",
         "xlang.compiler.parser.expression.ExpressionDesugar",
@@ -238,6 +239,14 @@
                 { "patterns": [{ "kind": "Tokenizer.TK_DOUBLE" }], "action": "makeAtom" },
                 { "patterns": [{ "kind": "Tokenizer.TK_LONG_DOUBLE" }], "action": "makeAtom" },
                 { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeAtom" }
+            ]
+        },
+        {
+            "class": "Atoms",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Atom" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$Atoms" }], "action": "makeAtomsIt" },
+                { "patterns": [{ "kind": "$Atom" }], "action": "makeAtoms" }
             ]
         },
         {
@@ -725,6 +734,24 @@
             "        return new Atom(Atom.IDENTIFIER_KIND, results)",
             "    else:",
             "        return null",
+            "}" ],
+
+
+        [   "private inline fun makeAtomsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
+            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val atoms: pointer<Atoms> = getContainerValue(results, 2) as pointer<Atoms>",
+            "",
+            "    return atoms.pushFront(atom).addExtraToken(commaToken)",
+            "}" ],
+
+
+        [   "private inline fun makeAtoms(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
+            "",
+            "    return new Atoms(atom)",
             "}" ],
 
 
