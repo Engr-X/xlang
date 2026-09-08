@@ -613,8 +613,8 @@ def getPrattResultConstructor(rule: JsonObject) -> str:
 def validateSubRulePatterns(rule: JsonObject, sub_rule: JsonObject) -> list[object]:
     patterns = sub_rule.get("patterns", [])
 
-    if not isinstance(patterns, list) or not patterns:
-        raise ValueError(f"parser sub rule patterns must be a non-empty list: {rule!r}")
+    if not isinstance(patterns, list):
+        raise ValueError(f"parser sub rule patterns must be a list: {rule!r}")
 
     return patterns
 

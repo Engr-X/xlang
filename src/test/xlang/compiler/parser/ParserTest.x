@@ -35,6 +35,8 @@ import xlang.compiler.parser.expression.MethodCall
 import xlang.compiler.parser.expression.NewFunction
 import xlang.compiler.parser.expression.NewIdentifier
 import xlang.compiler.parser.expression.TypeCast
+import xlang.compiler.parser.program.Function
+import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
 import xlang.compiler.parser.statement.ForStatement
@@ -76,6 +78,11 @@ fun genTest() -> pointer<TestGroup>
     val infixExpressionTC: pointer<TestCase> = new TestCase("infixExpression", infixExpressionTest)
     val compoundOperatorExpressionTC: pointer<TestCase> = new TestCase("compoundOperatorExpression", compoundOperatorExpressionTest)
     val mixedExpressionTC: pointer<TestCase> = new TestCase("mixedExpression", mixedExpressionTest)
+    val functionArrowEqualExpressionTC: pointer<TestCase> = new TestCase("functionArrowEqualExpression", functionArrowEqualExpressionTest)
+    val functionArrowColonExpressionTC: pointer<TestCase> = new TestCase("functionArrowColonExpression", functionArrowColonExpressionTest)
+    val functionArrowBlockTC: pointer<TestCase> = new TestCase("functionArrowBlock", functionArrowBlockTest)
+    val functionVoidExpressionTC: pointer<TestCase> = new TestCase("functionVoidExpression", functionVoidExpressionTest)
+    val functionVoidBlockTC: pointer<TestCase> = new TestCase("functionVoidBlock", functionVoidBlockTest)
     val statementTC: pointer<TestCase> = new TestCase("statement", statementTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
@@ -93,6 +100,11 @@ fun genTest() -> pointer<TestGroup>
     val infixExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, infixExpressionTC, null)
     val compoundOperatorExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, compoundOperatorExpressionTC, null)
     val mixedExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, mixedExpressionTC, null)
+    val functionArrowEqualExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionArrowEqualExpressionTC, null)
+    val functionArrowColonExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionArrowColonExpressionTC, null)
+    val functionArrowBlockUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionArrowBlockTC, null)
+    val functionVoidExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidExpressionTC, null)
+    val functionVoidBlockUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidBlockTC, null)
     val statementUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, statementTC, null)
 
     result.addTestUnion(atomParserUnion)
@@ -111,6 +123,11 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(infixExpressionUnion)
     result.addTestUnion(compoundOperatorExpressionUnion)
     result.addTestUnion(mixedExpressionUnion)
+    result.addTestUnion(functionArrowEqualExpressionUnion)
+    result.addTestUnion(functionArrowColonExpressionUnion)
+    result.addTestUnion(functionArrowBlockUnion)
+    result.addTestUnion(functionVoidExpressionUnion)
+    result.addTestUnion(functionVoidBlockUnion)
     result.addTestUnion(statementUnion)
 
     return result
@@ -135,6 +152,13 @@ private fun parseStatementText(text: pointer<char>) -> pointer<Statement>
 {
     val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
     return Parser.parseStatement(tokens)
+}
+
+
+private fun parseFunctionText(text: pointer<char>) -> pointer<Function>
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
+    return Parser.parseFunction(tokens)
 }
 
 
@@ -178,6 +202,164 @@ private fun tokenTextAt(tokens: pointer<ArrayList>, index: int, text: pointer<ch
     val token: pointer<Token> = tokens.get(index) as pointer<Token>
 
     return token != null && String.streq(token.text, text)
+}
+
+
+private fun functionArrowEqualExpressionTest() -> int
+{
+    val function: pointer<Function> = parseFunctionText("@bench\npublic static fun sum(left: int, right: int) -> int = left + right\n")
+
+    if function == null:
+        return 1
+
+    if function.getReturnType() == null || function.getBodyExpr() == null:
+        return 2
+
+    val params: pointer<FunctionParams> = function.getParams()
+
+    if params == null || params.length() != 2:
+        return 3
+
+    val tokens: pointer<ArrayList> = function.getAllTokens()
+
+    if tokens == null || tokens.length != 21:
+        return 4
+
+    if !tokenTextAt(tokens, 0, "@") || !tokenTextAt(tokens, 1, "bench"):
+        return 5
+
+    if !tokenTextAt(tokens, 2, "public") || !tokenTextAt(tokens, 3, "static") || !tokenTextAt(tokens, 4, "fun") || !tokenTextAt(tokens, 5, "sum"):
+        return 6
+
+    if !tokenTextAt(tokens, 6, "(") || !tokenTextAt(tokens, 7, "left") || !tokenTextAt(tokens, 8, ":") || !tokenTextAt(tokens, 9, "int"):
+        return 7
+
+    if !tokenTextAt(tokens, 10, ",") || !tokenTextAt(tokens, 11, "right") || !tokenTextAt(tokens, 12, ":") || !tokenTextAt(tokens, 13, "int") || !tokenTextAt(tokens, 14, ")"):
+        return 8
+
+    if !tokenTextAt(tokens, 15, "->") || !tokenTextAt(tokens, 16, "int") || !tokenTextAt(tokens, 17, "="):
+        return 9
+
+    if !tokenTextAt(tokens, 18, "left") || !tokenTextAt(tokens, 19, "+") || !tokenTextAt(tokens, 20, "right"):
+        return 10
+
+    return 0
+}
+
+
+private fun functionArrowColonExpressionTest() -> int
+{
+    val function: pointer<Function> = parseFunctionText("fun ready() -> bool: flag\n")
+
+    if function == null:
+        return 1
+
+    if function.getReturnType() == null || function.getBodyExpr() == null:
+        return 2
+
+    val params: pointer<FunctionParams> = function.getParams()
+
+    if params == null || params.length() != 0:
+        return 3
+
+    val tokens: pointer<ArrayList> = function.getAllTokens()
+
+    if tokens == null || tokens.length != 8:
+        return 4
+
+    if !tokenTextAt(tokens, 0, "fun") || !tokenTextAt(tokens, 1, "ready") || !tokenTextAt(tokens, 2, "(") || !tokenTextAt(tokens, 3, ")"):
+        return 5
+
+    if !tokenTextAt(tokens, 4, "->") || !tokenTextAt(tokens, 5, "bool") || !tokenTextAt(tokens, 6, ":") || !tokenTextAt(tokens, 7, "flag"):
+        return 6
+
+    return 0
+}
+
+
+private fun functionArrowBlockTest() -> int
+{
+    val function: pointer<Function> = parseFunctionText("fun main() -> int {return 0}\n")
+
+    if function == null:
+        return 1
+
+    if function.getReturnType() == null || function.getBodyExpr() == null || function.getBodyExpr().getKind() != Expression.BLOCK_EXPR_KIND:
+        return 2
+
+    val tokens: pointer<ArrayList> = function.getAllTokens()
+
+    if tokens == null || tokens.length != 10:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "fun") || !tokenTextAt(tokens, 1, "main") || !tokenTextAt(tokens, 2, "(") || !tokenTextAt(tokens, 3, ")"):
+        return 4
+
+    if !tokenTextAt(tokens, 4, "->") || !tokenTextAt(tokens, 5, "int") || !tokenTextAt(tokens, 6, "{"):
+        return 5
+
+    if !tokenTextAt(tokens, 7, "return") || !tokenTextAt(tokens, 8, "0") || !tokenTextAt(tokens, 9, "}"):
+        return 6
+
+    return 0
+}
+
+
+private fun functionVoidExpressionTest() -> int
+{
+    val function: pointer<Function> = parseFunctionText("fun log(arg: int): arg\n")
+
+    if function == null:
+        return 1
+
+    if function.getReturnType() == null || function.getBodyExpr() == null:
+        return 2
+
+    val params: pointer<FunctionParams> = function.getParams()
+
+    if params == null || params.length() != 1:
+        return 3
+
+    val tokens: pointer<ArrayList> = function.getAllTokens()
+
+    if tokens == null || tokens.length != 9:
+        return 4
+
+    if !tokenTextAt(tokens, 0, "fun") || !tokenTextAt(tokens, 1, "log") || !tokenTextAt(tokens, 2, "(") || !tokenTextAt(tokens, 3, "arg"):
+        return 5
+
+    if !tokenTextAt(tokens, 4, ":") || !tokenTextAt(tokens, 5, "int") || !tokenTextAt(tokens, 6, ")") || !tokenTextAt(tokens, 7, ":"):
+        return 6
+
+    if !tokenTextAt(tokens, 8, "arg"):
+        return 7
+
+    return 0
+}
+
+
+private fun functionVoidBlockTest() -> int
+{
+    val function: pointer<Function> = parseFunctionText("fun noop() {return}\n")
+
+    if function == null:
+        return 1
+
+    if function.getReturnType() == null || function.getBodyExpr() == null || function.getBodyExpr().getKind() != Expression.BLOCK_EXPR_KIND:
+        return 2
+
+    val tokens: pointer<ArrayList> = function.getAllTokens()
+
+    if tokens == null || tokens.length != 7:
+        return 3
+
+    if !tokenTextAt(tokens, 0, "fun") || !tokenTextAt(tokens, 1, "noop") || !tokenTextAt(tokens, 2, "(") || !tokenTextAt(tokens, 3, ")"):
+        return 4
+
+    if !tokenTextAt(tokens, 4, "{") || !tokenTextAt(tokens, 5, "return") || !tokenTextAt(tokens, 6, "}"):
+        return 5
+
+    return 0
 }
 
 

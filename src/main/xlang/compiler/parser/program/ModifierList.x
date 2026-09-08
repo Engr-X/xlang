@@ -169,3 +169,23 @@ struct ModifierList
         return sb
     }
 }
+
+
+struct ModifierListMaybe
+{
+    private var list: pointer<ModifierList>
+
+
+    fun __init__():
+        this.list = new ModifierList()
+
+
+    fun __init__(list: pointer<ModifierList>):
+        this.list = if list == null:
+                new ModifierList()
+            else:
+                list
+
+
+    fun toModifierList() -> pointer<ModifierList> = this.list
+}

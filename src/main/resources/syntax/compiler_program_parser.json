@@ -8,16 +8,26 @@
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Atom",
         "xlang.compiler.parser.expression.Atoms",
+        "xlang.compiler.parser.expression.Expression",
         "xlang.compiler.parser.program.Annotation",
         "xlang.compiler.parser.program.Annotations",
+        "xlang.compiler.parser.program.AnnotationsMaybe",
+        "xlang.compiler.parser.program.Function",
+        "xlang.compiler.parser.program.FunctionParam",
+        "xlang.compiler.parser.program.FunctionParams",
+        "xlang.compiler.parser.program.FunctionParamsMaybe",
         "xlang.compiler.parser.program.PreprocessSetting",
         "xlang.compiler.parser.program.PreprocessSettings",
+        "xlang.compiler.parser.program.PreprocessSettingsMaybe",
         "xlang.compiler.parser.program.ImportDeclaration",
         "xlang.compiler.parser.program.ImportDeclarations",
+        "xlang.compiler.parser.program.ImportDeclarationsMaybe",
         "xlang.compiler.parser.program.Modifier",
         "xlang.compiler.parser.program.ModifierList",
+        "xlang.compiler.parser.program.ModifierListMaybe",
         "xlang.compiler.parser.program.PackageDeclaration",
-        "xlang.compiler.parser.program.QualifiedName"
+        "xlang.compiler.parser.program.QualifiedName",
+        "xlang.compiler.parser.stmtexpr.Block"
     ],
     "constants": [
 
@@ -46,6 +56,14 @@
             ]
         },
         {
+            "class": "ModifierListMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$ModifierList" }], "action": "makeModifierListMaybe" },
+                { "patterns": [], "action": "makeEmptyModifierListMaybe" }
+            ]
+        },
+        {
             "class": "PreprocessSetting",
             "parser": "recursively-down",
             "sub_rules": [
@@ -59,6 +77,14 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "$PreprocessSetting" }, { "kind": "$PreprocessSettings" }], "action": "makePreprocessSettingsIt" },
                 { "patterns": [{ "kind": "$PreprocessSetting" }], "action": "makePreprocessSettings" }
+            ]
+        },
+        {
+            "class": "PreprocessSettingsMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$PreprocessSettings" }], "action": "makePreprocessSettingsMaybe" },
+                { "patterns": [], "action": "makeEmptyPreprocessSettingsMaybe" }
             ]
         },
         {
@@ -76,6 +102,14 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "$Annotation" }, { "kind": "$Annotations" }], "action": "makeAnnotationsIt" },
                 { "patterns": [{ "kind": "$Annotation" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeAnnotations" }
+            ]
+        },
+        {
+            "class": "AnnotationsMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Annotations" }], "action": "makeAnnotationsMaybe" },
+                { "patterns": [], "action": "makeEmptyAnnotationsMaybe" }
             ]
         },
         {
@@ -107,6 +141,49 @@
                 { "patterns": [{ "kind": "$ImportDeclaration" }, { "kind": "$ImportDeclarations" }], "action": "makeImportDeclarationsIt" },
                 { "patterns": [{ "kind": "$ImportDeclaration" }], "action": "makeImportDeclarations" }
             ]
+        },
+        {
+            "class": "ImportDeclarationsMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$ImportDeclarations" }], "action": "makeImportDeclarationsMaybe" },
+                { "patterns": [], "action": "makeEmptyImportDeclarationsMaybe" }
+            ]
+        },
+        {
+            "class": "FunctionParam",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }], "action": "makeFunctionParam" }
+            ]
+        },
+        {
+            "class": "FunctionParams",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$FunctionParam" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$FunctionParams" }], "action": "makeFunctionParamsIt" },
+                { "patterns": [{ "kind": "$FunctionParam" }], "action": "makeFunctionParams" }
+            ]
+        },
+        {
+            "class": "FunctionParamsMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$FunctionParams" }], "action": "makeFunctionParamsMaybe" },
+                { "patterns": [], "action": "makeEmptyFunctionParamsMaybe" }
+            ]
+        },
+        {
+            "class": "Function",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunctionFromBlock" },
+
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunction" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromBlock" }
+            ]
         }
     ],
     "others": [
@@ -132,6 +209,16 @@
             "    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>",
             "    return new ModifierList(modifier)",
             "}" ],
+
+
+        [   "private inline fun makeModifierListMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val modifierList: pointer<ModifierList> = getContainerValue(results, 0) as pointer<ModifierList>",
+            "    return new ModifierListMaybe(modifierList)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyModifierListMaybe(results: pointer<ArrayList>) -> pointer<*> = new ModifierListMaybe(null)" ],
 
 
         [   "private inline fun makeEmptyPreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
@@ -178,6 +265,17 @@
             "",
             "    return new PreprocessSettings(setting)",
             "}" ],
+
+
+        [   "private inline fun makePreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val settings: pointer<PreprocessSettings> = getContainerValue(results, 0) as pointer<PreprocessSettings>",
+            "",
+            "    return new PreprocessSettingsMaybe(settings)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyPreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*> = new PreprocessSettingsMaybe(null)" ],
 
 
         [   "private inline fun makeAnnotation(results: pointer<ArrayList>) -> pointer<*>",
@@ -230,9 +328,18 @@
         [   "private inline fun makeAnnotations(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>",
-            "",
             "    return new Annotations(annotation)",
             "}" ],
+
+
+        [   "private inline fun makeAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val annotations: pointer<Annotations> = getContainerValue(results, 0) as pointer<Annotations>",
+            "    return new AnnotationsMaybe(annotations)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new AnnotationsMaybe(null)" ],
 
 
         [   "private inline fun makeQualifiedNameIt(results: pointer<ArrayList>) -> pointer<*>",
@@ -279,7 +386,7 @@
             "    val imports: pointer<ImportDeclarations> = getContainerValue(results, 1) as pointer<ImportDeclarations>",
             "    val result: pointer<ImportDeclarations> = new ImportDeclarations()",
             "",
-            "    return result.pushImport(importDeclaration).push(imports)",
+            "    return result.push(importDeclaration).pushAll(imports)",
             "}" ],
 
 
@@ -287,7 +394,124 @@
             "{",
             "    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>",
             "",
-            "    return new ImportDeclarations().pushImport(importDeclaration)",
+            "    return new ImportDeclarations().push(importDeclaration)",
+            "}" ],
+
+
+        [   "private inline fun makeImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val imports: pointer<ImportDeclarations> = getContainerValue(results, 0) as pointer<ImportDeclarations>",
+            "    return new ImportDeclarationsMaybe(imports)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new ImportDeclarationsMaybe(null)" ],
+
+
+        [   "private inline fun makeFunctionParam(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val paramType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
+            "",
+            "    return new FunctionParam(nameToken.text, paramType)",
+            "        .addExtraToken(nameToken)",
+            "        .addExtraToken(colonToken)",
+            "}" ],
+
+
+        [   "private inline fun makeFunctionParamsIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val param: pointer<FunctionParam> = getContainerValue(results, 0) as pointer<FunctionParam>",
+            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val params: pointer<FunctionParams> = getContainerValue(results, 2) as pointer<FunctionParams>",
+            "",
+            "    return new FunctionParams(param).addExtraToken(commaToken).pushAll(params)",
+            "}" ],
+
+
+        [   "private inline fun makeFunctionParams(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val param: pointer<FunctionParam> = getContainerValue(results, 0) as pointer<FunctionParam>",
+            "    return new FunctionParams(param)",
+            "}" ],
+
+
+        [   "private inline fun makeFunctionParamsMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val params: pointer<FunctionParams> = getContainerValue(results, 0) as pointer<FunctionParams>",
+            "    return new FunctionParamsMaybe(params)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyFunctionParamsMaybe(results: pointer<ArrayList>) -> pointer<*> = new FunctionParamsMaybe(null)" ],
+
+
+        [   "private inline fun buildFunction(results: pointer<ArrayList>, returnType: pointer<Type>, bodyExpr: pointer<Expression>) -> pointer<Function>",
+            "{",
+            "    val annotations: pointer<AnnotationsMaybe> = getContainerValue(results, 0) as pointer<AnnotationsMaybe>",
+            "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 1) as pointer<ModifierListMaybe>",
+            "    val functionName: pointer<QualifiedName> = getContainerValue(results, 3) as pointer<QualifiedName>",
+            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 5) as pointer<FunctionParamsMaybe>",
+            "",
+            "    return new Function(annotations.toAnnotations(), modifiers.toModifierList(), functionName, params.toFunctionParams(), returnType, bodyExpr)",
+            "}" ],
+
+
+        [   "private inline fun addFunctionPrefixTokens(function: pointer<Function>, results: pointer<ArrayList>) -> pointer<Function>",
+            "{",
+            "    val funToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "",
+            "    return function",
+            "        .addExtraToken(funToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private inline fun makeFunction(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val arrowToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>",
+            "    val returnType: pointer<Type> = getContainerValue(results, 8) as pointer<Type>",
+            "    val separatorToken: pointer<Token> = getContainerValue(results, 9, false) as pointer<Token>",
+            "    val bodyExpr: pointer<Expression> = getContainerValue(results, 10) as pointer<Expression>",
+            "",
+            "    return addFunctionPrefixTokens(buildFunction(results, returnType, bodyExpr), results)",
+            "        .addExtraToken(arrowToken)",
+            "        .addExtraToken(separatorToken)",
+            "}" ],
+
+
+        [   "private inline fun makeFunctionFromBlock(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val arrowToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>",
+            "    val returnType: pointer<Type> = getContainerValue(results, 8) as pointer<Type>",
+            "    val block: pointer<Block> = getContainerValue(results, 9) as pointer<Block>",
+            "    val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)",
+            "",
+            "    return addFunctionPrefixTokens(buildFunction(results, returnType, bodyExpr), results)",
+            "        .addExtraToken(arrowToken)",
+            "}" ],
+
+
+        [   "private inline fun makeVoidFunction(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>",
+            "    val bodyExpr: pointer<Expression> = getContainerValue(results, 8) as pointer<Expression>",
+            "",
+            "    return addFunctionPrefixTokens(buildFunction(results, Type.voidType(), bodyExpr), results)",
+            "        .addExtraToken(colonToken)",
+            "}" ],
+
+
+        [   "private inline fun makeVoidFunctionFromBlock(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val block: pointer<Block> = getContainerValue(results, 7) as pointer<Block>",
+            "    val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)",
+            "",
+            "    return addFunctionPrefixTokens(buildFunction(results, Type.voidType(), bodyExpr), results)",
             "}" ]
     ]
 }

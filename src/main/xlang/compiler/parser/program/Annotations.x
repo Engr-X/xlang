@@ -53,7 +53,7 @@ struct Annotations
     }
 
 
-    fun pushAnnotations(annotations: pointer<Annotations>) -> pointer<Annotations>
+    fun pushAll(annotations: pointer<Annotations>) -> pointer<Annotations>
     {
         if annotations != null && annotations.annotations != null:
             this.annotations.pushAll(annotations.annotations)
@@ -144,4 +144,20 @@ struct Annotations
 
         return sb
     }
+}
+
+
+struct AnnotationsMaybe
+{
+    private var annotations: pointer<Annotations>
+
+
+    fun __init__(annotations: pointer<Annotations>):
+        this.annotations = if annotations == null:
+                new Annotations()
+            else:
+                annotations
+
+
+    fun toAnnotations() -> pointer<Annotations> = this.annotations
 }

@@ -126,7 +126,7 @@ struct RecursiveParser
     fun getError() -> pointer<Diagnostic> = this.error
 
 
-    fun haveError(eaten: int) -> bool = this.error != null || eaten <= 0
+    fun haveError(eaten: int) -> bool = this.error != null || eaten < 0
 
 
     fun reset() -> pointer<RecursiveParser>
@@ -185,6 +185,21 @@ struct RecursiveParser
         rule: pointer<Rule>, patternStart: int,
         matchLength: pointer<int>) -> bool
     {
+        // empty  rule
+        if rule.isEmpty():
+        {
+            val results: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
+            val constructedResult: pointer<*> = rule.constructResult(results)
+
+            this.result = new ParseContainer(this.id, constructedResult)
+
+            // call after
+            rule.afterFun(token)
+
+            matchLength.deref = 0
+            return true
+        }
+
         var consumed: int = 0
         val results: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
         val pattern: pointer<PatternList> = rule.getPattern()

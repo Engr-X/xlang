@@ -53,7 +53,7 @@ struct PreprocessSettings
     }
 
 
-    fun pushSettings(settings: pointer<PreprocessSettings>) -> pointer<PreprocessSettings>
+    fun pushAll(settings: pointer<PreprocessSettings>) -> pointer<PreprocessSettings>
     {
         if settings != null && settings.settings != null:
             this.settings.pushAll(settings.settings)
@@ -144,4 +144,20 @@ struct PreprocessSettings
 
         return sb
     }
+}
+
+
+struct PreprocessSettingsMaybe
+{
+    private var settings: pointer<PreprocessSettings>
+
+
+    fun __init__(settings: pointer<PreprocessSettings>):
+        this.settings = if settings == null:
+                new PreprocessSettings()
+            else:
+                settings
+
+
+    fun toPreprocessSettings() -> pointer<PreprocessSettings> = this.settings
 }

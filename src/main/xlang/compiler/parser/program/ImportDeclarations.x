@@ -59,7 +59,16 @@ struct ImportDeclarations
     }
 
 
-    fun push(imports: pointer<ImportDeclarations>) -> pointer<ImportDeclarations>
+    fun push(importDeclaration: pointer<ImportDeclaration>) -> pointer<ImportDeclarations>
+    {
+        if importDeclaration != null:
+            this.push(importDeclaration.getQualifiedName())
+
+        return this
+    }
+
+
+    fun pushAll(imports: pointer<ImportDeclarations>) -> pointer<ImportDeclarations>
     {
         if imports != null && imports.qualifiedNames != null:
         {
@@ -68,42 +77,6 @@ struct ImportDeclarations
             if imports.extraTokens != null:
                 this.extraTokens.pushAll(imports.extraTokens)
         }
-
-        return this
-    }
-
-
-    fun pushImport(importDeclaration: pointer<ImportDeclaration>) -> pointer<ImportDeclarations>
-    {
-        if importDeclaration == null:
-            return this
-
-        val parts: pointer<ArrayList> = importDeclaration.getQualifiedName()
-
-        if parts != null && parts.length > 0:
-        {
-            val firstSlot: pointer<pointer<char>> = parts.get(0) as pointer<pointer<char>>
-
-            if firstSlot != null && firstSlot.deref != null:
-            {
-                val qualifiedName: pointer<QualifiedName> = new QualifiedName(firstSlot.deref)
-
-                for (var i = 1; i < parts.length; i++):
-                {
-                    val partSlot: pointer<pointer<char>> = parts.get(i) as pointer<pointer<char>>
-
-                    if partSlot != null && partSlot.deref != null:
-                        qualifiedName.push(partSlot.deref)
-                }
-
-                this.push(qualifiedName)
-            }
-        }
-
-        val tokens: pointer<ArrayList> = importDeclaration.getExtraTokens()
-
-        if tokens != null:
-            this.extraTokens.pushAll(tokens)
 
         return this
     }
@@ -194,4 +167,20 @@ struct ImportDeclarations
 
         return sb
     }
+}
+
+
+struct ImportDeclarationsMaybe
+{
+    private var imports: pointer<ImportDeclarations>
+
+
+    fun __init__(imports: pointer<ImportDeclarations>):
+        this.imports = if imports == null:
+                new ImportDeclarations()
+            else:
+                imports
+
+
+    fun toImportDeclarations() -> pointer<ImportDeclarations> = this.imports
 }

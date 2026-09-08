@@ -105,14 +105,7 @@ struct QualifiedName
 
 
     fun toImportDeclaration() -> pointer<ImportDeclaration>
-    {
-        val result: pointer<ImportDeclaration> = new ImportDeclaration(this.parts.clone())
-
-        for (var i = 0; i < this.extraTokens.length; i++):
-            result.addExtraToken(this.extraTokens.get(i) as pointer<Token>)
-
-        return result
-    }
+        = new ImportDeclaration(this)
 
 
     fun getAllTokens() -> pointer<ArrayList>

@@ -105,4 +105,7 @@ struct Rule
 
 
     fun getPattern() -> pointer<PatternList> = this.pattern
+
+
+    fun isEmpty() -> bool = this.pattern.length() == 0
 }
