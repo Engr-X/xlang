@@ -27,6 +27,7 @@ package xlang.compiler
 
 import xlang.lexer.Token
 import xlang.util.ArrayList
+import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
 
@@ -215,6 +216,44 @@ struct Type
     static fun fromFunction(functionType: pointer<FunctionType>) -> pointer<Type> =
         new Type(FUNCTION_KIND, functionType)
 
+
+    /**
+     * Maps a NormalType host to its built-in conversion function name.
+     *
+     * The caller must only pass a host that is known to be a NormalType. This
+     * helper checks the simple type name and returns the matching conversion
+     * helper used by cast/desugar code, such as `toByte` for byte. Pointer,
+     * blob, void and non-primary names intentionally have no conversion helper
+     * here and return null.
+     *
+     * @param host              NormalType host stored inside a Type wrapper
+     *
+     * @return                  conversion function name, or null when absent
+     */
+    static fun normalTypeFunction(host: pointer<*>) -> pointer<char>
+    {
+        val type: pointer<NormalType> = host as pointer<NormalType>
+        val typeName: pointer<char> = type.getTypeName()
+
+        return if String.streq(typeName, "bool"):
+            "toBool"
+        elif String.streq(typeName, "char"):
+            "toChar"
+        elif String.streq(typeName, "byte"):
+            "toByte"
+        elif String.streq(typeName, "short"):
+            "toShort"
+        elif String.streq(typeName, "int"):
+            "toInt"
+        elif String.streq(typeName, "long"):
+            "toLong"
+        elif String.streq(typeName, "float"):
+            "toFloat"
+        elif String.streq(typeName, "double"):
+            "toDouble"
+        else: null
+    }
+
     
     /**
      * Stores the concrete type representation wrapped by this Type.
@@ -229,6 +268,7 @@ struct Type
      */
     private var kind: int
 
+
     /**
      * Initializes a Type wrapper around a concrete host.
      *
@@ -242,6 +282,54 @@ struct Type
         this.host = host
         this.kind = kind
     }
+
+
+    /**
+     * Returns whether this Type is one of the built-in primary normal types.
+     *
+     * This check only applies to NormalType hosts. FunctionType hosts and null
+     * hosts return false. The package name is intentionally ignored so a type
+     * can still be treated as primary when only its built-in type name is
+     * available during parsing or early semantic analysis.
+     *
+     * @return                  true for built-in primitive, pointer or blob names
+     */
+    fun isPrimary() -> bool
+    {
+        if this.host == null || this.kind != NORMAL_KIND:
+            return false
+
+        val type: pointer<NormalType> = this.host as pointer<NormalType>
+        val typeName: pointer<char> = type.getTypeName()
+
+        return String.streq(typeName, "void") ||
+            String.streq(typeName, "bool") ||
+            String.streq(typeName, "char") ||
+            String.streq(typeName, "byte") ||
+            String.streq(typeName, "short") ||
+            String.streq(typeName, "int") ||
+            String.streq(typeName, "long") ||
+            String.streq(typeName, "float") ||
+            String.streq(typeName, "double") ||
+            String.streq(typeName, "pointer") ||
+            String.streq(typeName, "blob")
+    }
+
+
+    /**
+     * Returns the built-in conversion function name for this Type.
+     *
+     * Only scalar primary normal types have conversion helper names. Pointer,
+     * blob, void, function types and unknown hosts return null because they do
+     * not map to a simple `to...` conversion function.
+     *
+     * @return                  conversion function name, or null when absent
+     */
+    fun getFunction() -> pointer<char> =
+        if this.host == null || this.kind != NORMAL_KIND:
+            null
+        else:
+            Type.normalTypeFunction(this.host)
 
 
     /**

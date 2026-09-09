@@ -1404,25 +1404,15 @@ private fun typeCastExpressionTest() -> int
 
     val castExpression: pointer<Expression> = call.getArgument(1)
 
-    if castExpression == null || castExpression.getKind() != Expression.TYPE_CAST_KIND:
+    if castExpression == null || castExpression.getKind() != Expression.METHOD_CALL_KIND:
         return 2
 
-    val cast: pointer<TypeCast> = castExpression.getRoot() as pointer<TypeCast>
+    val castCall: pointer<MethodCall> = castExpression.getRoot() as pointer<MethodCall>
 
-    if cast == null || cast.getExpression() == null:
+    if castCall == null || String.streq(castCall.getCallName(), "todouble") == false:
         return 3
 
-    val targetType: pointer<Type> = cast.getTargetType()
-
-    if targetType == null:
-        return 4
-
-    val targetTypeText: pointer<StringBuilder> = targetType.toString()
-    val targetTypeChars: pointer<char> = System.allocMemory((targetTypeText.length + 1) * sizeof(char)) as pointer<char>
-
-    targetTypeText.toString(targetTypeChars)
-
-    if !String.streq(targetTypeChars, "double."):
+    if castCall.argumentsCount() != 1 || castCall.getArgument(0) == null:
         return 4
 
     val blobExpression: pointer<Expression> = parseExpressionText("1 as blob[64]")
@@ -1676,7 +1666,12 @@ private fun mixedExpressionTest() -> int
     if indexedArg == null || indexedArg.getKind() != Expression.INDEX_ACCESS_KIND:
         return 12
 
-    if thirdArg == null || thirdArg.getKind() != Expression.TYPE_CAST_KIND:
+    if thirdArg == null || thirdArg.getKind() != Expression.METHOD_CALL_KIND:
+        return 13
+
+    val thirdCall: pointer<MethodCall> = thirdArg.getRoot() as pointer<MethodCall>
+
+    if thirdCall == null || String.streq(thirdCall.getCallName(), "todouble") == false:
         return 13
 
     val tokens: pointer<ArrayList> = expression.getAllTokens()
