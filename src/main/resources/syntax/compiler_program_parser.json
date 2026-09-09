@@ -12,6 +12,7 @@
         "xlang.compiler.parser.program.Annotation",
         "xlang.compiler.parser.program.Annotations",
         "xlang.compiler.parser.program.AnnotationsMaybe",
+        "xlang.compiler.parser.program.Field",
         "xlang.compiler.parser.program.Function",
         "xlang.compiler.parser.program.FunctionParam",
         "xlang.compiler.parser.program.FunctionParams",
@@ -155,7 +156,8 @@
             "class": "FunctionParam",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }], "action": "makeFunctionParam" }
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }], "action": "makeFunctionParam" },
+                { "patterns": [{ "kind": "Tokenizer.KW_MUT" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }], "action": "makeMutFunctionParam" }
             ]
         },
         {
@@ -175,7 +177,14 @@
             ]
         },
         {
-            "class": "Field"
+            "class": "Field",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_VAR" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFieldWithInitialValue" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_VAL" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFieldWithInitialValue" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_VAR" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeField" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_VAL" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeField" }
+            ]
         },
         {
             "class": "Function",
@@ -193,8 +202,8 @@
             "class": "StructConstructor",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructor" },
-                { "patterns": [{ "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructorFromBlock" }
+                { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructor" },
+                { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructorFromBlock" }
             ]
         }
     ],
@@ -432,6 +441,23 @@
             "}" ],
 
 
+        [   "private inline fun makeMutFunctionParam(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val mutToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val paramResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))",
+            "",
+            "    paramResults.push(results.get(1))",
+            "    paramResults.push(results.get(2))",
+            "    paramResults.push(results.get(3))",
+            "",
+            "    val result: pointer<FunctionParam> = makeFunctionParam(paramResults) as pointer<FunctionParam>",
+            "",
+            "    return result",
+            "        .markAsMut()",
+            "        .addExtraToken(mutToken)",
+            "}" ],
+
+
         [   "private inline fun makeFunctionParamsIt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val param: pointer<FunctionParam> = getContainerValue(results, 0) as pointer<FunctionParam>",
@@ -457,6 +483,45 @@
 
 
         [   "private inline fun makeEmptyFunctionParamsMaybe(results: pointer<ArrayList>) -> pointer<*> = new FunctionParamsMaybe(null)" ],
+
+
+        [   "private inline fun buildField(results: pointer<ArrayList>) -> pointer<Field>",
+            "{",
+            "    val annotations: pointer<AnnotationsMaybe> = getContainerValue(results, 0) as pointer<AnnotationsMaybe>",
+            "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 1) as pointer<ModifierListMaybe>",
+            "    val varToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val fieldType: pointer<Type> = getContainerValue(results, 5) as pointer<Type>",
+            "",
+            "    var result: pointer<Field> = if varToken.kind == Tokenizer.KW_VAL:",
+            "        new Field(nameToken.text, fieldType).markAsConst()",
+            "    else:",
+            "        new Field(nameToken.text, fieldType).markAsMut()",
+            "",
+            "    return result",
+            "        .setAnnotations(annotations.toAnnotations())",
+            "        .setModifiers(modifiers.toModifierList())",
+            "        .addExtraToken(varToken)",
+            "        .addExtraToken(nameToken)",
+            "        .addExtraToken(colonToken)",
+            "}" ],
+
+
+        [   "private inline fun makeField(results: pointer<ArrayList>) -> pointer<*> =",
+            "    buildField(results)",
+            "" ],
+
+
+        [   "private inline fun makeFieldWithInitialValue(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val equalToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "    val initialValue: pointer<Expression> = getContainerValue(results, 7) as pointer<Expression>",
+            "",
+            "    return buildField(results)",
+            "        .setInitialValue(initialValue)",
+            "        .addExtraToken(equalToken)",
+            "}" ],
 
 
         [   "private inline fun buildFunction(results: pointer<ArrayList>, returnType: pointer<Type>, bodyExpr: pointer<Expression>) -> pointer<Function>",
@@ -534,14 +599,16 @@
 
         [   "private inline fun makeStructConstructor(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val constructorToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 2) as pointer<FunctionParamsMaybe>",
-            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "    val colonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
-            "    val bodyExpr: pointer<Expression> = getContainerValue(results, 5) as pointer<Expression>",
+            "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>",
+            "    val constructorToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 3) as pointer<FunctionParamsMaybe>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val bodyExpr: pointer<Expression> = getContainerValue(results, 6) as pointer<Expression>",
             "",
             "    return new StructConstructor(params.toFunctionParams(), bodyExpr)",
+            "        .setModifiers(modifiers.toModifierList())",
             "        .addExtraToken(constructorToken)",
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",
@@ -551,14 +618,16 @@
 
         [   "private inline fun makeStructConstructorFromBlock(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val constructorToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 2) as pointer<FunctionParamsMaybe>",
-            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "    val block: pointer<Block> = getContainerValue(results, 4) as pointer<Block>",
+            "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>",
+            "    val constructorToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 3) as pointer<FunctionParamsMaybe>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val block: pointer<Block> = getContainerValue(results, 5) as pointer<Block>",
             "    val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)",
             "",
             "    return new StructConstructor(params.toFunctionParams(), bodyExpr)",
+            "        .setModifiers(modifiers.toModifierList())",
             "        .addExtraToken(constructorToken)",
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",

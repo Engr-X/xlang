@@ -35,10 +35,6 @@ import xlang.util.string.StringBuilder
 
 struct VariableDefines
 {
-    private static val CONST_MODIFIER = 0
-    private static val MUT_MODIFIER = 1
-
-
     private var defines: pointer<ArrayList>
 
     private var extraTokens: pointer<ArrayList>

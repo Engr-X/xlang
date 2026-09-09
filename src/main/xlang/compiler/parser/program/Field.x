@@ -33,6 +33,12 @@ import xlang.util.string.StringBuilder
 
 struct Field
 {
+    private static val CONST_MODIFIER = 0
+
+    private static val MUT_MODIFIER = 1
+
+    private var modifier: int
+
     private var annotations: pointer<Annotations>
 
     private var modifiers: pointer<ModifierList>
@@ -46,8 +52,15 @@ struct Field
     private var extraTokens: pointer<ArrayList>
 
 
+    static fun constModifier() -> int = CONST_MODIFIER
+
+
+    static fun mutModifier() -> int = MUT_MODIFIER
+
+
     constructor(fieldName: pointer<char>, fieldType: pointer<Type>)
     {
+        this.modifier = CONST_MODIFIER
         this.annotations = new Annotations()
         this.modifiers = new ModifierList()
         this.fieldName = fieldName
@@ -96,6 +109,30 @@ struct Field
 
 
     fun getInitialValue() -> pointer<Expression> = this.initialValue
+
+
+    fun markAsMut() -> pointer<Field>
+    {
+        this.modifier = MUT_MODIFIER
+        return this
+    }
+
+
+    fun markAsConst() -> pointer<Field>
+    {
+        this.modifier = CONST_MODIFIER
+        return this
+    }
+
+
+    fun canModified() -> bool = this.modifier == MUT_MODIFIER
+
+
+    fun setInitialValue(value: pointer<Expression>) -> pointer<Field>
+    {
+        this.initialValue = value
+        return this
+    }
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<Field>
@@ -148,6 +185,11 @@ struct Field
             sb.append(this.modifiers.toString())
             sb.append(' ')
         }
+
+        if this.canModified():
+            sb.append("var ")
+        else:
+            sb.append("val ")
 
         if this.fieldName != null:
             sb.append(this.fieldName)

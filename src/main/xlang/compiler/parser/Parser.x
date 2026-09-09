@@ -22,6 +22,7 @@ import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.program.Annotation
 import xlang.compiler.parser.program.Annotations
 import xlang.compiler.parser.program.AnnotationsMaybe
+import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParam
 import xlang.compiler.parser.program.FunctionParams
@@ -108,8 +109,9 @@ private val IMPORT_DECLARATIONS_MAYBE_PARSER_ID: int = 37
 private val FUNCTION_PARAM_PARSER_ID: int = 38
 private val FUNCTION_PARAMS_PARSER_ID: int = 39
 private val FUNCTION_PARAMS_MAYBE_PARSER_ID: int = 40
-private val FUNCTION_PARSER_ID: int = 41
-private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 42
+private val FIELD_PARSER_ID: int = 41
+private val FUNCTION_PARSER_ID: int = 42
+private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 43
 
 
 private inline fun getContainerValue(results: pointer<ArrayList>, index: int, unwrapContainer: bool) -> pointer<*>
@@ -1578,6 +1580,22 @@ private inline fun makeFunctionParam(results: pointer<ArrayList>) -> pointer<*>
         .addExtraToken(colonToken)
 }
 
+private inline fun makeMutFunctionParam(results: pointer<ArrayList>) -> pointer<*>
+{
+    val mutToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val paramResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
+
+    paramResults.push(results.get(1))
+    paramResults.push(results.get(2))
+    paramResults.push(results.get(3))
+
+    val result: pointer<FunctionParam> = makeFunctionParam(paramResults) as pointer<FunctionParam>
+
+    return result
+        .markAsMut()
+        .addExtraToken(mutToken)
+}
+
 private inline fun makeFunctionParamsIt(results: pointer<ArrayList>) -> pointer<*>
 {
     val param: pointer<FunctionParam> = getContainerValue(results, 0) as pointer<FunctionParam>
@@ -1600,6 +1618,42 @@ private inline fun makeFunctionParamsMaybe(results: pointer<ArrayList>) -> point
 }
 
 private inline fun makeEmptyFunctionParamsMaybe(results: pointer<ArrayList>) -> pointer<*> = new FunctionParamsMaybe(null)
+
+private inline fun buildField(results: pointer<ArrayList>) -> pointer<Field>
+{
+    val annotations: pointer<AnnotationsMaybe> = getContainerValue(results, 0) as pointer<AnnotationsMaybe>
+    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 1) as pointer<ModifierListMaybe>
+    val varToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val nameToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
+    val colonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val fieldType: pointer<Type> = getContainerValue(results, 5) as pointer<Type>
+
+    var result: pointer<Field> = if varToken.kind == Tokenizer.KW_VAL:
+        new Field(nameToken.text, fieldType).markAsConst()
+    else:
+        new Field(nameToken.text, fieldType).markAsMut()
+
+    return result
+        .setAnnotations(annotations.toAnnotations())
+        .setModifiers(modifiers.toModifierList())
+        .addExtraToken(varToken)
+        .addExtraToken(nameToken)
+        .addExtraToken(colonToken)
+}
+
+private inline fun makeField(results: pointer<ArrayList>) -> pointer<*> =
+    buildField(results)
+
+
+private inline fun makeFieldWithInitialValue(results: pointer<ArrayList>) -> pointer<*>
+{
+    val equalToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>
+    val initialValue: pointer<Expression> = getContainerValue(results, 7) as pointer<Expression>
+
+    return buildField(results)
+        .setInitialValue(initialValue)
+        .addExtraToken(equalToken)
+}
 
 private inline fun buildFunction(results: pointer<ArrayList>, returnType: pointer<Type>, bodyExpr: pointer<Expression>) -> pointer<Function>
 {
@@ -1670,14 +1724,16 @@ private inline fun makeVoidFunctionFromBlock(results: pointer<ArrayList>) -> poi
 
 private inline fun makeStructConstructor(results: pointer<ArrayList>) -> pointer<*>
 {
-    val constructorToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
-    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
-    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 2) as pointer<FunctionParamsMaybe>
-    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
-    val colonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
-    val bodyExpr: pointer<Expression> = getContainerValue(results, 5) as pointer<Expression>
+    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>
+    val constructorToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 3) as pointer<FunctionParamsMaybe>
+    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val colonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
+    val bodyExpr: pointer<Expression> = getContainerValue(results, 6) as pointer<Expression>
 
     return new StructConstructor(params.toFunctionParams(), bodyExpr)
+        .setModifiers(modifiers.toModifierList())
         .addExtraToken(constructorToken)
         .addExtraToken(leftParen)
         .addExtraToken(rightParen)
@@ -1686,14 +1742,16 @@ private inline fun makeStructConstructor(results: pointer<ArrayList>) -> pointer
 
 private inline fun makeStructConstructorFromBlock(results: pointer<ArrayList>) -> pointer<*>
 {
-    val constructorToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
-    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
-    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 2) as pointer<FunctionParamsMaybe>
-    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
-    val block: pointer<Block> = getContainerValue(results, 4) as pointer<Block>
+    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>
+    val constructorToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
+    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 3) as pointer<FunctionParamsMaybe>
+    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>
+    val block: pointer<Block> = getContainerValue(results, 5) as pointer<Block>
     val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)
 
     return new StructConstructor(params.toFunctionParams(), bodyExpr)
+        .setModifiers(modifiers.toModifierList())
         .addExtraToken(constructorToken)
         .addExtraToken(leftParen)
         .addExtraToken(rightParen)
@@ -1780,6 +1838,8 @@ val FUNCTION_PARAM_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FUNC
 val FUNCTION_PARAMS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FUNCTION_PARAMS_PARSER_ID)
 
 val FUNCTION_PARAMS_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FUNCTION_PARAMS_MAYBE_PARSER_ID)
+
+val FIELD_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FIELD_PARSER_ID)
 
 val FUNCTION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FUNCTION_PARSER_ID)
 
@@ -2266,6 +2326,7 @@ private val IMPORT_DECLARATIONS_MAYBE_RULE0: pointer<Rule> = new Rule(new Patter
 private val IMPORT_DECLARATIONS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyImportDeclarationsMaybe, Rule.STARTER_ROLE, 0)
 
 private val FUNCTION_PARAM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER), makeFunctionParam, Rule.STARTER_ROLE, 0)
+private val FUNCTION_PARAM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_MUT).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER), makeMutFunctionParam, Rule.STARTER_ROLE, 0)
 
 private val FUNCTION_PARAMS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(FUNCTION_PARAM_PARSER).pushRegex(Tokenizer.COMMA).pushRef(FUNCTION_PARAMS_PARSER), makeFunctionParamsIt, Rule.STARTER_ROLE, 0)
 private val FUNCTION_PARAMS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(FUNCTION_PARAM_PARSER), makeFunctionParams, Rule.STARTER_ROLE, 0)
@@ -2273,14 +2334,19 @@ private val FUNCTION_PARAMS_RULE1: pointer<Rule> = new Rule(new PatternList().pu
 private val FUNCTION_PARAMS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(FUNCTION_PARAMS_PARSER), makeFunctionParamsMaybe, Rule.STARTER_ROLE, 0)
 private val FUNCTION_PARAMS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyFunctionParamsMaybe, Rule.STARTER_ROLE, 0)
 
+private val FIELD_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_VAR).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER).pushRegex(Tokenizer.EQUAL).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFieldWithInitialValue, Rule.STARTER_ROLE, 0)
+private val FIELD_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_VAL).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER).pushRegex(Tokenizer.EQUAL).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFieldWithInitialValue, Rule.STARTER_ROLE, 0)
+private val FIELD_RULE2: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_VAR).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeField, Rule.STARTER_ROLE, 0)
+private val FIELD_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_VAL).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeField, Rule.STARTER_ROLE, 0)
+
 private val FUNCTION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRegex(Tokenizer.EQUAL).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunction, Rule.STARTER_ROLE, 0)
 private val FUNCTION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunction, Rule.STARTER_ROLE, 0)
 private val FUNCTION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunctionFromBlock, Rule.STARTER_ROLE, 0)
 private val FUNCTION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunction, Rule.STARTER_ROLE, 0)
 private val FUNCTION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunctionFromBlock, Rule.STARTER_ROLE, 0)
 
-private val STRUCT_CONSTRUCTOR_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_CONSTRUCTOR).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStructConstructor, Rule.STARTER_ROLE, 0)
-private val STRUCT_CONSTRUCTOR_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_CONSTRUCTOR).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStructConstructorFromBlock, Rule.STARTER_ROLE, 0)
+private val STRUCT_CONSTRUCTOR_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_CONSTRUCTOR).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStructConstructor, Rule.STARTER_ROLE, 0)
+private val STRUCT_CONSTRUCTOR_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_CONSTRUCTOR).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStructConstructorFromBlock, Rule.STARTER_ROLE, 0)
 
 private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13).addRule(EXPRESSION_RULE14).addRule(EXPRESSION_RULE15).addRule(EXPRESSION_RULE16).addRule(EXPRESSION_RULE17).addRule(EXPRESSION_RULE18).addRule(EXPRESSION_RULE19).addRule(EXPRESSION_RULE20).addRule(EXPRESSION_RULE21).addRule(EXPRESSION_RULE22).addRule(EXPRESSION_RULE23).addRule(EXPRESSION_RULE24).addRule(EXPRESSION_RULE25).addRule(EXPRESSION_RULE26).addRule(EXPRESSION_RULE27).addRule(EXPRESSION_RULE28).addRule(EXPRESSION_RULE29).addRule(EXPRESSION_RULE30).addRule(EXPRESSION_RULE31).addRule(EXPRESSION_RULE32).addRule(EXPRESSION_RULE33).addRule(EXPRESSION_RULE34).addRule(EXPRESSION_RULE35).addRule(EXPRESSION_RULE36).addRule(EXPRESSION_RULE37).addRule(EXPRESSION_RULE38).addRule(EXPRESSION_RULE39).addRule(EXPRESSION_RULE40).addRule(EXPRESSION_RULE41).addRule(EXPRESSION_RULE42).addRule(EXPRESSION_RULE43).addRule(EXPRESSION_RULE44).addRule(EXPRESSION_RULE45).addRule(EXPRESSION_RULE46).addRule(EXPRESSION_RULE47).addRule(EXPRESSION_RULE48).addRule(EXPRESSION_RULE49).addRule(EXPRESSION_RULE50).addRule(EXPRESSION_RULE51).addRule(EXPRESSION_RULE52).addRule(EXPRESSION_RULE53).addRule(EXPRESSION_RULE54).addRule(EXPRESSION_RULE55).addRule(EXPRESSION_RULE56).addRule(EXPRESSION_RULE57).addRule(EXPRESSION_RULE58).addRule(EXPRESSION_RULE59).addRule(EXPRESSION_RULE60).addRule(EXPRESSION_RULE61).addRule(EXPRESSION_RULE62).addRule(EXPRESSION_RULE63).addRule(EXPRESSION_RULE64).addRule(EXPRESSION_RULE65).addRule(EXPRESSION_RULE66).addRule(EXPRESSION_RULE67).addRule(EXPRESSION_RULE68).addRule(EXPRESSION_RULE69).addRule(EXPRESSION_RULE70).addRule(EXPRESSION_RULE71)
 private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
@@ -2319,9 +2385,10 @@ private val PACKAGE_DECLARATION_PARSER_SETUP: pointer<ParserRef> = PACKAGE_DECLA
 private val IMPORT_DECLARATION_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATION_PARSER.addRule(IMPORT_DECLARATION_RULE0)
 private val IMPORT_DECLARATIONS_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_PARSER.addRule(IMPORT_DECLARATIONS_RULE0).addRule(IMPORT_DECLARATIONS_RULE1)
 private val IMPORT_DECLARATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_MAYBE_PARSER.addRule(IMPORT_DECLARATIONS_MAYBE_RULE0).addRule(IMPORT_DECLARATIONS_MAYBE_RULE1)
-private val FUNCTION_PARAM_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAM_PARSER.addRule(FUNCTION_PARAM_RULE0)
+private val FUNCTION_PARAM_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAM_PARSER.addRule(FUNCTION_PARAM_RULE0).addRule(FUNCTION_PARAM_RULE1)
 private val FUNCTION_PARAMS_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAMS_PARSER.addRule(FUNCTION_PARAMS_RULE0).addRule(FUNCTION_PARAMS_RULE1)
 private val FUNCTION_PARAMS_MAYBE_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAMS_MAYBE_PARSER.addRule(FUNCTION_PARAMS_MAYBE_RULE0).addRule(FUNCTION_PARAMS_MAYBE_RULE1)
+private val FIELD_PARSER_SETUP: pointer<ParserRef> = FIELD_PARSER.addRule(FIELD_RULE0).addRule(FIELD_RULE1).addRule(FIELD_RULE2).addRule(FIELD_RULE3)
 private val FUNCTION_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARSER.addRule(FUNCTION_RULE0).addRule(FUNCTION_RULE1).addRule(FUNCTION_RULE2).addRule(FUNCTION_RULE3).addRule(FUNCTION_RULE4)
 private val STRUCT_CONSTRUCTOR_PARSER_SETUP: pointer<ParserRef> = STRUCT_CONSTRUCTOR_PARSER.addRule(STRUCT_CONSTRUCTOR_RULE0).addRule(STRUCT_CONSTRUCTOR_RULE1)
 
@@ -2964,6 +3031,22 @@ fun parseFunctionParamsMaybe(input: pointer<TokenList>) -> pointer<FunctionParam
         return null
 
     return result.getValue() as pointer<FunctionParamsMaybe>
+}
+
+fun parseField(input: pointer<TokenList>) -> pointer<Field>
+{
+    if input == null:
+        return null
+
+    if FIELD_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = FIELD_PARSER.getResult()
+
+    if result == null || result.isKind(FIELD_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<Field>
 }
 
 fun parseFunction(input: pointer<TokenList>) -> pointer<Function>

@@ -53,24 +53,18 @@ struct StructConstructor
     }
 
 
-    constructor(modifiers: pointer<ModifierList>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
+    fun getModifiers() -> pointer<ModifierList> = this.modifiers
+
+
+    fun setModifiers(modifiers: pointer<ModifierList>) -> pointer<StructConstructor>
     {
         this.modifiers = if modifiers == null:
                 new ModifierList()
             else:
                 modifiers
 
-        this.params = if params == null:
-                new FunctionParams()
-            else:
-                params
-
-        this.bodyExpr = bodyExpr
-        this.extraTokens = new ArrayList(sizeof(Token))
+        return this
     }
-
-
-    fun getModifiers() -> pointer<ModifierList> = this.modifiers
 
 
     fun getParams() -> pointer<FunctionParams> = this.params

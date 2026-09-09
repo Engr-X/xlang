@@ -26,6 +26,7 @@ import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
 import xlang.compiler.parser.expression.Atom
 import xlang.compiler.parser.expression.Expression
+import xlang.compiler.parser.program.Field
 import xlang.compiler.Type
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
@@ -35,10 +36,6 @@ import xlang.util.string.StringBuilder
 
 struct VariableDefine
 {
-    private static val CONST_MODIFIER = 0
-    private static val MUT_MODIFIER = 1
-
-
     private var modifier: int
 
     private var declaredType: pointer<Type>
@@ -52,7 +49,7 @@ struct VariableDefine
 
     constructor(varName: pointer<char>, assignExpr: pointer<Expression>)
     {
-        this.modifier = CONST_MODIFIER
+        this.modifier = Field.constModifier()
         this.declaredType = null
         this.varName = varName
         this.assignExpr = assignExpr
@@ -62,7 +59,7 @@ struct VariableDefine
 
     constructor(declaredType: pointer<Type>, varName: pointer<char>, assignExpr: pointer<Expression>)
     {
-        this.modifier = CONST_MODIFIER
+        this.modifier = Field.constModifier()
         this.declaredType = declaredType
         this.varName = varName
         this.assignExpr = assignExpr
@@ -72,14 +69,14 @@ struct VariableDefine
 
     fun markAsMut() -> pointer<VariableDefine>
     {
-        this.modifier = MUT_MODIFIER
+        this.modifier = Field.mutModifier()
         return this
     }
 
 
     fun markAsConst() -> pointer<VariableDefine>
     {
-        this.modifier = CONST_MODIFIER
+        this.modifier = Field.constModifier()
         return this
     }
 
@@ -93,7 +90,7 @@ struct VariableDefine
     }
 
 
-    fun canModified() -> bool = this.modifier == MUT_MODIFIER
+    fun canModified() -> bool = this.modifier == Field.mutModifier()
 
 
     fun getAllTokens() -> pointer<ArrayList>

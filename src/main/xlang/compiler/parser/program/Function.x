@@ -31,6 +31,8 @@ import xlang.util.string.StringBuilder
 
 struct FunctionParam
 {
+    private var modifier: int
+
     private var paramName: pointer<char>
 
     private var paramType: pointer<Type>
@@ -40,6 +42,7 @@ struct FunctionParam
 
     constructor(paramName: pointer<char>, paramType: pointer<Type>)
     {
+        this.modifier = Field.constModifier()
         this.paramName = paramName
         this.paramType = paramType
         this.extraTokens = new ArrayList(sizeof(Token))
@@ -54,6 +57,23 @@ struct FunctionParam
             null
         else:
             this.paramType.clone()
+
+
+    fun markAsMut() -> pointer<FunctionParam>
+    {
+        this.modifier = Field.mutModifier()
+        return this
+    }
+
+
+    fun markAsConst() -> pointer<FunctionParam>
+    {
+        this.modifier = Field.constModifier()
+        return this
+    }
+
+
+    fun canModified() -> bool = this.modifier == Field.mutModifier()
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<FunctionParam>
