@@ -242,7 +242,7 @@ struct Function
 
     private var modifiers: pointer<ModifierList>
 
-    private var functionName: pointer<QualifiedName>
+    private var functionName: pointer<char>
 
     private var params: pointer<FunctionParams>
 
@@ -253,7 +253,7 @@ struct Function
     private var extraTokens: pointer<ArrayList>
 
 
-    constructor(functionName: pointer<QualifiedName>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
+    constructor(functionName: pointer<char>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
         this.annotations = new Annotations()
         this.modifiers = new ModifierList()
@@ -265,39 +265,35 @@ struct Function
     }
 
 
-    constructor(
-        annotations: pointer<Annotations>,
-        modifiers: pointer<ModifierList>,
-        functionName: pointer<QualifiedName>,
-        params: pointer<FunctionParams>,
-        returnType: pointer<Type>,
-        bodyExpr: pointer<Expression>)
+    fun getAnnotations() -> pointer<Annotations> = this.annotations
+
+
+    fun setAnnotations(annotations: pointer<Annotations>) -> pointer<Function>
     {
         this.annotations = if annotations == null:
                 new Annotations()
             else:
                 annotations
 
-        this.modifiers = if modifiers == null:
-                new ModifierList()
-            else:
-                modifiers
-
-        this.functionName = functionName
-        this.params = params
-        this.returnType = returnType
-        this.bodyExpr = bodyExpr
-        this.extraTokens = new ArrayList(sizeof(Token))
+        return this
     }
-
-
-    fun getAnnotations() -> pointer<Annotations> = this.annotations
 
 
     fun getModifiers() -> pointer<ModifierList> = this.modifiers
 
 
-    fun getFunctionName() -> pointer<QualifiedName> = this.functionName
+    fun setModifiers(modifiers: pointer<ModifierList>) -> pointer<Function>
+    {
+        this.modifiers = if modifiers == null:
+                new ModifierList()
+            else:
+                modifiers
+
+        return this
+    }
+
+
+    fun getFunctionName() -> pointer<char> = this.functionName
 
 
     fun getParams() -> pointer<FunctionParams> = this.params
@@ -308,6 +304,13 @@ struct Function
             null
         else:
             this.returnType.clone()
+
+
+    fun setReturnType(returnType: pointer<Type>) -> pointer<Function>
+    {
+        this.returnType = returnType
+        return this
+    }
 
 
     fun getBodyExpr() -> pointer<Expression> = this.bodyExpr
@@ -334,9 +337,6 @@ struct Function
 
         if this.modifiers != null:
             result.pushAll(this.modifiers.getAllTokens())
-
-        if this.functionName != null:
-            result.pushAll(this.functionName.getAllTokens())
 
         if this.params != null:
             result.pushAll(this.params.getAllTokens())
@@ -373,7 +373,7 @@ struct Function
         sb.append("fun ")
 
         if this.functionName != null:
-            sb.append(this.functionName.toString())
+            sb.append(this.functionName)
 
         sb.append('(')
 

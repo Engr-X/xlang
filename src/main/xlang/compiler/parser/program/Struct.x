@@ -22,43 +22,50 @@
 #file.class("Struct")
 package xlang.compiler.parser.program
 
-import xlang.compiler.Type
+import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
-import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
 
-struct StructField
+struct StructConstructor
 {
     private var modifiers: pointer<ModifierList>
 
-    private var fieldName: pointer<char>
+    private var params: pointer<FunctionParams>
 
-    private var fieldType: pointer<Type>
+    private var bodyExpr: pointer<Expression>
 
     private var extraTokens: pointer<ArrayList>
 
 
-    constructor(fieldName: pointer<char>, fieldType: pointer<Type>)
+    constructor(params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
         this.modifiers = new ModifierList()
-        this.fieldName = fieldName
-        this.fieldType = fieldType
+        this.params = if params == null:
+                new FunctionParams()
+            else:
+                params
+
+        this.bodyExpr = bodyExpr
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    constructor(modifiers: pointer<ModifierList>, fieldName: pointer<char>, fieldType: pointer<Type>)
+    constructor(modifiers: pointer<ModifierList>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
         this.modifiers = if modifiers == null:
                 new ModifierList()
             else:
                 modifiers
 
-        this.fieldName = fieldName
-        this.fieldType = fieldType
+        this.params = if params == null:
+                new FunctionParams()
+            else:
+                params
+
+        this.bodyExpr = bodyExpr
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
@@ -66,39 +73,13 @@ struct StructField
     fun getModifiers() -> pointer<ModifierList> = this.modifiers
 
 
-    fun getFieldName() -> pointer<char> = this.fieldName
+    fun getParams() -> pointer<FunctionParams> = this.params
 
 
-    fun getFieldType() -> pointer<Type> =
-        if this.fieldType == null:
-            null
-        else:
-            this.fieldType.clone()
+    fun getBodyExpr() -> pointer<Expression> = this.bodyExpr
 
 
-    fun isStatic() -> bool
-    {
-        if this.modifiers == null:
-            return false
-
-        for (var i = 0; i < this.modifiers.length(); i++):
-        {
-            val modifier: pointer<Modifier> = this.modifiers.get(i)
-
-            if modifier == null:
-                continue
-
-            val keyword: pointer<char> = modifier.getKeyword()
-
-            if keyword != null && String.streq(keyword, "static"):
-                return true
-        }
-
-        return false
-    }
-
-
-    fun addExtraToken(token: pointer<Token>) -> pointer<StructField>
+    fun addExtraToken(token: pointer<Token>) -> pointer<StructConstructor>
     {
         if token != null:
             this.extraTokens.push(token)
@@ -117,8 +98,11 @@ struct StructField
         if this.modifiers != null:
             result.pushAll(this.modifiers.getAllTokens())
 
-        if this.fieldType != null:
-            result.pushAll(this.fieldType.getAllTokens())
+        if this.params != null:
+            result.pushAll(this.params.getAllTokens())
+
+        if this.bodyExpr != null:
+            result.pushAll(this.bodyExpr.getAllTokens())
 
         result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
@@ -137,14 +121,15 @@ struct StructField
             sb.append(' ')
         }
 
-        if this.fieldName != null:
-            sb.append(this.fieldName)
+        sb.append("constructor(")
 
-        if this.fieldType != null:
-        {
-            sb.append(": ")
-            sb.append(this.fieldType.toString())
-        }
+        if this.params != null:
+            sb.append(this.params.toString())
+
+        sb.append(") = ")
+
+        if this.bodyExpr != null:
+            sb.append(this.bodyExpr.toString())
 
         return sb
     }

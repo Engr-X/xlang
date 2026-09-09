@@ -16,6 +16,7 @@
         "xlang.compiler.parser.program.FunctionParam",
         "xlang.compiler.parser.program.FunctionParams",
         "xlang.compiler.parser.program.FunctionParamsMaybe",
+        "xlang.compiler.parser.program.StructConstructor",
         "xlang.compiler.parser.program.PreprocessSetting",
         "xlang.compiler.parser.program.PreprocessSettings",
         "xlang.compiler.parser.program.PreprocessSettingsMaybe",
@@ -174,15 +175,26 @@
             ]
         },
         {
+            "class": "Field"
+        },
+        {
             "class": "Function",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
-                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
-                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunctionFromBlock" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunctionFromBlock" },
 
-                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunction" },
-                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromBlock" }
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunction" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromBlock" }
+            ]
+        },
+        {
+            "class": "StructConstructor",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructor" },
+                { "patterns": [{ "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructorFromBlock" }
             ]
         }
     ],
@@ -451,21 +463,26 @@
             "{",
             "    val annotations: pointer<AnnotationsMaybe> = getContainerValue(results, 0) as pointer<AnnotationsMaybe>",
             "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 1) as pointer<ModifierListMaybe>",
-            "    val functionName: pointer<QualifiedName> = getContainerValue(results, 3) as pointer<QualifiedName>",
+            "    val functionNameToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
             "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 5) as pointer<FunctionParamsMaybe>",
             "",
-            "    return new Function(annotations.toAnnotations(), modifiers.toModifierList(), functionName, params.toFunctionParams(), returnType, bodyExpr)",
+            "    return new Function(functionNameToken.text, params.toFunctionParams(), bodyExpr)",
+            "        .setAnnotations(annotations.toAnnotations())",
+            "        .setModifiers(modifiers.toModifierList())",
+            "        .setReturnType(returnType)",
             "}" ],
 
 
         [   "private inline fun addFunctionPrefixTokens(function: pointer<Function>, results: pointer<ArrayList>) -> pointer<Function>",
             "{",
             "    val funToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val functionNameToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
             "    val leftParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "    val rightParen: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
             "",
             "    return function",
             "        .addExtraToken(funToken)",
+            "        .addExtraToken(functionNameToken)",
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",
             "}" ],
@@ -512,6 +529,39 @@
             "    val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)",
             "",
             "    return addFunctionPrefixTokens(buildFunction(results, Type.voidType(), bodyExpr), results)",
+            "}" ],
+
+
+        [   "private inline fun makeStructConstructor(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val constructorToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 2) as pointer<FunctionParamsMaybe>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val bodyExpr: pointer<Expression> = getContainerValue(results, 5) as pointer<Expression>",
+            "",
+            "    return new StructConstructor(params.toFunctionParams(), bodyExpr)",
+            "        .addExtraToken(constructorToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
+            "        .addExtraToken(colonToken)",
+            "}" ],
+
+
+        [   "private inline fun makeStructConstructorFromBlock(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val constructorToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val params: pointer<FunctionParamsMaybe> = getContainerValue(results, 2) as pointer<FunctionParamsMaybe>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val block: pointer<Block> = getContainerValue(results, 4) as pointer<Block>",
+            "    val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)",
+            "",
+            "    return new StructConstructor(params.toFunctionParams(), bodyExpr)",
+            "        .addExtraToken(constructorToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
             "}" ]
     ]
 }

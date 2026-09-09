@@ -1409,7 +1409,7 @@ private fun typeCastExpressionTest() -> int
 
     val castCall: pointer<MethodCall> = castExpression.getRoot() as pointer<MethodCall>
 
-    if castCall == null || String.streq(castCall.getCallName(), "todouble") == false:
+    if castCall == null || String.streq(castCall.getCallName(), "toDouble") == false:
         return 3
 
     if castCall.argumentsCount() != 1 || castCall.getArgument(0) == null:
@@ -1671,7 +1671,7 @@ private fun mixedExpressionTest() -> int
 
     val thirdCall: pointer<MethodCall> = thirdArg.getRoot() as pointer<MethodCall>
 
-    if thirdCall == null || String.streq(thirdCall.getCallName(), "todouble") == false:
+    if thirdCall == null || String.streq(thirdCall.getCallName(), "toDouble") == false:
         return 13
 
     val tokens: pointer<ArrayList> = expression.getAllTokens()
