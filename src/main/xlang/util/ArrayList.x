@@ -146,7 +146,7 @@ struct ArrayList
      *
      * @param tsize             size in bytes of one element
      */
-    fun __init__(tsize: int)
+    constructor(tsize: int)
     {
         this.length = 0
         this.tsize = tsize
@@ -178,7 +178,7 @@ struct ArrayList
      * @param initialCapacity   number of element slots to allocate initially
      * @param loadFactor        resize threshold as a ratio of capacity
      */
-    fun __init__(tsize: int, initialCapacity: int, loadFactor: double)
+    constructor(tsize: int, initialCapacity: int, loadFactor: double)
     {
         this.length = 0
         this.tsize = tsize
@@ -213,7 +213,7 @@ struct ArrayList
      * @param loadFactor        resize threshold as a ratio of capacity
      * @param cmp               comparator used by search, removal and sorting
      */
-    fun __init__(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
+    constructor(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
     {
         this.length = 0
         this.tsize = tsize

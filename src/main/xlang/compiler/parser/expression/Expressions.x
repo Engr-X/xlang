@@ -35,14 +35,14 @@ struct Expressions
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.expressions = new ArrayList(sizeof(pointer<Expression>))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(expression: pointer<Expression>)
+    constructor(expression: pointer<Expression>)
     {
         this.expressions = new ArrayList(sizeof(pointer<Expression>))
         this.extraTokens = new ArrayList(sizeof(Token))

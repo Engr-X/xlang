@@ -37,7 +37,7 @@ struct Assignment
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(target: pointer<Expression>, value: pointer<Expression>)
+    constructor(target: pointer<Expression>, value: pointer<Expression>)
     {
         this.target = target
         this.value = value

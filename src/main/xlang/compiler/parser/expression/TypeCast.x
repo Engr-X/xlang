@@ -38,7 +38,7 @@ struct TypeCast
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(expression: pointer<Expression>, targetType: pointer<Type>)
+    constructor(expression: pointer<Expression>, targetType: pointer<Type>)
     {
         this.expression = expression
         this.targetType = targetType

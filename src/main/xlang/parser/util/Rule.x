@@ -58,7 +58,7 @@ struct Rule
     var role: int
 
 
-    fun __init__(pattern: pointer<PatternList>, resultConstructor: (pointer<ArrayList>) -> pointer<*>, role: int, operation: pointer<Operation>)
+    constructor(pattern: pointer<PatternList>, resultConstructor: (pointer<ArrayList>) -> pointer<*>, role: int, operation: pointer<Operation>)
     {
         this.pattern = pattern
         this.resultConstructor = resultConstructor
@@ -69,7 +69,7 @@ struct Rule
     }
 
 
-    fun __init__(pattern: pointer<PatternList>, resultConstructor: (pointer<ArrayList>) -> pointer<*>, role: int, priority: int)
+    constructor(pattern: pointer<PatternList>, resultConstructor: (pointer<ArrayList>) -> pointer<*>, role: int, priority: int)
     {
         this.pattern = pattern
         this.resultConstructor = resultConstructor

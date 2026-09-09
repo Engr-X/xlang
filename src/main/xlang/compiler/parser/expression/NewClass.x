@@ -35,7 +35,7 @@ struct NewIdentifier
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(identifier: pointer<char>)
+    constructor(identifier: pointer<char>)
     {
         this.identifier = String.strdup(identifier)
         this.extraTokens = new ArrayList(sizeof(Token))
@@ -92,7 +92,7 @@ struct NewFunction
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(host: pointer<char>)
+    constructor(host: pointer<char>)
     {
         this.host = String.strdup(host)
         this.arguments = new ArrayList(sizeof(pointer<Expression>))

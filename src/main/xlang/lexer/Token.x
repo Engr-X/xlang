@@ -171,7 +171,7 @@ struct TokenPosition
      * @param column            the column number at which the token begins
      * @param length            the length of the token in characters
      */
-    fun __init__(offset: int, line: int, column: int, length: int)
+    constructor(offset: int, line: int, column: int, length: int)
     {
         this.offset = offset
         this.line = line
@@ -268,7 +268,7 @@ struct Token
      *
      * @warning                 Passing an invalid text pointer to a non-EOF token may cause undefined behavior.
      */
-    fun __init__(kind: int, pos: pointer<TokenPosition>, text: pointer<char>)
+    constructor(kind: int, pos: pointer<TokenPosition>, text: pointer<char>)
     {
         this.kind = kind
         this.pos = pos
@@ -305,7 +305,7 @@ struct Token
      *
      * @warning                 Passing an invalid string pointer to a non-EOF token may cause undefined behavior.
      */
-    fun __init__(kind: int, pos: pointer<TokenPosition>, text: pointer<char>, errorInfo: pointer<char>)
+    constructor(kind: int, pos: pointer<TokenPosition>, text: pointer<char>, errorInfo: pointer<char>)
     {
         this.kind = kind
         this.pos = pos
@@ -375,7 +375,7 @@ struct TokenList
      * A new internal ArrayList is created using the size of Token
      * as its element size.
      */
-    fun __init__()
+    constructor()
     {
         this.filePath = null
         this.tokens = new ArrayList(sizeof(Token))
@@ -389,7 +389,7 @@ struct TokenList
      *
      * @param filePath          the source file path for this token list
      */
-    fun __init__(filePath: pointer<char>)
+    constructor(filePath: pointer<char>)
     {
         this.filePath = String.strdup(filePath)
         this.tokens = new ArrayList(sizeof(Token))

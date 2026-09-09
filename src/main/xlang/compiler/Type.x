@@ -237,7 +237,7 @@ struct Type
      *
      * @param host              concrete normal type to wrap
      */
-    fun __init__(kind: int, host: pointer<*>)
+    constructor(kind: int, host: pointer<*>)
     {
         this.host = host
         this.kind = kind

@@ -95,7 +95,7 @@ struct LexPosition
      * @param line              the line number, normally starting at 1
      * @param column            the column number, normally starting at 1
      */
-    fun __init__(offset: int, line: int, column: int)
+    constructor(offset: int, line: int, column: int)
     {
         this.offset = offset
         this.line = line
@@ -196,7 +196,7 @@ struct LexInput
      *
      * @warning                 An incorrect text length may cause out-of-bounds memory access.
      */
-    fun __init__(pos: pointer<LexPosition>, prevChar: char, text: pointer<char>, textLength: int)
+    constructor(pos: pointer<LexPosition>, prevChar: char, text: pointer<char>, textLength: int)
     {
         this.pos = pos
         this.prevChar = prevChar

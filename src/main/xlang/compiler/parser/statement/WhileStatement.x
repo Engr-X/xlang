@@ -40,7 +40,7 @@ struct WhileStatement
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(condition: pointer<Expression>, bodyStmts: pointer<ArrayList>)
+    constructor(condition: pointer<Expression>, bodyStmts: pointer<ArrayList>)
     {
         this.condition = condition
         this.bodyStmts = bodyStmts
@@ -49,7 +49,7 @@ struct WhileStatement
     }
 
 
-    fun __init__(condition: pointer<Expression>, bodyStmts: pointer<ArrayList>, elseStmts: pointer<ArrayList>)
+    constructor(condition: pointer<Expression>, bodyStmts: pointer<ArrayList>, elseStmts: pointer<ArrayList>)
     {
         this.condition = condition
         this.bodyStmts = bodyStmts

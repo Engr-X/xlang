@@ -88,7 +88,7 @@ struct RecursiveParser
      * @warning                 A null or invalid callback causes undefined behavior if it is
      *                          invoked.
      */
-    fun __init__(id: int)
+    constructor(id: int)
     {
         this.id = id
         this.error = null

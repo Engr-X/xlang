@@ -38,7 +38,7 @@ struct FunctionParam
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(paramName: pointer<char>, paramType: pointer<Type>)
+    constructor(paramName: pointer<char>, paramType: pointer<Type>)
     {
         this.paramName = paramName
         this.paramType = paramType
@@ -107,14 +107,14 @@ struct FunctionParams
     private val extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.params = new ArrayList(sizeof(FunctionParam))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(param: pointer<FunctionParam>)
+    constructor(param: pointer<FunctionParam>)
     {
         this.params = new ArrayList(sizeof(FunctionParam))
         this.extraTokens = new ArrayList(sizeof(Token))
@@ -225,7 +225,7 @@ struct FunctionParamsMaybe
     private var params: pointer<FunctionParams>
 
 
-    fun __init__(params: pointer<FunctionParams>):
+    constructor(params: pointer<FunctionParams>):
         this.params = if params == null:
                 new FunctionParams()
             else:
@@ -253,7 +253,7 @@ struct Function
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(functionName: pointer<QualifiedName>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
+    constructor(functionName: pointer<QualifiedName>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
         this.annotations = new Annotations()
         this.modifiers = new ModifierList()
@@ -265,7 +265,7 @@ struct Function
     }
 
 
-    fun __init__(
+    constructor(
         annotations: pointer<Annotations>,
         modifiers: pointer<ModifierList>,
         functionName: pointer<QualifiedName>,

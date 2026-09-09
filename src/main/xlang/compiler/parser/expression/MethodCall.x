@@ -41,7 +41,7 @@ struct MethodCall
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(host: pointer<Expression>, callName: pointer<char>)
+    constructor(host: pointer<Expression>, callName: pointer<char>)
     {
         this.host = host
         this.callName = String.strdup(callName)
@@ -50,7 +50,7 @@ struct MethodCall
     }
 
 
-    fun __init__(host: pointer<Expression>, op: pointer<Operation>)
+    constructor(host: pointer<Expression>, op: pointer<Operation>)
     {
         this.host = host
         this.callName = op.getFunctionName()

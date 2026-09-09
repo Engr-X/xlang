@@ -233,7 +233,7 @@ struct NormalType
      * @param typeName          the null-terminated simple type name.
      * @param memSize           the runtime memory size in bytes.
      */
-    fun __init__(packageName: pointer<char>, typeName: pointer<char>, memSize: int)
+    constructor(packageName: pointer<char>, typeName: pointer<char>, memSize: int)
     {
         this.typeName = String.strdup(typeName)
         this.packageName = String.strdup(packageName)

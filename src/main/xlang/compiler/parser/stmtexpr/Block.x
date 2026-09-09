@@ -35,14 +35,14 @@ struct Block
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.statements = new ArrayList(sizeof(Statement))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(statements: pointer<ArrayList>)
+    constructor(statements: pointer<ArrayList>)
     {
         this.statements = statements
         this.extraTokens = new ArrayList(sizeof(Token))

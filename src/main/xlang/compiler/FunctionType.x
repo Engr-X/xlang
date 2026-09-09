@@ -103,7 +103,7 @@ struct FunctionType
      * @param parameterTypes    ordered parameter Type list, or null for no parameters
      * @param returnType        function return Type, or null when incomplete
      */
-    fun __init__(parameterTypes: pointer<ArrayList>, returnType: pointer<Type>)
+    constructor(parameterTypes: pointer<ArrayList>, returnType: pointer<Type>)
     {
         this.parameterTypes = parameterTypes
         this.returnType = returnType

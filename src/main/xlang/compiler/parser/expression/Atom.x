@@ -52,7 +52,7 @@ struct Atom
     
 
 
-    fun __init__(kind: int, tokens: pointer<ArrayList>)
+    constructor(kind: int, tokens: pointer<ArrayList>)
     {
         this.kind = kind
         this.tokens = tokens

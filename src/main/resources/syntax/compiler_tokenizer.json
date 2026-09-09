@@ -37,6 +37,7 @@
         { "name": "KW_CHAR", "pattern": "char" },
         { "name": "KW_CLASS", "pattern": "class" },
         { "name": "KW_CONTINUE", "pattern": "continue" },
+        { "name": "KW_CONSTRUCTOR", "pattern": "constructor" },
         { "name": "KW_DO", "pattern": "do" },
         { "name": "KW_DOUBLE", "pattern": "double" },
         { "name": "KW_ELIF", "pattern": "elif" },

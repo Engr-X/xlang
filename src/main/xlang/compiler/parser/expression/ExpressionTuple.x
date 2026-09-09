@@ -36,14 +36,14 @@ struct ExpressionTuple
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.list = new ArrayList(sizeof(pointer<Expression>))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(list: pointer<ArrayList>)
+    constructor(list: pointer<ArrayList>)
     {
         this.list = list
         this.extraTokens = new ArrayList(sizeof(Token))

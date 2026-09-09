@@ -92,7 +92,7 @@ struct TokenizeRule
      * @warning                 A null or invalid pattern or action may cause undefined
      *                          behavior when the rule is evaluated.
      */
-    fun __init__(id: int, state: int, pattern: pointer<char>, action: (pointer<LexInput>, pointer<TokenizeFSM>) -> pointer<Token>)
+    constructor(id: int, state: int, pattern: pointer<char>, action: (pointer<LexInput>, pointer<TokenizeFSM>) -> pointer<Token>)
     {
         this.id = id
         this.state = state
@@ -191,7 +191,7 @@ struct TokenizeFSM
      * @warning                 Passing a null or invalid source pointer may cause undefined
      *                          behavior when apply reads from the buffer.
      */
-    fun __init__(code: pointer<char>)
+    constructor(code: pointer<char>)
     {
         this.code = code
         this.state = DEFAULT

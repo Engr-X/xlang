@@ -41,7 +41,7 @@ struct IfElseExpression
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.condition = null
         this.ifStmts = new ArrayList(sizeof(Statement))
@@ -50,7 +50,7 @@ struct IfElseExpression
     }
 
 
-    fun __init__(elseStmts: pointer<ArrayList>)
+    constructor(elseStmts: pointer<ArrayList>)
     {
         this.condition = null
         this.ifStmts = new ArrayList(sizeof(Statement))
@@ -59,7 +59,7 @@ struct IfElseExpression
     }
 
 
-    fun __init__(elseStatement: pointer<Statement>)
+    constructor(elseStatement: pointer<Statement>)
     {
         this.condition = null
         this.ifStmts = new ArrayList(sizeof(Statement))

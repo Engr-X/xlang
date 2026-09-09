@@ -106,7 +106,7 @@ struct NormalizeReceiver
      * @warning                 A very large length may overflow the allocation-size
      *                          calculation or cause memory allocation to fail.
      */
-    fun __init__(length: int)
+    constructor(length: int)
     {
         if length <= 0:
         {
@@ -305,7 +305,7 @@ struct NormalizeRule
      * @param id                the application-defined rule identifier
      * @param state             the FSM state in which the rule may match
      */
-    fun __init__(id: int, state: int):
+    constructor(id: int, state: int):
     {
         this.id = id
         this.state = state
@@ -331,7 +331,7 @@ struct NormalizeRule
      * @warning                 A null or invalid action causes undefined behavior when
      *                          the rule is applied.
      */
-    fun __init__(id: int, state: int, action: (pointer<NormalizeFSM>, pointer<ArrayList>) -> bool):
+    constructor(id: int, state: int, action: (pointer<NormalizeFSM>, pointer<ArrayList>) -> bool):
     {
         this.id = id
         this.state = state
@@ -557,7 +557,7 @@ struct NormalizeFSM
      * @warning                 Passing a null or invalid list pointer causes undefined
      *                          behavior because its length is read immediately.
      */
-    fun __init__(list: pointer<TokenList>)
+    constructor(list: pointer<TokenList>)
     {
         this.state = DEFAULT
         this.currentIndex = 0

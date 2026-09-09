@@ -79,7 +79,7 @@ struct StringBuilder
      * Allocates the initial buffer and writes the null terminator at index 0.
      * After construction, the builder represents an empty string.
      */
-    fun __init__()
+    constructor()
     {
         this.length = 0
         this.capacity = INIT_CAPACITY
@@ -98,7 +98,7 @@ struct StringBuilder
      *
      * @param string            initial null-terminated string content
      */
-    fun __init__(string: pointer<char>)
+    constructor(string: pointer<char>)
     {
         val strLength: int = String.strlen(string)
 

@@ -33,11 +33,11 @@ struct Annotations
     private val annotations: pointer<ArrayList>
 
 
-    fun __init__():
+    constructor():
         this.annotations = new ArrayList(sizeof(Annotation))
 
 
-    fun __init__(annotation: pointer<Annotation>)
+    constructor(annotation: pointer<Annotation>)
     {
         this.annotations = new ArrayList(sizeof(Annotation))
         this.push(annotation)
@@ -152,7 +152,7 @@ struct AnnotationsMaybe
     private var annotations: pointer<Annotations>
 
 
-    fun __init__(annotations: pointer<Annotations>):
+    constructor(annotations: pointer<Annotations>):
         this.annotations = if annotations == null:
                 new Annotations()
             else:

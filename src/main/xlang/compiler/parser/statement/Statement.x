@@ -81,7 +81,7 @@ struct Statement
     private var extraTokens: pointer<ArrayList>
 
 
-    private fun __init__(kind: int, root: pointer<*>)
+    private constructor(kind: int, root: pointer<*>)
     {
         this.kind = kind
         this.root = root

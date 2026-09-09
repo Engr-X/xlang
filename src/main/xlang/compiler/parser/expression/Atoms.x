@@ -35,7 +35,7 @@ struct Atoms
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(atom: pointer<Atom>)
+    constructor(atom: pointer<Atom>)
     {
         this.atoms = new ArrayList(sizeof(pointer<Atom>))
         this.extraTokens = new ArrayList(sizeof(Token))

@@ -54,7 +54,7 @@ struct HashSet
      * @param tsize             size in bytes of one stored element slot
      * @param cmp               equality comparator
      */
-    fun __init__(tsize: int, cmp: (pointer<*>, pointer<*>) -> int)
+    constructor(tsize: int, cmp: (pointer<*>, pointer<*>) -> int)
     {
         this.length = 0
         this.cmp = cmp
@@ -71,7 +71,7 @@ struct HashSet
      * @param loadFactor        backing-list resize threshold
      * @param cmp               equality comparator
      */
-    fun __init__(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
+    constructor(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
     {
         this.length = 0
         this.cmp = cmp

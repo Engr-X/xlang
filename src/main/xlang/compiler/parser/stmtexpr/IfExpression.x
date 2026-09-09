@@ -39,7 +39,7 @@ struct IfExpression
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(condition: pointer<Expression>, statements: pointer<ArrayList>)
+    constructor(condition: pointer<Expression>, statements: pointer<ArrayList>)
     {
         this.condition = condition
         this.statements = statements
@@ -47,7 +47,7 @@ struct IfExpression
     }
 
 
-    fun __init__(condition: pointer<Expression>, statement: pointer<Statement>)
+    constructor(condition: pointer<Expression>, statement: pointer<Statement>)
     {
         this.condition = condition
         this.statements = new ArrayList(sizeof(Statement))

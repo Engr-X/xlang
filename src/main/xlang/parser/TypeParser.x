@@ -49,7 +49,7 @@ struct TypeParser
     private var depth: int
 
 
-    fun __init__(id: int)
+    constructor(id: int)
     {
         this.id = id
         this.error = null

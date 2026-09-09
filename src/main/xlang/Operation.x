@@ -167,7 +167,7 @@ struct Operation
      * @warning                 Passing an invalid symbol or functionName pointer
      *                          may cause undefined behavior in String.strdup.
      */
-    fun __init__(
+    constructor(
         id: int,
         symbol: pointer<char>,
         fixity: int,

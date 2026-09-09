@@ -41,7 +41,7 @@ struct StatementExpression
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(kind: int, host: pointer<*>)
+    constructor(kind: int, host: pointer<*>)
     {
         this.kind = kind
         this.host = host

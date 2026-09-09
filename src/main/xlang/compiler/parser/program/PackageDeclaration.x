@@ -35,7 +35,7 @@ struct PackageDeclaration
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(qualifiedName: pointer<ArrayList>)
+    constructor(qualifiedName: pointer<ArrayList>)
     {
         this.qualifiedName = if qualifiedName == null:
             new ArrayList(sizeof(pointer<char>))

@@ -97,7 +97,7 @@ struct Expression
     private val inferredType: pointer<Type>
 
 
-    private fun __init__(kind: int, root: pointer<*>)
+    private constructor(kind: int, root: pointer<*>)
     {
         this.kind = kind
         this.root = root

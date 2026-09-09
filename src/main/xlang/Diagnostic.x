@@ -81,7 +81,7 @@ struct SourceLocation
      * @param column            the starting column number
      * @param length            the range length in characters
      */
-    fun __init__(filePath: pointer<char>, offset: int, line: int, column: int, length: int)
+    constructor(filePath: pointer<char>, offset: int, line: int, column: int, length: int)
     {
         this.filePath = String.strdup(filePath)
         this.offset = offset
@@ -342,7 +342,7 @@ struct Diagnostic
      * @warning                 Passing a null or invalid message pointer may cause undefined
      *                          behavior in String.strdup.
      */
-    fun __init__(level: int, code: int, location: pointer<ArrayList>, message: pointer<char>)
+    constructor(level: int, code: int, location: pointer<ArrayList>, message: pointer<char>)
     {
         this.level = level
         this.code = code

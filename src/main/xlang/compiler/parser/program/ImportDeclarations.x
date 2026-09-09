@@ -35,14 +35,14 @@ struct ImportDeclarations
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.qualifiedNames = new ArrayList(sizeof(QualifiedName))
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(qualifiedName: pointer<QualifiedName>)
+    constructor(qualifiedName: pointer<QualifiedName>)
     {
         this.qualifiedNames = new ArrayList(sizeof(QualifiedName))
         this.extraTokens = new ArrayList(sizeof(Token))
@@ -175,7 +175,7 @@ struct ImportDeclarationsMaybe
     private var imports: pointer<ImportDeclarations>
 
 
-    fun __init__(imports: pointer<ImportDeclarations>):
+    constructor(imports: pointer<ImportDeclarations>):
         this.imports = if imports == null:
                 new ImportDeclarations()
             else:

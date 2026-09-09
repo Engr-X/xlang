@@ -89,7 +89,7 @@ struct PatternAtom
      * @warning                 If String.strdup does not accept null, passing a null regex
      *                          causes undefined behavior.
      */
-    fun __init__(kind: int, regex: pointer<char>)
+    constructor(kind: int, regex: pointer<char>)
     {
         this.kind = kind
         this.regex = String.strdup(regex)
@@ -98,7 +98,7 @@ struct PatternAtom
     }
 
 
-    fun __init__(refParser: pointer<ParserRef>)
+    constructor(refParser: pointer<ParserRef>)
     {
         this.kind = Token.AnyKind
         this.regex = null
@@ -107,7 +107,7 @@ struct PatternAtom
     }
 
 
-    fun __init__(refsParser: pointer<ParserRefs>)
+    constructor(refsParser: pointer<ParserRefs>)
     {
         this.kind = Token.AnyKind
         this.regex = null
@@ -177,7 +177,7 @@ struct PatternList
      *
      * A new ArrayList is allocated with PatternAtom as its element type.
      */
-    fun __init__():
+    constructor():
         this.patterns = new ArrayList(sizeof(PatternAtom))
 
 

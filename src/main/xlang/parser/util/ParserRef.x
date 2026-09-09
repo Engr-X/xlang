@@ -60,7 +60,7 @@ struct ParserRef
         new ParserRef(id, TYPE_PARSER, new TypeParser(id))
 
 
-    private fun __init__(id: int, type: int, host: pointer<*>)
+    private constructor(id: int, type: int, host: pointer<*>)
     {
         this.id = id
         this.type = type

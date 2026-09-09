@@ -44,7 +44,7 @@ struct VariableDefines
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(varDef: pointer<VariableDefine>)
+    constructor(varDef: pointer<VariableDefine>)
     {
         this.defines = new ArrayList(sizeof(VariableDefine))
         this.extraTokens = new ArrayList(sizeof(Token))

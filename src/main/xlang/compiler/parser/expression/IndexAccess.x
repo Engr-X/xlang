@@ -37,7 +37,7 @@ struct IndexAccess
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(host: pointer<Expression>, indices: pointer<ListLiteral>)
+    constructor(host: pointer<Expression>, indices: pointer<ListLiteral>)
     {
         this.host = host
         this.extraTokens = new ArrayList(sizeof(Token))

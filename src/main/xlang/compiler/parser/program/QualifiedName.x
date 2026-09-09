@@ -37,7 +37,7 @@ struct QualifiedName
 
 
 
-    fun __init__(part: pointer<char>)
+    constructor(part: pointer<char>)
     {
         this.parts = new ArrayList(sizeof(pointer<char>))
         this.extraTokens = new ArrayList(sizeof(Token))

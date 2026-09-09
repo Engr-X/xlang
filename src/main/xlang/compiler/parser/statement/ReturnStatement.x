@@ -36,14 +36,14 @@ struct ReturnStatement
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.expr = null
         this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
-    fun __init__(expr: pointer<Expression>)
+    constructor(expr: pointer<Expression>)
     {
         this.expr = expr
         this.extraTokens = new ArrayList(sizeof(Token))

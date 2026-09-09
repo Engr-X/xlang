@@ -79,7 +79,7 @@ struct TestRecord
     var total: int
 
 
-    fun __init__()
+    constructor()
     {
         this.correct = 0
         this.total = 0
@@ -95,7 +95,7 @@ struct TestCase
     private var name: pointer<char>
 
 
-    fun __init__(name: pointer<char>, func: () -> int)
+    constructor(name: pointer<char>, func: () -> int)
     {
         this.name = name
         this.func = func
@@ -144,7 +144,7 @@ struct TestUnion
     var testGroup: pointer<TestGroup>
 
 
-    fun __init__(type: int, testCase: pointer<TestCase>, testGroup: pointer<TestGroup>)
+    constructor(type: int, testCase: pointer<TestCase>, testGroup: pointer<TestGroup>)
     {
         this.type = type
         this.testCase = testCase
@@ -171,7 +171,7 @@ struct TestGroup
     private var list: pointer<ArrayList>
 
 
-    fun __init__(name: pointer<char>)
+    constructor(name: pointer<char>)
     {
         this.length = 0
         this.name = name

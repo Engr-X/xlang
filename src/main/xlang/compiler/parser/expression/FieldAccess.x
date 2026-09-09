@@ -38,7 +38,7 @@ struct FieldAccess
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(host: pointer<Expression>, fieldName: pointer<char>)
+    constructor(host: pointer<Expression>, fieldName: pointer<char>)
     {
         this.host = host
         this.fieldName = String.strdup(fieldName)

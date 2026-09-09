@@ -36,7 +36,7 @@ struct Modifier
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(keyword: pointer<char>)
+    constructor(keyword: pointer<char>)
     {
         this.keyword = String.strdup(keyword)
         this.extraTokens = new ArrayList(sizeof(Token))
@@ -78,11 +78,11 @@ struct ModifierList
     private var list: pointer<ArrayList>
 
 
-    fun __init__():
+    constructor():
         this.list = new ArrayList(sizeof(pointer<Modifier>))
 
 
-    fun __init__(modifier: pointer<Modifier>)
+    constructor(modifier: pointer<Modifier>)
     {
         this.list = new ArrayList(sizeof(pointer<Modifier>))
         this.push(modifier)
@@ -176,11 +176,11 @@ struct ModifierListMaybe
     private var list: pointer<ModifierList>
 
 
-    fun __init__():
+    constructor():
         this.list = new ModifierList()
 
 
-    fun __init__(list: pointer<ModifierList>):
+    constructor(list: pointer<ModifierList>):
         this.list = if list == null:
                 new ModifierList()
             else:

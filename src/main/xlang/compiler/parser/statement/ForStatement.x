@@ -43,7 +43,7 @@ struct ForHeader
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.initStmt = null
         this.condition = null
@@ -52,7 +52,7 @@ struct ForHeader
     }
 
 
-    fun __init__(
+    constructor(
         initStmt: pointer<Statement>,
         condition: pointer<Expression>,
         stepStmt: pointer<Statement>)
@@ -174,7 +174,7 @@ struct ForStatement
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(
+    constructor(
         header: pointer<ForHeader>,
         bodyStmts: pointer<ArrayList>)
     {
@@ -193,7 +193,7 @@ struct ForStatement
     }
 
 
-    fun __init__(
+    constructor(
         header: pointer<ForHeader>,
         bodyStmts: pointer<ArrayList>,
         elseStmts: pointer<ArrayList>)

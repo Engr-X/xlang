@@ -35,7 +35,7 @@ struct ExprListStatement
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(expr: pointer<Expression>)
+    constructor(expr: pointer<Expression>)
     {
         this.exprList = new ArrayList(sizeof(Expression)) 
         this.extraTokens = new ArrayList(sizeof(Token))

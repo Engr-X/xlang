@@ -50,7 +50,7 @@ struct PrattParser
     private var continuationRules: pointer<ArrayList>
 
 
-    fun __init__()
+    constructor()
     {
         this.id = ParseContainer.ARRAY_LIST_KIND
         this.errors = new ArrayList(sizeof(Diagnostic))

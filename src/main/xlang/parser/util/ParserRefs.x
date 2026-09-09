@@ -36,7 +36,7 @@ struct ParserRefs
     private var results: pointer<ArrayList>
 
 
-    fun __init__(parser: pointer<ParserRef>)
+    constructor(parser: pointer<ParserRef>)
     {
         this.parser = parser
         this.results = new ArrayList(sizeof(pointer<*>))

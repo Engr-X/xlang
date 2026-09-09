@@ -35,7 +35,7 @@ struct ImportDeclaration
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(qualifiedName: pointer<QualifiedName>)
+    constructor(qualifiedName: pointer<QualifiedName>)
     {
         this.qualifiedName = qualifiedName
         this.extraTokens = new ArrayList(sizeof(Token))

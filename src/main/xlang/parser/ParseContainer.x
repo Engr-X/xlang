@@ -34,7 +34,7 @@ struct ParseContainer
     private var value: pointer<*>
 
 
-    fun __init__(kind: int, value: pointer<*>)
+    constructor(kind: int, value: pointer<*>)
     {
         this.kind = kind
         this.value = value

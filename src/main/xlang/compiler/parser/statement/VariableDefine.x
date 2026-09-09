@@ -50,7 +50,7 @@ struct VariableDefine
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(varName: pointer<char>, assignExpr: pointer<Expression>)
+    constructor(varName: pointer<char>, assignExpr: pointer<Expression>)
     {
         this.modifier = CONST_MODIFIER
         this.declaredType = null
@@ -60,7 +60,7 @@ struct VariableDefine
     }
 
 
-    fun __init__(declaredType: pointer<Type>, varName: pointer<char>, assignExpr: pointer<Expression>)
+    constructor(declaredType: pointer<Type>, varName: pointer<char>, assignExpr: pointer<Expression>)
     {
         this.modifier = CONST_MODIFIER
         this.declaredType = declaredType

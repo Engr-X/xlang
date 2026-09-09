@@ -40,7 +40,7 @@ struct Annotation
     private var extraTokens: pointer<ArrayList>
 
 
-    fun __init__(name: pointer<QualifiedName>)
+    constructor(name: pointer<QualifiedName>)
     {
         this.name = name
         this.value = new ArrayList(sizeof(pointer<Atom>))
@@ -49,7 +49,7 @@ struct Annotation
     }
 
 
-    fun __init__(name: pointer<QualifiedName>, value: pointer<ArrayList>)
+    constructor(name: pointer<QualifiedName>, value: pointer<ArrayList>)
     {
         this.name = name
         this.value = if value == null: new ArrayList(sizeof(pointer<Atom>)) else: value

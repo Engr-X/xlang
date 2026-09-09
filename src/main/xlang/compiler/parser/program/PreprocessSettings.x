@@ -33,11 +33,11 @@ struct PreprocessSettings
     private val settings: pointer<ArrayList>
 
 
-    fun __init__():
+    constructor():
         this.settings = new ArrayList(sizeof(PreprocessSetting))
 
 
-    fun __init__(setting: pointer<PreprocessSetting>)
+    constructor(setting: pointer<PreprocessSetting>)
     {
         this.settings = new ArrayList(sizeof(PreprocessSetting))
         this.push(setting)
@@ -152,7 +152,7 @@ struct PreprocessSettingsMaybe
     private var settings: pointer<PreprocessSettings>
 
 
-    fun __init__(settings: pointer<PreprocessSettings>):
+    constructor(settings: pointer<PreprocessSettings>):
         this.settings = if settings == null:
                 new PreprocessSettings()
             else:
