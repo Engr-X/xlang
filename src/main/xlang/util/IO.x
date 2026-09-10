@@ -75,6 +75,62 @@ private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<ch
 
 
 /**
+ * Lists the direct children of a directory into a caller-provided buffer.
+ *
+ * The native implementation writes both files and sub-directories. It only
+ * lists entries directly under path and does not recursively walk nested
+ * directories. The entry names are written as a single null-terminated string
+ * separated by the pipe character {@code |}; there is no trailing separator.
+ *
+ * The order is the order returned by the operating system and should not be
+ * treated as stable.
+ *
+ * The caller must ensure that dest has enough space for every returned entry
+ * name, every separator, and the final null terminator. This function does not
+ * receive a capacity argument, so an undersized buffer is undefined behavior.
+ *
+ * @param path              pointer to the null-terminated directory path
+ * @param dest              pointer to the destination character buffer
+ *
+ * @return                  number of directory entries written to dest
+ * @return                  0 if path is null, dest is null, the directory cannot be opened,
+ *                              or the directory contains no visible entries
+ */
+#native("sub_files")
+native inline fun subFiles(path: pointer<char>, dest: pointer<char>) -> int;
+
+
+/**
+ * Checks whether a path exists and refers to a directory.
+ *
+ * This is a thin native helper. It performs the platform-specific filesystem
+ * query and returns false for null input, conversion failure, missing paths,
+ * regular files, and other non-directory paths.
+ *
+ * @param fullPath          pointer to the null-terminated path to inspect
+ *
+ * @return                  true only when fullPath exists and is a directory
+ */
+#native("is_directory")
+native inline fun isDirectory(fullPath: pointer<char>) -> bool
+
+
+/**
+ * Checks whether a path exists and refers to a regular file-like entry.
+ *
+ * This is a thin native helper. It returns false for null input, conversion
+ * failure, missing paths, directories, and other paths that should not be
+ * opened as ordinary files.
+ *
+ * @param fullPath          pointer to the null-terminated path to inspect
+ *
+ * @return                  true only when fullPath exists and is a file
+ */
+#native("is_file")
+native inline fun isFile(fullPath: pointer<char>) -> bool
+
+
+/**
  * Reads a whole file into a newly allocated null-terminated buffer.
  *
  * The file is read as raw bytes by the native implementation, so line endings
@@ -115,7 +171,7 @@ fun readFile(path: pointer<char>) -> pointer<char>
  * @return                  native status code, usually 0 on success
  */
 #native("enable_ansi_color")
-native inline fun enableANSIColor() -> int;
+native inline fun enableANSIColor() -> int
 
 
 /**
@@ -133,7 +189,7 @@ native inline fun enableANSIColor() -> int;
  * @return                  number of characters written
  */
 #native("colored_sprint")
-native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color: int) -> int;
+native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color: int) -> int
 
 
 /**
@@ -150,7 +206,7 @@ native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color
  * @return                  number of characters written
  */
 #native("colored_sprintln")
-native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, color: int) -> int;
+native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, color: int) -> int
 
 
 /**
@@ -162,4 +218,4 @@ native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, col
  * @return                  number of characters read, or -1 on EOF or error
  */
 #native("read_line")
-native inline fun readLine(dest: pointer<char>, capacity: int) -> int;
+native inline fun readLine(dest: pointer<char>, capacity: int) -> int

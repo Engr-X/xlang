@@ -35,8 +35,13 @@ import xlang.compiler.parser.expression.MethodCall
 import xlang.compiler.parser.expression.NewFunction
 import xlang.compiler.parser.expression.NewIdentifier
 import xlang.compiler.parser.expression.TypeCast
+import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParams
+import xlang.compiler.parser.program.Member
+import xlang.compiler.parser.program.ModifierList
+import xlang.compiler.parser.program.Struct
+import xlang.compiler.parser.program.StructConstructor
 import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
 import xlang.compiler.parser.statement.ForStatement
@@ -83,6 +88,7 @@ fun genTest() -> pointer<TestGroup>
     val functionArrowBlockTC: pointer<TestCase> = new TestCase("functionArrowBlock", functionArrowBlockTest)
     val functionVoidExpressionTC: pointer<TestCase> = new TestCase("functionVoidExpression", functionVoidExpressionTest)
     val functionVoidBlockTC: pointer<TestCase> = new TestCase("functionVoidBlock", functionVoidBlockTest)
+    val structTC: pointer<TestCase> = new TestCase("struct", structTest)
     val statementTC: pointer<TestCase> = new TestCase("statement", statementTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
@@ -105,6 +111,7 @@ fun genTest() -> pointer<TestGroup>
     val functionArrowBlockUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionArrowBlockTC, null)
     val functionVoidExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidExpressionTC, null)
     val functionVoidBlockUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidBlockTC, null)
+    val structUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, structTC, null)
     val statementUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, statementTC, null)
 
     result.addTestUnion(atomParserUnion)
@@ -128,6 +135,7 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(functionArrowBlockUnion)
     result.addTestUnion(functionVoidExpressionUnion)
     result.addTestUnion(functionVoidBlockUnion)
+    result.addTestUnion(structUnion)
     result.addTestUnion(statementUnion)
 
     return result
@@ -159,6 +167,13 @@ private fun parseFunctionText(text: pointer<char>) -> pointer<Function>
 {
     val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
     return Parser.parseFunction(tokens)
+}
+
+
+private fun parseStructText(text: pointer<char>) -> pointer<Struct>
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
+    return Parser.parseStruct(tokens)
 }
 
 
@@ -358,6 +373,126 @@ private fun functionVoidBlockTest() -> int
 
     if !tokenTextAt(tokens, 4, "{") || !tokenTextAt(tokens, 5, "return") || !tokenTextAt(tokens, 6, "}"):
         return 5
+
+    return 0
+}
+
+
+private fun structTest() -> int
+{
+    val ruleResult: int = structRuleTest()
+
+    if ruleResult != 0:
+        return ruleResult
+
+    val tokensResult: int = structGetAllTokensTest()
+
+    if tokensResult != 0:
+        return 20 + tokensResult
+
+    return 0
+}
+
+
+private fun structRuleTest() -> int
+{
+    val structDecl: pointer<Struct> = parseStructText("public struct Box {var value: int = 1\nfun get() -> int: value\nconstructor(arg: int): value = arg\n}\n")
+
+    if structDecl == null:
+        return 1
+
+    if !String.streq(structDecl.getStructName(), "Box"):
+        return 2
+
+    val modifiers: pointer<ModifierList> = structDecl.getModifiers()
+
+    if modifiers == null || modifiers.length() != 1:
+        return 3
+
+    val members: pointer<ArrayList> = structDecl.getMembers()
+
+    if members == null || members.length != 3:
+        return 4
+
+    val fieldMember: pointer<Member> = members.get(0) as pointer<Member>
+
+    if fieldMember == null || fieldMember.getKind() != Member.FIELD_TYPE:
+        return 5
+
+    val field: pointer<Field> = fieldMember.getHost() as pointer<Field>
+
+    if field == null || !field.canModified() || !String.streq(field.getFieldName(), "value"):
+        return 6
+
+    if field.getFieldType() == null || field.getInitialValue() == null:
+        return 7
+
+    val functionMember: pointer<Member> = members.get(1) as pointer<Member>
+
+    if functionMember == null || functionMember.getKind() != Member.FUNCTION_TYPE:
+        return 8
+
+    val function: pointer<Function> = functionMember.getHost() as pointer<Function>
+
+    if function == null || !String.streq(function.getFunctionName(), "get"):
+        return 9
+
+    if function.getReturnType() == null || function.getBodyExpr() == null:
+        return 10
+
+    val functionParams: pointer<FunctionParams> = function.getParams()
+
+    if functionParams == null || functionParams.length() != 0:
+        return 11
+
+    val constructorMember: pointer<Member> = members.get(2) as pointer<Member>
+
+    if constructorMember == null || constructorMember.getKind() != Member.STRUCT_CONSTRUCTOR_TYPE:
+        return 12
+
+    val structConstructor: pointer<StructConstructor> = constructorMember.getHost() as pointer<StructConstructor>
+
+    if structConstructor == null || structConstructor.getBodyExpr() == null:
+        return 13
+
+    val constructorParams: pointer<FunctionParams> = structConstructor.getParams()
+
+    if constructorParams == null || constructorParams.length() != 1:
+        return 14
+
+    return 0
+}
+
+
+private fun structGetAllTokensTest() -> int
+{
+    val structDecl: pointer<Struct> = parseStructText("public struct Box {var value: int = 1\nfun get() -> int: value\nconstructor(arg: int): value = arg\n}\n")
+
+    if structDecl == null:
+        return 1
+
+    val tokens: pointer<ArrayList> = structDecl.getAllTokens()
+
+    if tokens == null || tokens.length != 29:
+        return 2
+
+    if !tokenTextAt(tokens, 0, "public") || !tokenTextAt(tokens, 1, "struct") || !tokenTextAt(tokens, 2, "Box") || !tokenTextAt(tokens, 3, "{"):
+        return 3
+
+    if !tokenTextAt(tokens, 4, "var") || !tokenTextAt(tokens, 5, "value") || !tokenTextAt(tokens, 6, ":") || !tokenTextAt(tokens, 7, "int") || !tokenTextAt(tokens, 8, "=") || !tokenTextAt(tokens, 9, "1"):
+        return 4
+
+    if !tokenTextAt(tokens, 10, "fun") || !tokenTextAt(tokens, 11, "get") || !tokenTextAt(tokens, 12, "(") || !tokenTextAt(tokens, 13, ")"):
+        return 5
+
+    if !tokenTextAt(tokens, 14, "->") || !tokenTextAt(tokens, 15, "int") || !tokenTextAt(tokens, 16, ":") || !tokenTextAt(tokens, 17, "value"):
+        return 6
+
+    if !tokenTextAt(tokens, 18, "constructor") || !tokenTextAt(tokens, 19, "(") || !tokenTextAt(tokens, 20, "arg") || !tokenTextAt(tokens, 21, ":") || !tokenTextAt(tokens, 22, "int"):
+        return 7
+
+    if !tokenTextAt(tokens, 23, ")") || !tokenTextAt(tokens, 24, ":") || !tokenTextAt(tokens, 25, "value") || !tokenTextAt(tokens, 26, "=") || !tokenTextAt(tokens, 27, "arg") || !tokenTextAt(tokens, 28, "}"):
+        return 8
 
     return 0
 }

@@ -17,6 +17,9 @@
         "xlang.compiler.parser.program.FunctionParam",
         "xlang.compiler.parser.program.FunctionParams",
         "xlang.compiler.parser.program.FunctionParamsMaybe",
+        "xlang.compiler.parser.program.Member",
+        "xlang.compiler.parser.program.Members",
+        "xlang.compiler.parser.program.Struct",
         "xlang.compiler.parser.program.StructConstructor",
         "xlang.compiler.parser.program.PreprocessSetting",
         "xlang.compiler.parser.program.PreprocessSettings",
@@ -204,6 +207,30 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructor" },
                 { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_CONSTRUCTOR" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStructConstructorFromBlock" }
+            ]
+        },
+        {
+            "class": "Member",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Field" }], "action": "makeMemberFromField" },
+                { "patterns": [{ "kind": "$Function" }], "action": "makeMemberFromFunction" },
+                { "patterns": [{ "kind": "$StructConstructor" }], "action": "makeMemberFromStructConstructor" }
+            ]
+        },
+        {
+            "class": "Members",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$Member" }, { "kind": "$Members" }], "action": "makeMembersIt" },
+                { "patterns": [{ "kind": "$Member" }], "action": "makeMembers" }
+            ]
+        },
+        {
+            "class": "Struct",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_STRUCT" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "$Members" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStruct" }
             ]
         }
     ],
@@ -631,6 +658,61 @@
             "        .addExtraToken(constructorToken)",
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",
+            "}" ],
+
+
+        [   "private inline fun makeMemberFromField(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val field: pointer<Field> = getContainerValue(results, 0) as pointer<Field>",
+            "    return Member.fromField(field)",
+            "}" ],
+
+
+        [   "private inline fun makeMemberFromFunction(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val function: pointer<Function> = getContainerValue(results, 0) as pointer<Function>",
+            "    return Member.fromFunction(function)",
+            "}" ],
+
+
+        [   "private inline fun makeMemberFromStructConstructor(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val structConstructor: pointer<StructConstructor> = getContainerValue(results, 0) as pointer<StructConstructor>",
+            "    return Member.fromStructConstructor(structConstructor)",
+            "}" ],
+
+
+        [   "private inline fun makeMembersIt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>",
+            "    val members: pointer<Members> = getContainerValue(results, 1) as pointer<Members>",
+            "",
+            "    return new Members(member).pushAll(members)",
+            "}" ],
+
+
+        [   "private inline fun makeMembers(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>",
+            "    return new Members(member)",
+            "}" ],
+
+
+        [   "private inline fun makeStruct(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>",
+            "    val structToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val leftBrace: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "    val members: pointer<Members> = getContainerValue(results, 4) as pointer<Members>",
+            "    val rightBrace: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "",
+            "    return new Struct(nameToken.text, members)",
+            "        .setModifiers(modifiers.toModifierList())",
+            "        .addExtraToken(structToken)",
+            "        .addExtraToken(nameToken)",
+            "        .addExtraToken(leftBrace)",
+            "        .addExtraToken(rightBrace)",
             "}" ]
     ]
 }
