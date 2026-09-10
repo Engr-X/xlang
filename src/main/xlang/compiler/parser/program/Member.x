@@ -35,6 +35,8 @@ struct Member
 
     static val STRUCT_CONSTRUCTOR_TYPE: int = 3
 
+    static val STRUCT_TYPE: int = 4
+
 
 
     static fun fromField(field: pointer<Field>) -> pointer<Member> =
@@ -47,6 +49,10 @@ struct Member
 
     static fun fromStructConstructor(structConstructor: pointer<StructConstructor>) -> pointer<Member> =
         new Member(STRUCT_CONSTRUCTOR_TYPE, structConstructor)
+
+
+    static fun fromStruct(structDecl: pointer<Struct>) -> pointer<Member> =
+        new Member(STRUCT_TYPE, structDecl)
 
 
     private var kind: int
@@ -85,6 +91,11 @@ struct Member
             val structConstructor: pointer<StructConstructor> = this.host as pointer<StructConstructor>
             structConstructor.getAllTokens()
         }
+        elif this.kind == STRUCT_TYPE:
+        {
+            val structDecl: pointer<Struct> = this.host as pointer<Struct>
+            structDecl.getAllTokens()
+        }
         else:
             new ArrayList(sizeof(Token))
 
@@ -106,6 +117,11 @@ struct Member
         {
             val structConstructor: pointer<StructConstructor> = this.host as pointer<StructConstructor>
             structConstructor.toString()
+        }
+        elif this.kind == STRUCT_TYPE:
+        {
+            val structDecl: pointer<Struct> = this.host as pointer<Struct>
+            structDecl.toString()
         }
         else:
             new StringBuilder()

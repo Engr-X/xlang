@@ -39,6 +39,7 @@ import xlang.compiler.parser.program.PackageDeclaration
 import xlang.compiler.parser.program.PreprocessSetting
 import xlang.compiler.parser.program.PreprocessSettings
 import xlang.compiler.parser.program.PreprocessSettingsMaybe
+import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.QualifiedName
 import xlang.compiler.parser.program.Struct
 import xlang.compiler.parser.program.StructConstructor
@@ -118,6 +119,7 @@ private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 43
 private val MEMBER_PARSER_ID: int = 44
 private val MEMBERS_PARSER_ID: int = 45
 private val STRUCT_PARSER_ID: int = 46
+private val PROGRAM_PARSER_ID: int = 47
 
 
 private inline fun getContainerValue(results: pointer<ArrayList>, index: int, unwrapContainer: bool) -> pointer<*>
@@ -1781,6 +1783,12 @@ private inline fun makeMemberFromStructConstructor(results: pointer<ArrayList>) 
     return Member.fromStructConstructor(structConstructor)
 }
 
+private inline fun makeMemberFromStruct(results: pointer<ArrayList>) -> pointer<*>
+{
+    val structDecl: pointer<Struct> = getContainerValue(results, 0) as pointer<Struct>
+    return Member.fromStruct(structDecl)
+}
+
 private inline fun makeMembersIt(results: pointer<ArrayList>) -> pointer<*>
 {
     val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>
@@ -1810,6 +1818,30 @@ private inline fun makeStruct(results: pointer<ArrayList>) -> pointer<*>
         .addExtraToken(nameToken)
         .addExtraToken(leftBrace)
         .addExtraToken(rightBrace)
+}
+
+private inline fun makeProgramWithPackage(results: pointer<ArrayList>) -> pointer<*>
+{
+    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>
+    val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 1) as pointer<PackageDeclaration>
+    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 2) as pointer<ImportDeclarationsMaybe>
+    val members: pointer<Members> = getContainerValue(results, 3) as pointer<Members>
+
+    return new Program(members.getMembers())
+        .setPreprocessSettings(settings.toPreprocessSettings())
+        .setPackageDeclaration(packageDeclaration)
+        .setImportDeclarations(imports.toImportDeclarations())
+}
+
+private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>
+{
+    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>
+    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 1) as pointer<ImportDeclarationsMaybe>
+    val members: pointer<Members> = getContainerValue(results, 2) as pointer<Members>
+
+    return new Program(members.getMembers())
+        .setPreprocessSettings(settings.toPreprocessSettings())
+        .setImportDeclarations(imports.toImportDeclarations())
 }
 
 
@@ -1905,6 +1937,8 @@ val MEMBER_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MEMBER_PARSE
 val MEMBERS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MEMBERS_PARSER_ID)
 
 val STRUCT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(STRUCT_PARSER_ID)
+
+val PROGRAM_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(PROGRAM_PARSER_ID)
 
 val OP_PAREN: pointer<Operation> = new Operation(0, "$paren", Operation.INFIX_TYPE, Operation.LEFT_ASSOC, 220, null)
 val OP_SUCC: pointer<Operation> = new Operation(1, "++", Operation.POSTFIX_TYPE, Operation.LEFT_ASSOC, 210, "succ")
@@ -2412,11 +2446,15 @@ private val STRUCT_CONSTRUCTOR_RULE1: pointer<Rule> = new Rule(new PatternList()
 private val MEMBER_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(FIELD_PARSER), makeMemberFromField, Rule.STARTER_ROLE, 0)
 private val MEMBER_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(FUNCTION_PARSER), makeMemberFromFunction, Rule.STARTER_ROLE, 0)
 private val MEMBER_RULE2: pointer<Rule> = new Rule(new PatternList().pushRef(STRUCT_CONSTRUCTOR_PARSER), makeMemberFromStructConstructor, Rule.STARTER_ROLE, 0)
+private val MEMBER_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(STRUCT_PARSER), makeMemberFromStruct, Rule.STARTER_ROLE, 0)
 
 private val MEMBERS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MEMBER_PARSER).pushRef(MEMBERS_PARSER), makeMembersIt, Rule.STARTER_ROLE, 0)
 private val MEMBERS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(MEMBER_PARSER), makeMembers, Rule.STARTER_ROLE, 0)
 
 private val STRUCT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_STRUCT).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_BRACE).pushRef(MEMBERS_PARSER).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStruct, Rule.STARTER_ROLE, 0)
+
+private val PROGRAM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_MAYBE_PARSER).pushRef(PACKAGE_DECLARATION_PARSER).pushRef(IMPORT_DECLARATIONS_MAYBE_PARSER).pushRef(MEMBERS_PARSER), makeProgramWithPackage, Rule.STARTER_ROLE, 0)
+private val PROGRAM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_MAYBE_PARSER).pushRef(IMPORT_DECLARATIONS_MAYBE_PARSER).pushRef(MEMBERS_PARSER), makeProgram, Rule.STARTER_ROLE, 0)
 
 private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13).addRule(EXPRESSION_RULE14).addRule(EXPRESSION_RULE15).addRule(EXPRESSION_RULE16).addRule(EXPRESSION_RULE17).addRule(EXPRESSION_RULE18).addRule(EXPRESSION_RULE19).addRule(EXPRESSION_RULE20).addRule(EXPRESSION_RULE21).addRule(EXPRESSION_RULE22).addRule(EXPRESSION_RULE23).addRule(EXPRESSION_RULE24).addRule(EXPRESSION_RULE25).addRule(EXPRESSION_RULE26).addRule(EXPRESSION_RULE27).addRule(EXPRESSION_RULE28).addRule(EXPRESSION_RULE29).addRule(EXPRESSION_RULE30).addRule(EXPRESSION_RULE31).addRule(EXPRESSION_RULE32).addRule(EXPRESSION_RULE33).addRule(EXPRESSION_RULE34).addRule(EXPRESSION_RULE35).addRule(EXPRESSION_RULE36).addRule(EXPRESSION_RULE37).addRule(EXPRESSION_RULE38).addRule(EXPRESSION_RULE39).addRule(EXPRESSION_RULE40).addRule(EXPRESSION_RULE41).addRule(EXPRESSION_RULE42).addRule(EXPRESSION_RULE43).addRule(EXPRESSION_RULE44).addRule(EXPRESSION_RULE45).addRule(EXPRESSION_RULE46).addRule(EXPRESSION_RULE47).addRule(EXPRESSION_RULE48).addRule(EXPRESSION_RULE49).addRule(EXPRESSION_RULE50).addRule(EXPRESSION_RULE51).addRule(EXPRESSION_RULE52).addRule(EXPRESSION_RULE53).addRule(EXPRESSION_RULE54).addRule(EXPRESSION_RULE55).addRule(EXPRESSION_RULE56).addRule(EXPRESSION_RULE57).addRule(EXPRESSION_RULE58).addRule(EXPRESSION_RULE59).addRule(EXPRESSION_RULE60).addRule(EXPRESSION_RULE61).addRule(EXPRESSION_RULE62).addRule(EXPRESSION_RULE63).addRule(EXPRESSION_RULE64).addRule(EXPRESSION_RULE65).addRule(EXPRESSION_RULE66).addRule(EXPRESSION_RULE67).addRule(EXPRESSION_RULE68).addRule(EXPRESSION_RULE69).addRule(EXPRESSION_RULE70).addRule(EXPRESSION_RULE71)
 private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
@@ -2461,9 +2499,10 @@ private val FUNCTION_PARAMS_MAYBE_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PA
 private val FIELD_PARSER_SETUP: pointer<ParserRef> = FIELD_PARSER.addRule(FIELD_RULE0).addRule(FIELD_RULE1).addRule(FIELD_RULE2).addRule(FIELD_RULE3)
 private val FUNCTION_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARSER.addRule(FUNCTION_RULE0).addRule(FUNCTION_RULE1).addRule(FUNCTION_RULE2).addRule(FUNCTION_RULE3).addRule(FUNCTION_RULE4)
 private val STRUCT_CONSTRUCTOR_PARSER_SETUP: pointer<ParserRef> = STRUCT_CONSTRUCTOR_PARSER.addRule(STRUCT_CONSTRUCTOR_RULE0).addRule(STRUCT_CONSTRUCTOR_RULE1)
-private val MEMBER_PARSER_SETUP: pointer<ParserRef> = MEMBER_PARSER.addRule(MEMBER_RULE0).addRule(MEMBER_RULE1).addRule(MEMBER_RULE2)
+private val MEMBER_PARSER_SETUP: pointer<ParserRef> = MEMBER_PARSER.addRule(MEMBER_RULE0).addRule(MEMBER_RULE1).addRule(MEMBER_RULE2).addRule(MEMBER_RULE3)
 private val MEMBERS_PARSER_SETUP: pointer<ParserRef> = MEMBERS_PARSER.addRule(MEMBERS_RULE0).addRule(MEMBERS_RULE1)
 private val STRUCT_PARSER_SETUP: pointer<ParserRef> = STRUCT_PARSER.addRule(STRUCT_RULE0)
+private val PROGRAM_PARSER_SETUP: pointer<ParserRef> = PROGRAM_PARSER.addRule(PROGRAM_RULE0).addRule(PROGRAM_RULE1)
 
 
 fun parseExpression(input: pointer<TokenList>) -> pointer<Expression>
@@ -3200,6 +3239,22 @@ fun parseStruct(input: pointer<TokenList>) -> pointer<Struct>
         return null
 
     return result.getValue() as pointer<Struct>
+}
+
+fun parseProgram(input: pointer<TokenList>) -> pointer<Program>
+{
+    if input == null:
+        return null
+
+    if PROGRAM_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = PROGRAM_PARSER.getResult()
+
+    if result == null || result.isKind(PROGRAM_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<Program>
 }
 
 

@@ -24,6 +24,7 @@
         "xlang.compiler.parser.program.PreprocessSetting",
         "xlang.compiler.parser.program.PreprocessSettings",
         "xlang.compiler.parser.program.PreprocessSettingsMaybe",
+        "xlang.compiler.parser.program.Program",
         "xlang.compiler.parser.program.ImportDeclaration",
         "xlang.compiler.parser.program.ImportDeclarations",
         "xlang.compiler.parser.program.ImportDeclarationsMaybe",
@@ -215,7 +216,8 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "$Field" }], "action": "makeMemberFromField" },
                 { "patterns": [{ "kind": "$Function" }], "action": "makeMemberFromFunction" },
-                { "patterns": [{ "kind": "$StructConstructor" }], "action": "makeMemberFromStructConstructor" }
+                { "patterns": [{ "kind": "$StructConstructor" }], "action": "makeMemberFromStructConstructor" },
+                { "patterns": [{ "kind": "$Struct" }], "action": "makeMemberFromStruct" }
             ]
         },
         {
@@ -231,6 +233,14 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_STRUCT" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "$Members" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStruct" }
+            ]
+        },
+        {
+            "class": "Program",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$PackageDeclaration" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "$Members" }], "action": "makeProgramWithPackage" },
+                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "$Members" }], "action": "makeProgram" }
             ]
         }
     ],
@@ -682,6 +692,13 @@
             "}" ],
 
 
+        [   "private inline fun makeMemberFromStruct(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val structDecl: pointer<Struct> = getContainerValue(results, 0) as pointer<Struct>",
+            "    return Member.fromStruct(structDecl)",
+            "}" ],
+
+
         [   "private inline fun makeMembersIt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>",
@@ -713,6 +730,32 @@
             "        .addExtraToken(nameToken)",
             "        .addExtraToken(leftBrace)",
             "        .addExtraToken(rightBrace)",
+            "}" ],
+
+
+        [   "private inline fun makeProgramWithPackage(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
+            "    val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 1) as pointer<PackageDeclaration>",
+            "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 2) as pointer<ImportDeclarationsMaybe>",
+            "    val members: pointer<Members> = getContainerValue(results, 3) as pointer<Members>",
+            "",
+            "    return new Program(members.getMembers())",
+            "        .setPreprocessSettings(settings.toPreprocessSettings())",
+            "        .setPackageDeclaration(packageDeclaration)",
+            "        .setImportDeclarations(imports.toImportDeclarations())",
+            "}" ],
+
+
+        [   "private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
+            "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 1) as pointer<ImportDeclarationsMaybe>",
+            "    val members: pointer<Members> = getContainerValue(results, 2) as pointer<Members>",
+            "",
+            "    return new Program(members.getMembers())",
+            "        .setPreprocessSettings(settings.toPreprocessSettings())",
+            "        .setImportDeclarations(imports.toImportDeclarations())",
             "}" ]
     ]
 }
