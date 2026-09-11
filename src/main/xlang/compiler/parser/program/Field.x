@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("Field")
+
+#file.outerClass("Field")
 package xlang.compiler.parser.program
 
 import xlang.compiler.Type

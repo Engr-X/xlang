@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("ForStatement")
+
+#file.outerClass("ForStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.lexer.Tokenizer

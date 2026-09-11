@@ -21,7 +21,7 @@
  *
  */
 
-#file.class("Rule")
+#file.outerClass("Rule")
 package xlang.parser.util
 
 import xlang.Operation

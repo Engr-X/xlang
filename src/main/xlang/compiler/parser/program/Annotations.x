@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("Annotations")
+
+#file.outerClass("Annotations")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

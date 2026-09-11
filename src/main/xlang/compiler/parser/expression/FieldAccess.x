@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("FieldAccess") 
+
+#file.outerClass("FieldAccess") 
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

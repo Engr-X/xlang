@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("Statements")
+
+#file.outerClass("Statements")
 package xlang.compiler.parser.statement
 
 import xlang.lexer.Token

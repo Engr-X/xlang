@@ -21,7 +21,7 @@
  *
  */
 
-#file.class("RecursiveParserTest")
+#file.outerClass("RecursiveParserTest")
 package xlang.parser
 
 import xlang.Diagnostic

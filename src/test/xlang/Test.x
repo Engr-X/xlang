@@ -23,7 +23,7 @@
  *
  */
 
-#file.class("Test")
+#file.outerClass("Test")
 package xlang
 
 import xlang.test.TestCase

@@ -21,7 +21,7 @@
  *
  */
 
-#file.class("ParseContainer")
+#file.outerClass("ParseContainer")
 package xlang.parser
 
 

@@ -20,7 +20,7 @@
  *
  */
 
-#file.class("TokenNormalizerTest")
+#file.outerClass("TokenNormalizerTest")
 package xlang.compiler.lexer
 
 import xlang.lexer.Token
@@ -270,6 +270,26 @@ private fun normalizeTest() -> int
     if result != 0:
         return 4
 
+    result = normalizeGenericTypeBeforeVarLineTerminatorTest()
+
+    if result != 0:
+        return 5
+
+    result = normalizeGenericTypeBeforeValLineTerminatorTest()
+
+    if result != 0:
+        return 6
+
+    result = normalizeRightParenBeforeStaticFunLineTerminatorTest()
+
+    if result != 0:
+        return 7
+
+    result = normalizeRightParenBeforeRightBraceLineTerminatorTest()
+
+    if result != 0:
+        return 8
+
     return 0
 }
 
@@ -331,6 +351,145 @@ private fun normalizeRightBraceKeepLineTerminatorTest() -> int =
 
 private fun normalizeRightBraceKeepTrailingLineTerminatorTest() -> int =
     checkRightBraceLineTerminator("a}\nb")
+
+
+private fun checkGenericTypeMemberLineTerminator(input: pointer<char>, nextKind: int) -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize(input)
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() != 14:
+        return 1
+
+    val varToken: pointer<Token> = tokens.get(0)
+
+    if varToken.kind != Tokenizer.KW_VAR:
+        return 2
+
+    val fieldName: pointer<Token> = tokens.get(1)
+
+    if !String.streq(fieldName.text, "filePath"):
+        return 3
+
+    val colon: pointer<Token> = tokens.get(2)
+
+    if colon.kind != Tokenizer.COLON:
+        return 4
+
+    val typeName: pointer<Token> = tokens.get(3)
+
+    if !String.streq(typeName.text, "pointer"):
+        return 5
+
+    val less: pointer<Token> = tokens.get(4)
+
+    if less.kind != Tokenizer.LESS:
+        return 6
+
+    val typeArg: pointer<Token> = tokens.get(5)
+
+    if !String.streq(typeArg.text, "char"):
+        return 7
+
+    val greater: pointer<Token> = tokens.get(6)
+
+    if greater.kind != Tokenizer.GREATER:
+        return 8
+
+    val terminator: pointer<Token> = tokens.get(7)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 9
+
+    val next: pointer<Token> = tokens.get(8)
+
+    if next.kind != nextKind:
+        return 10
+
+    val nextName: pointer<Token> = tokens.get(9)
+
+    if !String.streq(nextName.text, "offset"):
+        return 11
+
+    val finalTerminator: pointer<Token> = tokens.get(12)
+
+    if finalTerminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 12
+
+    val eof: pointer<Token> = tokens.get(13)
+
+    if !eof.isEOF():
+        return 13
+
+    return 0
+}
+
+
+private fun normalizeGenericTypeBeforeVarLineTerminatorTest() -> int =
+    checkGenericTypeMemberLineTerminator("var filePath: pointer<char>\nvar offset: int", Tokenizer.KW_VAR)
+
+
+private fun normalizeGenericTypeBeforeValLineTerminatorTest() -> int =
+    checkGenericTypeMemberLineTerminator("var filePath: pointer<char>\nval offset: int", Tokenizer.KW_VAL)
+
+
+private fun normalizeRightParenBeforeStaticFunLineTerminatorTest() -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize("value = make()\nstatic fun next()")
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() < 8:
+        return 1
+
+    val rightParen: pointer<Token> = tokens.get(4)
+
+    if rightParen.kind != Tokenizer.RIGHT_PAREN:
+        return 2
+
+    val terminator: pointer<Token> = tokens.get(5)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 3
+
+    val staticToken: pointer<Token> = tokens.get(6)
+
+    if staticToken.kind != Tokenizer.KW_STATIC:
+        return 4
+
+    val funToken: pointer<Token> = tokens.get(7)
+
+    if funToken.kind != Tokenizer.KW_FUN:
+        return 5
+
+    return 0
+}
+
+
+private fun normalizeRightParenBeforeRightBraceLineTerminatorTest() -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize("value = make()\n}")
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() < 7:
+        return 1
+
+    val rightParen: pointer<Token> = tokens.get(4)
+
+    if rightParen.kind != Tokenizer.RIGHT_PAREN:
+        return 2
+
+    val terminator: pointer<Token> = tokens.get(5)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 3
+
+    val rightBrace: pointer<Token> = tokens.get(6)
+
+    if rightBrace.kind != Tokenizer.RIGHT_BRACE:
+        return 4
+
+    return 0
+}
 
 
 private fun normalizeFilePathTest() -> int

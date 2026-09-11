@@ -21,7 +21,7 @@
  *
  */
 
-#file.class("ParserRefs")
+#file.outerClass("ParserRefs")
 package xlang.parser.util
 
 import xlang.lexer.TokenList

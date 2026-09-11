@@ -22,7 +22,7 @@
  *
  */
 
-#file.class("Xlang")
+#file.outerClass("Xlang")
 package xlang.compiler
 
 import xlang.System

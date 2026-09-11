@@ -23,7 +23,7 @@
  *
  */
 
-#file.class("CharUtil")
+#file.outerClass("CharUtil")
 package xlang.util
 
 

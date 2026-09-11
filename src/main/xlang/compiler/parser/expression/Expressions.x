@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("Expressions")
+
+#file.outerClass("Expressions")
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

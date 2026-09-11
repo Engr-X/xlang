@@ -1,4 +1,4 @@
-#file.class("Parser")
+#file.outerClass("Parser")
 package xlang.compiler.parser
 
 
@@ -43,11 +43,14 @@ import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.QualifiedName
 import xlang.compiler.parser.program.Struct
 import xlang.compiler.parser.program.StructConstructor
+import xlang.compiler.parser.statement.BreakStatement
+import xlang.compiler.parser.statement.ContinueStatement
 import xlang.compiler.parser.statement.ElseStatement
 import xlang.compiler.parser.statement.ExprListStatement
 import xlang.compiler.parser.statement.ExprStatement
 import xlang.compiler.parser.statement.ForHeader
 import xlang.compiler.parser.statement.ForStatement
+import xlang.compiler.parser.statement.PassStatement
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
 import xlang.compiler.parser.statement.Statements
@@ -93,33 +96,36 @@ private val EXPR_LIST_STATEMENT_PARSER_ID: int = 17
 private val VARIABLE_DEFINE_PARSER_ID: int = 18
 private val VARIABLE_DEFINES_PARSER_ID: int = 19
 private val RETURN_STATEMENT_PARSER_ID: int = 20
-private val BLOCK_PARSER_ID: int = 21
-private val IF_EXPRESSION_PARSER_ID: int = 22
-private val IF_ELSE_EXPRESSION_PARSER_ID: int = 23
-private val MODIFIER_PARSER_ID: int = 24
-private val MODIFIER_LIST_PARSER_ID: int = 25
-private val MODIFIER_LIST_MAYBE_PARSER_ID: int = 26
-private val PREPROCESS_SETTING_PARSER_ID: int = 27
-private val PREPROCESS_SETTINGS_PARSER_ID: int = 28
-private val PREPROCESS_SETTINGS_MAYBE_PARSER_ID: int = 29
-private val ANNOTATION_PARSER_ID: int = 30
-private val ANNOTATIONS_PARSER_ID: int = 31
-private val ANNOTATIONS_MAYBE_PARSER_ID: int = 32
-private val QUALIFIED_NAME_PARSER_ID: int = 33
-private val PACKAGE_DECLARATION_PARSER_ID: int = 34
-private val IMPORT_DECLARATION_PARSER_ID: int = 35
-private val IMPORT_DECLARATIONS_PARSER_ID: int = 36
-private val IMPORT_DECLARATIONS_MAYBE_PARSER_ID: int = 37
-private val FUNCTION_PARAM_PARSER_ID: int = 38
-private val FUNCTION_PARAMS_PARSER_ID: int = 39
-private val FUNCTION_PARAMS_MAYBE_PARSER_ID: int = 40
-private val FIELD_PARSER_ID: int = 41
-private val FUNCTION_PARSER_ID: int = 42
-private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 43
-private val MEMBER_PARSER_ID: int = 44
-private val MEMBERS_PARSER_ID: int = 45
-private val STRUCT_PARSER_ID: int = 46
-private val PROGRAM_PARSER_ID: int = 47
+private val BREAK_STATEMENT_PARSER_ID: int = 21
+private val CONTINUE_STATEMENT_PARSER_ID: int = 22
+private val PASS_STATEMENT_PARSER_ID: int = 23
+private val BLOCK_PARSER_ID: int = 24
+private val IF_EXPRESSION_PARSER_ID: int = 25
+private val IF_ELSE_EXPRESSION_PARSER_ID: int = 26
+private val MODIFIER_PARSER_ID: int = 27
+private val MODIFIER_LIST_PARSER_ID: int = 28
+private val MODIFIER_LIST_MAYBE_PARSER_ID: int = 29
+private val PREPROCESS_SETTING_PARSER_ID: int = 30
+private val PREPROCESS_SETTINGS_PARSER_ID: int = 31
+private val PREPROCESS_SETTINGS_MAYBE_PARSER_ID: int = 32
+private val ANNOTATION_PARSER_ID: int = 33
+private val ANNOTATIONS_PARSER_ID: int = 34
+private val ANNOTATIONS_MAYBE_PARSER_ID: int = 35
+private val QUALIFIED_NAME_PARSER_ID: int = 36
+private val PACKAGE_DECLARATION_PARSER_ID: int = 37
+private val IMPORT_DECLARATION_PARSER_ID: int = 38
+private val IMPORT_DECLARATIONS_PARSER_ID: int = 39
+private val IMPORT_DECLARATIONS_MAYBE_PARSER_ID: int = 40
+private val FUNCTION_PARAM_PARSER_ID: int = 41
+private val FUNCTION_PARAMS_PARSER_ID: int = 42
+private val FUNCTION_PARAMS_MAYBE_PARSER_ID: int = 43
+private val FIELD_PARSER_ID: int = 44
+private val FUNCTION_PARSER_ID: int = 45
+private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 46
+private val MEMBER_PARSER_ID: int = 47
+private val MEMBERS_PARSER_ID: int = 48
+private val STRUCT_PARSER_ID: int = 49
+private val PROGRAM_PARSER_ID: int = 50
 
 
 private inline fun getContainerValue(results: pointer<ArrayList>, index: int, unwrapContainer: bool) -> pointer<*>
@@ -692,6 +698,24 @@ private inline fun makeStmtFrom_ForStmt(results: pointer<ArrayList>) -> pointer<
     return Statement.fromForStatement(forStatement)
 }
 
+private inline fun makeStmtFrom_BreakStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val breakStatement: pointer<BreakStatement> = getContainerValue(results, 0) as pointer<BreakStatement>
+    return Statement.fromBreakStatement(breakStatement)
+}
+
+private inline fun makeStmtFrom_ContinueStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val continueStatement: pointer<ContinueStatement> = getContainerValue(results, 0) as pointer<ContinueStatement>
+    return Statement.fromContinueStatement(continueStatement)
+}
+
+private inline fun makeStmtFrom_PassStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val passStatement: pointer<PassStatement> = getContainerValue(results, 0) as pointer<PassStatement>
+    return Statement.fromPassStatement(passStatement)
+}
+
 private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>
 {
     val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>
@@ -1194,6 +1218,27 @@ private inline fun makeVariableDefineWithType(results: pointer<ArrayList>) -> po
         .addExtraToken(nameToken)
         .addExtraToken(colonToken)
         .addExtraToken(equalToken)
+}
+
+private inline fun makeBreakStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val breakToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+
+    return new BreakStatement().addExtraToken(breakToken)
+}
+
+private inline fun makeContinueStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val continueToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+
+    return new ContinueStatement().addExtraToken(continueToken)
+}
+
+private inline fun makePassStmt(results: pointer<ArrayList>) -> pointer<*>
+{
+    val passToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+
+    return new PassStatement().addExtraToken(passToken)
 }
 
 private inline fun makeReturnStmt(results: pointer<ArrayList>) -> pointer<*>
@@ -1886,6 +1931,12 @@ val VARIABLE_DEFINES_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(VA
 
 val RETURN_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(RETURN_STATEMENT_PARSER_ID)
 
+val BREAK_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(BREAK_STATEMENT_PARSER_ID)
+
+val CONTINUE_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(CONTINUE_STATEMENT_PARSER_ID)
+
+val PASS_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(PASS_STATEMENT_PARSER_ID)
+
 val BLOCK_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(BLOCK_PARSER_ID)
 
 val IF_EXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IF_EXPRESSION_PARSER_ID)
@@ -2301,6 +2352,9 @@ private val STATEMENT_RULE5: pointer<Rule> = new Rule(new PatternList().pushRege
 private val STATEMENT_RULE6: pointer<Rule> = new Rule(new PatternList().pushRef(WHILE_STATEMENT_PARSER), makeStmtFrom_WhileStmt, Rule.STARTER_ROLE, 0)
 private val STATEMENT_RULE7: pointer<Rule> = new Rule(new PatternList().pushRef(FOR_STATEMENT_PARSER), makeStmtFrom_ForStmt, Rule.STARTER_ROLE, 0)
 private val STATEMENT_RULE8: pointer<Rule> = new Rule(new PatternList().pushRef(RETURN_STATEMENT_PARSER), makeStmtFrom_ReturnStmt, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE9: pointer<Rule> = new Rule(new PatternList().pushRef(BREAK_STATEMENT_PARSER), makeStmtFrom_BreakStmt, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE10: pointer<Rule> = new Rule(new PatternList().pushRef(CONTINUE_STATEMENT_PARSER), makeStmtFrom_ContinueStmt, Rule.STARTER_ROLE, 0)
+private val STATEMENT_RULE11: pointer<Rule> = new Rule(new PatternList().pushRef(PASS_STATEMENT_PARSER), makeStmtFrom_PassStmt, Rule.STARTER_ROLE, 0)
 
 private val STATEMENTS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(STATEMENT_PARSER).pushRef(STATEMENTS_PARSER), makeStmtsIt, Rule.STARTER_ROLE, 0)
 private val STATEMENTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(STATEMENT_PARSER), makeSingleStmts, Rule.STARTER_ROLE, 0)
@@ -2357,6 +2411,12 @@ private val VARIABLE_DEFINES_RULE1: pointer<Rule> = new Rule(new PatternList().p
 
 private val RETURN_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_RETURN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeReturnStmt, Rule.STARTER_ROLE, 0)
 private val RETURN_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_RETURN).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeReturnStmt, Rule.STARTER_ROLE, 0)
+
+private val BREAK_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_BREAK).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeBreakStmt, Rule.STARTER_ROLE, 0)
+
+private val CONTINUE_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_CONTINUE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeContinueStmt, Rule.STARTER_ROLE, 0)
+
+private val PASS_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_PASS).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makePassStmt, Rule.STARTER_ROLE, 0)
 
 private val BLOCK_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRegex(Tokenizer.RIGHT_BRACE), makeEmptyBlockExpr, Rule.STARTER_ROLE, 0)
 private val BLOCK_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRef(STATEMENTS_PARSER).pushRegex(Tokenizer.RIGHT_BRACE), makeBlockExpr, Rule.STARTER_ROLE, 0)
@@ -2462,7 +2522,7 @@ private val ATOMS_PARSER_SETUP: pointer<ParserRef> = ATOMS_PARSER.addRule(ATOMS_
 private val EXPRESSIONS_PARSER_SETUP: pointer<ParserRef> = EXPRESSIONS_PARSER.addRule(EXPRESSIONS_RULE0).addRule(EXPRESSIONS_RULE1)
 private val EXPRESSION_TUPLE_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_TUPLE_PARSER.addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
 private val LIST_LITERAL_PARSER_SETUP: pointer<ParserRef> = LIST_LITERAL_PARSER.addRule(LIST_LITERAL_RULE0).addRule(LIST_LITERAL_RULE1).addRule(LIST_LITERAL_RULE2)
-private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1).addRule(STATEMENT_RULE2).addRule(STATEMENT_RULE3).addRule(STATEMENT_RULE4).addRule(STATEMENT_RULE5).addRule(STATEMENT_RULE6).addRule(STATEMENT_RULE7).addRule(STATEMENT_RULE8)
+private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1).addRule(STATEMENT_RULE2).addRule(STATEMENT_RULE3).addRule(STATEMENT_RULE4).addRule(STATEMENT_RULE5).addRule(STATEMENT_RULE6).addRule(STATEMENT_RULE7).addRule(STATEMENT_RULE8).addRule(STATEMENT_RULE9).addRule(STATEMENT_RULE10).addRule(STATEMENT_RULE11)
 private val STATEMENTS_PARSER_SETUP: pointer<ParserRef> = STATEMENTS_PARSER.addRule(STATEMENTS_RULE0).addRule(STATEMENTS_RULE1)
 private val ELSE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = ELSE_STATEMENT_PARSER.addRule(ELSE_STATEMENT_RULE0).addRule(ELSE_STATEMENT_RULE1)
 private val WHILE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = WHILE_STATEMENT_PARSER.addRule(WHILE_STATEMENT_RULE0).addRule(WHILE_STATEMENT_RULE1).addRule(WHILE_STATEMENT_RULE2).addRule(WHILE_STATEMENT_RULE3).addRule(WHILE_STATEMENT_RULE4).addRule(WHILE_STATEMENT_RULE5).addRule(WHILE_STATEMENT_RULE6).addRule(WHILE_STATEMENT_RULE7)
@@ -2476,6 +2536,9 @@ private val EXPR_LIST_STATEMENT_PARSER_SETUP: pointer<ParserRef> = EXPR_LIST_STA
 private val VARIABLE_DEFINE_PARSER_SETUP: pointer<ParserRef> = VARIABLE_DEFINE_PARSER.addRule(VARIABLE_DEFINE_RULE0).addRule(VARIABLE_DEFINE_RULE1)
 private val VARIABLE_DEFINES_PARSER_SETUP: pointer<ParserRef> = VARIABLE_DEFINES_PARSER.addRule(VARIABLE_DEFINES_RULE0).addRule(VARIABLE_DEFINES_RULE1)
 private val RETURN_STATEMENT_PARSER_SETUP: pointer<ParserRef> = RETURN_STATEMENT_PARSER.addRule(RETURN_STATEMENT_RULE0).addRule(RETURN_STATEMENT_RULE1)
+private val BREAK_STATEMENT_PARSER_SETUP: pointer<ParserRef> = BREAK_STATEMENT_PARSER.addRule(BREAK_STATEMENT_RULE0)
+private val CONTINUE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = CONTINUE_STATEMENT_PARSER.addRule(CONTINUE_STATEMENT_RULE0)
+private val PASS_STATEMENT_PARSER_SETUP: pointer<ParserRef> = PASS_STATEMENT_PARSER.addRule(PASS_STATEMENT_RULE0)
 private val BLOCK_PARSER_SETUP: pointer<ParserRef> = BLOCK_PARSER.addRule(BLOCK_RULE0).addRule(BLOCK_RULE1)
 private val IF_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_EXPRESSION_PARSER.addRule(IF_EXPRESSION_RULE0).addRule(IF_EXPRESSION_RULE1)
 private val IF_ELSE_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_ELSE_EXPRESSION_PARSER.addRule(IF_ELSE_EXPRESSION_RULE0).addRule(IF_ELSE_EXPRESSION_RULE1).addRule(IF_ELSE_EXPRESSION_RULE2).addRule(IF_ELSE_EXPRESSION_RULE3).addRule(IF_ELSE_EXPRESSION_RULE4).addRule(IF_ELSE_EXPRESSION_RULE5).addRule(IF_ELSE_EXPRESSION_RULE6).addRule(IF_ELSE_EXPRESSION_RULE7)
@@ -2823,6 +2886,54 @@ fun parseReturnStatement(input: pointer<TokenList>) -> pointer<ReturnStatement>
         return null
 
     return result.getValue() as pointer<ReturnStatement>
+}
+
+fun parseBreakStatement(input: pointer<TokenList>) -> pointer<BreakStatement>
+{
+    if input == null:
+        return null
+
+    if BREAK_STATEMENT_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = BREAK_STATEMENT_PARSER.getResult()
+
+    if result == null || result.isKind(BREAK_STATEMENT_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<BreakStatement>
+}
+
+fun parseContinueStatement(input: pointer<TokenList>) -> pointer<ContinueStatement>
+{
+    if input == null:
+        return null
+
+    if CONTINUE_STATEMENT_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = CONTINUE_STATEMENT_PARSER.getResult()
+
+    if result == null || result.isKind(CONTINUE_STATEMENT_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<ContinueStatement>
+}
+
+fun parsePassStatement(input: pointer<TokenList>) -> pointer<PassStatement>
+{
+    if input == null:
+        return null
+
+    if PASS_STATEMENT_PARSER.doParse(input) < 0:
+        return null
+
+    val result: pointer<ParseContainer> = PASS_STATEMENT_PARSER.getResult()
+
+    if result == null || result.isKind(PASS_STATEMENT_PARSER_ID) == false:
+        return null
+
+    return result.getValue() as pointer<PassStatement>
 }
 
 fun parseBlock(input: pointer<TokenList>) -> pointer<Block>

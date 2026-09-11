@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("ModifierList")
+
+#file.outerClass("ModifierList")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

@@ -23,7 +23,7 @@
  *
  */
 
-#file.class("String")
+#file.outerClass("String")
 package xlang.util.string
 
 /**

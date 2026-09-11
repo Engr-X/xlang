@@ -23,7 +23,7 @@
  *
  */
 
-#file.class("TypeConvert")
+#file.outerClass("TypeConvert")
 package xlang.util
 
 /**

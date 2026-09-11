@@ -22,7 +22,8 @@
  *
  *
  */
-#file.class("Atom")
+
+#file.outerClass("Atom")
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

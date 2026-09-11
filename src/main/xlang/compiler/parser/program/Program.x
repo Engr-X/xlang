@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("Program")
+
+#file.outerClass("Program")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

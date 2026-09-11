@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("IfElseExpression")
+
+#file.outerClass("IfElseExpression")
 package xlang.compiler.parser.stmtexpr
 
 import xlang.compiler.parser.expression.Expression

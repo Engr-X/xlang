@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("Statement")
+
+#file.outerClass("Statement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression
@@ -39,11 +40,17 @@ struct Statement
 
     static val VARIABLE_DEFINES_TYPE: int = 3
 
-    static val RETURN_TYPE: int = 4
+    static val WHILE_TYPE: int = 4
 
-    static val WHILE_TYPE: int = 5
+    static val FOR_TYPE: int = 5
 
-    static val FOR_TYPE: int = 6
+    static val RETURN_TYPE: int = 6
+
+    static val BREAK_TYPE: int = 7
+
+    static val CONTINUE_TYPE: int = 8
+
+    static val PASS_TYPE: int = 9
 
 
     static fun fromExprStatement(expr: pointer<ExprStatement>) -> pointer<Statement> =
@@ -72,6 +79,18 @@ struct Statement
 
     static fun fromForStatement(statement: pointer<ForStatement>) -> pointer<Statement> =
         new Statement(FOR_TYPE, statement)
+
+
+    static fun fromBreakStatement(statement: pointer<BreakStatement>) -> pointer<Statement> =
+        new Statement(BREAK_TYPE, statement)
+
+
+    static fun fromContinueStatement(statement: pointer<ContinueStatement>) -> pointer<Statement> =
+        new Statement(CONTINUE_TYPE, statement)
+
+
+    static fun fromPassStatement(statement: pointer<PassStatement>) -> pointer<Statement> =
+        new Statement(PASS_TYPE, statement)
 
 
     private var kind: int
@@ -166,6 +185,21 @@ struct Statement
                 val statement: pointer<ReturnStatement> = this.root as pointer<ReturnStatement>
                 statement.getAllTokens()
             }
+            elif this.kind == BREAK_TYPE:
+            {
+                val statement: pointer<BreakStatement> = this.root as pointer<BreakStatement>
+                statement.getAllTokens()
+            }
+            elif this.kind == CONTINUE_TYPE:
+            {
+                val statement: pointer<ContinueStatement> = this.root as pointer<ContinueStatement>
+                statement.getAllTokens()
+            }
+            elif this.kind == PASS_TYPE:
+            {
+                val statement: pointer<PassStatement> = this.root as pointer<PassStatement>
+                statement.getAllTokens()
+            }
             else: null
 
 
@@ -215,6 +249,21 @@ struct Statement
         elif this.kind == RETURN_TYPE:
         {
             val statement: pointer<ReturnStatement> = this.root as pointer<ReturnStatement>
+            statement.toString()
+        }
+        elif this.kind == BREAK_TYPE:
+        {
+            val statement: pointer<BreakStatement> = this.root as pointer<BreakStatement>
+            statement.toString()
+        }
+        elif this.kind == CONTINUE_TYPE:
+        {
+            val statement: pointer<ContinueStatement> = this.root as pointer<ContinueStatement>
+            statement.toString()
+        }
+        elif this.kind == PASS_TYPE:
+        {
+            val statement: pointer<PassStatement> = this.root as pointer<PassStatement>
             statement.toString()
         }
         else: new StringBuilder()

@@ -22,7 +22,7 @@
  *
  */
 
-#file.class("TypeParser")
+#file.outerClass("TypeParser")
 package xlang.parser
 
 import xlang.Diagnostic

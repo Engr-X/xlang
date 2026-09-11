@@ -1,4 +1,4 @@
-#file.class("StringBuilderTest")
+#file.outerClass("StringBuilderTest")
 package xlang.util.string
 
 import xlang.test.TestCase

@@ -17,7 +17,7 @@
  *
  */
 
-#file.class("HashSetTest")
+#file.outerClass("HashSetTest")
 package xlang.util
 
 import xlang.test.TestCase

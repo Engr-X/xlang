@@ -22,7 +22,7 @@
  *
  */
 
-#file.class("TokenTest")
+#file.outerClass("TokenTest")
 package xlang.lexer
 
 import xlang.lexer.TokenPosition

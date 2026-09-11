@@ -23,7 +23,7 @@
  *
  */
 
-#file.class("StringTest")
+#file.outerClass("StringTest")
 package xlang.util.string
 
 import xlang.test.TestCase

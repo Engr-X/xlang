@@ -21,6 +21,9 @@
         "xlang.compiler.parser.statement.WhileStatement",
         "xlang.compiler.parser.statement.ForHeader",
         "xlang.compiler.parser.statement.ForStatement",
+        "xlang.compiler.parser.statement.BreakStatement",
+        "xlang.compiler.parser.statement.ContinueStatement",
+        "xlang.compiler.parser.statement.PassStatement",
         "xlang.compiler.parser.stmtexpr.Block"
     ],
     "constants": [
@@ -41,7 +44,10 @@
 
                 { "patterns": [{ "kind": "$WhileStatement" }], "action": "makeStmtFrom_WhileStmt" },
                 { "patterns": [{ "kind": "$ForStatement" }], "action": "makeStmtFrom_ForStmt" },
-                { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeStmtFrom_ReturnStmt" }
+                { "patterns": [{ "kind": "$ReturnStatement" }], "action": "makeStmtFrom_ReturnStmt" },
+                { "patterns": [{ "kind": "$BreakStatement" }], "action": "makeStmtFrom_BreakStmt" },
+                { "patterns": [{ "kind": "$ContinueStatement" }], "action": "makeStmtFrom_ContinueStmt" },
+                { "patterns": [{ "kind": "$PassStatement" }], "action": "makeStmtFrom_PassStmt" }
             ]
         },
         {
@@ -171,6 +177,27 @@
                 { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" },
                 { "patterns": [{ "kind": "Tokenizer.KW_RETURN" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeReturnStmt" }
             ]
+        },
+        {
+            "class": "BreakStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_BREAK" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeBreakStmt" }
+            ]
+        },
+        {
+            "class": "ContinueStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_CONTINUE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeContinueStmt" }
+            ]
+        },
+        {
+            "class": "PassStatement",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_PASS" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePassStmt" }
+            ]
         }
     ],
     "others": [
@@ -234,6 +261,27 @@
             "{",
             "    val forStatement: pointer<ForStatement> = getContainerValue(results, 0) as pointer<ForStatement>",
             "    return Statement.fromForStatement(forStatement)",
+            "}" ],
+
+
+        [   "private inline fun makeStmtFrom_BreakStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val breakStatement: pointer<BreakStatement> = getContainerValue(results, 0) as pointer<BreakStatement>",
+            "    return Statement.fromBreakStatement(breakStatement)",
+            "}" ],
+
+
+        [   "private inline fun makeStmtFrom_ContinueStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val continueStatement: pointer<ContinueStatement> = getContainerValue(results, 0) as pointer<ContinueStatement>",
+            "    return Statement.fromContinueStatement(continueStatement)",
+            "}" ],
+
+
+        [   "private inline fun makeStmtFrom_PassStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val passStatement: pointer<PassStatement> = getContainerValue(results, 0) as pointer<PassStatement>",
+            "    return Statement.fromPassStatement(passStatement)",
             "}" ],
 
 
@@ -783,6 +831,30 @@
             "        .addExtraToken(nameToken)",
             "        .addExtraToken(colonToken)",
             "        .addExtraToken(equalToken)",
+            "}" ],
+
+
+        [   "private inline fun makeBreakStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val breakToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "",
+            "    return new BreakStatement().addExtraToken(breakToken)",
+            "}" ],
+
+
+        [   "private inline fun makeContinueStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val continueToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "",
+            "    return new ContinueStatement().addExtraToken(continueToken)",
+            "}" ],
+
+
+        [   "private inline fun makePassStmt(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val passToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "",
+            "    return new PassStatement().addExtraToken(passToken)",
             "}" ],
 
 

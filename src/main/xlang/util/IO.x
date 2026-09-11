@@ -23,7 +23,7 @@
  *
  */
 
-#file.class("IO")
+#file.outerClass("IO")
 package xlang.util
 
 import xlang.System

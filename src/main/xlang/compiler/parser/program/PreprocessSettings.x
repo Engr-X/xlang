@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("PreprocessSettings")
+
+#file.outerClass("PreprocessSettings")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

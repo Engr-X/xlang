@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("StatementExpression")
+
+#file.outerClass("StatementExpression")
 package xlang.compiler.parser.stmtexpr
 
 import xlang.lexer.Token

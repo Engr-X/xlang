@@ -17,7 +17,7 @@
  *
  */
 
-#file.class("HashSet")
+#file.outerClass("HashSet")
 package xlang.util
 
 import xlang.util.ArrayList

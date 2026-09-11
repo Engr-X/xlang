@@ -1,4 +1,4 @@
-#file.class("Tokenizer")
+#file.outerClass("Tokenizer")
 package xlang.compiler.lexer
 
 

@@ -18,7 +18,7 @@
  *
  */
 
-#file.class("ArrayListTest")
+#file.outerClass("ArrayListTest")
 package xlang.util
 
 import xlang.test.TestCase

@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("ExprStatement")
+
+#file.outerClass("ExprStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression

@@ -20,7 +20,7 @@
  *
  */
 
-#file.class("ParserTest")
+#file.outerClass("ParserTest")
 package xlang.compiler.parser
 
 import xlang.compiler.Type
@@ -40,6 +40,7 @@ import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.Member
 import xlang.compiler.parser.program.ModifierList
+import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.Struct
 import xlang.compiler.parser.program.StructConstructor
 import xlang.compiler.parser.statement.ExprListStatement
@@ -54,6 +55,7 @@ import xlang.compiler.parser.stmtexpr.Block
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
+import xlang.util.IO
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 import xlang.test.TestCase
@@ -89,6 +91,7 @@ fun genTest() -> pointer<TestGroup>
     val functionVoidExpressionTC: pointer<TestCase> = new TestCase("functionVoidExpression", functionVoidExpressionTest)
     val functionVoidBlockTC: pointer<TestCase> = new TestCase("functionVoidBlock", functionVoidBlockTest)
     val structTC: pointer<TestCase> = new TestCase("struct", structTest)
+    val allSourceProgramsTC: pointer<TestCase> = new TestCase("allSourcePrograms", allSourceProgramsTest)
     val statementTC: pointer<TestCase> = new TestCase("statement", statementTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
@@ -112,6 +115,7 @@ fun genTest() -> pointer<TestGroup>
     val functionVoidExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidExpressionTC, null)
     val functionVoidBlockUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidBlockTC, null)
     val structUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, structTC, null)
+    val allSourceProgramsUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, allSourceProgramsTC, null)
     val statementUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, statementTC, null)
 
     result.addTestUnion(atomParserUnion)
@@ -136,6 +140,7 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(functionVoidExpressionUnion)
     result.addTestUnion(functionVoidBlockUnion)
     result.addTestUnion(structUnion)
+    result.addTestUnion(allSourceProgramsUnion)
     result.addTestUnion(statementUnion)
 
     return result
@@ -174,6 +179,352 @@ private fun parseStructText(text: pointer<char>) -> pointer<Struct>
 {
     val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
     return Parser.parseStruct(tokens)
+}
+
+
+private fun comparePathText(left: pointer<*>, right: pointer<*>) -> int
+{
+    val leftPath: pointer<char> = (left as pointer<pointer<char>>).deref
+    val rightPath: pointer<char> = (right as pointer<pointer<char>>).deref
+
+    return String.strcmp(leftPath, rightPath)
+}
+
+
+private fun builderToString(builder: pointer<StringBuilder>) -> pointer<char>
+{
+    if builder == null:
+        return null
+
+    val result: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
+    builder.toString(result)
+    return result
+}
+
+
+private fun joinPath(parent: pointer<char>, child: pointer<char>) -> pointer<char>
+{
+    val builder: pointer<StringBuilder> = new StringBuilder(parent)
+    val parentLength: int = String.strlen(parent)
+
+    if parentLength > 0:
+    {
+        val last: char = parent[parentLength - 1]
+
+        if last != '/' && last != '\\':
+            builder.append('/')
+    }
+
+    builder.append(child)
+    return builderToString(builder)
+}
+
+
+private fun copyPathPart(text: pointer<char>, start: int, end: int) -> pointer<char>
+{
+    val length: int = end - start
+    val result: pointer<char> = System.allocMemory((length + 1) * sizeof(char)) as pointer<char>
+
+    String.substring(result, text, start, length)
+    return result
+}
+
+
+private fun hasXExtension(path: pointer<char>) -> bool
+{
+    val length: int = String.strlen(path)
+
+    return length >= 2 && path[length - 2] == '.' && path[length - 1] == 'x'
+}
+
+
+private fun pushPath(paths: pointer<ArrayList>, path: pointer<char>)
+{
+    val slotSpace: blob[sizeof(pointer<char>)]
+    val slot: pointer<pointer<char>> = slotSpace as pointer<pointer<char>>
+
+    slot.deref = path
+    paths.push(slot)
+}
+
+
+private fun collectXFiles(root: pointer<char>, paths: pointer<ArrayList>)
+{
+    if root == null || paths == null:
+        return
+
+    if IO.isFile(root):
+    {
+        if hasXExtension(root):
+            pushPath(paths, root)
+
+        return
+    }
+
+    if !IO.isDirectory(root):
+        return
+
+    val entries: pointer<char> = System.allocMemory(65536 * sizeof(char)) as pointer<char>
+    val count: int = IO.subFiles(root, entries)
+
+    if count <= 0:
+        return
+
+    var start: int = 0
+    var cursor: int = 0
+    var collected: int = 0
+
+    while collected < count && entries[cursor] != '\0':
+    {
+        while entries[cursor] != '\0' && entries[cursor] != '|':
+            cursor++
+
+        val childName: pointer<char> = copyPathPart(entries, start, cursor)
+        val childPath: pointer<char> = joinPath(root, childName)
+
+        collectXFiles(childPath, paths)
+        collected++
+
+        if entries[cursor] == '\0':
+            return
+
+        cursor++
+        start = cursor
+    }
+}
+
+
+private fun printProgramFailure(path: pointer<char>, reason: pointer<char>, token: pointer<Token>)
+{
+    val builder: pointer<StringBuilder> = new StringBuilder("allSourcePrograms failed: ")
+
+    if path != null:
+        builder.append(path)
+    else:
+        builder.append("<null>")
+
+    builder.newline()
+    builder.append(reason)
+
+    if token != null:
+    {
+        builder.append(": ")
+
+        if token.text != null:
+            builder.append(token.text)
+        else:
+            builder.append("<null token text>")
+    }
+
+    val output: pointer<char> = builderToString(builder)
+    putln(output)
+}
+
+
+private fun appendTokenDebugText(builder: pointer<StringBuilder>, token: pointer<Token>)
+{
+    if builder == null:
+        return
+
+    if token == null:
+    {
+        builder.append("<null>")
+        return
+    }
+
+    if token.isEOF():
+    {
+        builder.append("<EOF>")
+        return
+    }
+
+    if token.kind == Tokenizer.TK_LINE_TERMINATOR:
+    {
+        builder.append("<NL>")
+        return
+    }
+
+    if token.text == null:
+        builder.append("<null token text>")
+    else:
+        builder.append(token.text)
+}
+
+
+private fun printTokenDump(title: pointer<char>, tokens: pointer<TokenList>)
+{
+    val builder: pointer<StringBuilder> = new StringBuilder(title)
+
+    if tokens == null:
+    {
+        builder.append("<null token list>")
+        putln(builderToString(builder))
+        return
+    }
+
+    val limit: int = 80
+    var i: int = 0
+
+    while i < tokens.length() && i < limit:
+    {
+        if i > 0:
+            builder.append(' ')
+
+        appendTokenDebugText(builder, tokens.get(i))
+        i++
+    }
+
+    if i < tokens.length():
+        builder.append(" ...")
+
+    putln(builderToString(builder))
+}
+
+
+private fun currentToken(tokens: pointer<TokenList>) -> pointer<Token> =
+    if tokens != null && tokens.length() > 0:
+        tokens.get(0)
+    else:
+        null
+
+
+private fun printProgramCheckpoint(path: pointer<char>, step: pointer<char>, tokens: pointer<TokenList>)
+{
+    printProgramFailure(path, step, currentToken(tokens))
+    printTokenDump("remaining tokens: ", tokens)
+}
+
+
+private fun consumeToken(tokens: pointer<TokenList>, kind: int) -> bool
+{
+    if tokens == null || tokens.length() <= 0:
+        return false
+
+    val token: pointer<Token> = tokens.get(0)
+
+    if token.kind != kind:
+        return false
+
+    tokens.remove(0, 1)
+    return true
+}
+
+
+private fun debugStructMemberParse(path: pointer<char>, tokens: pointer<TokenList>)
+{
+    val structTokens: pointer<TokenList> = tokens.subToken(0, tokens.length())
+
+    if Parser.parseModifierListMaybe(structTokens) == null:
+    {
+        printProgramCheckpoint(path, "parseModifierListMaybe failed in struct", structTokens)
+        return
+    }
+
+    if !consumeToken(structTokens, Tokenizer.KW_STRUCT):
+    {
+        printProgramCheckpoint(path, "expected struct keyword", structTokens)
+        return
+    }
+
+    if !consumeToken(structTokens, Tokenizer.TK_IDENTIFIER):
+    {
+        printProgramCheckpoint(path, "expected struct name", structTokens)
+        return
+    }
+
+    if !consumeToken(structTokens, Tokenizer.LEFT_BRACE):
+    {
+        printProgramCheckpoint(path, "expected struct left brace", structTokens)
+        return
+    }
+
+    if Parser.parseMembers(structTokens) == null:
+    {
+        printProgramCheckpoint(path, "parseMembers failed inside struct body", structTokens)
+        return
+    }
+
+    printProgramCheckpoint(path, "struct body members parsed", structTokens)
+}
+
+
+private fun debugProgramPieces(path: pointer<char>, source: pointer<char>)
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(source)
+
+    if Parser.parsePreprocessSettingsMaybe(tokens) == null:
+    {
+        printProgramCheckpoint(path, "parsePreprocessSettingsMaybe failed", tokens)
+        return
+    }
+
+    printProgramCheckpoint(path, "after preprocess settings", tokens)
+
+    if Parser.parsePackageDeclaration(tokens) == null:
+    {
+        printProgramCheckpoint(path, "parsePackageDeclaration failed", tokens)
+        return
+    }
+
+    printProgramCheckpoint(path, "after package declaration", tokens)
+
+    if Parser.parseImportDeclarationsMaybe(tokens) == null:
+    {
+        printProgramCheckpoint(path, "parseImportDeclarationsMaybe failed", tokens)
+        return
+    }
+
+    printProgramCheckpoint(path, "after import declarations", tokens)
+
+    if Parser.parseMembers(tokens) == null:
+    {
+        printProgramCheckpoint(path, "parseMembers failed at program level", tokens)
+        debugStructMemberParse(path, tokens)
+        return
+    }
+
+    printProgramCheckpoint(path, "after program members", tokens)
+}
+
+
+private fun parseProgramFile(path: pointer<char>) -> bool
+{
+    val source: pointer<char> = IO.readFile(path)
+
+    if source == null:
+    {
+        printProgramFailure(path, "readFile returned null", null)
+        return false
+    }
+
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(source)
+    val program: pointer<Program> = Parser.parseProgram(tokens)
+
+    if program == null:
+    {
+        val token: pointer<Token> = if tokens.length() > 0:
+                tokens.get(0)
+            else:
+                null
+
+        printProgramFailure(path, "parseProgram returned null near", token)
+        printTokenDump("raw tokens: ", Tokenizer.tokenize(source))
+        printTokenDump("normalized tokens: ", tokens)
+        debugProgramPieces(path, source)
+        return false
+    }
+
+    if tokens.length() > 0 && !tokens.get(0).isEOF():
+    {
+        val token: pointer<Token> = tokens.get(0)
+        printProgramFailure(path, "parseProgram left token", token)
+        printTokenDump("raw tokens: ", Tokenizer.tokenize(source))
+        printTokenDump("normalized tokens: ", tokens)
+        debugStructMemberParse(path, tokens)
+        return false
+    }
+
+    return true
 }
 
 
@@ -493,6 +844,30 @@ private fun structGetAllTokensTest() -> int
 
     if !tokenTextAt(tokens, 23, ")") || !tokenTextAt(tokens, 24, ":") || !tokenTextAt(tokens, 25, "value") || !tokenTextAt(tokens, 26, "=") || !tokenTextAt(tokens, 27, "arg") || !tokenTextAt(tokens, 28, "}"):
         return 8
+
+    return 0
+}
+
+
+private fun allSourceProgramsTest() -> int
+{
+    val files: pointer<ArrayList> = new ArrayList(sizeof(pointer<char>))
+
+    collectXFiles("D:/Coding/projects/Xlang/xlang/src", files)
+
+    if files.length <= 0:
+        return -1
+
+    files.setComparator(comparePathText)
+    files.sort()
+
+    for (var i = 0; i < files.length; i++):
+    {
+        val path: pointer<char> = (files.get(i) as pointer<pointer<char>>).deref
+
+        if !parseProgramFile(path):
+            return i + 1
+    }
 
     return 0
 }

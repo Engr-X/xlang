@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("QualifiedName")
+
+#file.outerClass("QualifiedName")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

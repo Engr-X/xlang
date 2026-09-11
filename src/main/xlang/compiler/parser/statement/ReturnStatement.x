@@ -19,7 +19,8 @@
  *
  *
  */
-#file.class("ReturnStatement")
+
+#file.outerClass("ReturnStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression
