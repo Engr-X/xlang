@@ -63,6 +63,10 @@ import xlang.test.TestGroup
 import xlang.test.TestUnion
 
 
+private val SOURCE_PROGRAM_FILES: pointer<ArrayList> = new ArrayList(sizeof(pointer<char>))
+private var sourceProgramIndex: int = 0
+
+
 val TEST_GROUP: pointer<TestGroup> = genTest()
 
 
@@ -91,7 +95,7 @@ fun genTest() -> pointer<TestGroup>
     val functionVoidExpressionTC: pointer<TestCase> = new TestCase("functionVoidExpression", functionVoidExpressionTest)
     val functionVoidBlockTC: pointer<TestCase> = new TestCase("functionVoidBlock", functionVoidBlockTest)
     val structTC: pointer<TestCase> = new TestCase("struct", structTest)
-    val allSourceProgramsTC: pointer<TestCase> = new TestCase("allSourcePrograms", allSourceProgramsTest)
+    val allSourceProgramsTG: pointer<TestGroup> = genAllSourceProgramsTestGroup()
     val statementTC: pointer<TestCase> = new TestCase("statement", statementTest)
     val atomParserUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, atomParserTC, null)
     val functionCallExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionCallExpressionTC, null)
@@ -115,7 +119,7 @@ fun genTest() -> pointer<TestGroup>
     val functionVoidExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidExpressionTC, null)
     val functionVoidBlockUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionVoidBlockTC, null)
     val structUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, structTC, null)
-    val allSourceProgramsUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, allSourceProgramsTC, null)
+    val allSourceProgramsUnion: pointer<TestUnion> = new TestUnion(TestGroup.TYPE, null, allSourceProgramsTG)
     val statementUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, statementTC, null)
 
     result.addTestUnion(atomParserUnion)
@@ -849,27 +853,84 @@ private fun structGetAllTokensTest() -> int
 }
 
 
-private fun allSourceProgramsTest() -> int
+private fun sourceProgramTestName(path: pointer<char>) -> pointer<char>
 {
-    val files: pointer<ArrayList> = new ArrayList(sizeof(pointer<char>))
+    if path == null:
+        return String.strdup("<null>")
+
+    val pathLength: int = String.strlen(path)
+    var start: int = 0
+
+    for (var i = 0; i + 5 < pathLength; i++):
+    {
+        val before: bool = i == 0 || path[i - 1] == '/' || path[i - 1] == '\\'
+        val after: bool = path[i + 5] == '/' || path[i + 5] == '\\'
+
+        if before && after && path[i] == 'x' && path[i + 1] == 'l' && path[i + 2] == 'a' && path[i + 3] == 'n' && path[i + 4] == 'g':
+            start = i
+    }
+
+    var end: int = pathLength
+
+    if end - start >= 2 && path[end - 2] == '.' && path[end - 1] == 'x':
+        end -= 2
+
+    val nameLength: int = end - start
+    val result: pointer<char> = System.allocMemory((nameLength + 1) * sizeof(char)) as pointer<char>
+
+    for (var i = 0; i < nameLength; i++):
+    {
+        val current: char = path[start + i]
+
+        if current == '/' || current == '\\':
+            result[i] = '.'
+        else:
+            result[i] = current
+    }
+
+    result[nameLength] = '\0'
+    return result
+}
+
+
+private fun sourceProgramTest() -> int
+{
+    val files: pointer<ArrayList> = SOURCE_PROGRAM_FILES
+
+    if sourceProgramIndex < 0 || sourceProgramIndex >= files.length:
+        return -1
+
+    val path: pointer<char> = (files.get(sourceProgramIndex) as pointer<pointer<char>>).deref
+    sourceProgramIndex++
+
+    return if parseProgramFile(path):
+            0
+        else:
+            1
+}
+
+
+private fun genAllSourceProgramsTestGroup() -> pointer<TestGroup>
+{
+    val result: pointer<TestGroup> = new TestGroup("allSourcePrograms")
+    val files: pointer<ArrayList> = SOURCE_PROGRAM_FILES
 
     collectXFiles("D:/Coding/projects/Xlang/xlang/src", files)
 
-    if files.length <= 0:
-        return -1
-
     files.setComparator(comparePathText)
     files.sort()
+    sourceProgramIndex = 0
 
     for (var i = 0; i < files.length; i++):
     {
         val path: pointer<char> = (files.get(i) as pointer<pointer<char>>).deref
+        val testCase: pointer<TestCase> = new TestCase(sourceProgramTestName(path), sourceProgramTest)
+        val testUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, testCase, null)
 
-        if !parseProgramFile(path):
-            return i + 1
+        result.addTestUnion(testUnion)
     }
 
-    return 0
+    return result
 }
 
 

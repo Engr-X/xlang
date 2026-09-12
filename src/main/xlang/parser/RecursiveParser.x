@@ -194,7 +194,7 @@ struct RecursiveParser
             this.result = new ParseContainer(this.id, constructedResult)
 
             // call after
-            rule.afterFun(token)
+            rule.afterFun(token, cursor)
 
             matchLength.deref = 0
             return true
@@ -288,7 +288,7 @@ struct RecursiveParser
         this.result = new ParseContainer(this.id, constructedResult)
 
         // call after
-        rule.afterFun(token)
+        rule.afterFun(token, cursor + consumed)
 
         matchLength.deref = consumed
 

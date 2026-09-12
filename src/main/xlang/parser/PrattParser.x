@@ -239,10 +239,10 @@ struct PrattParser
 
             left = new ParseContainer(this.id, constructedResult)
 
-            // call after
-            rule.afterFun(token)
-
             consumed += continuationLength + rightLength
+
+            // call after
+            rule.afterFun(token, cursor + consumed)
         }
 
         this.result = left
@@ -471,7 +471,7 @@ struct PrattParser
             return null
 
         // call after
-        rule.afterFun(token)
+        rule.afterFun(token, cursor + consumed)
 
         matchLength.deref = consumed
 

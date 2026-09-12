@@ -167,7 +167,9 @@ struct TestGroup
     static val TYPE: int = 1
 
     var length: int
+
     private var name: pointer<char>
+    
     private var list: pointer<ArrayList>
 
 

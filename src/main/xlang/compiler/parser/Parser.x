@@ -1415,14 +1415,21 @@ private fun makeIfElseExprFromElseS(results: pointer<ArrayList>) -> pointer<*>
        .addExtraToken(elseToken).addExtraToken(colonToken)
 }
 
-private fun prependLineTerminator(tokens: pointer<TokenList>) -> pointer<TokenList>
+private fun prependLineTerminator(tokens: pointer<TokenList>, index: int) -> pointer<TokenList>
 {
-    if tokens == null || tokens.length() <= 0:
+    if tokens == null || index < 0 || index > tokens.length():
         return tokens
 
-    val first: pointer<Token> = tokens.get(0)
-    val terminator: pointer<Token> = new Token(Tokenizer.TK_LINE_TERMINATOR, first.pos, "\n")
-    tokens.pushFront(terminator)
+    if index < tokens.length():
+    {
+        val current: pointer<Token> = tokens.get(index)
+
+        if current != null && current.kind == Tokenizer.TK_LINE_TERMINATOR:
+            return tokens
+    }
+
+    val terminator: pointer<Token> = new Token(Tokenizer.TK_LINE_TERMINATOR, TokenPosition.autoGenPos(), "\n")
+    tokens.add(index, terminator)
 
     return tokens
 }

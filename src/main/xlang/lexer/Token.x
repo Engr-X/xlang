@@ -458,6 +458,19 @@ struct TokenList
 
 
     /**
+     * Inserts a token at the specified index.
+     *
+     * Existing tokens at and after the index are shifted one position toward
+     * the end of the list.
+     *
+     * @param index             the zero-based insertion index
+     * @param token             the token to insert
+     */
+    fun add(index: int, token: pointer<Token>):
+        this.tokens.add(index, token)
+
+
+    /**
      * Inserts all elements from the specified list at the given index.
      *
      * <p>The elements are copied from {@code items} and added to this list.
