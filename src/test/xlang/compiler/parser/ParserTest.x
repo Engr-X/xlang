@@ -23,6 +23,7 @@
 #file.outerClass("ParserTest")
 package xlang.compiler.parser
 
+import xlang.Files
 import xlang.compiler.Type
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
@@ -55,7 +56,6 @@ import xlang.compiler.parser.stmtexpr.Block
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
-import xlang.util.IO
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 import xlang.test.TestCase
@@ -63,7 +63,6 @@ import xlang.test.TestGroup
 import xlang.test.TestUnion
 
 
-private val SOURCE_PROGRAM_FILES: pointer<ArrayList> = new ArrayList(sizeof(pointer<char>))
 private var sourceProgramIndex: int = 0
 
 
@@ -186,15 +185,6 @@ private fun parseStructText(text: pointer<char>) -> pointer<Struct>
 }
 
 
-private fun comparePathText(left: pointer<*>, right: pointer<*>) -> int
-{
-    val leftPath: pointer<char> = (left as pointer<pointer<char>>).deref
-    val rightPath: pointer<char> = (right as pointer<pointer<char>>).deref
-
-    return String.strcmp(leftPath, rightPath)
-}
-
-
 private fun builderToString(builder: pointer<StringBuilder>) -> pointer<char>
 {
     if builder == null:
@@ -206,95 +196,11 @@ private fun builderToString(builder: pointer<StringBuilder>) -> pointer<char>
 }
 
 
-private fun joinPath(parent: pointer<char>, child: pointer<char>) -> pointer<char>
-{
-    val builder: pointer<StringBuilder> = new StringBuilder(parent)
-    val parentLength: int = String.strlen(parent)
-
-    if parentLength > 0:
-    {
-        val last: char = parent[parentLength - 1]
-
-        if last != '/' && last != '\\':
-            builder.append('/')
-    }
-
-    builder.append(child)
-    return builderToString(builder)
-}
-
-
-private fun copyPathPart(text: pointer<char>, start: int, end: int) -> pointer<char>
-{
-    val length: int = end - start
-    val result: pointer<char> = System.allocMemory((length + 1) * sizeof(char)) as pointer<char>
-
-    String.substring(result, text, start, length)
-    return result
-}
-
-
 private fun hasXExtension(path: pointer<char>) -> bool
 {
     val length: int = String.strlen(path)
 
     return length >= 2 && path[length - 2] == '.' && path[length - 1] == 'x'
-}
-
-
-private fun pushPath(paths: pointer<ArrayList>, path: pointer<char>)
-{
-    val slotSpace: blob[sizeof(pointer<char>)]
-    val slot: pointer<pointer<char>> = slotSpace as pointer<pointer<char>>
-
-    slot.deref = path
-    paths.push(slot)
-}
-
-
-private fun collectXFiles(root: pointer<char>, paths: pointer<ArrayList>)
-{
-    if root == null || paths == null:
-        return
-
-    if IO.isFile(root):
-    {
-        if hasXExtension(root):
-            pushPath(paths, root)
-
-        return
-    }
-
-    if !IO.isDirectory(root):
-        return
-
-    val entries: pointer<char> = System.allocMemory(65536 * sizeof(char)) as pointer<char>
-    val count: int = IO.subFiles(root, entries)
-
-    if count <= 0:
-        return
-
-    var start: int = 0
-    var cursor: int = 0
-    var collected: int = 0
-
-    while collected < count && entries[cursor] != '\0':
-    {
-        while entries[cursor] != '\0' && entries[cursor] != '|':
-            cursor++
-
-        val childName: pointer<char> = copyPathPart(entries, start, cursor)
-        val childPath: pointer<char> = joinPath(root, childName)
-
-        collectXFiles(childPath, paths)
-        collected++
-
-        if entries[cursor] == '\0':
-            return
-
-        cursor++
-        start = cursor
-    }
 }
 
 
@@ -491,13 +397,11 @@ private fun debugProgramPieces(path: pointer<char>, source: pointer<char>)
 }
 
 
-private fun parseProgramFile(path: pointer<char>) -> bool
+private fun parseProgramFile(path: pointer<char>, source: pointer<char>) -> bool
 {
-    val source: pointer<char> = IO.readFile(path)
-
     if source == null:
     {
-        printProgramFailure(path, "readFile returned null", null)
+        printProgramFailure(path, "file content is null", null)
         return false
     }
 
@@ -895,35 +799,51 @@ private fun sourceProgramTestName(path: pointer<char>) -> pointer<char>
 
 private fun sourceProgramTest() -> int
 {
-    val files: pointer<ArrayList> = SOURCE_PROGRAM_FILES
+    val files: pointer<ArrayList> = Files.ALL_FILES
+    val contents: pointer<ArrayList> = Files.ALL_FILE_CONTENT
 
-    if sourceProgramIndex < 0 || sourceProgramIndex >= files.length:
+    if files == null || contents == null || files.length != contents.length:
         return -1
 
-    val path: pointer<char> = (files.get(sourceProgramIndex) as pointer<pointer<char>>).deref
-    sourceProgramIndex++
+    while sourceProgramIndex < files.length:
+    {
+        val index: int = sourceProgramIndex
+        val path: pointer<char> = (files.get(index) as pointer<pointer<char>>).deref
+        sourceProgramIndex = index + 1
 
-    return if parseProgramFile(path):
-            0
-        else:
-            1
+        if !hasXExtension(path):
+            continue
+
+        val contentSlot: pointer<pointer<char>> = contents.get(index) as pointer<pointer<char>>
+        val source: pointer<char> = if contentSlot == null:
+                null
+            else:
+                contentSlot.deref
+
+        return if parseProgramFile(path, source):
+                0
+            else:
+                1
+    }
+
+    return -1
 }
 
 
 private fun genAllSourceProgramsTestGroup() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("allSourcePrograms")
-    val files: pointer<ArrayList> = SOURCE_PROGRAM_FILES
+    val files: pointer<ArrayList> = Files.ALL_FILES
 
-    collectXFiles("D:/Coding/projects/Xlang/xlang/src", files)
-
-    files.setComparator(comparePathText)
-    files.sort()
     sourceProgramIndex = 0
 
     for (var i = 0; i < files.length; i++):
     {
         val path: pointer<char> = (files.get(i) as pointer<pointer<char>>).deref
+
+        if !hasXExtension(path):
+            continue
+
         val testCase: pointer<TestCase> = new TestCase(sourceProgramTestName(path), sourceProgramTest)
         val testUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, testCase, null)
 

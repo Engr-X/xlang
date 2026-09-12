@@ -66,7 +66,7 @@ static char* narrow_xchar_string(const x_char* const value)
 }
 
 
-static int regex_match_raw(const char* const pattern, const char* const str)
+static int regex_match_raw(const char* const pattern, const x_char* const str)
 {
     int match_index;
     int match_length;
@@ -207,7 +207,7 @@ static bool is_wrapped_by_parentheses(const char* const pattern, const size_t be
 }
 
 
-static int regex_match_range(const char* const pattern, size_t begin, size_t end, const char* const str)
+static int regex_match_range(const char* const pattern, size_t begin, size_t end, const x_char* const str)
 {
     while (is_wrapped_by_parentheses(pattern, begin, end))
     {
@@ -310,9 +310,9 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
     char* match_pattern = regex_pattern_buffer;
     bool heap_allocated = false;
 
-    if (length + 1 > REGEX_PATTERN_BUFFER_SIZE)
+    if (length + 2 > REGEX_PATTERN_BUFFER_SIZE)
     {
-        match_pattern = malloc(length + 1);
+        match_pattern = malloc(length + 2);
 
         if (match_pattern == NULL)
             return -1;
@@ -320,7 +320,14 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
         heap_allocated = true;
     }
 
-    copy_normalized_pattern_range(match_pattern, pattern, begin, end);
+    const size_t match_pattern_length =
+        copy_normalized_pattern_range(match_pattern, pattern, begin, end);
+
+    if (match_pattern[0] != '^')
+    {
+        memmove(match_pattern + 1, match_pattern, match_pattern_length + 1);
+        match_pattern[0] = '^';
+    }
 
     const int match_length = regex_match_raw(match_pattern, str);
 
@@ -334,26 +341,22 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
 int regex_match(const x_char* const pattern, const x_char* const str)
 {
     char* narrow_pattern;
-    char* narrow_str;
     int result;
 
     if (pattern == NULL || str == NULL)
         return -1;
 
     narrow_pattern = narrow_xchar_string(pattern);
-    narrow_str = narrow_xchar_string(str);
 
-    if (narrow_pattern == NULL || narrow_str == NULL)
+    if (narrow_pattern == NULL)
     {
         free(narrow_pattern);
-        free(narrow_str);
         return -1;
     }
 
-    result = regex_match_range(narrow_pattern, 0, strlen(narrow_pattern), narrow_str);
+    result = regex_match_range(narrow_pattern, 0, strlen(narrow_pattern), str);
 
     free(narrow_pattern);
-    free(narrow_str);
 
     return result;
 }
