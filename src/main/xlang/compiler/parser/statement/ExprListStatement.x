@@ -71,7 +71,7 @@ struct ExprListStatement
     }
 
 
-    fun getExpressions() -> pointer<ArrayList> = this.exprList.clone()
+    fun getExpressions() -> pointer<ArrayList> = this.exprList
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<ExprListStatement>

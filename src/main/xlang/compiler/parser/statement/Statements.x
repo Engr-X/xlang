@@ -80,7 +80,7 @@ struct Statements
     }
 
 
-    fun getStatements() -> pointer<ArrayList> = this.statements.clone()
+    fun getStatements() -> pointer<ArrayList> = this.statements
 
 
     fun expand() -> pointer<ArrayList>

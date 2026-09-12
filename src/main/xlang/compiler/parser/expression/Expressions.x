@@ -83,10 +83,10 @@ struct Expressions
     }
 
 
-    fun getExpressions() -> pointer<ArrayList> = this.expressions.clone()
+    fun getExpressions() -> pointer<ArrayList> = this.expressions
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun getAllTokens() -> pointer<ArrayList>

@@ -59,10 +59,10 @@ struct Block
     }
 
 
-    fun getStatements() -> pointer<ArrayList> = this.statements.clone()
+    fun getStatements() -> pointer<ArrayList> = this.statements
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<Block>

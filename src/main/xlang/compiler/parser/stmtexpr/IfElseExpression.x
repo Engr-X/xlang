@@ -106,10 +106,10 @@ struct IfElseExpression
     fun getCondition() -> pointer<Expression> = this.condition
 
 
-    fun getIfStatements() -> pointer<ArrayList> = this.ifStmts.clone()
+    fun getIfStatements() -> pointer<ArrayList> = this.ifStmts
 
 
-    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts.clone()
+    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<IfElseExpression>
@@ -130,7 +130,7 @@ struct IfElseExpression
     }
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun getAllTokens() -> pointer<ArrayList>

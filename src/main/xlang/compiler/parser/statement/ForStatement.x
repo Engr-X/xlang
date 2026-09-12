@@ -92,7 +92,7 @@ struct ForHeader
     }
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun getAllTokens() -> pointer<ArrayList>
@@ -227,10 +227,10 @@ struct ForStatement
     fun getStepStatement() -> pointer<Statement> = this.header.getStepStatement()
 
 
-    fun getBodyStatements() -> pointer<ArrayList> = this.bodyStmts.clone()
+    fun getBodyStatements() -> pointer<ArrayList> = this.bodyStmts
 
 
-    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts.clone()
+    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts
 
 
     fun haveElseStatement() -> bool = this.elseStmts.length > 0
@@ -254,7 +254,7 @@ struct ForStatement
     }
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun expand() -> pointer<ArrayList>
@@ -271,7 +271,7 @@ struct ForStatement
             this.header.getCondition()
 
         val whileStmt: pointer<WhileStatement> =
-            new WhileStatement(condition, whileBodyStmts, this.elseStmts.clone())
+            new WhileStatement(condition, whileBodyStmts, this.elseStmts)
 
         val resultStmts: pointer<ArrayList> = new ArrayList(sizeof(Statement))
 

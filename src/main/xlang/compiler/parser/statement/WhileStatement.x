@@ -62,10 +62,10 @@ struct WhileStatement
     fun getCondition() -> pointer<Expression> = this.condition
 
 
-    fun getBodyStatements() -> pointer<ArrayList> = this.bodyStmts.clone()
+    fun getBodyStatements() -> pointer<ArrayList> = this.bodyStmts
 
 
-    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts.clone()
+    fun getElseStatements() -> pointer<ArrayList> = this.elseStmts
 
 
     fun haveElseStatement() -> bool = this.elseStmts.length > 0
@@ -80,7 +80,7 @@ struct WhileStatement
     }
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun getAllTokens() -> pointer<ArrayList>

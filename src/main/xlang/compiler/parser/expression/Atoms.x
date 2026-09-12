@@ -83,10 +83,10 @@ struct Atoms
     }
 
 
-    fun getAtoms() -> pointer<ArrayList> = this.atoms.clone()
+    fun getAtoms() -> pointer<ArrayList> = this.atoms
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun getAllTokens() -> pointer<ArrayList>

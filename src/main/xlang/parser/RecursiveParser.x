@@ -97,6 +97,15 @@ struct RecursiveParser
     }
 
 
+    constructor(id: int, rules: pointer<ArrayList>)
+    {
+        this.id = id
+        this.error = null
+        this.result = null
+        this.rules = rules
+    }
+
+
     fun getId() -> int = this.id
 
 
@@ -337,10 +346,5 @@ struct RecursiveParser
     fun getResult() -> pointer<ParseContainer> = this.result
 
 
-    fun clone() -> pointer<RecursiveParser>
-    {
-        val result: pointer<RecursiveParser> = new RecursiveParser(this.id)
-        result.rules = this.rules
-        return result
-    }
+    fun clone() -> pointer<RecursiveParser> = new RecursiveParser(this.id, this.rules)
 }

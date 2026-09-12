@@ -60,6 +60,16 @@ struct PrattParser
     }
 
 
+    constructor(starterRules: pointer<ArrayList>, continuationRules: pointer<ArrayList>)
+    {
+        this.id = ParseContainer.ARRAY_LIST_KIND
+        this.errors = new ArrayList(sizeof(Diagnostic))
+        this.result = null
+        this.starterRules = starterRules
+        this.continuationRules = continuationRules
+    }
+
+
     fun setId(id: int) -> pointer<PrattParser>
     {
         this.id = id
@@ -660,11 +670,8 @@ struct PrattParser
 
     fun clone() -> pointer<PrattParser>
     {
-        val result: pointer<PrattParser> = new PrattParser()
-
+        val result: pointer<PrattParser> = new PrattParser(this.starterRules, this.continuationRules)
         result.id = this.id
-        result.starterRules = this.starterRules
-        result.continuationRules = this.continuationRules
         return result
     }
 }
