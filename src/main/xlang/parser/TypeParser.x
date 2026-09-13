@@ -1,8 +1,6 @@
 /*
-        this.depth--
-        var errorIndex: int = index + consumed
+ * Copyright (c) 2026 Di Wang
  * SPDX-License-Identifier: MIT
- *
  *
  *
  *
@@ -27,10 +25,13 @@ package xlang.parser
 
 import xlang.Diagnostic
 import xlang.SourceLocation
+import xlang.compiler.BlobType
 import xlang.compiler.FunctionType
 import xlang.compiler.NormalType
 import xlang.compiler.Type
 import xlang.compiler.lexer.Tokenizer
+import xlang.compiler.parser.Parser
+import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.lexer.TokenPosition
@@ -77,6 +78,19 @@ struct TypeParser
                 val functionType: pointer<FunctionType> = this.result.getValue() as pointer<FunctionType>
 
                 this.result = new ParseContainer(this.id, Type.fromFunction(functionType))
+                return consumed
+            }
+
+            if token.kind == Tokenizer.KW_BLOB:
+            {
+                val consumed: int = this.parseBlob(tokens, index)
+
+                if this.haveError(consumed):
+                    return -1
+
+                val blobType: pointer<BlobType> = this.result.getValue() as pointer<BlobType>
+
+                this.result = new ParseContainer(this.id, Type.fromBlob(blobType))
                 return consumed
             }
         }
@@ -348,9 +362,6 @@ struct TypeParser
             return -1
         }
 
-        if token.kind == Tokenizer.KW_BLOB:
-            return this.parseBlob(tokens, index)
-
         if token.kind != Tokenizer.TK_IDENTIFIER &&
             token.kind != Tokenizer.KW_BOOL &&
             token.kind != Tokenizer.KW_BYTE &&
@@ -402,7 +413,7 @@ struct TypeParser
         {
             val argumentParser: pointer<TypeParser> = this.clone()
             argumentParser.depth = this.depth
-            val argumentLength: int = argumentParser.parseNormal(tokens, index + consumed)
+            val argumentLength: int = argumentParser.parse(tokens, index + consumed)
 
             if argumentParser.haveError(argumentLength):
             {
@@ -412,7 +423,7 @@ struct TypeParser
             }
 
             val argumentResult: pointer<ParseContainer> = argumentParser.getResult()
-            val typeArgument: pointer<NormalType> = argumentResult.getValue() as pointer<NormalType>
+            val typeArgument: pointer<Type> = argumentResult.getValue() as pointer<Type>
 
             parsedType.addTypeArgument(typeArgument)
             consumed += argumentLength
@@ -476,29 +487,53 @@ struct TypeParser
     {
         var errorIndex: int = index
 
-        if index + 3 < tokens.length():
+        if index + 2 < tokens.length():
         {
             val blobToken: pointer<Token> = tokens.get(index)
             val leftBracket: pointer<Token> = tokens.get(index + 1)
-            val sizeToken: pointer<Token> = tokens.get(index + 2)
-            val rightBracket: pointer<Token> = tokens.get(index + 3)
 
             if leftBracket.kind != Tokenizer.LEFT_BRACKET:
                 errorIndex = index + 1
-            elif sizeToken.kind != Tokenizer.TK_INTEGER:
-                errorIndex = index + 2
-            elif rightBracket.kind != Tokenizer.RIGHT_BRACKET:
-                errorIndex = index + 3
             else:
             {
-                val size: long = TypeConvert.stringToLong(sizeToken.text)
-                val memSize: int = size as int
+                val expressionTokens: pointer<TokenList> = tokens.subToken(index + 2, tokens.length())
+                val expressionTokenCount: int = expressionTokens.length()
+                val blobSize: pointer<Expression> = Parser.parseExpression(expressionTokens)
 
-                if (memSize as long) == size:
+                if blobSize != null:
                 {
-                    val parsedType: pointer<NormalType> = new NormalType(null, blobToken.text, memSize).addToken(blobToken).addToken(leftBracket).addToken(sizeToken).addToken(rightBracket)
-                    this.result = new ParseContainer(this.id, parsedType)
-                    return 4
+                    val expressionLength: int = expressionTokenCount - expressionTokens.length()
+                    val rightBracketIndex: int = index + 2 + expressionLength
+
+                    if rightBracketIndex < tokens.length():
+                    {
+                        val rightBracket: pointer<Token> = tokens.get(rightBracketIndex)
+
+                        if rightBracket.kind == Tokenizer.RIGHT_BRACKET:
+                        {
+                            var memSize: int = 0
+                            val sizeToken: pointer<Token> = tokens.get(index + 2)
+
+                            if expressionLength == 1 && sizeToken.kind == Tokenizer.TK_INTEGER:
+                            {
+                                val size: long = TypeConvert.stringToLong(sizeToken.text)
+                                val parsedSize: int = size as int
+
+                                if (parsedSize as long) == size:
+                                    memSize = parsedSize
+                            }
+
+                            val parsedType: pointer<BlobType> = new BlobType(blobSize, memSize)
+                                .addExtraToken(blobToken)
+                                .addExtraToken(leftBracket)
+                                .addExtraToken(rightBracket)
+
+                            this.result = new ParseContainer(this.id, parsedType)
+                            return expressionLength + 3
+                        }
+
+                        errorIndex = rightBracketIndex
+                    }
                 }
 
                 errorIndex = index + 2

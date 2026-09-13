@@ -78,6 +78,7 @@
         { "name": "KW_SHL", "pattern": "shl" },
         { "name": "KW_SHORT", "pattern": "short" },
         { "name": "KW_SHR", "pattern": "shr" },
+        { "name": "KW_SIZEOF", "pattern": "sizeof" },
         { "name": "KW_STATIC", "pattern": "static" },
         { "name": "KW_STRUCT", "pattern": "struct" },
         { "name": "KW_TRUE", "pattern": "true" },

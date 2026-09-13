@@ -21,6 +21,7 @@
         "xlang.compiler.parser.expression.NewFunction",
         "xlang.compiler.parser.expression.NewIdentifier",
         "xlang.compiler.parser.expression.TypeCast",
+        "xlang.compiler.parser.expression.intrisic.SizeOf",
         "xlang.compiler.parser.stmtexpr.Block",
         "xlang.compiler.parser.stmtexpr.IfExpression",
         "xlang.compiler.parser.stmtexpr.IfElseExpression"
@@ -118,6 +119,7 @@
             "sub_rules": [
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromNewFunc", "priority": 250 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.KW_NEW" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeExprFromNewIdent", "priority": 240 },
+                { "role": "starter", "patterns": [{ "kind": "$SizeOf" }], "action": "makeExprFromSizeOf", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ExpressionTuple" }], "action": "makeExprFromFuncCall", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$IfElseExpression" }], "action": "makeExprFromIfElseExpr", "priority": 240 },
                 { "role": "starter", "patterns": [{ "kind": "$IfExpression" }], "action": "makeExprFromIfExpr", "priority": 230 },
@@ -247,6 +249,13 @@
             "sub_rules": [
                 { "patterns": [{ "kind": "$Atom" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$Atoms" }], "action": "makeAtomsIt" },
                 { "patterns": [{ "kind": "$Atom" }], "action": "makeAtoms" }
+            ]
+        },
+        {
+            "class": "SizeOf",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_SIZEOF" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Type" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeSizeOf" }
             ]
         },
         {
@@ -443,6 +452,13 @@
             "{",
             "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
             "    return Expression.fromAtom(atom)",
+            "}" ],
+
+
+        [   "private fun makeExprFromSizeOf(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val sizeOf: pointer<SizeOf> = getContainerValue(results, 0) as pointer<SizeOf>",
+            "    return sizeOf.toExpression()",
             "}" ],
 
 
@@ -773,6 +789,20 @@
             "    val atom: pointer<Atom> = getContainerValue(results, 0) as pointer<Atom>",
             "",
             "    return new Atoms(atom)",
+            "}" ],
+
+
+        [   "private fun makeSizeOf(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val sizeOfToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val leftParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val targetType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
+            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "",
+            "    return new SizeOf(targetType)",
+            "        .addExtraToken(sizeOfToken)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
             "}" ],
 
 

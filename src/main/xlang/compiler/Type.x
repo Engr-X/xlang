@@ -25,6 +25,8 @@
 #file.outerClass("Type")
 package xlang.compiler
 
+import xlang.compiler.setting.CompilerSettings
+import xlang.compiler.setting.SystemBits
 import xlang.lexer.Token
 import xlang.util.ArrayList
 import xlang.util.string.String
@@ -48,12 +50,17 @@ struct Type
     /**
      * Identifies a Type wrapper whose host is a NormalType.
      */
-    private static val NORMAL_KIND: int = 1
+    static val NORMAL_KIND: int = 1
 
     /**
      * Identifies a Type wrapper whose host is a FunctionType.
      */
-    private static val FUNCTION_KIND: int = 2
+    static val FUNCTION_KIND: int = 2
+
+    /**
+     * Identifies a Type wrapper whose host is a BlobType.
+     */
+    static val BLOB_KIND: int = 3
 
 
     /**
@@ -162,18 +169,14 @@ struct Type
 
 
     /**
-     * Creates a built-in fixed-size blob type descriptor.
+     * Creates a blob type whose size has already been resolved.
      *
-     * A blob represents a raw block of memory with a fixed size and no predefined
-     * interpretation.
+     * @param memSize           resolved storage size in bytes
      *
-     * @param memSize number of bytes occupied by the blob value.
-     *
-     * Postconditions:
-     * - The returned type descriptor occupies exactly memSize bytes.
-     * - The blob contents are managed by the owner of the value.
+     * @return                  Type wrapper containing a BlobType
      */
-    static fun blobType(memSize: int) -> pointer<Type> = fromNormal(NormalType.blobType(memSize))
+    static fun blobType(memSize: int) -> pointer<Type> =
+        fromBlob(new BlobType(null, memSize))
 
 
     /* Returns the primitive string type used by the compiler bootstrap stage.
@@ -215,6 +218,17 @@ struct Type
      */
     static fun fromFunction(functionType: pointer<FunctionType>) -> pointer<Type> =
         new Type(FUNCTION_KIND, functionType)
+
+
+    /**
+     * Creates a Type wrapper from a blob type value.
+     *
+     * @param blobType          blob type to wrap
+     *
+     * @return                  Type wrapper containing blobType
+     */
+    static fun fromBlob(blobType: pointer<BlobType>) -> pointer<Type> =
+        new Type(BLOB_KIND, blobType)
 
 
     /**
@@ -284,6 +298,53 @@ struct Type
     }
 
 
+    fun getKind() -> int = this.kind
+
+
+    fun getHost() -> pointer<*> = this.host
+
+
+    /**
+     * Returns the storage size of this type in bytes.
+     *
+     * Function types and normal pointer types use the configured target pointer
+     * width. Blob and normal types delegate to their concrete type information.
+     * Parsed built-in normal types are recognized by name because their memory
+     * size may not have been resolved by TypeParser yet.
+     *
+     * @return                  storage size in bytes, or zero when unavailable
+     */
+    fun getMemSize() -> int
+    {
+        if this.host == null:
+            return 0
+
+        if this.kind == FUNCTION_KIND:
+            return CompilerSettings.getInstance().getSystemBits() / SystemBits.BITS_PER_BYTE
+
+        if this.kind == BLOB_KIND:
+        {
+            val blobType: pointer<BlobType> = this.host as pointer<BlobType>
+            return blobType.getMemSize()
+        }
+
+        if this.kind != NORMAL_KIND:
+            return 0
+
+        val normalType: pointer<NormalType> = this.host as pointer<NormalType>
+        val typeName: pointer<char> = normalType.getTypeName()
+
+        return if String.streq(typeName, "pointer"):
+            CompilerSettings.getInstance().getSystemBits() / SystemBits.BITS_PER_BYTE
+        elif String.streq(typeName, "void"): 0
+        elif String.streq(typeName, "bool") || String.streq(typeName, "byte"): 1
+        elif String.streq(typeName, "short"): 2
+        elif String.streq(typeName, "int") || String.streq(typeName, "float"): 4
+        elif String.streq(typeName, "char") || String.streq(typeName, "long") || String.streq(typeName, "double"): 8
+        else: normalType.getMemSize()
+    }
+
+
     /**
      * Returns whether this Type is one of the built-in primary normal types.
      *
@@ -292,7 +353,7 @@ struct Type
      * can still be treated as primary when only its built-in type name is
      * available during parsing or early semantic analysis.
      *
-     * @return                  true for built-in primitive, pointer or blob names
+     * @return                  true for built-in primitive and pointer names
      */
     fun isPrimary() -> bool
     {
@@ -311,8 +372,7 @@ struct Type
             String.streq(typeName, "long") ||
             String.streq(typeName, "float") ||
             String.streq(typeName, "double") ||
-            String.streq(typeName, "pointer") ||
-            String.streq(typeName, "blob")
+            String.streq(typeName, "pointer")
     }
 
 
@@ -367,6 +427,11 @@ struct Type
             val type: pointer<FunctionType> = this.host as pointer<FunctionType>
             type.getAllTokens()
         }
+        elif this.kind == BLOB_KIND:
+        {
+            val type: pointer<BlobType> = this.host as pointer<BlobType>
+            type.getAllTokens()
+        }
         else:  new ArrayList(sizeof(Token))
 
 
@@ -391,6 +456,11 @@ struct Type
             val type: pointer<FunctionType> = this.host as pointer<FunctionType>
             Type.fromFunction(type.clone())
         }
+        elif this.kind == BLOB_KIND:
+        {
+            val type: pointer<BlobType> = this.host as pointer<BlobType>
+            Type.fromBlob(type.clone())
+        }
         else: new Type(this.kind, this.host)
 
 
@@ -413,6 +483,11 @@ struct Type
         elif this.kind == FUNCTION_KIND:
         {
             val type: pointer<FunctionType> = this.host as pointer<FunctionType>
+            type.toString()
+        }
+        elif this.kind == BLOB_KIND:
+        {
+            val type: pointer<BlobType> = this.host as pointer<BlobType>
             type.toString()
         }
         else: new StringBuilder()

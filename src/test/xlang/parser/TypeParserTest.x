@@ -44,6 +44,7 @@ fun genTest() -> pointer<TestGroup>
     val pointerVoidTC: pointer<TestCase> = new TestCase("pointerVoid", pointerVoidTest)
     val topLevelStarTC: pointer<TestCase> = new TestCase("topLevelStar", topLevelStarTest)
     val normalParseTC: pointer<TestCase> = new TestCase("normalParse", normalParseTest)
+    val blobExpressionTC: pointer<TestCase> = new TestCase("blobExpression", blobExpressionTest)
     val emptyFunctionTC: pointer<TestCase> = new TestCase("emptyFunction", emptyFunctionTest)
     val functionParametersTC: pointer<TestCase> = new TestCase("functionParameters", functionParametersTest)
     val nestedFunctionTC: pointer<TestCase> = new TestCase("nestedFunction", nestedFunctionTest)
@@ -51,6 +52,7 @@ fun genTest() -> pointer<TestGroup>
     val pointerVoidUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, pointerVoidTC, null)
     val topLevelStarUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, topLevelStarTC, null)
     val normalParseUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, normalParseTC, null)
+    val blobExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, blobExpressionTC, null)
     val emptyFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, emptyFunctionTC, null)
     val functionParametersUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionParametersTC, null)
     val nestedFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, nestedFunctionTC, null)
@@ -59,6 +61,7 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(pointerVoidUnion)
     result.addTestUnion(topLevelStarUnion)
     result.addTestUnion(normalParseUnion)
+    result.addTestUnion(blobExpressionUnion)
     result.addTestUnion(emptyFunctionUnion)
     result.addTestUnion(functionParametersUnion)
     result.addTestUnion(nestedFunctionUnion)
@@ -148,6 +151,29 @@ private fun normalParseTest() -> int
 
     if !tokenTextAt(typeTokens, 0, "int"):
         return 2
+
+    return 0
+}
+
+
+private fun blobExpressionTest() -> int
+{
+    val typeTokens: pointer<ArrayList> = parseTypeTokens("blob[1 + 2 * 3]", 8)
+
+    if typeTokens == null || typeTokens.length != 8:
+        return 1
+
+    if !tokenTextAt(typeTokens, 0, "blob") || !tokenTextAt(typeTokens, 1, "["):
+        return 2
+
+    if !tokenTextAt(typeTokens, 2, "1") || !tokenTextAt(typeTokens, 3, "+"):
+        return 3
+
+    if !tokenTextAt(typeTokens, 4, "2") || !tokenTextAt(typeTokens, 5, "*"):
+        return 4
+
+    if !tokenTextAt(typeTokens, 6, "3") || !tokenTextAt(typeTokens, 7, "]"):
+        return 5
 
     return 0
 }

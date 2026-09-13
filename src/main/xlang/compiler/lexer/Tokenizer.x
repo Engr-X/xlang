@@ -84,22 +84,23 @@ val KW_RETURN: int = 146
 val KW_SHL: int = 147
 val KW_SHORT: int = 148
 val KW_SHR: int = 149
-val KW_STATIC: int = 150
-val KW_STRUCT: int = 151
-val KW_TRUE: int = 152
-val KW_UNTIL: int = 153
-val KW_USHR: int = 154
-val KW_VAL: int = 155
-val KW_VAR: int = 156
-val KW_VOID: int = 157
-val KW_WHILE: int = 158
-val KW_XNOR: int = 159
-val KW_XOR: int = 160
+val KW_SIZEOF: int = 150
+val KW_STATIC: int = 151
+val KW_STRUCT: int = 152
+val KW_TRUE: int = 153
+val KW_UNTIL: int = 154
+val KW_USHR: int = 155
+val KW_VAL: int = 156
+val KW_VAR: int = 157
+val KW_VOID: int = 158
+val KW_WHILE: int = 159
+val KW_XNOR: int = 160
+val KW_XOR: int = 161
 
 
-val keywordListLength: int = 61
+val keywordListLength: int = 62
 val keywordListSlotSize: int = 16
-val keywordTextSpace: blob[976 * sizeof(char)]
+val keywordTextSpace: blob[992 * sizeof(char)]
 val keywordTextList: pointer<char> = keywordTextSpace as pointer<char>
 
 
@@ -159,17 +160,18 @@ private fun keywordListInit()
     String.strcpy(getKeywordText(47), "shl")
     String.strcpy(getKeywordText(48), "short")
     String.strcpy(getKeywordText(49), "shr")
-    String.strcpy(getKeywordText(50), "static")
-    String.strcpy(getKeywordText(51), "struct")
-    String.strcpy(getKeywordText(52), "true")
-    String.strcpy(getKeywordText(53), "until")
-    String.strcpy(getKeywordText(54), "ushr")
-    String.strcpy(getKeywordText(55), "val")
-    String.strcpy(getKeywordText(56), "var")
-    String.strcpy(getKeywordText(57), "void")
-    String.strcpy(getKeywordText(58), "while")
-    String.strcpy(getKeywordText(59), "xnor")
-    String.strcpy(getKeywordText(60), "xor")
+    String.strcpy(getKeywordText(50), "sizeof")
+    String.strcpy(getKeywordText(51), "static")
+    String.strcpy(getKeywordText(52), "struct")
+    String.strcpy(getKeywordText(53), "true")
+    String.strcpy(getKeywordText(54), "until")
+    String.strcpy(getKeywordText(55), "ushr")
+    String.strcpy(getKeywordText(56), "val")
+    String.strcpy(getKeywordText(57), "var")
+    String.strcpy(getKeywordText(58), "void")
+    String.strcpy(getKeywordText(59), "while")
+    String.strcpy(getKeywordText(60), "xnor")
+    String.strcpy(getKeywordText(61), "xor")
 }
 
 

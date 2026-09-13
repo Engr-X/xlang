@@ -13,7 +13,6 @@ import xlang.util.HashSet
 
 val banAfter: pointer<HashSet> = initBanAfter()
 val banBefore: pointer<HashSet> = initBanBefore()
-val lineBoundaryAfterClosingKinds: pointer<ArrayList> = initLineBoundaryAfterClosingKinds()
 
 
 var normalizerIsInit: bool = false
@@ -39,14 +38,6 @@ private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashS
     val kindPtr: pointer<int> = kindSpace.ref
 
     return set.add(kindPtr)
-}
-
-private inline fun addTokenKind(list: pointer<ArrayList>, kind: int) -> pointer<ArrayList>
-{
-    var kindSpace: int = kind
-    val kindPtr: pointer<int> = kindSpace.ref
-
-    return list.push(kindPtr)
 }
 
 private fun addCommonBanKinds(set: pointer<HashSet>)
@@ -79,7 +70,6 @@ private fun addCommonBanKinds(set: pointer<HashSet>)
     addBanKind(set, Tokenizer.DOUBLE_MINUS)
     addBanKind(set, Tokenizer.ARROW)
     addBanKind(set, Tokenizer.EQUAL)
-    addBanKind(set, Tokenizer.GREATER)
     addBanKind(set, Tokenizer.LESS)
     addBanKind(set, Tokenizer.CARET)
     addBanKind(set, Tokenizer.BANG)
@@ -89,7 +79,6 @@ private fun addCommonBanKinds(set: pointer<HashSet>)
     addBanKind(set, Tokenizer.SLASH)
     addBanKind(set, Tokenizer.PERCENT)
     addBanKind(set, Tokenizer.LEFT_PAREN)
-    addBanKind(set, Tokenizer.RIGHT_PAREN)
     addBanKind(set, Tokenizer.LEFT_BRACKET)
     addBanKind(set, Tokenizer.RIGHT_BRACKET)
     addBanKind(set, Tokenizer.LEFT_BRACE)
@@ -113,44 +102,8 @@ private fun initBanBefore() -> pointer<HashSet>
     val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)
 
     addCommonBanKinds(result)
-
-    return result
-}
-
-// TODO use set instead
-private fun initLineBoundaryAfterClosingKinds() -> pointer<ArrayList>
-{
-    val result: pointer<ArrayList> = new ArrayList(sizeof(int))
-    result.setComparator(tokenKindCmp)
-
-    addTokenKind(result, Tokenizer.KW_CLASS)
-    addTokenKind(result, Tokenizer.KW_CONTINUE)
-    addTokenKind(result, Tokenizer.KW_CONSTRUCTOR)
-    addTokenKind(result, Tokenizer.KW_DO)
-    addTokenKind(result, Tokenizer.KW_ELIF)
-    addTokenKind(result, Tokenizer.KW_ELSE)
-    addTokenKind(result, Tokenizer.KW_FOR)
-    addTokenKind(result, Tokenizer.KW_FUN)
-    addTokenKind(result, Tokenizer.KW_IF)
-    addTokenKind(result, Tokenizer.KW_IMPORT)
-    addTokenKind(result, Tokenizer.KW_INLINE)
-    addTokenKind(result, Tokenizer.KW_INTRINSIC)
-    addTokenKind(result, Tokenizer.KW_LOOP)
-    addTokenKind(result, Tokenizer.KW_NATIVE)
-    addTokenKind(result, Tokenizer.KW_PACKAGE)
-    addTokenKind(result, Tokenizer.KW_PASS)
-    addTokenKind(result, Tokenizer.KW_PRIVATE)
-    addTokenKind(result, Tokenizer.KW_PROTECTED)
-    addTokenKind(result, Tokenizer.KW_PUBLIC)
-    addTokenKind(result, Tokenizer.KW_REPEAT)
-    addTokenKind(result, Tokenizer.KW_RETURN)
-    addTokenKind(result, Tokenizer.KW_STATIC)
-    addTokenKind(result, Tokenizer.KW_STRUCT)
-    addTokenKind(result, Tokenizer.KW_UNTIL)
-    addTokenKind(result, Tokenizer.KW_USHR)
-    addTokenKind(result, Tokenizer.KW_VAL)
-    addTokenKind(result, Tokenizer.KW_VAR)
-    addTokenKind(result, Tokenizer.KW_WHILE)
+    addBanKind(result, Tokenizer.GREATER)
+    addBanKind(result, Tokenizer.RIGHT_PAREN)
 
     return result
 }
@@ -264,65 +217,6 @@ private fun isBanToken(set: pointer<HashSet>, token: pointer<Token>) -> bool
     return set.contains(kindPtr)
 }
 
-private fun isStatementStartToken(token: pointer<Token>) -> bool
-{
-    if token == null:
-        return false
-
-    return token.kind == Tokenizer.TK_IDENTIFIER ||
-        token.kind == Tokenizer.TK_INTEGER ||
-        token.kind == Tokenizer.TK_LONG ||
-        token.kind == Tokenizer.TK_FLOAT ||
-        token.kind == Tokenizer.TK_DOUBLE ||
-        token.kind == Tokenizer.TK_LONG_DOUBLE ||
-        token.kind == Tokenizer.TK_CHAR ||
-        token.kind == Tokenizer.TK_STRING ||
-        token.kind == Tokenizer.KW_TRUE ||
-        token.kind == Tokenizer.KW_FALSE ||
-        token.kind == Tokenizer.KW_NULL ||
-        token.kind == Tokenizer.KW_NEW ||
-        token.kind == Tokenizer.KW_VAR ||
-        token.kind == Tokenizer.KW_VAL ||
-        token.kind == Tokenizer.KW_RETURN ||
-        token.kind == Tokenizer.KW_IF ||
-        token.kind == Tokenizer.KW_WHILE ||
-        token.kind == Tokenizer.KW_FOR ||
-        token.kind == Tokenizer.KW_LOOP ||
-        token.kind == Tokenizer.KW_ELIF ||
-        token.kind == Tokenizer.KW_ELSE ||
-        token.kind == Tokenizer.KW_BREAK ||
-        token.kind == Tokenizer.KW_CONTINUE ||
-        token.kind == Tokenizer.KW_PASS ||
-        token.kind == Tokenizer.KW_FUN ||
-        token.kind == Tokenizer.KW_CONSTRUCTOR ||
-        token.kind == Tokenizer.KW_STRUCT
-}
-
-private fun isLineBoundaryAfterClosingKind(token: pointer<Token>) -> bool
-{
-    if token == null:
-        return false
-
-    var kindSpace: int = token.kind
-    val kindPtr: pointer<int> = kindSpace.ref
-
-    return lineBoundaryAfterClosingKinds.contains(kindPtr)
-}
-
-private fun shouldKeepLineTerminatorAfterBanToken(previous: pointer<Token>, next: pointer<Token>) -> bool
-{
-    if previous == null || next == null:
-        return false
-
-    if next.kind == Tokenizer.RIGHT_BRACE:
-        return true
-
-    if (previous.kind == Tokenizer.GREATER || previous.kind == Tokenizer.RIGHT_PAREN) && isLineBoundaryAfterClosingKind(next):
-        return true
-
-    return (previous.kind == Tokenizer.RIGHT_PAREN || previous.kind == Tokenizer.RIGHT_BRACKET) && isStatementStartToken(next)
-}
-
 private fun deleteLineTerminatorBeforeBanToken(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool
 {
     if tokens == null || tokens.length != 2:
@@ -343,12 +237,8 @@ private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens
         return false
 
     val previous: pointer<Token> = tokens.get(0) as pointer<Token>
-    val next: pointer<Token> = tokens.get(2) as pointer<Token>
 
     if !isBanToken(banAfter, previous):
-        return false
-
-    if shouldKeepLineTerminatorAfterBanToken(previous, next):
         return false
 
     fsm.deleteToken()

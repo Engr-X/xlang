@@ -72,6 +72,13 @@ val TEST_GROUP: pointer<TestGroup> = genTest()
 fun genTest() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("xlang.compiler.parser.Parser")
+    val focusedAllSourceProgramsTG: pointer<TestGroup> = genAllSourceProgramsTestGroup()
+    val focusedAllSourceProgramsUnion: pointer<TestUnion> =
+        new TestUnion(TestGroup.TYPE, null, focusedAllSourceProgramsTG)
+
+    result.addTestUnion(focusedAllSourceProgramsUnion)
+    return result
+
     val atomParserTC: pointer<TestCase> = new TestCase("atomParser", atomParserTest)
     val functionCallExpressionTC: pointer<TestCase> = new TestCase("functionCallExpression", functionCallExpressionTest)
     val newExpressionTC: pointer<TestCase> = new TestCase("newExpression", newExpressionTest)
@@ -1926,7 +1933,7 @@ private fun typeCastExpressionTest() -> int
 
     blobTypeText.toString(blobTypeChars)
 
-    if !String.streq(blobTypeChars, "blob."):
+    if !String.streq(blobTypeChars, "blob[64]"):
         return 7
 
     val blobTypeTokens: pointer<ArrayList> = blobType.getAllTokens()

@@ -148,22 +148,8 @@ struct NormalType
      * Pointer values store memory addresses and are used to reference objects,
      * structures, functions, or other memory locations.
      */
-    static fun pointerType() -> pointer<NormalType> = new NormalType("xlang.primary", "pointer", 8).addTypeArgument(voidType())
-
-
-    /**
-     * Creates a built-in fixed-size blob type descriptor.
-     *
-     * A blob represents a raw block of memory with a fixed size and no predefined
-     * interpretation.
-     *
-     * @param memSize number of bytes occupied by the blob value.
-     *
-     * Postconditions:
-     * - The returned type descriptor occupies exactly memSize bytes.
-     * - The blob contents are managed by the owner of the value.
-     */
-    static fun blobType(memSize: int) -> pointer<NormalType> = new NormalType("xlang.primary", "blob", memSize)
+    static fun pointerType() -> pointer<NormalType> =
+        new NormalType("xlang.primary", "pointer", 8).addTypeArgument(Type.fromNormal(voidType()))
 
 
     /* Returns the primitive string type used by the compiler bootstrap stage.
@@ -174,7 +160,8 @@ struct NormalType
      * This is a temporary low-level representation before the standard String type
      * is initialized.
      */
-    static fun earlyStringType() -> pointer<NormalType> = new NormalType("xlang.primary", "pointer", 8).addTypeArgument(charType())
+    static fun earlyStringType() -> pointer<NormalType> =
+        new NormalType("xlang.primary", "pointer", 8).addTypeArgument(Type.fromNormal(charType()))
 
 
     /**
@@ -195,9 +182,8 @@ struct NormalType
     /**
      * Stores nested type arguments.
      *
-     * Each element slot stores one NormalType value. The list copies NormalType bytes when
-     * addTypeArgument() is called, so callers may pass stack or heap NormalType
-     * objects.
+     * Each element slot stores one Type value. Using the public Type wrapper lets
+     * normal types contain normal, function and blob type arguments.
      */
     private val typeArguments: pointer<ArrayList>
 
@@ -237,7 +223,7 @@ struct NormalType
     {
         this.typeName = String.strdup(typeName)
         this.packageName = String.strdup(packageName)
-        this.typeArguments = new ArrayList(sizeof(NormalType))
+        this.typeArguments = new ArrayList(sizeof(Type))
         this.tokens = new ArrayList(sizeof(Token))
         this.memSize = memSize
         this.length = 0
@@ -266,7 +252,7 @@ struct NormalType
     /**
      * Adds one nested type argument and returns this NormalType.
      *
-     * The argument is copied into typeArguments as a NormalType value. This is useful
+     * The argument is copied into typeArguments as a Type value. This is useful
      * for chained construction:
      *     pointerType.addTypeArgument(charType)
      *
@@ -276,7 +262,7 @@ struct NormalType
      *
      * @return                  this NormalType for chained construction
      */
-    fun addTypeArgument(typeArgument: pointer<NormalType>) -> pointer<NormalType>
+    fun addTypeArgument(typeArgument: pointer<Type>) -> pointer<NormalType>
     {
         if typeArgument != null:
         {
@@ -308,11 +294,11 @@ struct NormalType
 
         for (var i: int = 0; i < this.length; i++):
         {
-            val typeArgument: pointer<NormalType> = this.typeArguments.get(i) as pointer<NormalType>
+            val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
 
             if typeArgument != null:
             {
-                val copiedArgument: pointer<NormalType> = typeArgument.clone()
+                val copiedArgument: pointer<Type> = typeArgument.clone()
                 result.addTypeArgument(copiedArgument)
             }
         }
@@ -363,7 +349,7 @@ struct NormalType
 
         for (var i: int = 0; i < this.length; i++):
         {
-            val typeArgument: pointer<NormalType> = this.typeArguments.get(i) as pointer<NormalType>
+            val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
 
             if typeArgument == null:
                 continue
@@ -383,16 +369,16 @@ struct NormalType
     /**
      * Returns the nested type argument at index.
      *
-     * The returned NormalType is an independent clone. Mutating it does not modify the
-     * NormalType stored inside this object's internal type argument list.
+     * The returned Type is an independent clone. Mutating it does not modify the
+     * Type stored inside this object's internal type argument list.
      *
      * @param index             type argument index
      *
-     * @return                  copied NormalType pointer, or null when index is invalid
+     * @return                  copied Type pointer, or null when index is invalid
      */
-    fun getTypeArgument(index: int) -> pointer<NormalType>
+    fun getTypeArgument(index: int) -> pointer<Type>
     {
-        val typeArgument: pointer<NormalType> = this.typeArguments.get(index) as pointer<NormalType>
+        val typeArgument: pointer<Type> = this.typeArguments.get(index) as pointer<Type>
 
         if typeArgument == null:
             return null
@@ -424,8 +410,8 @@ struct NormalType
 
         for (var i: int = 0; i < this.length; i++):
         {
-            val left: pointer<NormalType> = this.typeArguments.get(i) as pointer<NormalType>
-            val right: pointer<NormalType> = other.typeArguments.get(i) as pointer<NormalType>
+            val left: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
+            val right: pointer<Type> = other.typeArguments.get(i) as pointer<Type>
 
             if left == null || right == null:
             {
@@ -435,8 +421,15 @@ struct NormalType
                 continue
             }
 
-            if !left.equals(right):
+            val leftText: pointer<StringBuilder> = left.toString()
+            val rightText: pointer<StringBuilder> = right.toString()
+
+            if leftText.length != rightText.length:
                 return false
+
+            for (var j: int = 0; j < leftText.length; j++):
+                if leftText.get(j) != rightText.get(j):
+                    return false
         }
 
         return true

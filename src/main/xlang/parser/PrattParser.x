@@ -39,6 +39,20 @@ struct PrattParser
 {
     static val MIN_PRIORITY: int = -2147483647 - 1
 
+    private static fun compareRulePriority(left: pointer<*>, right: pointer<*>) -> int
+    {
+        val leftRule: pointer<Rule> = left as pointer<Rule>
+        val rightRule: pointer<Rule> = right as pointer<Rule>
+
+        if leftRule.priority == rightRule.priority:
+            return 0
+
+        return if leftRule.priority > rightRule.priority:
+            -1
+        else:
+            1
+    }
+
     private var id: int
 
     private var errors: pointer<ArrayList>
@@ -116,6 +130,16 @@ struct PrattParser
     fun addContinuationRule(rule: pointer<Rule>) -> pointer<PrattParser>
     {
         this.continuationRules.push(rule)
+        return this
+    }
+
+
+    fun sortByPriority() -> pointer<PrattParser>
+    {
+        this.starterRules.setComparator(compareRulePriority)
+        this.starterRules.sort()
+        this.continuationRules.setComparator(compareRulePriority)
+        this.continuationRules.sort()
         return this
     }
 
@@ -309,71 +333,86 @@ struct PrattParser
         token: pointer<TokenList>, cursor: int,
         matchLength: pointer<int>) -> pointer<ParseContainer>
     {
-        val matchedRules: pointer<ArrayList> = new ArrayList(sizeof(Rule))
-        val matchedResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
-        var maxPriority: int = 0
-        var bestMatchLength: int = 0
+        var havePriorityLimit: bool = false
+        var priorityLimit: int = 0
 
-        for (var i = 0; i < this.starterRules.length; i++):
+        matchLength.deref = 0
+
+        while true:
         {
-            val rule: pointer<Rule> = this.starterRules.get(i) as pointer<Rule>
-            var currentMatchLength: int = 0
-            val currentResult: pointer<ParseContainer> =
-                this.tryParseStarterRule(token, cursor, rule, 0, currentMatchLength.ref)
+            var foundPriority: bool = false
+            var currentPriority: int = MIN_PRIORITY
 
-            if currentResult != null:
+            for (var i = 0; i < this.starterRules.length; i++):
             {
-                if matchedRules.length == 0 || rule.priority > maxPriority:
+                val rule: pointer<Rule> = this.starterRules.get(i) as pointer<Rule>
+
+                if havePriorityLimit && rule.priority >= priorityLimit:
+                    continue
+
+                if !foundPriority || rule.priority > currentPriority:
                 {
-                    maxPriority = rule.priority
-                    bestMatchLength = currentMatchLength
+                    foundPriority = true
+                    currentPriority = rule.priority
+                }
+            }
+
+            if !foundPriority:
+                return null
+
+            var matchedRuleCount: int = 0
+            var bestResult: pointer<ParseContainer> = null
+            var bestMatchLength: int = 0
+
+            for (var i = 0; i < this.starterRules.length; i++):
+            {
+                val rule: pointer<Rule> = this.starterRules.get(i) as pointer<Rule>
+
+                if rule.priority != currentPriority:
+                    continue
+
+                val pattern: pointer<PatternList> = rule.getPattern()
+
+                if pattern.length() > 0:
+                {
+                    val first: pointer<PatternAtom> = pattern.get(0)
+
+                    if first.isRegex() && first.matchRegex(token, cursor) < 0:
+                        continue
                 }
 
-                val resultItem: pointer<*> = currentResult as pointer<*>
+                var currentMatchLength: int = 0
+                val currentResult: pointer<ParseContainer> =
+                    this.tryParseStarterRule(token, cursor, rule, 0, currentMatchLength.ref)
 
-                matchedRules.push(rule)
-                matchedResults.push(resultItem.ref)
+                if currentResult != null:
+                {
+                    matchedRuleCount++
+                    bestResult = currentResult
+                    bestMatchLength = currentMatchLength
+                }
             }
-        }
 
-        if matchedRules.length == 0:
-        {
-            matchLength.deref = 0
-            return null
-        }
-
-        // check same priority
-        var highestPriorityRuleCount: int = 0
-        var bestResult: pointer<ParseContainer> = null
-
-        for (var i = 0; i < matchedRules.length; i++):
-        {
-            val rule: pointer<Rule> = matchedRules.get(i) as pointer<Rule>
-
-            if rule.priority == maxPriority:
+            if matchedRuleCount >= 2:
             {
-                highestPriorityRuleCount++
-
-                val resultSlot: pointer<pointer<*>> =
-                    matchedResults.get(i) as pointer<pointer<*>>
-
-                bestResult = resultSlot.deref as pointer<ParseContainer>
+                this.pushInternalError(
+                    Diagnostic.AMBIGUOUS_PARSER_RULE,
+                    Diagnostic.AMBIGUOUS_PARSER_RULE_MSG)
+                return null
             }
+
+            if matchedRuleCount == 1:
+            {
+                this.result = bestResult
+                matchLength.deref = bestMatchLength
+                return bestResult
+            }
+
+            havePriorityLimit = true
+            priorityLimit = currentPriority
         }
 
-        if highestPriorityRuleCount >= 2:
-        {
-            matchLength.deref = 0
-            this.pushInternalError(
-                Diagnostic.AMBIGUOUS_PARSER_RULE,
-                Diagnostic.AMBIGUOUS_PARSER_RULE_MSG)
-            return null
-        }
-
-        this.result = bestResult
-        matchLength.deref = bestMatchLength
-
-        return bestResult
+        return null
     }
 
 
@@ -495,86 +534,110 @@ struct PrattParser
         results: pointer<pointer<ArrayList>>,
         matchLength: pointer<int>) -> pointer<Rule>
     {
-        val matchedRules: pointer<ArrayList> = new ArrayList(sizeof(Rule))
-        val matchedResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
-        var maxPriority: int = 0
-        var bestMatchLength: int = 0
-
         results.deref = null
         matchLength.deref = 0
 
         if token == null || cursor < 0 || left == null:
             return null
 
-        for (var i = 0; i < this.continuationRules.length; i++):
+        var havePriorityLimit: bool = false
+        var priorityLimit: int = 0
+
+        while true:
         {
-            val rule: pointer<Rule> = this.continuationRules.get(i) as pointer<Rule>
-            val pattern: pointer<PatternList> = rule.getPattern()
-            val first: pointer<PatternAtom> = pattern.get(0)
+            var foundPriority: bool = false
+            var currentPriority: int = MIN_PRIORITY
 
-            if first == null || !first.isRef():
-                continue
-
-            if first.getRefParser().getId() != left.getKind():
-                continue
-
-            var currentMatchLength: int = 0
-            val currentResults: pointer<ArrayList> = this.tryParseUntilSelfRef(
-                token, cursor,
-                rule, 1,
-                left,
-                currentMatchLength.ref)
-
-            if currentResults != null:
+            for (var i = 0; i < this.continuationRules.length; i++):
             {
-                if matchedRules.length == 0 || rule.priority > maxPriority:
+                val rule: pointer<Rule> = this.continuationRules.get(i) as pointer<Rule>
+                val pattern: pointer<PatternList> = rule.getPattern()
+                val first: pointer<PatternAtom> = pattern.get(0)
+
+                if first == null || !first.isRef():
+                    continue
+
+                if first.getRefParser().getId() != left.getKind():
+                    continue
+
+                if havePriorityLimit && rule.priority >= priorityLimit:
+                    continue
+
+                if !foundPriority || rule.priority > currentPriority:
                 {
-                    maxPriority = rule.priority
-                    bestMatchLength = currentMatchLength
+                    foundPriority = true
+                    currentPriority = rule.priority
+                }
+            }
+
+            if !foundPriority:
+                return null
+
+            var matchedRuleCount: int = 0
+            var bestRule: pointer<Rule> = null
+            var bestResults: pointer<ArrayList> = null
+            var bestMatchLength: int = 0
+
+            for (var i = 0; i < this.continuationRules.length; i++):
+            {
+                val rule: pointer<Rule> = this.continuationRules.get(i) as pointer<Rule>
+
+                if rule.priority != currentPriority:
+                    continue
+
+                val pattern: pointer<PatternList> = rule.getPattern()
+                val first: pointer<PatternAtom> = pattern.get(0)
+
+                if first == null || !first.isRef():
+                    continue
+
+                if first.getRefParser().getId() != left.getKind():
+                    continue
+
+                if pattern.length() > 1:
+                {
+                    val head: pointer<PatternAtom> = pattern.get(1)
+
+                    if head.isRegex() && head.matchRegex(token, cursor) < 0:
+                        continue
                 }
 
-                val resultItem: pointer<*> = currentResults as pointer<*>
+                var currentMatchLength: int = 0
+                val currentResults: pointer<ArrayList> = this.tryParseUntilSelfRef(
+                    token, cursor,
+                    rule, 1,
+                    left,
+                    currentMatchLength.ref)
 
-                matchedRules.push(rule)
-                matchedResults.push(resultItem.ref)
+                if currentResults != null:
+                {
+                    matchedRuleCount++
+                    bestRule = rule
+                    bestResults = currentResults
+                    bestMatchLength = currentMatchLength
+                }
             }
-        }
 
-        if matchedRules.length == 0:
-            return null
-
-        var highestPriorityRuleCount: int = 0
-        var bestRule: pointer<Rule> = null
-        var bestResults: pointer<ArrayList> = null
-
-        for (var i = 0; i < matchedRules.length; i++):
-        {
-            val rule: pointer<Rule> = matchedRules.get(i) as pointer<Rule>
-
-            if rule.priority == maxPriority:
+            if matchedRuleCount >= 2:
             {
-                highestPriorityRuleCount++
-                bestRule = rule
-
-                val resultSlot: pointer<pointer<*>> =
-                    matchedResults.get(i) as pointer<pointer<*>>
-
-                bestResults = resultSlot.deref as pointer<ArrayList>
+                this.pushInternalError(
+                    Diagnostic.AMBIGUOUS_PARSER_RULE,
+                    Diagnostic.AMBIGUOUS_PARSER_RULE_MSG)
+                return null
             }
+
+            if matchedRuleCount == 1:
+            {
+                results.deref = bestResults
+                matchLength.deref = bestMatchLength
+                return bestRule
+            }
+
+            havePriorityLimit = true
+            priorityLimit = currentPriority
         }
 
-        if highestPriorityRuleCount >= 2:
-        {
-            this.pushInternalError(
-                Diagnostic.AMBIGUOUS_PARSER_RULE,
-                Diagnostic.AMBIGUOUS_PARSER_RULE_MSG)
-            return null
-        }
-
-        results.deref = bestResults
-        matchLength.deref = bestMatchLength
-
-        return bestRule
+        return null
     }
 
 

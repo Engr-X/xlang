@@ -119,14 +119,14 @@
             "class": "ForHeader",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderICS" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderIC" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderIS" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderCS" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderI" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderC" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderS" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyForHeader" }
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderICS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderIC" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderIS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderCS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderI" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderC" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "$ForHeaderStatement" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeForHeaderS" },
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.SEMICOLON" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyForHeader" }
             ]
         },
         {
@@ -442,14 +442,12 @@
             "    leftParenToken: pointer<Token>,",
             "    firstSemicolonToken: pointer<Token>,",
             "    secondSemicolonToken: pointer<Token>,",
-            "    thirdSemicolonToken: pointer<Token>,",
             "    rightParenToken: pointer<Token>) -> pointer<ForHeader>",
             "{",
             "    return new ForHeader(initStmt, condition, stepStmt)",
             "       .addExtraToken(leftParenToken)",
             "       .addExtraToken(firstSemicolonToken)",
             "       .addExtraToken(secondSemicolonToken)",
-            "       .addExtraToken(thirdSemicolonToken)",
             "       .addExtraToken(rightParenToken)",
             "}" ],
 
@@ -462,10 +460,9 @@
             "    val condition: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "    val stepStmt: pointer<Statement> = getContainerValue(results, 5) as pointer<Statement>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
             "",
-            "    return buildForHeader(initStmt, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(initStmt, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -476,10 +473,9 @@
             "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "    val condition: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
             "",
-            "    return buildForHeader(initStmt, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(initStmt, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -490,10 +486,9 @@
             "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
             "    val stepStmt: pointer<Statement> = getContainerValue(results, 4) as pointer<Statement>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
             "",
-            "    return buildForHeader(initStmt, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(initStmt, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -504,10 +499,9 @@
             "    val condition: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
             "    val stepStmt: pointer<Statement> = getContainerValue(results, 4) as pointer<Statement>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 6, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
             "",
-            "    return buildForHeader(null, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(null, condition, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -517,10 +511,9 @@
             "    val initStmt: pointer<Statement> = getContainerValue(results, 1) as pointer<Statement>",
             "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "",
-            "    return buildForHeader(initStmt, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(initStmt, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -530,10 +523,9 @@
             "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
             "    val condition: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "",
-            "    return buildForHeader(null, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(null, condition, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -543,10 +535,9 @@
             "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "    val stepStmt: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "",
-            "    return buildForHeader(null, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(null, null, stepStmt, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
@@ -555,10 +546,9 @@
             "    val leftParenToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val firstSemicolonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
             "    val secondSemicolonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val thirdSemicolonToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "    val rightParenToken: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
+            "    val rightParenToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
             "",
-            "    return buildForHeader(null, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, thirdSemicolonToken, rightParenToken)",
+            "    return buildForHeader(null, null, null, leftParenToken, firstSemicolonToken, secondSemicolonToken, rightParenToken)",
             "}" ],
 
 
