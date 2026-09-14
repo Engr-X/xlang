@@ -114,8 +114,10 @@ private fun sourceTokenTest() -> int
 {
     val files: pointer<ArrayList> = Files.ALL_FILES
     val contents: pointer<ArrayList> = Files.ALL_FILE_CONTENT
+    val tokenCache: pointer<ArrayList> = Files.ALL_FILE_TOKENS
 
-    if files == null || contents == null || files.length != contents.length:
+    if files == null || contents == null || tokenCache == null ||
+        files.length != contents.length || files.length != tokenCache.length:
         return -1
 
     while sourceTokenIndex < files.length:
@@ -148,6 +150,8 @@ private fun sourceTokenTest() -> int
             if token == null || token.kind < 0:
                 return 3
         }
+
+        tokenCache.set(index, tokens.ref)
 
         return 0
     }

@@ -130,7 +130,7 @@ struct ExprListStatement
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
-        for (var i = 0; i < this.exprList.length; i++)
+        for (var i = 0; i < this.exprList.length; i++):
         {
             val expression: pointer<Expression> = this.exprList.get(i) as pointer<Expression>
 

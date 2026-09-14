@@ -63,7 +63,8 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeElseStmtFromBlock" },
-                { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeElseStmtFromStmt" }
+                { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeElseStmtFromStmt" },
+                { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }], "action": "makeElseStmtFromExpr" }
             ]
         },
         {
@@ -136,7 +137,9 @@
                 { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "$ElseStatement" }], "action": "makeForStmtFromBlockElse" },
                 { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }, { "kind": "$ElseStatement" }], "action": "makeForStmtFromStmtElse" },
                 { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeForStmtFromBlock" },
-                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeForStmtFromStmt" }
+                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeForStmtFromStmt" },
+                
+                { "patterns": [{ "kind": "Tokenizer.KW_FOR" }, { "kind": "$ForHeader" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeForStmtFromEmpty" }
             ]
         },
         {
@@ -159,7 +162,10 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "action": "makeVariableDefine" },
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "action": "makeVariableDefineWithType" }
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }], "action": "makeVariableDefineWithType" },
+
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Type" }], "action": "makeVarDefWithTypeWithoutInitValue" },
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeVarDefWithoutInitValue" }
             ]
         },
         {
@@ -621,6 +627,16 @@
             "}" ],
 
 
+        [   "private inline fun makeForStmtFromEmpty(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val forToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val header: pointer<ForHeader> = getContainerValue(results, 1) as pointer<ForHeader>",
+            "    val block: pointer<Block> = new Block()",
+            "",
+            "    return new ForStatement(header, block.getStatements()).addExtraToken(forToken)",
+            "}" ],
+
+
         [   "private inline fun makeWhileStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val whileToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
@@ -821,6 +837,26 @@
             "        .addExtraToken(nameToken)",
             "        .addExtraToken(colonToken)",
             "        .addExtraToken(equalToken)",
+            "}" ],
+
+
+        [   "private inline fun makeVarDefWithoutInitValue(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "",
+            "    return new VariableDefine(nameToken.text, null).addExtraToken(nameToken)",
+            "}" ],
+
+
+        [   "private inline fun makeVarDefWithTypeWithoutInitValue(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val declaredType: pointer<Type> = getContainerValue(results, 2) as pointer<Type>",
+            "",
+            "    return new VariableDefine(declaredType, nameToken.text, null)",
+            "        .addExtraToken(nameToken)",
+            "        .addExtraToken(colonToken)",
             "}" ],
 
 

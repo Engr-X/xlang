@@ -290,6 +290,21 @@ private fun normalizeTest() -> int
     if result != 0:
         return 8
 
+    result = normalizeRightBracketKeepsLineTerminatorTest()
+
+    if result != 0:
+        return 9
+
+    result = normalizePostfixIncrementKeepsLineTerminatorTest()
+
+    if result != 0:
+        return 10
+
+    result = normalizePostfixDecrementKeepsLineTerminatorTest()
+
+    if result != 0:
+        return 11
+
     return 0
 }
 
@@ -486,6 +501,87 @@ private fun normalizeRightParenBeforeRightBraceLineTerminatorTest() -> int
     val rightBrace: pointer<Token> = tokens.get(6)
 
     if rightBrace.kind != Tokenizer.RIGHT_BRACE:
+        return 4
+
+    return 0
+}
+
+
+private fun normalizeRightBracketKeepsLineTerminatorTest() -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize("val first: blob[4]\nval second: int")
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() < 9:
+        return 1
+
+    val rightBracket: pointer<Token> = tokens.get(6)
+
+    if rightBracket.kind != Tokenizer.RIGHT_BRACKET:
+        return 2
+
+    val terminator: pointer<Token> = tokens.get(7)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 3
+
+    val nextVal: pointer<Token> = tokens.get(8)
+
+    if nextVal.kind != Tokenizer.KW_VAL:
+        return 4
+
+    return 0
+}
+
+
+private fun normalizePostfixIncrementKeepsLineTerminatorTest() -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize("cursor.line++\ncursor.column = 0")
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() < 6:
+        return 1
+
+    val increment: pointer<Token> = tokens.get(3)
+
+    if increment.kind != Tokenizer.DOUBLE_PLUS:
+        return 2
+
+    val terminator: pointer<Token> = tokens.get(4)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 3
+
+    val cursor: pointer<Token> = tokens.get(5)
+
+    if cursor.kind != Tokenizer.TK_IDENTIFIER:
+        return 4
+
+    return 0
+}
+
+
+private fun normalizePostfixDecrementKeepsLineTerminatorTest() -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize("i--\nitems.removeAt(i)")
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() < 4:
+        return 1
+
+    val decrement: pointer<Token> = tokens.get(1)
+
+    if decrement.kind != Tokenizer.DOUBLE_MINUS:
+        return 2
+
+    val terminator: pointer<Token> = tokens.get(2)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 3
+
+    val items: pointer<Token> = tokens.get(3)
+
+    if items.kind != Tokenizer.TK_IDENTIFIER:
         return 4
 
     return 0

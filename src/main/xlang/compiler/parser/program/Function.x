@@ -286,6 +286,9 @@ struct Function
     }
 
 
+    fun haveBody() -> bool = this.bodyExpr != null
+
+
     fun getAnnotations() -> pointer<Annotations> = this.annotations
 
 

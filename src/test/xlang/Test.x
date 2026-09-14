@@ -52,10 +52,10 @@ private fun getTestGroup() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("xlang")
     val testGroupSpace: blob[sizeof(pointer<TestGroup>) * 100]
-    val testGroupLength: int = 1
+    val testGroupLength: int = 15
     val testGroups: pointer<pointer<TestGroup>> = testGroupSpace as pointer<pointer<TestGroup>>
 
-    testGroups[0] = ParserTest.TEST_GROUP
+    testGroups[0] = StringTest.TEST_GROUP
     testGroups[1] = StringBuilderTest.TEST_GROUP
     testGroups[2] = ArrayListTest.TEST_GROUP
     testGroups[3] = HashSetTest.TEST_GROUP

@@ -202,7 +202,7 @@ struct IfElseExpression
         }
 
 
-        if this.haveElseStatement()
+        if this.haveElseStatement():
         {
             sb.append("else:\n")
 

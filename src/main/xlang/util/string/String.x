@@ -332,6 +332,6 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
  *
  * @return                  matched length, or -1 if the pattern does not match
  */
-#native("regex_match")
+@Native("regex_match")
 native inline fun strRegMatch(pattern: pointer<char>, str: pointer<char>) -> int
 

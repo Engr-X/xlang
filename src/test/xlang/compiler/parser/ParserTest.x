@@ -404,7 +404,7 @@ private fun debugProgramPieces(path: pointer<char>, source: pointer<char>)
 }
 
 
-private fun parseProgramFile(path: pointer<char>, source: pointer<char>) -> bool
+private fun parseProgramFile(path: pointer<char>, source: pointer<char>, cachedTokens: pointer<TokenList>) -> bool
 {
     if source == null:
     {
@@ -412,7 +412,13 @@ private fun parseProgramFile(path: pointer<char>, source: pointer<char>) -> bool
         return false
     }
 
-    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(source)
+    if cachedTokens == null:
+    {
+        printProgramFailure(path, "tokenizer result is null", null)
+        return false
+    }
+
+    val tokens: pointer<TokenList> = cachedTokens
     val program: pointer<Program> = Parser.parseProgram(tokens)
 
     if program == null:
@@ -808,8 +814,10 @@ private fun sourceProgramTest() -> int
 {
     val files: pointer<ArrayList> = Files.ALL_FILES
     val contents: pointer<ArrayList> = Files.ALL_FILE_CONTENT
+    val tokenCache: pointer<ArrayList> = Files.ALL_FILE_TOKENS
 
-    if files == null || contents == null || files.length != contents.length:
+    if files == null || contents == null || tokenCache == null ||
+        files.length != contents.length || files.length != tokenCache.length:
         return -1
 
     while sourceProgramIndex < files.length:
@@ -826,8 +834,13 @@ private fun sourceProgramTest() -> int
                 null
             else:
                 contentSlot.deref
+        val tokenSlot: pointer<pointer<TokenList>> = tokenCache.get(index) as pointer<pointer<TokenList>>
+        val cachedTokens: pointer<TokenList> = if tokenSlot == null:
+                null
+            else:
+                tokenSlot.deref
 
-        return if parseProgramFile(path, source):
+        return if parseProgramFile(path, source, cachedTokens):
                 0
             else:
                 1

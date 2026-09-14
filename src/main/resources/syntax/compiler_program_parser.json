@@ -97,9 +97,9 @@
             "class": "Annotation",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }], "action": "makeAnnotation" },
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
                 { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyAnnotation" },
-                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" }
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }], "action": "makeAnnotation" }
             ]
         },
         {
@@ -199,7 +199,9 @@
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunctionFromBlock" },
 
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunction" },
-                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromBlock" }
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromBlock" },
+                
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromEmptyBlock" }
             ]
         },
         {
@@ -632,6 +634,10 @@
             "",
             "    return addFunctionPrefixTokens(buildFunction(results, Type.voidType(), bodyExpr), results)",
             "}" ],
+
+
+        [   "private inline fun makeVoidFunctionFromEmptyBlock(results: pointer<ArrayList>) -> pointer<*> =",
+            "    addFunctionPrefixTokens(buildFunction(results, Type.voidType(), null), results)" ],
 
 
         [   "private inline fun makeStructConstructor(results: pointer<ArrayList>) -> pointer<*>",

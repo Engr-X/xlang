@@ -43,7 +43,7 @@ private val FAIL_MSG: pointer<char> = "FAIL"
 
 private fun insertTabs(dest: pointer<StringBuilder>, n: int)
 {
-    repeat n:
+    for (var i = 0; i < n; i++):
         dest.append("    ")
 }
 
@@ -56,7 +56,7 @@ private fun padToTabs(dest: pointer<StringBuilder>, text: pointer<char>, tabs: i
     if textLength >= targetLength:
         return
 
-    repeat targetLength - textLength:
+    for (var i = 0; i < targetLength - textLength; i++):
         dest.append(' ')
 }
 
@@ -65,7 +65,7 @@ private fun printTabs(n: int)
 {
     val sb: pointer<StringBuilder> = new StringBuilder()
 
-    repeat n * 4:
+    for (var i = 0; i < n * 4; i++):
         sb.append(' ')
 
     sb.toString(TEXT_BUFFER)

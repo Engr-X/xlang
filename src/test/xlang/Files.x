@@ -27,6 +27,7 @@
 package xlang
 
 import xlang.System
+import xlang.lexer.TokenList
 import xlang.util.ArrayList
 import xlang.util.IO
 import xlang.util.string.String
@@ -36,6 +37,8 @@ import xlang.util.string.StringBuilder
 val ALL_FILES: pointer<ArrayList> = collectFiles("D:/Coding/projects/Xlang/xlang/src")
 
 val ALL_FILE_CONTENT: pointer<ArrayList> = collectFileContent(ALL_FILES)
+
+val ALL_FILE_TOKENS: pointer<ArrayList> = createFileTokenCache(ALL_FILES)
 
 
 private fun builderToString(builder: pointer<StringBuilder>) -> pointer<char>
@@ -101,6 +104,23 @@ private fun collectFileContent(files: pointer<ArrayList>) -> pointer<ArrayList>
                 IO.readFile(pathSlot.deref)
 
         result.push(content.ref)
+    }
+
+    return result
+}
+
+
+private fun createFileTokenCache(files: pointer<ArrayList>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(pointer<TokenList>))
+
+    if files == null:
+        return result
+
+    for (var i = 0; i < files.length; i++):
+    {
+        val tokens: pointer<TokenList> = null
+        result.push(tokens.ref)
     }
 
     return result

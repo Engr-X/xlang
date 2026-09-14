@@ -53,7 +53,7 @@ import xlang.System
  *
  * @return                  file size in bytes, or a negative native error code
  */
-#native("filesize")
+@Native("filesize")
 private native inline fun filesize(path: pointer<char>) -> int;
 
 
@@ -70,7 +70,7 @@ private native inline fun filesize(path: pointer<char>) -> int;
  *
  * @return                  number of bytes read, or a negative native error code
  */
-#native("read")
+@Native("read")
 private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<char>) -> int;
 
 
@@ -96,7 +96,7 @@ private native inline fun readFileToBuffer(dest: pointer<char>, path: pointer<ch
  * @return                  0 if path is null, dest is null, the directory cannot be opened,
  *                              or the directory contains no visible entries
  */
-#native("sub_files")
+@Native("sub_files")
 native inline fun subFiles(path: pointer<char>, dest: pointer<char>) -> int;
 
 
@@ -111,7 +111,7 @@ native inline fun subFiles(path: pointer<char>, dest: pointer<char>) -> int;
  *
  * @return                  true only when fullPath exists and is a directory
  */
-#native("is_directory")
+@Native("is_directory")
 native inline fun isDirectory(fullPath: pointer<char>) -> bool
 
 
@@ -126,7 +126,7 @@ native inline fun isDirectory(fullPath: pointer<char>) -> bool
  *
  * @return                  true only when fullPath exists and is a file
  */
-#native("is_file")
+@Native("is_file")
 native inline fun isFile(fullPath: pointer<char>) -> bool
 
 
@@ -170,7 +170,7 @@ fun readFile(path: pointer<char>) -> pointer<char>
  *
  * @return                  native status code, usually 0 on success
  */
-#native("enable_ansi_color")
+@Native("enable_ansi_color")
 native inline fun enableANSIColor() -> int
 
 
@@ -188,7 +188,7 @@ native inline fun enableANSIColor() -> int
  *
  * @return                  number of characters written
  */
-#native("colored_sprint")
+@Native("colored_sprint")
 native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color: int) -> int
 
 
@@ -205,7 +205,7 @@ native inline fun coloredSprint(dest: pointer<char>, value: pointer<char>, color
  *
  * @return                  number of characters written
  */
-#native("colored_sprintln")
+@Native("colored_sprintln")
 native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, color: int) -> int
 
 
@@ -217,5 +217,5 @@ native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, col
  *
  * @return                  number of characters read, or -1 on EOF or error
  */
-#native("read_line")
+@Native("read_line")
 native inline fun readLine(dest: pointer<char>, capacity: int) -> int

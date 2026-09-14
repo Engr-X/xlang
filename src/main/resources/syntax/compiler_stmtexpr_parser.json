@@ -46,6 +46,7 @@
 
                 { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }], "action": "makeIfElseExprFromElseB" },
                 { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeIfElseExprFromElseS", "after": "prependLineTerminator" },
+                { "patterns": [{ "kind": "Tokenizer.KW_ELSE" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }], "action": "makeElseStmtFromExpr" },
                 { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Block" }], "action": "makeIfElseExprFromElifB" },
                 { "patterns": [{ "kind": "Tokenizer.KW_ELIF" }, { "kind": "$Expression" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Statement" }], "action": "makeIfElseExprFromElifS", "after": "prependLineTerminator" }
             ]
@@ -219,6 +220,19 @@
             "    val elseToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
             "    val statement: pointer<Statement> = getContainerValue(results, 2) as pointer<Statement>",
+            "",
+            "    return new IfElseExpression(statement)",
+            "       .addExtraToken(elseToken).addExtraToken(colonToken)",
+            "}"
+        ],
+
+
+        [   "private fun makeElseStmtFromExpr(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val elseToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val colonToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    val expression: pointer<Expression> = getContainerValue(results, 2) as pointer<Expression>",
+            "    val statement: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expression))",
             "",
             "    return new IfElseExpression(statement)",
             "       .addExtraToken(elseToken).addExtraToken(colonToken)",

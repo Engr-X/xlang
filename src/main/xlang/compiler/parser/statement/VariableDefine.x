@@ -68,6 +68,12 @@ struct VariableDefine
     }
 
 
+    fun haveDeclaredType() -> bool = this.declaredType != null
+
+
+    fun haveInitialValue() -> bool = this.assignExpr != null
+
+
     fun markAsMut() -> pointer<VariableDefine>
     {
         this.modifier = Field.mutModifier()

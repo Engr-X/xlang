@@ -219,7 +219,7 @@ struct TokenizeFSM
      *
      * @return                  the active tokenizer state identifier
      */
-    fun getState(): int = this.state
+    fun getState() -> int = this.state
 
 
     /**

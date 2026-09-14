@@ -34,9 +34,9 @@ import xlang.util.string.StringBuilder
 
 struct Field
 {
-    private static val CONST_MODIFIER = 0
+    private static val CONST_MODIFIER: int = 0
 
-    private static val MUT_MODIFIER = 1
+    private static val MUT_MODIFIER: int = 1
 
     private var modifier: int
 
