@@ -36,7 +36,7 @@
 #define REGEX_PATTERN_BUFFER_SIZE 4096
 
 
-static char regex_pattern_buffer[REGEX_PATTERN_BUFFER_SIZE];
+static x_char regex_pattern_buffer[REGEX_PATTERN_BUFFER_SIZE];
 
 
 static size_t xchar_strlen(const x_char* const value)
@@ -50,23 +50,7 @@ static size_t xchar_strlen(const x_char* const value)
 }
 
 
-static char* narrow_xchar_string(const x_char* const value)
-{
-    const size_t length = xchar_strlen(value);
-    char* const result = malloc(length + 1);
-
-    if (result == NULL)
-        return NULL;
-
-    for (size_t i = 0; i < length; i++)
-        result[i] = (char)(value[i] & 0xff);
-
-    result[length] = '\0';
-    return result;
-}
-
-
-static int regex_match_raw(const char* const pattern, const x_char* const str)
+static int regex_match_raw(const x_char* const pattern, const x_char* const str)
 {
     int match_index;
     int match_length;
@@ -80,15 +64,15 @@ static int regex_match_raw(const char* const pattern, const x_char* const str)
 }
 
 
-static bool is_eof_pattern_range(const char* const pattern, const size_t begin, const size_t end)
+static bool is_eof_pattern_range(const x_char* const pattern, const size_t begin, const size_t end)
 {
     return end - begin == 2 && pattern[begin] == '\\' && pattern[begin + 1] == '0';
 }
 
 
 static size_t copy_normalized_pattern_range(
-    char* const dest,
-    const char* const pattern,
+    x_char* const dest,
+    const x_char* const pattern,
     const size_t begin,
     const size_t end)
 {
@@ -102,7 +86,7 @@ static size_t copy_normalized_pattern_range(
             continue;
         }
 
-        const char escaped = pattern[++i];
+        const x_char escaped = pattern[++i];
 
         switch (escaped)
         {
@@ -146,7 +130,7 @@ static size_t copy_normalized_pattern_range(
 }
 
 
-static bool is_wrapped_by_parentheses(const char* const pattern, const size_t begin, const size_t end)
+static bool is_wrapped_by_parentheses(const x_char* const pattern, const size_t begin, const size_t end)
 {
     if (end - begin < 2 || pattern[begin] != '(' || pattern[end - 1] != ')')
         return false;
@@ -157,7 +141,7 @@ static bool is_wrapped_by_parentheses(const char* const pattern, const size_t be
 
     for (size_t i = begin; i < end; i++)
     {
-        const char ch = pattern[i];
+        const x_char ch = pattern[i];
 
         if (escaped)
         {
@@ -207,7 +191,7 @@ static bool is_wrapped_by_parentheses(const char* const pattern, const size_t be
 }
 
 
-static int regex_match_range(const char* const pattern, size_t begin, size_t end, const x_char* const str)
+static int regex_match_range(const x_char* const pattern, size_t begin, size_t end, const x_char* const str)
 {
     while (is_wrapped_by_parentheses(pattern, begin, end))
     {
@@ -225,7 +209,7 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
     for (size_t i = begin; i < end; i++)
     {
         bool split_branch = false;
-        const char ch = pattern[i];
+        const x_char ch = pattern[i];
 
         if (escaped)
         {
@@ -307,12 +291,12 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
     if (is_eof_pattern_range(pattern, begin, end))
         return str[0] == '\0' ? 0 : -1;
 
-    char* match_pattern = regex_pattern_buffer;
+    x_char* match_pattern = regex_pattern_buffer;
     bool heap_allocated = false;
 
     if (length + 2 > REGEX_PATTERN_BUFFER_SIZE)
     {
-        match_pattern = malloc(length + 2);
+        match_pattern = malloc((length + 2) * sizeof(x_char));
 
         if (match_pattern == NULL)
             return -1;
@@ -325,7 +309,10 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
 
     if (match_pattern[0] != '^')
     {
-        memmove(match_pattern + 1, match_pattern, match_pattern_length + 1);
+        memmove(
+            match_pattern + 1,
+            match_pattern,
+            (match_pattern_length + 1) * sizeof(x_char));
         match_pattern[0] = '^';
     }
 
@@ -338,25 +325,42 @@ static int regex_match_range(const char* const pattern, size_t begin, size_t end
 }
 
 
-int regex_match(const x_char* const pattern, const x_char* const str)
+x_i32 regex_match(const x_char* const pattern, const x_char* const str)
 {
-    char* narrow_pattern;
-    int result;
+    if (pattern == NULL || str == NULL)
+        return -1;
+
+    return regex_match_range(pattern, 0, xchar_strlen(pattern), str);
+}
+
+
+x_i32 regex_match_compiled(struct regex_t* pattern, const x_char* const str)
+{
+    int match_index;
+    int match_length;
 
     if (pattern == NULL || str == NULL)
         return -1;
 
-    narrow_pattern = narrow_xchar_string(pattern);
+    match_index = re_matchp(pattern, str, &match_length);
 
-    if (narrow_pattern == NULL)
-    {
-        free(narrow_pattern);
+    if (match_index != 0)
         return -1;
-    }
 
-    result = regex_match_range(narrow_pattern, 0, strlen(narrow_pattern), str);
+    return match_length;
+}
 
-    free(narrow_pattern);
 
-    return result;
+x_i32 regex_compile_size(void)
+{
+    return sizeof(regex_t) * RE_MAX_REGEXP_OBJECTS;
+}
+
+
+void regex_compile(const x_char* const pattern, struct regex_t* dest)
+{
+    if (pattern == NULL || dest == NULL)
+        return;
+
+    re_compile_into(pattern, dest);
 }

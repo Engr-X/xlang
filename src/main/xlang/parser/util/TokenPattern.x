@@ -27,6 +27,8 @@ import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
 import xlang.util.string.String
+import xlang.util.string.Regex
+import xlang.System
 
 
 /**
@@ -61,9 +63,27 @@ struct PatternAtom
      */
     private var regex: pointer<char>
 
+    /**
+    * Stores the compiled representation of {@link #regex}.
+    *
+    * A null value means that no regular expression has been compiled.
+    */
+    private var compiledRegex: pointer<*>
 
+    /**
+    * References another parser that may be invoked when this atom is matched.
+    *
+    * A null value means that this atom does not delegate matching to a
+    * single referenced parser.
+    */
     var refParser: pointer<ParserRef>
 
+    /**
+    * References a collection of parsers that may be invoked recursively
+    * while matching this atom.
+    *
+    * A null value means that this atom does not reference multiple parsers.
+    */
     var refsParser: pointer<ParserRefs>
 
 
@@ -93,6 +113,8 @@ struct PatternAtom
     {
         this.kind = kind
         this.regex = String.strdup(regex)
+        this.compiledRegex = xlang.System.allocMemory(Regex.compileSize())
+        Regex.compile(regex, this.compiledRegex)
         this.refParser = null
         this.refsParser = null
     }
@@ -102,6 +124,7 @@ struct PatternAtom
     {
         this.kind = Token.AnyKind
         this.regex = null
+        this.compiledRegex = null
         this.refParser = refParser
         this.refsParser = null
     }
@@ -111,6 +134,7 @@ struct PatternAtom
     {
         this.kind = Token.AnyKind
         this.regex = null
+        this.compiledRegex = null
         this.refParser = null
         this.refsParser = refsParser
     }
@@ -132,10 +156,10 @@ struct PatternAtom
         if token.text == null:
             return -1
 
-        return if String.strRegMatch(this.regex, token.text) > 0:
-                1
-            else:
-                -1
+        return if this.compiledRegex == null:
+            (if String.strRegMatch(this.regex, token.text) > 0: 1 else: -1)
+            else: 
+            (if Regex.regexMatch(this.compiledRegex, token.text) > 0: 1 else: -1)
     }
 
 

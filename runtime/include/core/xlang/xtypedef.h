@@ -86,6 +86,8 @@ typedef __uint128_t x_u128;
 typedef float       x_f32;
 typedef double      x_f64;
 
+typedef bool        x_bool;
+
 
 static_assert(sizeof(x_f32) == 4, "float must be 32-bit");
 static_assert(sizeof(x_f64) == 8, "double must be 64-bit");

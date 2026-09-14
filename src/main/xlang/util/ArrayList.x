@@ -270,6 +270,8 @@ struct ArrayList
     {
         val requiredCapacity: int = insertLength + this.length + 1
 
+        this.capacity *= 2
+
         while this.capacity < requiredCapacity:
             this.capacity *= 2
 
