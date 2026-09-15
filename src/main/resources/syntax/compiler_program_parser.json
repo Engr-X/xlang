@@ -27,6 +27,7 @@
         "xlang.compiler.parser.program.Modifier",
         "xlang.compiler.parser.program.ModifierListMaybe",
         "xlang.compiler.parser.program.PackageDeclaration",
+        "xlang.compiler.parser.program.PackageDeclarationMaybe",
         "xlang.compiler.parser.program.QualifiedName",
         "xlang.compiler.parser.stmtexpr.Block"
     ],
@@ -84,7 +85,7 @@
             "class": "AnnotationsMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "[$Annotation]" }], "action": "makeAnnotationsMaybe" },
+                { "patterns": [{ "kind": "[$Annotation]" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeAnnotationsMaybe" },
                 { "patterns": [], "action": "makeEmptyAnnotationsMaybe" }
             ]
         },
@@ -101,6 +102,14 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.KW_PACKAGE" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePackageDeclaration" }
+            ]
+        },
+        {
+            "class": "PackageDeclarationMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "$PackageDeclaration" }], "action": "makePackageDeclarationMaybe" },
+                { "patterns": [], "action": "makeEmptyPackageDeclarationMaybe" }
             ]
         },
         {
@@ -194,8 +203,7 @@
             "class": "Program",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$PackageDeclaration" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgramWithPackage" },
-                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgram" }
+                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$PackageDeclarationMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgram" }
             ]
         }
     ],
@@ -344,6 +352,16 @@
             "",
             "    return qualifiedName.toPackageDecl().addExtraToken(packageToken)",
             "}" ],
+
+
+        [   "private inline fun makePackageDeclarationMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 0) as pointer<PackageDeclaration>",
+            "    return new PackageDeclarationMaybe(packageDeclaration)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyPackageDeclarationMaybe(results: pointer<ArrayList>) -> pointer<*> = new PackageDeclarationMaybe()" ],
 
 
         [   "private inline fun makeImportDeclaration(results: pointer<ArrayList>) -> pointer<*>",
@@ -632,28 +650,16 @@
             "}" ],
 
 
-        [   "private inline fun makeProgramWithPackage(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
-            "    val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 1) as pointer<PackageDeclaration>",
+            "    val packageDeclaration: pointer<PackageDeclarationMaybe> = getContainerValue(results, 1) as pointer<PackageDeclarationMaybe>",
             "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 2) as pointer<ImportDeclarationsMaybe>",
             "    val members: pointer<ArrayList> = getContainerValue(results, 3) as pointer<ArrayList>",
             "",
             "    return new Program(members)",
             "        .setPreprocessSettings(settings.toPreprocessSettings())",
-            "        .setPackageDeclaration(packageDeclaration)",
-            "        .setImportDeclarations(imports.toImportDeclarations())",
-            "}" ],
-
-
-        [   "private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
-            "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 1) as pointer<ImportDeclarationsMaybe>",
-            "    val members: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
-            "",
-            "    return new Program(members)",
-            "        .setPreprocessSettings(settings.toPreprocessSettings())",
+            "        .setPackageDeclaration(packageDeclaration.toPackageDeclaration())",
             "        .setImportDeclarations(imports.toImportDeclarations())",
             "}" ]
     ]

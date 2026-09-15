@@ -93,3 +93,20 @@ struct PackageDeclaration
         return sb
     }
 }
+
+
+struct PackageDeclarationMaybe
+{
+    private var packageDeclaration: pointer<PackageDeclaration>
+
+
+    constructor():
+        this.packageDeclaration = null
+
+
+    constructor(packageDeclaration: pointer<PackageDeclaration>):
+        this.packageDeclaration = packageDeclaration
+
+
+    fun toPackageDeclaration() -> pointer<PackageDeclaration> = this.packageDeclaration
+}
