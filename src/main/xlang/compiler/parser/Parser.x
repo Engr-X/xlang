@@ -21,7 +21,6 @@ import xlang.compiler.parser.expression.NewIdentifier
 import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.expression.intrisic.SizeOf
 import xlang.compiler.parser.program.Annotation
-import xlang.compiler.parser.program.Annotations
 import xlang.compiler.parser.program.AnnotationsMaybe
 import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
@@ -29,16 +28,12 @@ import xlang.compiler.parser.program.FunctionParam
 import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.FunctionParamsMaybe
 import xlang.compiler.parser.program.ImportDeclaration
-import xlang.compiler.parser.program.ImportDeclarations
 import xlang.compiler.parser.program.ImportDeclarationsMaybe
 import xlang.compiler.parser.program.Member
-import xlang.compiler.parser.program.Members
 import xlang.compiler.parser.program.Modifier
-import xlang.compiler.parser.program.ModifierList
 import xlang.compiler.parser.program.ModifierListMaybe
 import xlang.compiler.parser.program.PackageDeclaration
 import xlang.compiler.parser.program.PreprocessSetting
-import xlang.compiler.parser.program.PreprocessSettings
 import xlang.compiler.parser.program.PreprocessSettingsMaybe
 import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.QualifiedName
@@ -54,7 +49,6 @@ import xlang.compiler.parser.statement.ForStatement
 import xlang.compiler.parser.statement.PassStatement
 import xlang.compiler.parser.statement.ReturnStatement
 import xlang.compiler.parser.statement.Statement
-import xlang.compiler.parser.statement.Statements
 import xlang.compiler.parser.statement.VariableDefine
 import xlang.compiler.parser.statement.VariableDefines
 import xlang.compiler.parser.statement.WhileStatement
@@ -85,49 +79,43 @@ private val EXPRESSIONS_PARSER_ID: int = 5
 private val EXPRESSION_TUPLE_PARSER_ID: int = 6
 private val LIST_LITERAL_PARSER_ID: int = 7
 private val STATEMENT_PARSER_ID: int = 8
-private val STATEMENTS_PARSER_ID: int = 9
-private val ELSE_STATEMENT_PARSER_ID: int = 10
-private val WHILE_STATEMENT_PARSER_ID: int = 11
-private val FOR_HEADER_VARIABLE_DEFINES_PARSER_ID: int = 12
-private val FOR_HEADER_EXPR_LIST_STATEMENT_PARSER_ID: int = 13
-private val FOR_HEADER_STATEMENT_PARSER_ID: int = 14
-private val FOR_HEADER_PARSER_ID: int = 15
-private val FOR_STATEMENT_PARSER_ID: int = 16
-private val EXPR_STATEMENT_PARSER_ID: int = 17
-private val EXPR_LIST_STATEMENT_PARSER_ID: int = 18
-private val VARIABLE_DEFINE_PARSER_ID: int = 19
-private val VARIABLE_DEFINES_PARSER_ID: int = 20
-private val RETURN_STATEMENT_PARSER_ID: int = 21
-private val BREAK_STATEMENT_PARSER_ID: int = 22
-private val CONTINUE_STATEMENT_PARSER_ID: int = 23
-private val PASS_STATEMENT_PARSER_ID: int = 24
-private val BLOCK_PARSER_ID: int = 25
-private val IF_EXPRESSION_PARSER_ID: int = 26
-private val IF_ELSE_EXPRESSION_PARSER_ID: int = 27
-private val MODIFIER_PARSER_ID: int = 28
-private val MODIFIER_LIST_PARSER_ID: int = 29
-private val MODIFIER_LIST_MAYBE_PARSER_ID: int = 30
-private val PREPROCESS_SETTING_PARSER_ID: int = 31
-private val PREPROCESS_SETTINGS_PARSER_ID: int = 32
-private val PREPROCESS_SETTINGS_MAYBE_PARSER_ID: int = 33
-private val ANNOTATION_PARSER_ID: int = 34
-private val ANNOTATIONS_PARSER_ID: int = 35
-private val ANNOTATIONS_MAYBE_PARSER_ID: int = 36
-private val QUALIFIED_NAME_PARSER_ID: int = 37
-private val PACKAGE_DECLARATION_PARSER_ID: int = 38
-private val IMPORT_DECLARATION_PARSER_ID: int = 39
-private val IMPORT_DECLARATIONS_PARSER_ID: int = 40
-private val IMPORT_DECLARATIONS_MAYBE_PARSER_ID: int = 41
-private val FUNCTION_PARAM_PARSER_ID: int = 42
-private val FUNCTION_PARAMS_PARSER_ID: int = 43
-private val FUNCTION_PARAMS_MAYBE_PARSER_ID: int = 44
-private val FIELD_PARSER_ID: int = 45
-private val FUNCTION_PARSER_ID: int = 46
-private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 47
-private val MEMBER_PARSER_ID: int = 48
-private val MEMBERS_PARSER_ID: int = 49
-private val STRUCT_PARSER_ID: int = 50
-private val PROGRAM_PARSER_ID: int = 51
+private val ELSE_STATEMENT_PARSER_ID: int = 9
+private val WHILE_STATEMENT_PARSER_ID: int = 10
+private val FOR_HEADER_VARIABLE_DEFINES_PARSER_ID: int = 11
+private val FOR_HEADER_EXPR_LIST_STATEMENT_PARSER_ID: int = 12
+private val FOR_HEADER_STATEMENT_PARSER_ID: int = 13
+private val FOR_HEADER_PARSER_ID: int = 14
+private val FOR_STATEMENT_PARSER_ID: int = 15
+private val EXPR_STATEMENT_PARSER_ID: int = 16
+private val EXPR_LIST_STATEMENT_PARSER_ID: int = 17
+private val VARIABLE_DEFINE_PARSER_ID: int = 18
+private val VARIABLE_DEFINES_PARSER_ID: int = 19
+private val RETURN_STATEMENT_PARSER_ID: int = 20
+private val BREAK_STATEMENT_PARSER_ID: int = 21
+private val CONTINUE_STATEMENT_PARSER_ID: int = 22
+private val PASS_STATEMENT_PARSER_ID: int = 23
+private val BLOCK_PARSER_ID: int = 24
+private val IF_EXPRESSION_PARSER_ID: int = 25
+private val IF_ELSE_EXPRESSION_PARSER_ID: int = 26
+private val MODIFIER_PARSER_ID: int = 27
+private val MODIFIER_LIST_MAYBE_PARSER_ID: int = 28
+private val PREPROCESS_SETTING_PARSER_ID: int = 29
+private val PREPROCESS_SETTINGS_MAYBE_PARSER_ID: int = 30
+private val ANNOTATION_PARSER_ID: int = 31
+private val ANNOTATIONS_MAYBE_PARSER_ID: int = 32
+private val QUALIFIED_NAME_PARSER_ID: int = 33
+private val PACKAGE_DECLARATION_PARSER_ID: int = 34
+private val IMPORT_DECLARATION_PARSER_ID: int = 35
+private val IMPORT_DECLARATIONS_MAYBE_PARSER_ID: int = 36
+private val FUNCTION_PARAM_PARSER_ID: int = 37
+private val FUNCTION_PARAMS_PARSER_ID: int = 38
+private val FUNCTION_PARAMS_MAYBE_PARSER_ID: int = 39
+private val FIELD_PARSER_ID: int = 40
+private val FUNCTION_PARSER_ID: int = 41
+private val STRUCT_CONSTRUCTOR_PARSER_ID: int = 42
+private val MEMBER_PARSER_ID: int = 43
+private val STRUCT_PARSER_ID: int = 44
+private val PROGRAM_PARSER_ID: int = 45
 
 
 private inline fun getContainerValue(results: pointer<ArrayList>, index: int, unwrapContainer: bool) -> pointer<*>
@@ -737,21 +725,6 @@ private inline fun makeStmtFrom_PassStmt(results: pointer<ArrayList>) -> pointer
     return Statement.fromPassStatement(passStatement)
 }
 
-private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>
-{
-    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>
-    val right: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>
-
-    return new Statements(statement).addStatements(right)
-}
-
-private inline fun makeSingleStmts(results: pointer<ArrayList>) -> pointer<*>
-{
-    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>
-
-    return new Statements(statement)
-}
-
 private inline fun makeElseStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>
 {
     val elseToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
@@ -1304,10 +1277,10 @@ private fun makeEmptyBlockExpr(results: pointer<ArrayList>) -> pointer<*>
 private fun makeBlockExpr(results: pointer<ArrayList>) -> pointer<*>
 {
     val leftBrace: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
-    val statements: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>
+    val statements: pointer<ArrayList> = getContainerValue(results, 1) as pointer<ArrayList>
     val rightBrace: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
 
-    return new Block(statements.getStatements())
+    return new Block(statements)
        .addExtraToken(leftBrace).addExtraToken(rightBrace)
 }
 
@@ -1521,27 +1494,16 @@ private inline fun makeModifier(results: pointer<ArrayList>) -> pointer<*>
     return new Modifier(token.text).addExtraToken(token)
 }
 
-private inline fun makeModifierListIt(results: pointer<ArrayList>) -> pointer<*>
-{
-    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>
-    val modifierList: pointer<ModifierList> = getContainerValue(results, 1) as pointer<ModifierList>
-
-    return modifierList.pushFront(modifier)
-}
-
-private inline fun makeModifierList(results: pointer<ArrayList>) -> pointer<*>
-{
-    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>
-    return new ModifierList(modifier)
-}
-
 private inline fun makeModifierListMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
-    val modifierList: pointer<ModifierList> = getContainerValue(results, 0) as pointer<ModifierList>
-    return new ModifierListMaybe(modifierList)
-}
+    val parsedModifiers: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>
+    val modifiers: pointer<ArrayList> = new ArrayList(sizeof(Modifier))
 
-private inline fun makeEmptyModifierListMaybe(results: pointer<ArrayList>) -> pointer<*> = new ModifierListMaybe(null)
+    for (var i = 0; i < parsedModifiers.length; i++):
+        modifiers.push(getContainerValue(parsedModifiers, i) as pointer<Modifier>)
+
+    return new ModifierListMaybe(modifiers)
+}
 
 private inline fun makeEmptyPreprocessSetting(results: pointer<ArrayList>) -> pointer<*>
 {
@@ -1570,29 +1532,18 @@ private inline fun makePreprocessSetting(results: pointer<ArrayList>) -> pointer
         .addExtraToken(rightParen)
 }
 
-private inline fun makePreprocessSettingsIt(results: pointer<ArrayList>) -> pointer<*>
-{
-    val setting: pointer<PreprocessSetting> = getContainerValue(results, 0) as pointer<PreprocessSetting>
-    val settings: pointer<PreprocessSettings> = getContainerValue(results, 1) as pointer<PreprocessSettings>
-
-    return settings.push(setting)
-}
-
-private inline fun makePreprocessSettings(results: pointer<ArrayList>) -> pointer<*>
-{
-    val setting: pointer<PreprocessSetting> = getContainerValue(results, 0) as pointer<PreprocessSetting>
-
-    return new PreprocessSettings(setting)
-}
-
 private inline fun makePreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
-    val settings: pointer<PreprocessSettings> = getContainerValue(results, 0) as pointer<PreprocessSettings>
+    val parsedSettings: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>
+    val settings: pointer<ArrayList> = new ArrayList(sizeof(PreprocessSetting))
+
+    for (var i = 0; i < parsedSettings.length; i++):
+        settings.push(getContainerValue(parsedSettings, i) as pointer<PreprocessSetting>)
 
     return new PreprocessSettingsMaybe(settings)
 }
 
-private inline fun makeEmptyPreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*> = new PreprocessSettingsMaybe(null)
+private inline fun makeEmptyPreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*> = new PreprocessSettingsMaybe()
 
 private inline fun makeAnnotation(results: pointer<ArrayList>) -> pointer<*>
 {
@@ -1629,27 +1580,18 @@ private inline fun makeAnnotationWithValues(results: pointer<ArrayList>) -> poin
         .addExtraToken(rightParen)
 }
 
-private inline fun makeAnnotationsIt(results: pointer<ArrayList>) -> pointer<*>
-{
-    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>
-    val annotations: pointer<Annotations> = getContainerValue(results, 1) as pointer<Annotations>
-
-    return annotations.push(annotation)
-}
-
-private inline fun makeAnnotations(results: pointer<ArrayList>) -> pointer<*>
-{
-    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>
-    return new Annotations(annotation)
-}
-
 private inline fun makeAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
-    val annotations: pointer<Annotations> = getContainerValue(results, 0) as pointer<Annotations>
+    val parsedAnnotations: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>
+    val annotations: pointer<ArrayList> = new ArrayList(sizeof(Annotation))
+
+    for (var i = 0; i < parsedAnnotations.length; i++):
+        annotations.push(getContainerValue(parsedAnnotations, i) as pointer<Annotation>)
+
     return new AnnotationsMaybe(annotations)
 }
 
-private inline fun makeEmptyAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new AnnotationsMaybe(null)
+private inline fun makeEmptyAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new AnnotationsMaybe()
 
 private inline fun makeQualifiedNameIt(results: pointer<ArrayList>) -> pointer<*>
 {
@@ -1685,29 +1627,16 @@ private inline fun makeImportDeclaration(results: pointer<ArrayList>) -> pointer
     return qualifiedName.toImportDeclaration().addExtraToken(importToken)
 }
 
-private inline fun makeImportDeclarationsIt(results: pointer<ArrayList>) -> pointer<*>
-{
-    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>
-    val imports: pointer<ImportDeclarations> = getContainerValue(results, 1) as pointer<ImportDeclarations>
-    val result: pointer<ImportDeclarations> = new ImportDeclarations()
-
-    return result.push(importDeclaration).pushAll(imports)
-}
-
-private inline fun makeImportDeclarations(results: pointer<ArrayList>) -> pointer<*>
-{
-    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>
-
-    return new ImportDeclarations().push(importDeclaration)
-}
-
 private inline fun makeImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
-    val imports: pointer<ImportDeclarations> = getContainerValue(results, 0) as pointer<ImportDeclarations>
+    val parsedImports: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>
+    val imports: pointer<ArrayList> = new ArrayList(sizeof(ImportDeclaration))
+
+    for (var i = 0; i < parsedImports.length; i++):
+        imports.push(getContainerValue(parsedImports, i) as pointer<ImportDeclaration>)
+
     return new ImportDeclarationsMaybe(imports)
 }
-
-private inline fun makeEmptyImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new ImportDeclarationsMaybe(null)
 
 private inline fun makeFunctionParam(results: pointer<ArrayList>) -> pointer<*>
 {
@@ -1933,27 +1862,13 @@ private inline fun makeMemberFromStruct(results: pointer<ArrayList>) -> pointer<
     return Member.fromStruct(structDecl)
 }
 
-private inline fun makeMembersIt(results: pointer<ArrayList>) -> pointer<*>
-{
-    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>
-    val members: pointer<Members> = getContainerValue(results, 1) as pointer<Members>
-
-    return new Members(member).pushAll(members)
-}
-
-private inline fun makeMembers(results: pointer<ArrayList>) -> pointer<*>
-{
-    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>
-    return new Members(member)
-}
-
 private inline fun makeStruct(results: pointer<ArrayList>) -> pointer<*>
 {
     val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>
     val structToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
     val nameToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
     val leftBrace: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>
-    val members: pointer<Members> = getContainerValue(results, 4) as pointer<Members>
+    val members: pointer<ArrayList> = getContainerValue(results, 4) as pointer<ArrayList>
     val rightBrace: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
 
     return new Struct(nameToken.text, members)
@@ -1969,9 +1884,9 @@ private inline fun makeProgramWithPackage(results: pointer<ArrayList>) -> pointe
     val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>
     val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 1) as pointer<PackageDeclaration>
     val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 2) as pointer<ImportDeclarationsMaybe>
-    val members: pointer<Members> = getContainerValue(results, 3) as pointer<Members>
+    val members: pointer<ArrayList> = getContainerValue(results, 3) as pointer<ArrayList>
 
-    return new Program(members.getMembers())
+    return new Program(members)
         .setPreprocessSettings(settings.toPreprocessSettings())
         .setPackageDeclaration(packageDeclaration)
         .setImportDeclarations(imports.toImportDeclarations())
@@ -1981,9 +1896,9 @@ private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>
 {
     val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>
     val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 1) as pointer<ImportDeclarationsMaybe>
-    val members: pointer<Members> = getContainerValue(results, 2) as pointer<Members>
+    val members: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>
 
-    return new Program(members.getMembers())
+    return new Program(members)
         .setPreprocessSettings(settings.toPreprocessSettings())
         .setImportDeclarations(imports.toImportDeclarations())
 }
@@ -2005,8 +1920,6 @@ val EXPRESSION_TUPLE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(EX
 val LIST_LITERAL_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(LIST_LITERAL_PARSER_ID)
 
 val STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(STATEMENT_PARSER_ID)
-
-val STATEMENTS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(STATEMENTS_PARSER_ID)
 
 val ELSE_STATEMENT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ELSE_STATEMENT_PARSER_ID)
 
@@ -2046,19 +1959,13 @@ val IF_ELSE_EXPRESSION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(
 
 val MODIFIER_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MODIFIER_PARSER_ID)
 
-val MODIFIER_LIST_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MODIFIER_LIST_PARSER_ID)
-
 val MODIFIER_LIST_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MODIFIER_LIST_MAYBE_PARSER_ID)
 
 val PREPROCESS_SETTING_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(PREPROCESS_SETTING_PARSER_ID)
 
-val PREPROCESS_SETTINGS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(PREPROCESS_SETTINGS_PARSER_ID)
-
 val PREPROCESS_SETTINGS_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(PREPROCESS_SETTINGS_MAYBE_PARSER_ID)
 
 val ANNOTATION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ANNOTATION_PARSER_ID)
-
-val ANNOTATIONS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ANNOTATIONS_PARSER_ID)
 
 val ANNOTATIONS_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(ANNOTATIONS_MAYBE_PARSER_ID)
 
@@ -2067,8 +1974,6 @@ val QUALIFIED_NAME_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(QUAL
 val PACKAGE_DECLARATION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(PACKAGE_DECLARATION_PARSER_ID)
 
 val IMPORT_DECLARATION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORT_DECLARATION_PARSER_ID)
-
-val IMPORT_DECLARATIONS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORT_DECLARATIONS_PARSER_ID)
 
 val IMPORT_DECLARATIONS_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORT_DECLARATIONS_MAYBE_PARSER_ID)
 
@@ -2085,8 +1990,6 @@ val FUNCTION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(FUNCTION_P
 val STRUCT_CONSTRUCTOR_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(STRUCT_CONSTRUCTOR_PARSER_ID)
 
 val MEMBER_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MEMBER_PARSER_ID)
-
-val MEMBERS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(MEMBERS_PARSER_ID)
 
 val STRUCT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(STRUCT_PARSER_ID)
 
@@ -2460,9 +2363,6 @@ private val STATEMENT_RULE9: pointer<Rule> = new Rule(new PatternList().pushRef(
 private val STATEMENT_RULE10: pointer<Rule> = new Rule(new PatternList().pushRef(CONTINUE_STATEMENT_PARSER), makeStmtFrom_ContinueStmt, Rule.STARTER_ROLE, 0)
 private val STATEMENT_RULE11: pointer<Rule> = new Rule(new PatternList().pushRef(PASS_STATEMENT_PARSER), makeStmtFrom_PassStmt, Rule.STARTER_ROLE, 0)
 
-private val STATEMENTS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(STATEMENT_PARSER).pushRef(STATEMENTS_PARSER), makeStmtsIt, Rule.STARTER_ROLE, 0)
-private val STATEMENTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(STATEMENT_PARSER), makeSingleStmts, Rule.STARTER_ROLE, 0)
-
 private val ELSE_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeElseStmtFromBlock, Rule.STARTER_ROLE, 0)
 private val ELSE_STATEMENT_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeElseStmtFromStmt, Rule.STARTER_ROLE, 0)
 private val ELSE_STATEMENT_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER), makeElseStmtFromExpr, Rule.STARTER_ROLE, 0)
@@ -2527,7 +2427,7 @@ private val CONTINUE_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList()
 private val PASS_STATEMENT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_PASS).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makePassStmt, Rule.STARTER_ROLE, 0)
 
 private val BLOCK_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRegex(Tokenizer.RIGHT_BRACE), makeEmptyBlockExpr, Rule.STARTER_ROLE, 0)
-private val BLOCK_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRef(STATEMENTS_PARSER).pushRegex(Tokenizer.RIGHT_BRACE), makeBlockExpr, Rule.STARTER_ROLE, 0)
+private val BLOCK_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(STATEMENT_PARSER)).pushRegex(Tokenizer.RIGHT_BRACE), makeBlockExpr, Rule.STARTER_ROLE, 0)
 
 private val IF_EXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER), makeIfExprFromStmts, Rule.STARTER_ROLE, 0)
 private val IF_EXPRESSION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfExprFromStmt, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
@@ -2553,29 +2453,19 @@ private val MODIFIER_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex
 private val MODIFIER_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_NATIVE), makeModifier, Rule.STARTER_ROLE, 0)
 private val MODIFIER_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_INTRINSIC), makeModifier, Rule.STARTER_ROLE, 0)
 
-private val MODIFIER_LIST_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_PARSER).pushRef(MODIFIER_LIST_PARSER), makeModifierListIt, Rule.STARTER_ROLE, 0)
-private val MODIFIER_LIST_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_PARSER), makeModifierList, Rule.STARTER_ROLE, 0)
-
-private val MODIFIER_LIST_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_PARSER), makeModifierListMaybe, Rule.STARTER_ROLE, 0)
-private val MODIFIER_LIST_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyModifierListMaybe, Rule.STARTER_ROLE, 0)
+private val MODIFIER_LIST_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRefs(new ParserRefs(MODIFIER_PARSER)), makeModifierListMaybe, Rule.STARTER_ROLE, 0)
 
 private val PREPROCESS_SETTING_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.HASH).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeEmptyPreprocessSetting, Rule.STARTER_ROLE, 0)
 private val PREPROCESS_SETTING_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.HASH).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(ATOMS_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makePreprocessSetting, Rule.STARTER_ROLE, 0)
 
-private val PREPROCESS_SETTINGS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTING_PARSER).pushRef(PREPROCESS_SETTINGS_PARSER), makePreprocessSettingsIt, Rule.STARTER_ROLE, 0)
-private val PREPROCESS_SETTINGS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTING_PARSER), makePreprocessSettings, Rule.STARTER_ROLE, 0)
-
-private val PREPROCESS_SETTINGS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_PARSER), makePreprocessSettingsMaybe, Rule.STARTER_ROLE, 0)
+private val PREPROCESS_SETTINGS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRefs(new ParserRefs(PREPROCESS_SETTING_PARSER)), makePreprocessSettingsMaybe, Rule.STARTER_ROLE, 0)
 private val PREPROCESS_SETTINGS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyPreprocessSettingsMaybe, Rule.STARTER_ROLE, 0)
 
 private val ANNOTATION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.AT).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(ATOMS_PARSER).pushRegex(Tokenizer.RIGHT_PAREN), makeAnnotationWithValues, Rule.STARTER_ROLE, 0)
 private val ANNOTATION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.AT).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.LEFT_PAREN).pushRegex(Tokenizer.RIGHT_PAREN), makeEmptyAnnotation, Rule.STARTER_ROLE, 0)
 private val ANNOTATION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.AT).pushRef(QUALIFIED_NAME_PARSER), makeAnnotation, Rule.STARTER_ROLE, 0)
 
-private val ANNOTATIONS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATION_PARSER).pushRef(ANNOTATIONS_PARSER), makeAnnotationsIt, Rule.STARTER_ROLE, 0)
-private val ANNOTATIONS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeAnnotations, Rule.STARTER_ROLE, 0)
-
-private val ANNOTATIONS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_PARSER), makeAnnotationsMaybe, Rule.STARTER_ROLE, 0)
+private val ANNOTATIONS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRefs(new ParserRefs(ANNOTATION_PARSER)), makeAnnotationsMaybe, Rule.STARTER_ROLE, 0)
 private val ANNOTATIONS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyAnnotationsMaybe, Rule.STARTER_ROLE, 0)
 
 private val QUALIFIED_NAME_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.DOT).pushRef(QUALIFIED_NAME_PARSER), makeQualifiedNameIt, Rule.STARTER_ROLE, 0)
@@ -2585,11 +2475,7 @@ private val PACKAGE_DECLARATION_RULE0: pointer<Rule> = new Rule(new PatternList(
 
 private val IMPORT_DECLARATION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IMPORT).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeImportDeclaration, Rule.STARTER_ROLE, 0)
 
-private val IMPORT_DECLARATIONS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(IMPORT_DECLARATION_PARSER).pushRef(IMPORT_DECLARATIONS_PARSER), makeImportDeclarationsIt, Rule.STARTER_ROLE, 0)
-private val IMPORT_DECLARATIONS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(IMPORT_DECLARATION_PARSER), makeImportDeclarations, Rule.STARTER_ROLE, 0)
-
-private val IMPORT_DECLARATIONS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(IMPORT_DECLARATIONS_PARSER), makeImportDeclarationsMaybe, Rule.STARTER_ROLE, 0)
-private val IMPORT_DECLARATIONS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyImportDeclarationsMaybe, Rule.STARTER_ROLE, 0)
+private val IMPORT_DECLARATIONS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRefs(new ParserRefs(IMPORT_DECLARATION_PARSER)), makeImportDeclarationsMaybe, Rule.STARTER_ROLE, 0)
 
 private val FUNCTION_PARAM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER), makeFunctionParam, Rule.STARTER_ROLE, 0)
 private val FUNCTION_PARAM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_MUT).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.COLON).pushRef(TYPE_PARSER), makeMutFunctionParam, Rule.STARTER_ROLE, 0)
@@ -2621,13 +2507,10 @@ private val MEMBER_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(FUN
 private val MEMBER_RULE2: pointer<Rule> = new Rule(new PatternList().pushRef(STRUCT_CONSTRUCTOR_PARSER), makeMemberFromStructConstructor, Rule.STARTER_ROLE, 0)
 private val MEMBER_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(STRUCT_PARSER), makeMemberFromStruct, Rule.STARTER_ROLE, 0)
 
-private val MEMBERS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MEMBER_PARSER).pushRef(MEMBERS_PARSER), makeMembersIt, Rule.STARTER_ROLE, 0)
-private val MEMBERS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(MEMBER_PARSER), makeMembers, Rule.STARTER_ROLE, 0)
+private val STRUCT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_STRUCT).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(MEMBER_PARSER)).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStruct, Rule.STARTER_ROLE, 0)
 
-private val STRUCT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_STRUCT).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_BRACE).pushRef(MEMBERS_PARSER).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStruct, Rule.STARTER_ROLE, 0)
-
-private val PROGRAM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_MAYBE_PARSER).pushRef(PACKAGE_DECLARATION_PARSER).pushRef(IMPORT_DECLARATIONS_MAYBE_PARSER).pushRef(MEMBERS_PARSER), makeProgramWithPackage, Rule.STARTER_ROLE, 0)
-private val PROGRAM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_MAYBE_PARSER).pushRef(IMPORT_DECLARATIONS_MAYBE_PARSER).pushRef(MEMBERS_PARSER), makeProgram, Rule.STARTER_ROLE, 0)
+private val PROGRAM_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_MAYBE_PARSER).pushRef(PACKAGE_DECLARATION_PARSER).pushRef(IMPORT_DECLARATIONS_MAYBE_PARSER).pushRefs(new ParserRefs(MEMBER_PARSER)), makeProgramWithPackage, Rule.STARTER_ROLE, 0)
+private val PROGRAM_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(PREPROCESS_SETTINGS_MAYBE_PARSER).pushRef(IMPORT_DECLARATIONS_MAYBE_PARSER).pushRefs(new ParserRefs(MEMBER_PARSER)), makeProgram, Rule.STARTER_ROLE, 0)
 
 private val EXPRESSION_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_PARSER.addRule(EXPRESSION_RULE0).addRule(EXPRESSION_RULE1).addRule(EXPRESSION_RULE2).addRule(EXPRESSION_RULE3).addRule(EXPRESSION_RULE4).addRule(EXPRESSION_RULE5).addRule(EXPRESSION_RULE6).addRule(EXPRESSION_RULE7).addRule(EXPRESSION_RULE8).addRule(EXPRESSION_RULE9).addRule(EXPRESSION_RULE10).addRule(EXPRESSION_RULE11).addRule(EXPRESSION_RULE12).addRule(EXPRESSION_RULE13).addRule(EXPRESSION_RULE14).addRule(EXPRESSION_RULE15).addRule(EXPRESSION_RULE16).addRule(EXPRESSION_RULE17).addRule(EXPRESSION_RULE18).addRule(EXPRESSION_RULE19).addRule(EXPRESSION_RULE20).addRule(EXPRESSION_RULE21).addRule(EXPRESSION_RULE22).addRule(EXPRESSION_RULE23).addRule(EXPRESSION_RULE24).addRule(EXPRESSION_RULE25).addRule(EXPRESSION_RULE26).addRule(EXPRESSION_RULE27).addRule(EXPRESSION_RULE28).addRule(EXPRESSION_RULE29).addRule(EXPRESSION_RULE30).addRule(EXPRESSION_RULE31).addRule(EXPRESSION_RULE32).addRule(EXPRESSION_RULE33).addRule(EXPRESSION_RULE34).addRule(EXPRESSION_RULE35).addRule(EXPRESSION_RULE36).addRule(EXPRESSION_RULE37).addRule(EXPRESSION_RULE38).addRule(EXPRESSION_RULE39).addRule(EXPRESSION_RULE40).addRule(EXPRESSION_RULE41).addRule(EXPRESSION_RULE42).addRule(EXPRESSION_RULE43).addRule(EXPRESSION_RULE44).addRule(EXPRESSION_RULE45).addRule(EXPRESSION_RULE46).addRule(EXPRESSION_RULE47).addRule(EXPRESSION_RULE48).addRule(EXPRESSION_RULE49).addRule(EXPRESSION_RULE50).addRule(EXPRESSION_RULE51).addRule(EXPRESSION_RULE52).addRule(EXPRESSION_RULE53).addRule(EXPRESSION_RULE54).addRule(EXPRESSION_RULE55).addRule(EXPRESSION_RULE56).addRule(EXPRESSION_RULE57).addRule(EXPRESSION_RULE58).addRule(EXPRESSION_RULE59).addRule(EXPRESSION_RULE60).addRule(EXPRESSION_RULE61).addRule(EXPRESSION_RULE62).addRule(EXPRESSION_RULE63).addRule(EXPRESSION_RULE64).addRule(EXPRESSION_RULE65).addRule(EXPRESSION_RULE66).addRule(EXPRESSION_RULE67).addRule(EXPRESSION_RULE68).addRule(EXPRESSION_RULE69).addRule(EXPRESSION_RULE70).addRule(EXPRESSION_RULE71).addRule(EXPRESSION_RULE72)
 private val ATOM_PARSER_SETUP: pointer<ParserRef> = ATOM_PARSER.addRule(ATOM_RULE0).addRule(ATOM_RULE1).addRule(ATOM_RULE2).addRule(ATOM_RULE3).addRule(ATOM_RULE4).addRule(ATOM_RULE5).addRule(ATOM_RULE6).addRule(ATOM_RULE7).addRule(ATOM_RULE8).addRule(ATOM_RULE9).addRule(ATOM_RULE10)
@@ -2637,7 +2520,6 @@ private val EXPRESSIONS_PARSER_SETUP: pointer<ParserRef> = EXPRESSIONS_PARSER.ad
 private val EXPRESSION_TUPLE_PARSER_SETUP: pointer<ParserRef> = EXPRESSION_TUPLE_PARSER.addRule(EXPRESSION_TUPLE_RULE0).addRule(EXPRESSION_TUPLE_RULE1).addRule(EXPRESSION_TUPLE_RULE2)
 private val LIST_LITERAL_PARSER_SETUP: pointer<ParserRef> = LIST_LITERAL_PARSER.addRule(LIST_LITERAL_RULE0).addRule(LIST_LITERAL_RULE1).addRule(LIST_LITERAL_RULE2)
 private val STATEMENT_PARSER_SETUP: pointer<ParserRef> = STATEMENT_PARSER.addRule(STATEMENT_RULE0).addRule(STATEMENT_RULE1).addRule(STATEMENT_RULE2).addRule(STATEMENT_RULE3).addRule(STATEMENT_RULE4).addRule(STATEMENT_RULE5).addRule(STATEMENT_RULE6).addRule(STATEMENT_RULE7).addRule(STATEMENT_RULE8).addRule(STATEMENT_RULE9).addRule(STATEMENT_RULE10).addRule(STATEMENT_RULE11)
-private val STATEMENTS_PARSER_SETUP: pointer<ParserRef> = STATEMENTS_PARSER.addRule(STATEMENTS_RULE0).addRule(STATEMENTS_RULE1)
 private val ELSE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = ELSE_STATEMENT_PARSER.addRule(ELSE_STATEMENT_RULE0).addRule(ELSE_STATEMENT_RULE1).addRule(ELSE_STATEMENT_RULE2)
 private val WHILE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = WHILE_STATEMENT_PARSER.addRule(WHILE_STATEMENT_RULE0).addRule(WHILE_STATEMENT_RULE1).addRule(WHILE_STATEMENT_RULE2).addRule(WHILE_STATEMENT_RULE3).addRule(WHILE_STATEMENT_RULE4).addRule(WHILE_STATEMENT_RULE5).addRule(WHILE_STATEMENT_RULE6).addRule(WHILE_STATEMENT_RULE7)
 private val FOR_HEADER_VARIABLE_DEFINES_PARSER_SETUP: pointer<ParserRef> = FOR_HEADER_VARIABLE_DEFINES_PARSER.addRule(FOR_HEADER_VARIABLE_DEFINES_RULE0).addRule(FOR_HEADER_VARIABLE_DEFINES_RULE1)
@@ -2657,19 +2539,15 @@ private val BLOCK_PARSER_SETUP: pointer<ParserRef> = BLOCK_PARSER.addRule(BLOCK_
 private val IF_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_EXPRESSION_PARSER.addRule(IF_EXPRESSION_RULE0).addRule(IF_EXPRESSION_RULE1)
 private val IF_ELSE_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_ELSE_EXPRESSION_PARSER.addRule(IF_ELSE_EXPRESSION_RULE0).addRule(IF_ELSE_EXPRESSION_RULE1).addRule(IF_ELSE_EXPRESSION_RULE2).addRule(IF_ELSE_EXPRESSION_RULE3).addRule(IF_ELSE_EXPRESSION_RULE4).addRule(IF_ELSE_EXPRESSION_RULE5).addRule(IF_ELSE_EXPRESSION_RULE6).addRule(IF_ELSE_EXPRESSION_RULE7).addRule(IF_ELSE_EXPRESSION_RULE8).addRule(IF_ELSE_EXPRESSION_RULE9).addRule(IF_ELSE_EXPRESSION_RULE10)
 private val MODIFIER_PARSER_SETUP: pointer<ParserRef> = MODIFIER_PARSER.addRule(MODIFIER_RULE0).addRule(MODIFIER_RULE1).addRule(MODIFIER_RULE2).addRule(MODIFIER_RULE3).addRule(MODIFIER_RULE4).addRule(MODIFIER_RULE5).addRule(MODIFIER_RULE6).addRule(MODIFIER_RULE7)
-private val MODIFIER_LIST_PARSER_SETUP: pointer<ParserRef> = MODIFIER_LIST_PARSER.addRule(MODIFIER_LIST_RULE0).addRule(MODIFIER_LIST_RULE1)
-private val MODIFIER_LIST_MAYBE_PARSER_SETUP: pointer<ParserRef> = MODIFIER_LIST_MAYBE_PARSER.addRule(MODIFIER_LIST_MAYBE_RULE0).addRule(MODIFIER_LIST_MAYBE_RULE1)
+private val MODIFIER_LIST_MAYBE_PARSER_SETUP: pointer<ParserRef> = MODIFIER_LIST_MAYBE_PARSER.addRule(MODIFIER_LIST_MAYBE_RULE0)
 private val PREPROCESS_SETTING_PARSER_SETUP: pointer<ParserRef> = PREPROCESS_SETTING_PARSER.addRule(PREPROCESS_SETTING_RULE0).addRule(PREPROCESS_SETTING_RULE1)
-private val PREPROCESS_SETTINGS_PARSER_SETUP: pointer<ParserRef> = PREPROCESS_SETTINGS_PARSER.addRule(PREPROCESS_SETTINGS_RULE0).addRule(PREPROCESS_SETTINGS_RULE1)
 private val PREPROCESS_SETTINGS_MAYBE_PARSER_SETUP: pointer<ParserRef> = PREPROCESS_SETTINGS_MAYBE_PARSER.addRule(PREPROCESS_SETTINGS_MAYBE_RULE0).addRule(PREPROCESS_SETTINGS_MAYBE_RULE1)
 private val ANNOTATION_PARSER_SETUP: pointer<ParserRef> = ANNOTATION_PARSER.addRule(ANNOTATION_RULE0).addRule(ANNOTATION_RULE1).addRule(ANNOTATION_RULE2)
-private val ANNOTATIONS_PARSER_SETUP: pointer<ParserRef> = ANNOTATIONS_PARSER.addRule(ANNOTATIONS_RULE0).addRule(ANNOTATIONS_RULE1)
 private val ANNOTATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = ANNOTATIONS_MAYBE_PARSER.addRule(ANNOTATIONS_MAYBE_RULE0).addRule(ANNOTATIONS_MAYBE_RULE1)
 private val QUALIFIED_NAME_PARSER_SETUP: pointer<ParserRef> = QUALIFIED_NAME_PARSER.addRule(QUALIFIED_NAME_RULE0).addRule(QUALIFIED_NAME_RULE1)
 private val PACKAGE_DECLARATION_PARSER_SETUP: pointer<ParserRef> = PACKAGE_DECLARATION_PARSER.addRule(PACKAGE_DECLARATION_RULE0)
 private val IMPORT_DECLARATION_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATION_PARSER.addRule(IMPORT_DECLARATION_RULE0)
-private val IMPORT_DECLARATIONS_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_PARSER.addRule(IMPORT_DECLARATIONS_RULE0).addRule(IMPORT_DECLARATIONS_RULE1)
-private val IMPORT_DECLARATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_MAYBE_PARSER.addRule(IMPORT_DECLARATIONS_MAYBE_RULE0).addRule(IMPORT_DECLARATIONS_MAYBE_RULE1)
+private val IMPORT_DECLARATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_MAYBE_PARSER.addRule(IMPORT_DECLARATIONS_MAYBE_RULE0)
 private val FUNCTION_PARAM_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAM_PARSER.addRule(FUNCTION_PARAM_RULE0).addRule(FUNCTION_PARAM_RULE1)
 private val FUNCTION_PARAMS_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAMS_PARSER.addRule(FUNCTION_PARAMS_RULE0).addRule(FUNCTION_PARAMS_RULE1)
 private val FUNCTION_PARAMS_MAYBE_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAMS_MAYBE_PARSER.addRule(FUNCTION_PARAMS_MAYBE_RULE0).addRule(FUNCTION_PARAMS_MAYBE_RULE1)
@@ -2677,7 +2555,6 @@ private val FIELD_PARSER_SETUP: pointer<ParserRef> = FIELD_PARSER.addRule(FIELD_
 private val FUNCTION_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARSER.addRule(FUNCTION_RULE0).addRule(FUNCTION_RULE1).addRule(FUNCTION_RULE2).addRule(FUNCTION_RULE3).addRule(FUNCTION_RULE4).addRule(FUNCTION_RULE5).addRule(FUNCTION_RULE6)
 private val STRUCT_CONSTRUCTOR_PARSER_SETUP: pointer<ParserRef> = STRUCT_CONSTRUCTOR_PARSER.addRule(STRUCT_CONSTRUCTOR_RULE0).addRule(STRUCT_CONSTRUCTOR_RULE1)
 private val MEMBER_PARSER_SETUP: pointer<ParserRef> = MEMBER_PARSER.addRule(MEMBER_RULE0).addRule(MEMBER_RULE1).addRule(MEMBER_RULE2).addRule(MEMBER_RULE3)
-private val MEMBERS_PARSER_SETUP: pointer<ParserRef> = MEMBERS_PARSER.addRule(MEMBERS_RULE0).addRule(MEMBERS_RULE1)
 private val STRUCT_PARSER_SETUP: pointer<ParserRef> = STRUCT_PARSER.addRule(STRUCT_RULE0)
 private val PROGRAM_PARSER_SETUP: pointer<ParserRef> = PROGRAM_PARSER.addRule(PROGRAM_RULE0).addRule(PROGRAM_RULE1)
 
@@ -2808,22 +2685,6 @@ fun parseStatement(input: pointer<TokenList>) -> pointer<Statement>
         return null
 
     return result.getValue() as pointer<Statement>
-}
-
-fun parseStatements(input: pointer<TokenList>) -> pointer<Statements>
-{
-    if input == null:
-        return null
-
-    if STATEMENTS_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = STATEMENTS_PARSER.getResult()
-
-    if result == null || result.isKind(STATEMENTS_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<Statements>
 }
 
 fun parseElseStatement(input: pointer<TokenList>) -> pointer<ElseStatement>
@@ -3130,22 +2991,6 @@ fun parseModifier(input: pointer<TokenList>) -> pointer<Modifier>
     return result.getValue() as pointer<Modifier>
 }
 
-fun parseModifierList(input: pointer<TokenList>) -> pointer<ModifierList>
-{
-    if input == null:
-        return null
-
-    if MODIFIER_LIST_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = MODIFIER_LIST_PARSER.getResult()
-
-    if result == null || result.isKind(MODIFIER_LIST_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<ModifierList>
-}
-
 fun parseModifierListMaybe(input: pointer<TokenList>) -> pointer<ModifierListMaybe>
 {
     if input == null:
@@ -3178,22 +3023,6 @@ fun parsePreprocessSetting(input: pointer<TokenList>) -> pointer<PreprocessSetti
     return result.getValue() as pointer<PreprocessSetting>
 }
 
-fun parsePreprocessSettings(input: pointer<TokenList>) -> pointer<PreprocessSettings>
-{
-    if input == null:
-        return null
-
-    if PREPROCESS_SETTINGS_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = PREPROCESS_SETTINGS_PARSER.getResult()
-
-    if result == null || result.isKind(PREPROCESS_SETTINGS_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<PreprocessSettings>
-}
-
 fun parsePreprocessSettingsMaybe(input: pointer<TokenList>) -> pointer<PreprocessSettingsMaybe>
 {
     if input == null:
@@ -3224,22 +3053,6 @@ fun parseAnnotation(input: pointer<TokenList>) -> pointer<Annotation>
         return null
 
     return result.getValue() as pointer<Annotation>
-}
-
-fun parseAnnotations(input: pointer<TokenList>) -> pointer<Annotations>
-{
-    if input == null:
-        return null
-
-    if ANNOTATIONS_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = ANNOTATIONS_PARSER.getResult()
-
-    if result == null || result.isKind(ANNOTATIONS_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<Annotations>
 }
 
 fun parseAnnotationsMaybe(input: pointer<TokenList>) -> pointer<AnnotationsMaybe>
@@ -3304,22 +3117,6 @@ fun parseImportDeclaration(input: pointer<TokenList>) -> pointer<ImportDeclarati
         return null
 
     return result.getValue() as pointer<ImportDeclaration>
-}
-
-fun parseImportDeclarations(input: pointer<TokenList>) -> pointer<ImportDeclarations>
-{
-    if input == null:
-        return null
-
-    if IMPORT_DECLARATIONS_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = IMPORT_DECLARATIONS_PARSER.getResult()
-
-    if result == null || result.isKind(IMPORT_DECLARATIONS_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<ImportDeclarations>
 }
 
 fun parseImportDeclarationsMaybe(input: pointer<TokenList>) -> pointer<ImportDeclarationsMaybe>
@@ -3448,22 +3245,6 @@ fun parseMember(input: pointer<TokenList>) -> pointer<Member>
         return null
 
     return result.getValue() as pointer<Member>
-}
-
-fun parseMembers(input: pointer<TokenList>) -> pointer<Members>
-{
-    if input == null:
-        return null
-
-    if MEMBERS_PARSER.doParse(input) < 0:
-        return null
-
-    val result: pointer<ParseContainer> = MEMBERS_PARSER.getResult()
-
-    if result == null || result.isKind(MEMBERS_PARSER_ID) == false:
-        return null
-
-    return result.getValue() as pointer<Members>
 }
 
 fun parseStruct(input: pointer<TokenList>) -> pointer<Struct>

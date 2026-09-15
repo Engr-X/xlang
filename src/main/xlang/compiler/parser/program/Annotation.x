@@ -135,3 +135,23 @@ struct Annotation
         return sb
     }
 }
+
+
+struct AnnotationsMaybe
+{
+    private var annotations: pointer<ArrayList>
+
+
+    constructor():
+        this.annotations = new ArrayList(sizeof(Annotation))
+
+
+    constructor(annotations: pointer<ArrayList>):
+        this.annotations = if annotations == null:
+                new ArrayList(sizeof(Annotation))
+            else:
+                annotations
+
+
+    fun toAnnotations() -> pointer<ArrayList> = this.annotations
+}

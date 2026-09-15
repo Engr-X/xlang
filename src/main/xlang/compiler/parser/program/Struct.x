@@ -32,7 +32,7 @@ import xlang.util.string.StringBuilder
 
 struct StructConstructor
 {
-    private var modifiers: pointer<ModifierList>
+    private var modifiers: pointer<ArrayList>
 
     private var params: pointer<FunctionParams>
 
@@ -43,7 +43,7 @@ struct StructConstructor
 
     constructor(params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
-        this.modifiers = new ModifierList()
+        this.modifiers = new ArrayList(sizeof(Modifier))
         this.params = if params == null:
                 new FunctionParams()
             else:
@@ -54,13 +54,13 @@ struct StructConstructor
     }
 
 
-    fun getModifiers() -> pointer<ModifierList> = this.modifiers
+    fun getModifiers() -> pointer<ArrayList> = this.modifiers
 
 
-    fun setModifiers(modifiers: pointer<ModifierList>) -> pointer<StructConstructor>
+    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<StructConstructor>
     {
         this.modifiers = if modifiers == null:
-                new ModifierList()
+                new ArrayList(sizeof(Modifier))
             else:
                 modifiers
 
@@ -91,7 +91,15 @@ struct StructConstructor
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         if this.modifiers != null:
-            result.pushAll(this.modifiers.getAllTokens())
+        {
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier != null:
+                    result.pushAll(modifier.getAllTokens())
+            }
+        }
 
         if this.params != null:
             result.pushAll(this.params.getAllTokens())
@@ -110,10 +118,26 @@ struct StructConstructor
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
-        if this.modifiers != null && this.modifiers.length() > 0:
+        if this.modifiers != null && this.modifiers.length > 0:
         {
-            sb.append(this.modifiers.toString())
-            sb.append(' ')
+            var appendedModifier: bool = false
+
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier == null:
+                    continue
+
+                if appendedModifier:
+                    sb.append(' ')
+
+                sb.append(modifier.toString())
+                appendedModifier = true
+            }
+
+            if appendedModifier:
+                sb.append(' ')
         }
 
         sb.append("constructor(")
@@ -133,9 +157,9 @@ struct StructConstructor
 
 struct Struct
 {
-    private var annotations: pointer<Annotations>
+    private var annotations: pointer<ArrayList>
 
-    private var modifiers: pointer<ModifierList>
+    private var modifiers: pointer<ArrayList>
 
     private var structName: pointer<char>
 
@@ -146,8 +170,8 @@ struct Struct
 
     constructor(structName: pointer<char>, members: pointer<ArrayList>)
     {
-        this.annotations = new Annotations()
-        this.modifiers = new ModifierList()
+        this.annotations = new ArrayList(sizeof(Annotation))
+        this.modifiers = new ArrayList(sizeof(Modifier))
         this.structName = structName
         this.members = if members == null:
                 new ArrayList(sizeof(Member))
@@ -158,27 +182,13 @@ struct Struct
     }
 
 
-    constructor(structName: pointer<char>, members: pointer<Members>)
-    {
-        this.annotations = new Annotations()
-        this.modifiers = new ModifierList()
-        this.structName = structName
-        this.members = if members == null:
-                new ArrayList(sizeof(Member))
-            else:
-                members.getMembers()
-
-        this.extraTokens = new ArrayList(sizeof(Token))
-    }
+    fun getAnnotations() -> pointer<ArrayList> = this.annotations
 
 
-    fun getAnnotations() -> pointer<Annotations> = this.annotations
-
-
-    fun setAnnotations(annotations: pointer<Annotations>) -> pointer<Struct>
+    fun setAnnotations(annotations: pointer<ArrayList>) -> pointer<Struct>
     {
         this.annotations = if annotations == null:
-                new Annotations()
+                new ArrayList(sizeof(Annotation))
             else:
                 annotations
 
@@ -186,13 +196,13 @@ struct Struct
     }
 
 
-    fun getModifiers() -> pointer<ModifierList> = this.modifiers
+    fun getModifiers() -> pointer<ArrayList> = this.modifiers
 
 
-    fun setModifiers(modifiers: pointer<ModifierList>) -> pointer<Struct>
+    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<Struct>
     {
         this.modifiers = if modifiers == null:
-                new ModifierList()
+                new ArrayList(sizeof(Modifier))
             else:
                 modifiers
 
@@ -241,10 +251,26 @@ struct Struct
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         if this.annotations != null:
-            result.pushAll(this.annotations.getAllTokens())
+        {
+            for (var i = 0; i < this.annotations.length; i++):
+            {
+                val annotation: pointer<Annotation> = this.annotations.get(i) as pointer<Annotation>
+
+                if annotation != null:
+                    result.pushAll(annotation.getAllTokens())
+            }
+        }
 
         if this.modifiers != null:
-            result.pushAll(this.modifiers.getAllTokens())
+        {
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier != null:
+                    result.pushAll(modifier.getAllTokens())
+            }
+        }
 
         for (var i = 0; i < this.members.length; i++):
         {
@@ -270,16 +296,40 @@ struct Struct
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
-        if this.annotations != null && this.annotations.length() > 0:
+        if this.annotations != null && this.annotations.length > 0:
         {
-            sb.append(this.annotations.toString())
-            sb.newline()
+            for (var i = 0; i < this.annotations.length; i++):
+            {
+                val annotation: pointer<Annotation> = this.annotations.get(i) as pointer<Annotation>
+
+                if annotation != null:
+                {
+                    sb.append(annotation.toString())
+                    sb.newline()
+                }
+            }
         }
 
-        if this.modifiers != null && this.modifiers.length() > 0:
+        if this.modifiers != null && this.modifiers.length > 0:
         {
-            sb.append(this.modifiers.toString())
-            sb.append(' ')
+            var appendedModifier: bool = false
+
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier == null:
+                    continue
+
+                if appendedModifier:
+                    sb.append(' ')
+
+                sb.append(modifier.toString())
+                appendedModifier = true
+            }
+
+            if appendedModifier:
+                sb.append(' ')
         }
 
         sb.append("struct ")

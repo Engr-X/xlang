@@ -82,3 +82,24 @@ struct ImportDeclaration
         return sb
     }
 }
+
+
+struct ImportDeclarationsMaybe
+{
+    private var imports: pointer<ArrayList>
+
+
+    constructor():
+        this.imports = new ArrayList(sizeof(ImportDeclaration))
+
+
+    constructor(imports: pointer<ArrayList>):
+        this.imports = if imports == null:
+                new ArrayList(sizeof(ImportDeclaration))
+            else:
+                imports
+
+
+    fun toImportDeclarations() -> pointer<ArrayList> = this.imports
+}
+

@@ -31,11 +31,11 @@ import xlang.util.string.StringBuilder
 
 struct Program
 {
-    private var preprocessSettings: pointer<PreprocessSettings>
+    private var preprocessSettings: pointer<ArrayList>
 
     private var packageDeclaration: pointer<PackageDeclaration>
 
-    private var importDeclarations: pointer<ImportDeclarations>
+    private var importDeclarations: pointer<ArrayList>
 
     private val members: pointer<ArrayList>
 
@@ -44,9 +44,9 @@ struct Program
 
     constructor(members: pointer<ArrayList>)
     {
-        this.preprocessSettings = new PreprocessSettings()
+        this.preprocessSettings = new ArrayList(sizeof(PreprocessSetting))
         this.packageDeclaration = null
-        this.importDeclarations = new ImportDeclarations()
+        this.importDeclarations = new ArrayList(sizeof(ImportDeclaration))
         this.members = if members == null:
                 new ArrayList(sizeof(Member))
             else:
@@ -56,13 +56,13 @@ struct Program
     }
 
 
-    fun getPreprocessSettings() -> pointer<PreprocessSettings> = this.preprocessSettings
+    fun getPreprocessSettings() -> pointer<ArrayList> = this.preprocessSettings
 
 
-    fun setPreprocessSettings(settings: pointer<PreprocessSettings>) -> pointer<Program>
+    fun setPreprocessSettings(settings: pointer<ArrayList>) -> pointer<Program>
     {
         this.preprocessSettings = if settings == null:
-                new PreprocessSettings()
+                new ArrayList(sizeof(PreprocessSetting))
             else:
                 settings
 
@@ -80,13 +80,13 @@ struct Program
     }
 
 
-    fun getImportDeclarations() -> pointer<ImportDeclarations> = this.importDeclarations
+    fun getImportDeclarations() -> pointer<ArrayList> = this.importDeclarations
 
 
-    fun setImportDeclarations(imports: pointer<ImportDeclarations>) -> pointer<Program>
+    fun setImportDeclarations(imports: pointer<ArrayList>) -> pointer<Program>
     {
         this.importDeclarations = if imports == null:
-                new ImportDeclarations()
+                new ArrayList(sizeof(ImportDeclaration))
             else:
                 imports
 
@@ -144,13 +144,31 @@ struct Program
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         if this.preprocessSettings != null:
-            result.pushAll(this.preprocessSettings.getAllTokens())
+        {
+            for (var i = 0; i < this.preprocessSettings.length; i++):
+            {
+                val setting: pointer<PreprocessSetting> =
+                    this.preprocessSettings.get(i) as pointer<PreprocessSetting>
+
+                if setting != null:
+                    result.pushAll(setting.getAllTokens())
+            }
+        }
 
         if this.packageDeclaration != null:
             result.pushAll(this.packageDeclaration.getAllTokens())
 
         if this.importDeclarations != null:
-            result.pushAll(this.importDeclarations.getAllTokens())
+        {
+            for (var i = 0; i < this.importDeclarations.length; i++):
+            {
+                val importDeclaration: pointer<ImportDeclaration> =
+                    this.importDeclarations.get(i) as pointer<ImportDeclaration>
+
+                if importDeclaration != null:
+                    result.pushAll(importDeclaration.getAllTokens())
+            }
+        }
 
         for (var i = 0; i < this.members.length; i++):
         {
@@ -177,10 +195,22 @@ struct Program
         val sb: pointer<StringBuilder> = new StringBuilder()
         var appendedSection: bool = false
 
-        if this.preprocessSettings != null && this.preprocessSettings.length() > 0:
+        if this.preprocessSettings != null && this.preprocessSettings.length > 0:
         {
-            sb.append(this.preprocessSettings.toString())
-            appendedSection = true
+            for (var i = 0; i < this.preprocessSettings.length; i++):
+            {
+                val setting: pointer<PreprocessSetting> =
+                    this.preprocessSettings.get(i) as pointer<PreprocessSetting>
+
+                if setting == null:
+                    continue
+
+                if appendedSection:
+                    sb.newline()
+
+                sb.append(setting.toString())
+                appendedSection = true
+            }
         }
 
         if this.packageDeclaration != null:
@@ -192,12 +222,25 @@ struct Program
             appendedSection = true
         }
 
-        if this.importDeclarations != null && this.importDeclarations.length() > 0:
+        if this.importDeclarations != null && this.importDeclarations.length > 0:
         {
             if appendedSection:
                 sb.newline()
 
-            sb.append(this.importDeclarations.toString())
+            for (var i = 0; i < this.importDeclarations.length; i++):
+            {
+                val importDeclaration: pointer<ImportDeclaration> =
+                    this.importDeclarations.get(i) as pointer<ImportDeclaration>
+
+                if importDeclaration == null:
+                    continue
+
+                if i > 0:
+                    sb.newline()
+
+                sb.append(importDeclaration.toString())
+            }
+
             appendedSection = true
         }
 

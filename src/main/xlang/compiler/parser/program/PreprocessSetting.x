@@ -120,3 +120,23 @@ struct PreprocessSetting
         return sb
     }
 }
+
+
+struct PreprocessSettingsMaybe
+{
+    private var settings: pointer<ArrayList>
+
+
+    constructor():
+        this.settings = new ArrayList(sizeof(PreprocessSetting))
+
+
+    constructor(settings: pointer<ArrayList>):
+        this.settings = if settings == null:
+                new ArrayList(sizeof(PreprocessSetting))
+            else:
+                settings
+
+
+    fun toPreprocessSettings() -> pointer<ArrayList> = this.settings
+}

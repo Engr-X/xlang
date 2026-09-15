@@ -259,9 +259,9 @@ struct FunctionParamsMaybe
 
 struct Function
 {
-    private var annotations: pointer<Annotations>
+    private var annotations: pointer<ArrayList>
 
-    private var modifiers: pointer<ModifierList>
+    private var modifiers: pointer<ArrayList>
 
     private var functionName: pointer<char>
 
@@ -276,8 +276,8 @@ struct Function
 
     constructor(functionName: pointer<char>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
-        this.annotations = new Annotations()
-        this.modifiers = new ModifierList()
+        this.annotations = new ArrayList(sizeof(Annotation))
+        this.modifiers = new ArrayList(sizeof(Modifier))
         this.functionName = functionName
         this.params = params
         this.returnType = null
@@ -289,13 +289,13 @@ struct Function
     fun haveBody() -> bool = this.bodyExpr != null
 
 
-    fun getAnnotations() -> pointer<Annotations> = this.annotations
+    fun getAnnotations() -> pointer<ArrayList> = this.annotations
 
 
-    fun setAnnotations(annotations: pointer<Annotations>) -> pointer<Function>
+    fun setAnnotations(annotations: pointer<ArrayList>) -> pointer<Function>
     {
         this.annotations = if annotations == null:
-                new Annotations()
+                new ArrayList(sizeof(Annotation))
             else:
                 annotations
 
@@ -303,13 +303,13 @@ struct Function
     }
 
 
-    fun getModifiers() -> pointer<ModifierList> = this.modifiers
+    fun getModifiers() -> pointer<ArrayList> = this.modifiers
 
 
-    fun setModifiers(modifiers: pointer<ModifierList>) -> pointer<Function>
+    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<Function>
     {
         this.modifiers = if modifiers == null:
-                new ModifierList()
+                new ArrayList(sizeof(Modifier))
             else:
                 modifiers
 
@@ -357,10 +357,26 @@ struct Function
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         if this.annotations != null:
-            result.pushAll(this.annotations.getAllTokens())
+        {
+            for (var i = 0; i < this.annotations.length; i++):
+            {
+                val annotation: pointer<Annotation> = this.annotations.get(i) as pointer<Annotation>
+
+                if annotation != null:
+                    result.pushAll(annotation.getAllTokens())
+            }
+        }
 
         if this.modifiers != null:
-            result.pushAll(this.modifiers.getAllTokens())
+        {
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier != null:
+                    result.pushAll(modifier.getAllTokens())
+            }
+        }
 
         if this.params != null:
             result.pushAll(this.params.getAllTokens())
@@ -382,16 +398,40 @@ struct Function
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
-        if this.annotations != null && this.annotations.length() > 0:
+        if this.annotations != null && this.annotations.length > 0:
         {
-            sb.append(this.annotations.toString())
-            sb.newline()
+            for (var i = 0; i < this.annotations.length; i++):
+            {
+                val annotation: pointer<Annotation> = this.annotations.get(i) as pointer<Annotation>
+
+                if annotation != null:
+                {
+                    sb.append(annotation.toString())
+                    sb.newline()
+                }
+            }
         }
 
-        if this.modifiers != null && this.modifiers.length() > 0:
+        if this.modifiers != null && this.modifiers.length > 0:
         {
-            sb.append(this.modifiers.toString())
-            sb.append(' ')
+            var appendedModifier: bool = false
+
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier == null:
+                    continue
+
+                if appendedModifier:
+                    sb.append(' ')
+
+                sb.append(modifier.toString())
+                appendedModifier = true
+            }
+
+            if appendedModifier:
+                sb.append(' ')
         }
 
         sb.append("fun ")

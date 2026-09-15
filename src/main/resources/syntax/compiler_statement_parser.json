@@ -16,7 +16,6 @@
         "xlang.compiler.parser.statement.ExprListStatement",
         "xlang.compiler.parser.statement.VariableDefine",
         "xlang.compiler.parser.statement.VariableDefines",
-        "xlang.compiler.parser.statement.Statements",
         "xlang.compiler.parser.statement.ElseStatement",
         "xlang.compiler.parser.statement.WhileStatement",
         "xlang.compiler.parser.statement.ForHeader",
@@ -48,14 +47,6 @@
                 { "patterns": [{ "kind": "$BreakStatement" }], "action": "makeStmtFrom_BreakStmt" },
                 { "patterns": [{ "kind": "$ContinueStatement" }], "action": "makeStmtFrom_ContinueStmt" },
                 { "patterns": [{ "kind": "$PassStatement" }], "action": "makeStmtFrom_PassStmt" }
-            ]
-        },
-        {
-            "class": "Statements",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$Statement" }, { "kind": "$Statements" }], "action": "makeStmtsIt" },
-                { "patterns": [{ "kind": "$Statement" }], "action": "makeSingleStmts" }
             ]
         },
         {
@@ -291,23 +282,6 @@
             "}" ],
 
 
-
-            
-         [   "private inline fun makeStmtsIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
-            "    val right: pointer<Statements> = getContainerValue(results, 1) as pointer<Statements>",
-            "",
-            "    return new Statements(statement).addStatements(right)",
-            "}" ],
-
-
-        [   "private inline fun makeSingleStmts(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val statement: pointer<Statement> = getContainerValue(results, 0) as pointer<Statement>",
-            "",
-            "    return new Statements(statement)",
-            "}" ],
 
 
         [   "private inline fun makeElseStmtFromStmt(results: pointer<ArrayList>) -> pointer<*>",

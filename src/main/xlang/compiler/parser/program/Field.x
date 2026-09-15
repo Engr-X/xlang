@@ -40,9 +40,9 @@ struct Field
 
     private var modifier: int
 
-    private var annotations: pointer<Annotations>
+    private var annotations: pointer<ArrayList>
 
-    private var modifiers: pointer<ModifierList>
+    private var modifiers: pointer<ArrayList>
 
     private var fieldName: pointer<char>
 
@@ -62,8 +62,8 @@ struct Field
     constructor(fieldName: pointer<char>, fieldType: pointer<Type>)
     {
         this.modifier = CONST_MODIFIER
-        this.annotations = new Annotations()
-        this.modifiers = new ModifierList()
+        this.annotations = new ArrayList(sizeof(Annotation))
+        this.modifiers = new ArrayList(sizeof(Modifier))
         this.fieldName = fieldName
         this.fieldType = fieldType
         this.initialValue = null
@@ -71,13 +71,13 @@ struct Field
     }
 
 
-    fun getAnnotations() -> pointer<Annotations> = this.annotations
+    fun getAnnotations() -> pointer<ArrayList> = this.annotations
 
 
-    fun setAnnotations(annotations: pointer<Annotations>) -> pointer<Field>
+    fun setAnnotations(annotations: pointer<ArrayList>) -> pointer<Field>
     {
         this.annotations = if annotations == null:
-                new Annotations()
+                new ArrayList(sizeof(Annotation))
             else:
                 annotations
 
@@ -85,13 +85,13 @@ struct Field
     }
 
 
-    fun getModifiers() -> pointer<ModifierList> = this.modifiers
+    fun getModifiers() -> pointer<ArrayList> = this.modifiers
 
 
-    fun setModifiers(modifiers: pointer<ModifierList>) -> pointer<Field>
+    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<Field>
     {
         this.modifiers = if modifiers == null:
-                new ModifierList()
+                new ArrayList(sizeof(Modifier))
             else:
                 modifiers
 
@@ -153,10 +153,26 @@ struct Field
         val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
 
         if this.annotations != null:
-            result.pushAll(this.annotations.getAllTokens())
+        {
+            for (var i = 0; i < this.annotations.length; i++):
+            {
+                val annotation: pointer<Annotation> = this.annotations.get(i) as pointer<Annotation>
+
+                if annotation != null:
+                    result.pushAll(annotation.getAllTokens())
+            }
+        }
 
         if this.modifiers != null:
-            result.pushAll(this.modifiers.getAllTokens())
+        {
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier != null:
+                    result.pushAll(modifier.getAllTokens())
+            }
+        }
 
         if this.fieldType != null:
             result.pushAll(this.fieldType.getAllTokens())
@@ -175,16 +191,40 @@ struct Field
     {
         val sb: pointer<StringBuilder> = new StringBuilder()
 
-        if this.annotations != null && this.annotations.length() > 0:
+        if this.annotations != null && this.annotations.length > 0:
         {
-            sb.append(this.annotations.toString())
-            sb.newline()
+            for (var i = 0; i < this.annotations.length; i++):
+            {
+                val annotation: pointer<Annotation> = this.annotations.get(i) as pointer<Annotation>
+
+                if annotation != null:
+                {
+                    sb.append(annotation.toString())
+                    sb.newline()
+                }
+            }
         }
 
-        if this.modifiers != null && this.modifiers.length() > 0:
+        if this.modifiers != null && this.modifiers.length > 0:
         {
-            sb.append(this.modifiers.toString())
-            sb.append(' ')
+            var appendedModifier: bool = false
+
+            for (var i = 0; i < this.modifiers.length; i++):
+            {
+                val modifier: pointer<Modifier> = this.modifiers.get(i) as pointer<Modifier>
+
+                if modifier == null:
+                    continue
+
+                if appendedModifier:
+                    sb.append(' ')
+
+                sb.append(modifier.toString())
+                appendedModifier = true
+            }
+
+            if appendedModifier:
+                sb.append(' ')
         }
 
         if this.canModified():

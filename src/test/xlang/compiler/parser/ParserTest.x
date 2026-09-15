@@ -40,7 +40,6 @@ import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.Member
-import xlang.compiler.parser.program.ModifierList
 import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.Struct
 import xlang.compiler.parser.program.StructConstructor
@@ -312,98 +311,6 @@ private fun printProgramCheckpoint(path: pointer<char>, step: pointer<char>, tok
 }
 
 
-private fun consumeToken(tokens: pointer<TokenList>, kind: int) -> bool
-{
-    if tokens == null || tokens.length() <= 0:
-        return false
-
-    val token: pointer<Token> = tokens.get(0)
-
-    if token.kind != kind:
-        return false
-
-    tokens.remove(0, 1)
-    return true
-}
-
-
-private fun debugStructMemberParse(path: pointer<char>, tokens: pointer<TokenList>)
-{
-    val structTokens: pointer<TokenList> = tokens.subToken(0, tokens.length())
-
-    if Parser.parseModifierListMaybe(structTokens) == null:
-    {
-        printProgramCheckpoint(path, "parseModifierListMaybe failed in struct", structTokens)
-        return
-    }
-
-    if !consumeToken(structTokens, Tokenizer.KW_STRUCT):
-    {
-        printProgramCheckpoint(path, "expected struct keyword", structTokens)
-        return
-    }
-
-    if !consumeToken(structTokens, Tokenizer.TK_IDENTIFIER):
-    {
-        printProgramCheckpoint(path, "expected struct name", structTokens)
-        return
-    }
-
-    if !consumeToken(structTokens, Tokenizer.LEFT_BRACE):
-    {
-        printProgramCheckpoint(path, "expected struct left brace", structTokens)
-        return
-    }
-
-    if Parser.parseMembers(structTokens) == null:
-    {
-        printProgramCheckpoint(path, "parseMembers failed inside struct body", structTokens)
-        return
-    }
-
-    printProgramCheckpoint(path, "struct body members parsed", structTokens)
-}
-
-
-private fun debugProgramPieces(path: pointer<char>, source: pointer<char>)
-{
-    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(source)
-
-    if Parser.parsePreprocessSettingsMaybe(tokens) == null:
-    {
-        printProgramCheckpoint(path, "parsePreprocessSettingsMaybe failed", tokens)
-        return
-    }
-
-    printProgramCheckpoint(path, "after preprocess settings", tokens)
-
-    if Parser.parsePackageDeclaration(tokens) == null:
-    {
-        printProgramCheckpoint(path, "parsePackageDeclaration failed", tokens)
-        return
-    }
-
-    printProgramCheckpoint(path, "after package declaration", tokens)
-
-    if Parser.parseImportDeclarationsMaybe(tokens) == null:
-    {
-        printProgramCheckpoint(path, "parseImportDeclarationsMaybe failed", tokens)
-        return
-    }
-
-    printProgramCheckpoint(path, "after import declarations", tokens)
-
-    if Parser.parseMembers(tokens) == null:
-    {
-        printProgramCheckpoint(path, "parseMembers failed at program level", tokens)
-        debugStructMemberParse(path, tokens)
-        return
-    }
-
-    printProgramCheckpoint(path, "after program members", tokens)
-}
-
-
 private fun parseProgramFile(path: pointer<char>, source: pointer<char>, cachedTokens: pointer<TokenList>) -> bool
 {
     if source == null:
@@ -431,7 +338,6 @@ private fun parseProgramFile(path: pointer<char>, source: pointer<char>, cachedT
         printProgramFailure(path, "parseProgram returned null near", token)
         printTokenDump("raw tokens: ", Tokenizer.tokenize(source))
         printTokenDump("normalized tokens: ", tokens)
-        debugProgramPieces(path, source)
         return false
     }
 
@@ -441,7 +347,6 @@ private fun parseProgramFile(path: pointer<char>, source: pointer<char>, cachedT
         printProgramFailure(path, "parseProgram left token", token)
         printTokenDump("raw tokens: ", Tokenizer.tokenize(source))
         printTokenDump("normalized tokens: ", tokens)
-        debugStructMemberParse(path, tokens)
         return false
     }
 
@@ -676,9 +581,9 @@ private fun structRuleTest() -> int
     if !String.streq(structDecl.getStructName(), "Box"):
         return 2
 
-    val modifiers: pointer<ModifierList> = structDecl.getModifiers()
+    val modifiers: pointer<ArrayList> = structDecl.getModifiers()
 
-    if modifiers == null || modifiers.length() != 1:
+    if modifiers == null || modifiers.length != 1:
         return 3
 
     val members: pointer<ArrayList> = structDecl.getMembers()

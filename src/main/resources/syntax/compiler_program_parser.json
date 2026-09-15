@@ -10,7 +10,6 @@
         "xlang.compiler.parser.expression.Atoms",
         "xlang.compiler.parser.expression.Expression",
         "xlang.compiler.parser.program.Annotation",
-        "xlang.compiler.parser.program.Annotations",
         "xlang.compiler.parser.program.AnnotationsMaybe",
         "xlang.compiler.parser.program.Field",
         "xlang.compiler.parser.program.Function",
@@ -18,18 +17,14 @@
         "xlang.compiler.parser.program.FunctionParams",
         "xlang.compiler.parser.program.FunctionParamsMaybe",
         "xlang.compiler.parser.program.Member",
-        "xlang.compiler.parser.program.Members",
         "xlang.compiler.parser.program.Struct",
         "xlang.compiler.parser.program.StructConstructor",
         "xlang.compiler.parser.program.PreprocessSetting",
-        "xlang.compiler.parser.program.PreprocessSettings",
         "xlang.compiler.parser.program.PreprocessSettingsMaybe",
         "xlang.compiler.parser.program.Program",
         "xlang.compiler.parser.program.ImportDeclaration",
-        "xlang.compiler.parser.program.ImportDeclarations",
         "xlang.compiler.parser.program.ImportDeclarationsMaybe",
         "xlang.compiler.parser.program.Modifier",
-        "xlang.compiler.parser.program.ModifierList",
         "xlang.compiler.parser.program.ModifierListMaybe",
         "xlang.compiler.parser.program.PackageDeclaration",
         "xlang.compiler.parser.program.QualifiedName",
@@ -54,19 +49,10 @@
             ]
         },
         {
-            "class": "ModifierList",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$Modifier" }, { "kind": "$ModifierList" }], "action": "makeModifierListIt" },
-                { "patterns": [{ "kind": "$Modifier" }], "action": "makeModifierList" }
-            ]
-        },
-        {
             "class": "ModifierListMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$ModifierList" }], "action": "makeModifierListMaybe" },
-                { "patterns": [], "action": "makeEmptyModifierListMaybe" }
+                { "patterns": [{ "kind": "[$Modifier]" }], "action": "makeModifierListMaybe" }
             ]
         },
         {
@@ -78,18 +64,10 @@
             ]
         },
         {
-            "class": "PreprocessSettings",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$PreprocessSetting" }, { "kind": "$PreprocessSettings" }], "action": "makePreprocessSettingsIt" },
-                { "patterns": [{ "kind": "$PreprocessSetting" }], "action": "makePreprocessSettings" }
-            ]
-        },
-        {
             "class": "PreprocessSettingsMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$PreprocessSettings" }], "action": "makePreprocessSettingsMaybe" },
+                { "patterns": [{ "kind": "[$PreprocessSetting]" }], "action": "makePreprocessSettingsMaybe" },
                 { "patterns": [], "action": "makeEmptyPreprocessSettingsMaybe" }
             ]
         },
@@ -103,18 +81,10 @@
             ]
         },
         {
-            "class": "Annotations",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$Annotation" }, { "kind": "$Annotations" }], "action": "makeAnnotationsIt" },
-                { "patterns": [{ "kind": "$Annotation" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeAnnotations" }
-            ]
-        },
-        {
             "class": "AnnotationsMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$Annotations" }], "action": "makeAnnotationsMaybe" },
+                { "patterns": [{ "kind": "[$Annotation]" }], "action": "makeAnnotationsMaybe" },
                 { "patterns": [], "action": "makeEmptyAnnotationsMaybe" }
             ]
         },
@@ -141,19 +111,10 @@
             ]
         },
         {
-            "class": "ImportDeclarations",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$ImportDeclaration" }, { "kind": "$ImportDeclarations" }], "action": "makeImportDeclarationsIt" },
-                { "patterns": [{ "kind": "$ImportDeclaration" }], "action": "makeImportDeclarations" }
-            ]
-        },
-        {
             "class": "ImportDeclarationsMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$ImportDeclarations" }], "action": "makeImportDeclarationsMaybe" },
-                { "patterns": [], "action": "makeEmptyImportDeclarationsMaybe" }
+                { "patterns": [{ "kind": "[$ImportDeclaration]" }], "action": "makeImportDeclarationsMaybe" }
             ]
         },
         {
@@ -223,26 +184,18 @@
             ]
         },
         {
-            "class": "Members",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$Member" }, { "kind": "$Members" }], "action": "makeMembersIt" },
-                { "patterns": [{ "kind": "$Member" }], "action": "makeMembers" }
-            ]
-        },
-        {
             "class": "Struct",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_STRUCT" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "$Members" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStruct" }
+                { "patterns": [{ "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_STRUCT" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$Member]" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStruct" }
             ]
         },
         {
             "class": "Program",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$PackageDeclaration" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "$Members" }], "action": "makeProgramWithPackage" },
-                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "$Members" }], "action": "makeProgram" }
+                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$PackageDeclaration" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgramWithPackage" },
+                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgram" }
             ]
         }
     ],
@@ -255,30 +208,16 @@
             "}" ],
 
 
-        [   "private inline fun makeModifierListIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>",
-            "    val modifierList: pointer<ModifierList> = getContainerValue(results, 1) as pointer<ModifierList>",
-            "",
-            "    return modifierList.pushFront(modifier)",
-            "}" ],
-
-
-        [   "private inline fun makeModifierList(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val modifier: pointer<Modifier> = getContainerValue(results, 0) as pointer<Modifier>",
-            "    return new ModifierList(modifier)",
-            "}" ],
-
-
         [   "private inline fun makeModifierListMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val modifierList: pointer<ModifierList> = getContainerValue(results, 0) as pointer<ModifierList>",
-            "    return new ModifierListMaybe(modifierList)",
+            "    val parsedModifiers: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
+            "    val modifiers: pointer<ArrayList> = new ArrayList(sizeof(Modifier))",
+            "",
+            "    for (var i = 0; i < parsedModifiers.length; i++):",
+            "        modifiers.push(getContainerValue(parsedModifiers, i) as pointer<Modifier>)",
+            "",
+            "    return new ModifierListMaybe(modifiers)",
             "}" ],
-
-
-        [   "private inline fun makeEmptyModifierListMaybe(results: pointer<ArrayList>) -> pointer<*> = new ModifierListMaybe(null)" ],
 
 
         [   "private inline fun makeEmptyPreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
@@ -310,32 +249,19 @@
             "}" ],
 
 
-        [   "private inline fun makePreprocessSettingsIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val setting: pointer<PreprocessSetting> = getContainerValue(results, 0) as pointer<PreprocessSetting>",
-            "    val settings: pointer<PreprocessSettings> = getContainerValue(results, 1) as pointer<PreprocessSettings>",
-            "",
-            "    return settings.push(setting)",
-            "}" ],
-
-
-        [   "private inline fun makePreprocessSettings(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val setting: pointer<PreprocessSetting> = getContainerValue(results, 0) as pointer<PreprocessSetting>",
-            "",
-            "    return new PreprocessSettings(setting)",
-            "}" ],
-
-
         [   "private inline fun makePreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val settings: pointer<PreprocessSettings> = getContainerValue(results, 0) as pointer<PreprocessSettings>",
+            "    val parsedSettings: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
+            "    val settings: pointer<ArrayList> = new ArrayList(sizeof(PreprocessSetting))",
+            "",
+            "    for (var i = 0; i < parsedSettings.length; i++):",
+            "        settings.push(getContainerValue(parsedSettings, i) as pointer<PreprocessSetting>)",
             "",
             "    return new PreprocessSettingsMaybe(settings)",
             "}" ],
 
 
-        [   "private inline fun makeEmptyPreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*> = new PreprocessSettingsMaybe(null)" ],
+        [   "private inline fun makeEmptyPreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*> = new PreprocessSettingsMaybe()" ],
 
 
         [   "private inline fun makeAnnotation(results: pointer<ArrayList>) -> pointer<*>",
@@ -376,30 +302,19 @@
             "}" ],
 
 
-        [   "private inline fun makeAnnotationsIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>",
-            "    val annotations: pointer<Annotations> = getContainerValue(results, 1) as pointer<Annotations>",
-            "",
-            "    return annotations.push(annotation)",
-            "}" ],
-
-
-        [   "private inline fun makeAnnotations(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val annotation: pointer<Annotation> = getContainerValue(results, 0) as pointer<Annotation>",
-            "    return new Annotations(annotation)",
-            "}" ],
-
-
         [   "private inline fun makeAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val annotations: pointer<Annotations> = getContainerValue(results, 0) as pointer<Annotations>",
+            "    val parsedAnnotations: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
+            "    val annotations: pointer<ArrayList> = new ArrayList(sizeof(Annotation))",
+            "",
+            "    for (var i = 0; i < parsedAnnotations.length; i++):",
+            "        annotations.push(getContainerValue(parsedAnnotations, i) as pointer<Annotation>)",
+            "",
             "    return new AnnotationsMaybe(annotations)",
             "}" ],
 
 
-        [   "private inline fun makeEmptyAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new AnnotationsMaybe(null)" ],
+        [   "private inline fun makeEmptyAnnotationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new AnnotationsMaybe()" ],
 
 
         [   "private inline fun makeQualifiedNameIt(results: pointer<ArrayList>) -> pointer<*>",
@@ -440,32 +355,16 @@
             "}" ],
 
 
-        [   "private inline fun makeImportDeclarationsIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>",
-            "    val imports: pointer<ImportDeclarations> = getContainerValue(results, 1) as pointer<ImportDeclarations>",
-            "    val result: pointer<ImportDeclarations> = new ImportDeclarations()",
-            "",
-            "    return result.push(importDeclaration).pushAll(imports)",
-            "}" ],
-
-
-        [   "private inline fun makeImportDeclarations(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val importDeclaration: pointer<ImportDeclaration> = getContainerValue(results, 0) as pointer<ImportDeclaration>",
-            "",
-            "    return new ImportDeclarations().push(importDeclaration)",
-            "}" ],
-
-
         [   "private inline fun makeImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val imports: pointer<ImportDeclarations> = getContainerValue(results, 0) as pointer<ImportDeclarations>",
+            "    val parsedImports: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
+            "    val imports: pointer<ArrayList> = new ArrayList(sizeof(ImportDeclaration))",
+            "",
+            "    for (var i = 0; i < parsedImports.length; i++):",
+            "        imports.push(getContainerValue(parsedImports, i) as pointer<ImportDeclaration>)",
+            "",
             "    return new ImportDeclarationsMaybe(imports)",
             "}" ],
-
-
-        [   "private inline fun makeEmptyImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*> = new ImportDeclarationsMaybe(null)" ],
 
 
         [   "private inline fun makeFunctionParam(results: pointer<ArrayList>) -> pointer<*>",
@@ -715,29 +614,13 @@
             "}" ],
 
 
-        [   "private inline fun makeMembersIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>",
-            "    val members: pointer<Members> = getContainerValue(results, 1) as pointer<Members>",
-            "",
-            "    return new Members(member).pushAll(members)",
-            "}" ],
-
-
-        [   "private inline fun makeMembers(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val member: pointer<Member> = getContainerValue(results, 0) as pointer<Member>",
-            "    return new Members(member)",
-            "}" ],
-
-
         [   "private inline fun makeStruct(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val modifiers: pointer<ModifierListMaybe> = getContainerValue(results, 0) as pointer<ModifierListMaybe>",
             "    val structToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
             "    val nameToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "    val leftBrace: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "    val members: pointer<Members> = getContainerValue(results, 4) as pointer<Members>",
+            "    val members: pointer<ArrayList> = getContainerValue(results, 4) as pointer<ArrayList>",
             "    val rightBrace: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>",
             "",
             "    return new Struct(nameToken.text, members)",
@@ -754,9 +637,9 @@
             "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
             "    val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 1) as pointer<PackageDeclaration>",
             "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 2) as pointer<ImportDeclarationsMaybe>",
-            "    val members: pointer<Members> = getContainerValue(results, 3) as pointer<Members>",
+            "    val members: pointer<ArrayList> = getContainerValue(results, 3) as pointer<ArrayList>",
             "",
-            "    return new Program(members.getMembers())",
+            "    return new Program(members)",
             "        .setPreprocessSettings(settings.toPreprocessSettings())",
             "        .setPackageDeclaration(packageDeclaration)",
             "        .setImportDeclarations(imports.toImportDeclarations())",
@@ -767,9 +650,9 @@
             "{",
             "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
             "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 1) as pointer<ImportDeclarationsMaybe>",
-            "    val members: pointer<Members> = getContainerValue(results, 2) as pointer<Members>",
+            "    val members: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
             "",
-            "    return new Program(members.getMembers())",
+            "    return new Program(members)",
             "        .setPreprocessSettings(settings.toPreprocessSettings())",
             "        .setImportDeclarations(imports.toImportDeclarations())",
             "}" ]
