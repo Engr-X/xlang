@@ -197,10 +197,10 @@
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.EQUAL" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunction" },
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunctionFromBlock" },
+                { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.ARROW" }, { "kind": "$Type" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeFunctionFromEmptyBlock" },
 
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.COLON" }, { "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunction" },
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$Block" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromBlock" },
-                
                 { "patterns": [{ "kind": "$AnnotationsMaybe" }, { "kind": "$ModifierListMaybe" }, { "kind": "Tokenizer.KW_FUN" }, { "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$FunctionParamsMaybe" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeVoidFunctionFromEmptyBlock" }
             ]
         },
@@ -613,6 +613,16 @@
             "    val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)",
             "",
             "    return addFunctionPrefixTokens(buildFunction(results, returnType, bodyExpr), results)",
+            "        .addExtraToken(arrowToken)",
+            "}" ],
+
+
+        [   "private inline fun makeFunctionFromEmptyBlock(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val arrowToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>",
+            "    val returnType: pointer<Type> = getContainerValue(results, 8) as pointer<Type>",
+            "",
+            "    return addFunctionPrefixTokens(buildFunction(results, returnType, null), results)",
             "        .addExtraToken(arrowToken)",
             "}" ],
 

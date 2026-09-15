@@ -1363,6 +1363,20 @@ private fun makeIfElseExprFinalS(results: pointer<ArrayList>) -> pointer<*>
        .addExtraToken(ifToken).addExtraToken(colonToken)
 }
 
+private fun makeIfElseExprFinalE(results: pointer<ArrayList>) -> pointer<*>
+{
+    val ifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
+    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val expression: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>
+    val instance1: pointer<IfElseExpression> = getContainerValue(results, 4) as pointer<IfElseExpression>
+    val statement: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expression))
+
+    return instance1.setCondition(condition)
+       .addIfStatement(statement)
+       .addExtraToken(ifToken).addExtraToken(colonToken)
+}
+
 private fun makeIfElseExprFromElifB(results: pointer<ArrayList>) -> pointer<*>
 {
     val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
@@ -1405,6 +1419,23 @@ private fun makeIfElseExprFromElifS(results: pointer<ArrayList>) -> pointer<*>
     val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
     val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
     val statement: pointer<Statement> = getContainerValue(results, 3) as pointer<Statement>
+    val instance1: pointer<IfElseExpression> = new IfElseExpression()
+       .setCondition(condition)
+       .addIfStatement(statement)
+    val expr: pointer<Expression> = Expression.fromIfElseExpr(instance1)
+    val stmt: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expr))
+
+    return new IfElseExpression(stmt)
+       .addExtraToken(elifToken).addExtraToken(colonToken)
+}
+
+private fun makeIfElseExprFromElifE(results: pointer<ArrayList>) -> pointer<*>
+{
+    val elifToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val condition: pointer<Expression> = getContainerValue(results, 1) as pointer<Expression>
+    val colonToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>
+    val expression: pointer<Expression> = getContainerValue(results, 3) as pointer<Expression>
+    val statement: pointer<Statement> = Statement.fromExprStatement(new ExprStatement(expression))
     val instance1: pointer<IfElseExpression> = new IfElseExpression()
        .setCondition(condition)
        .addIfStatement(statement)
@@ -1811,6 +1842,15 @@ private inline fun makeFunctionFromBlock(results: pointer<ArrayList>) -> pointer
     val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)
 
     return addFunctionPrefixTokens(buildFunction(results, returnType, bodyExpr), results)
+        .addExtraToken(arrowToken)
+}
+
+private inline fun makeFunctionFromEmptyBlock(results: pointer<ArrayList>) -> pointer<*>
+{
+    val arrowToken: pointer<Token> = getContainerValue(results, 7, false) as pointer<Token>
+    val returnType: pointer<Type> = getContainerValue(results, 8) as pointer<Type>
+
+    return addFunctionPrefixTokens(buildFunction(results, returnType, null), results)
         .addExtraToken(arrowToken)
 }
 
@@ -2494,13 +2534,15 @@ private val IF_EXPRESSION_RULE1: pointer<Rule> = new Rule(new PatternList().push
 
 private val IF_ELSE_EXPRESSION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprFinalB, Rule.STARTER_ROLE, 0)
 private val IF_ELSE_EXPRESSION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprFinalS, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_EXPRESSION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprItB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_EXPRESSION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprItS, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_EXPRESSION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER), makeIfElseExprFromElseB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_EXPRESSION_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseExprFromElseS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
-private val IF_ELSE_EXPRESSION_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER), makeElseStmtFromExpr, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_EXPRESSION_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER), makeIfElseExprFromElifB, Rule.STARTER_ROLE, 0)
-private val IF_ELSE_EXPRESSION_RULE8: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseExprFromElifS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
+private val IF_ELSE_EXPRESSION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprFinalE, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_EXPRESSION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprItB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_EXPRESSION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER).pushRef(IF_ELSE_EXPRESSION_PARSER), makeIfElseExprItS, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_EXPRESSION_RULE5: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER), makeIfElseExprFromElseB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_EXPRESSION_RULE6: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseExprFromElseS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
+private val IF_ELSE_EXPRESSION_RULE7: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELSE).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER), makeElseStmtFromExpr, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_EXPRESSION_RULE8: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(BLOCK_PARSER), makeIfElseExprFromElifB, Rule.STARTER_ROLE, 0)
+private val IF_ELSE_EXPRESSION_RULE9: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(STATEMENT_PARSER), makeIfElseExprFromElifS, Rule.STARTER_ROLE, 0).setAfterFun(prependLineTerminator)
+private val IF_ELSE_EXPRESSION_RULE10: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_ELIF).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER), makeIfElseExprFromElifE, Rule.STARTER_ROLE, 0)
 
 private val MODIFIER_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_PRIVATE), makeModifier, Rule.STARTER_ROLE, 0)
 private val MODIFIER_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_PROTECTED), makeModifier, Rule.STARTER_ROLE, 0)
@@ -2566,9 +2608,10 @@ private val FIELD_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(ANNO
 private val FUNCTION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRegex(Tokenizer.EQUAL).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunction, Rule.STARTER_ROLE, 0)
 private val FUNCTION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunction, Rule.STARTER_ROLE, 0)
 private val FUNCTION_RULE2: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunctionFromBlock, Rule.STARTER_ROLE, 0)
-private val FUNCTION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunction, Rule.STARTER_ROLE, 0)
-private val FUNCTION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunctionFromBlock, Rule.STARTER_ROLE, 0)
-private val FUNCTION_RULE5: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunctionFromEmptyBlock, Rule.STARTER_ROLE, 0)
+private val FUNCTION_RULE3: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.ARROW).pushRef(TYPE_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeFunctionFromEmptyBlock, Rule.STARTER_ROLE, 0)
+private val FUNCTION_RULE4: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunction, Rule.STARTER_ROLE, 0)
+private val FUNCTION_RULE5: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunctionFromBlock, Rule.STARTER_ROLE, 0)
+private val FUNCTION_RULE6: pointer<Rule> = new Rule(new PatternList().pushRef(ANNOTATIONS_MAYBE_PARSER).pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_FUN).pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeVoidFunctionFromEmptyBlock, Rule.STARTER_ROLE, 0)
 
 private val STRUCT_CONSTRUCTOR_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_CONSTRUCTOR).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRegex(Tokenizer.COLON).pushRef(EXPRESSION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStructConstructor, Rule.STARTER_ROLE, 0)
 private val STRUCT_CONSTRUCTOR_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(MODIFIER_LIST_MAYBE_PARSER).pushRegex(Tokenizer.KW_CONSTRUCTOR).pushRegex(Tokenizer.LEFT_PAREN).pushRef(FUNCTION_PARAMS_MAYBE_PARSER).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(BLOCK_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeStructConstructorFromBlock, Rule.STARTER_ROLE, 0)
@@ -2612,7 +2655,7 @@ private val CONTINUE_STATEMENT_PARSER_SETUP: pointer<ParserRef> = CONTINUE_STATE
 private val PASS_STATEMENT_PARSER_SETUP: pointer<ParserRef> = PASS_STATEMENT_PARSER.addRule(PASS_STATEMENT_RULE0)
 private val BLOCK_PARSER_SETUP: pointer<ParserRef> = BLOCK_PARSER.addRule(BLOCK_RULE0).addRule(BLOCK_RULE1)
 private val IF_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_EXPRESSION_PARSER.addRule(IF_EXPRESSION_RULE0).addRule(IF_EXPRESSION_RULE1)
-private val IF_ELSE_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_ELSE_EXPRESSION_PARSER.addRule(IF_ELSE_EXPRESSION_RULE0).addRule(IF_ELSE_EXPRESSION_RULE1).addRule(IF_ELSE_EXPRESSION_RULE2).addRule(IF_ELSE_EXPRESSION_RULE3).addRule(IF_ELSE_EXPRESSION_RULE4).addRule(IF_ELSE_EXPRESSION_RULE5).addRule(IF_ELSE_EXPRESSION_RULE6).addRule(IF_ELSE_EXPRESSION_RULE7).addRule(IF_ELSE_EXPRESSION_RULE8)
+private val IF_ELSE_EXPRESSION_PARSER_SETUP: pointer<ParserRef> = IF_ELSE_EXPRESSION_PARSER.addRule(IF_ELSE_EXPRESSION_RULE0).addRule(IF_ELSE_EXPRESSION_RULE1).addRule(IF_ELSE_EXPRESSION_RULE2).addRule(IF_ELSE_EXPRESSION_RULE3).addRule(IF_ELSE_EXPRESSION_RULE4).addRule(IF_ELSE_EXPRESSION_RULE5).addRule(IF_ELSE_EXPRESSION_RULE6).addRule(IF_ELSE_EXPRESSION_RULE7).addRule(IF_ELSE_EXPRESSION_RULE8).addRule(IF_ELSE_EXPRESSION_RULE9).addRule(IF_ELSE_EXPRESSION_RULE10)
 private val MODIFIER_PARSER_SETUP: pointer<ParserRef> = MODIFIER_PARSER.addRule(MODIFIER_RULE0).addRule(MODIFIER_RULE1).addRule(MODIFIER_RULE2).addRule(MODIFIER_RULE3).addRule(MODIFIER_RULE4).addRule(MODIFIER_RULE5).addRule(MODIFIER_RULE6).addRule(MODIFIER_RULE7)
 private val MODIFIER_LIST_PARSER_SETUP: pointer<ParserRef> = MODIFIER_LIST_PARSER.addRule(MODIFIER_LIST_RULE0).addRule(MODIFIER_LIST_RULE1)
 private val MODIFIER_LIST_MAYBE_PARSER_SETUP: pointer<ParserRef> = MODIFIER_LIST_MAYBE_PARSER.addRule(MODIFIER_LIST_MAYBE_RULE0).addRule(MODIFIER_LIST_MAYBE_RULE1)
@@ -2631,7 +2674,7 @@ private val FUNCTION_PARAM_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAM_PAR
 private val FUNCTION_PARAMS_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAMS_PARSER.addRule(FUNCTION_PARAMS_RULE0).addRule(FUNCTION_PARAMS_RULE1)
 private val FUNCTION_PARAMS_MAYBE_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARAMS_MAYBE_PARSER.addRule(FUNCTION_PARAMS_MAYBE_RULE0).addRule(FUNCTION_PARAMS_MAYBE_RULE1)
 private val FIELD_PARSER_SETUP: pointer<ParserRef> = FIELD_PARSER.addRule(FIELD_RULE0).addRule(FIELD_RULE1).addRule(FIELD_RULE2).addRule(FIELD_RULE3)
-private val FUNCTION_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARSER.addRule(FUNCTION_RULE0).addRule(FUNCTION_RULE1).addRule(FUNCTION_RULE2).addRule(FUNCTION_RULE3).addRule(FUNCTION_RULE4).addRule(FUNCTION_RULE5)
+private val FUNCTION_PARSER_SETUP: pointer<ParserRef> = FUNCTION_PARSER.addRule(FUNCTION_RULE0).addRule(FUNCTION_RULE1).addRule(FUNCTION_RULE2).addRule(FUNCTION_RULE3).addRule(FUNCTION_RULE4).addRule(FUNCTION_RULE5).addRule(FUNCTION_RULE6)
 private val STRUCT_CONSTRUCTOR_PARSER_SETUP: pointer<ParserRef> = STRUCT_CONSTRUCTOR_PARSER.addRule(STRUCT_CONSTRUCTOR_RULE0).addRule(STRUCT_CONSTRUCTOR_RULE1)
 private val MEMBER_PARSER_SETUP: pointer<ParserRef> = MEMBER_PARSER.addRule(MEMBER_RULE0).addRule(MEMBER_RULE1).addRule(MEMBER_RULE2).addRule(MEMBER_RULE3)
 private val MEMBERS_PARSER_SETUP: pointer<ParserRef> = MEMBERS_PARSER.addRule(MEMBERS_RULE0).addRule(MEMBERS_RULE1)

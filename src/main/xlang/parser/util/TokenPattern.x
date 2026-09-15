@@ -44,8 +44,7 @@ import xlang.System
  * The regular-expression string is duplicated during construction, so the
  * PatternAtom keeps an independent clone of the supplied pattern.
  *
- * The caller is responsible for eventually releasing the copied regex if
- * the runtime does not manage allocated string memory automatically.
+ * PatternAtom owns both the copied regex and its compiled representation.
  */
 struct PatternAtom
 {
@@ -105,16 +104,19 @@ struct PatternAtom
      * @param regex             the optional token-text regular expression.
      *
      * @note                    The constructor creates an independent clone of regex.
-     *
-     * @warning                 If String.strdup does not accept null, passing a null regex
-     *                          causes undefined behavior.
      */
     constructor(kind: int, regex: pointer<char>)
     {
         this.kind = kind
         this.regex = String.strdup(regex)
-        this.compiledRegex = xlang.System.allocMemory(Regex.compileSize())
-        Regex.compile(regex, this.compiledRegex)
+        this.compiledRegex = null
+
+        if this.regex != null:
+        {
+            this.compiledRegex = System.allocMemory(Regex.compileSize())
+            Regex.compile(this.regex, this.compiledRegex)
+        }
+
         this.refParser = null
         this.refsParser = null
     }
