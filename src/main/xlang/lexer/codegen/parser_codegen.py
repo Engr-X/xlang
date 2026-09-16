@@ -28,9 +28,11 @@ RECURSIVELY_DOWN_PARSER: str = "recursively-down"
 PRATT_PARSER: str = "pratt"
 
 DEFAULT_IMPORTS: set[str] = {
+    "xlang.lexer.Token",
     "xlang.lexer.TokenList",
     "xlang.parser.ParseContainer",
     "xlang.parser.PrattParser",
+    "xlang.parser.util.PatternAtom",
     "xlang.parser.util.ParserRef",
     "xlang.parser.util.ParserRefs",
     "xlang.parser.util.PatternList",
@@ -140,6 +142,80 @@ def genKindExpr(kind: object) -> str | None:
     return kind
 
 
+def genPatternAtomExpr(pattern: object) -> str:
+    if isinstance(pattern, str):
+        return f"new PatternAtom(Token.AnyKind, {json.dumps(pattern)})"
+
+    if not isinstance(pattern, dict):
+        raise TypeError(f"parser pattern must be string or object: {pattern!r}")
+
+    if "pattern" in pattern:
+        raise ValueError(f"use regex instead of pattern in parser rule: {pattern!r}")
+
+    if "regx" in pattern:
+        raise ValueError(f"use regex instead of regx in parser rule: {pattern!r}")
+
+    kind = genKindExpr(pattern.get("kind", None))
+    regex = genRegexExpr(pattern.get("regex", None))
+
+    if kind is None and regex is None:
+        raise ValueError(f"parser pattern must contain kind, regex or both: {pattern!r}")
+
+    if kind is not None and kind.startswith("[$") and kind.endswith("]"):
+        if regex is not None:
+            raise ValueError(f"parser list reference pattern cannot also contain regex: {pattern!r}")
+
+        parser_name = f"{upperSnake(kind[2:-1])}_PARSER"
+        return f"new PatternAtom({genParserRefsExpr(parser_name, pattern)})"
+
+    if "split_by" in pattern or "allow_trailing" in pattern:
+        raise ValueError(f"split_by and allow_trailing require a parser list reference: {pattern!r}")
+
+    if kind is not None and kind.startswith("$"):
+        if regex is not None:
+            raise ValueError(f"parser reference pattern cannot also contain regex: {pattern!r}")
+
+        parser_name = f"{upperSnake(kind[1:])}_PARSER"
+        return f"new PatternAtom({parser_name})"
+
+    kind_expr = "Token.AnyKind" if kind is None else kind
+    regex_expr = "null" if regex is None else regex
+    return f"new PatternAtom({kind_expr}, {regex_expr})"
+
+
+def genSplitByExpr(split_by: object) -> str:
+    if isinstance(split_by, list):
+        if not split_by:
+            raise ValueError("parser pattern split_by list must not be empty")
+
+        return genPatternListExpr(split_by)
+
+    return genPatternAtomExpr(split_by)
+
+
+def genParserRefsExpr(parser_name: str, pattern: JsonObject) -> str:
+    split_by = pattern.get("split_by", None)
+    has_allow_trailing = "allow_trailing" in pattern
+    allow_trailing = pattern.get("allow_trailing", False)
+
+    if has_allow_trailing and not isinstance(allow_trailing, bool):
+        raise TypeError(f"parser pattern allow_trailing must be boolean: {pattern!r}")
+
+    if split_by is None:
+        if has_allow_trailing and allow_trailing:
+            raise ValueError(f"allow_trailing requires split_by: {pattern!r}")
+
+        return f"new ParserRefs({parser_name})"
+
+    split_by_expr = genSplitByExpr(split_by)
+
+    if not has_allow_trailing:
+        return f"new ParserRefs({parser_name}, {split_by_expr})"
+
+    allow_trailing_expr = "true" if allow_trailing else "false"
+    return f"new ParserRefs({parser_name}, {split_by_expr}, {allow_trailing_expr})"
+
+
 def genPatternPush(pattern: object) -> str:
     if isinstance(pattern, str):
         return f".pushRegex({json.dumps(pattern)})"
@@ -164,7 +240,11 @@ def genPatternPush(pattern: object) -> str:
             raise ValueError(f"parser list reference pattern cannot also contain regex: {pattern!r}")
 
         parser_name = f"{upperSnake(kind[2:-1])}_PARSER"
-        return f".pushRefs(new ParserRefs({parser_name}))"
+        return f".pushRefs({genParserRefsExpr(parser_name, pattern)})"
+
+    if "split_by" in pattern or "allow_trailing" in pattern:
+        raise ValueError(f"split_by and allow_trailing require a parser list reference: {pattern!r}")
+
     if kind is not None and kind.startswith("$"):
         if regex is not None:
             raise ValueError(f"parser reference pattern cannot also contain regex: {pattern!r}")

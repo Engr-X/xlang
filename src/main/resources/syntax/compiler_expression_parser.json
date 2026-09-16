@@ -9,9 +9,8 @@
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Assignment",
         "xlang.compiler.parser.expression.Atom",
-        "xlang.compiler.parser.expression.Atoms",
         "xlang.compiler.parser.expression.Expression",
-        "xlang.compiler.parser.expression.Expressions",
+
         "xlang.compiler.parser.expression.ExpressionDesugar",
         "xlang.compiler.parser.expression.ExpressionTuple",
         "xlang.compiler.parser.expression.FieldAccess",
@@ -251,29 +250,21 @@
             ]
         },
         {
-            "class": "Expressions",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$Expressions" }], "action": "makeExprsIt" },
-                { "patterns": [{ "kind": "$Expression" }], "action": "makeSingleExprs" }
-            ]
-        },
-        {
             "class": "ExpressionTuple",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple0" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expressions" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple1" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Expressions" }, { "kind": "Tokenizer.COMMA" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple2" }
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, 
+                { "kind": "[$Expression]", "split_by": { "kind": "Tokenizer.COMMA" }},
+                { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple" }
             ]
         },
         {
             "class": "ListLiteral",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral0" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "$Expressions" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral1" },
-                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "$Expressions" }, { "kind": "Tokenizer.COMMA" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral2" }
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" },
+                { "kind": "[$Expression]", "split_by": { "kind": "Tokenizer.COMMA" }}, 
+                { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral" }
             ]
         }
     ],
@@ -781,95 +772,48 @@
 
 
 
-        
-        [   "private inline fun makeExprsIt(results: pointer<ArrayList>) -> pointer<*>",
+
+        [   "private fun unwrapExpressionList(results: pointer<ArrayList>, index: int) -> pointer<ArrayList>",
             "{",
-            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val right: pointer<Expressions> = getContainerValue(results, 2) as pointer<Expressions>",
+            "    val parsedExpressions: pointer<ArrayList> = getContainerValue(results, index) as pointer<ArrayList>",
+            "    val expressions: pointer<ArrayList> = new ArrayList(sizeof(pointer<Expression>))",
             "",
-            "    return new Expressions(expression).addExtraToken(commaToken).addExpressions(right)",
+            "    if parsedExpressions == null:",
+            "        return expressions",
+            "",
+            "    for (var i = 0; i < parsedExpressions.length; i++):",
+            "    {",
+            "        val expression: pointer<Expression> = getContainerValue(parsedExpressions, i) as pointer<Expression>",
+            "",
+            "        if expression != null:",
+            "            expressions.push(expression.ref)",
+            "    }",
+            "",
+            "    return expressions",
             "}" ],
 
 
-        [   "private inline fun makeSingleExprs(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val expression: pointer<Expression> = getContainerValue(results, 0) as pointer<Expression>",
-            "",
-            "    return new Expressions(expression)",
-            "}" ],
-
-
-
-
-
-        [   "private fun makeExpressionTuple0(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeExpressionTuple(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val leftParen: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val rightParen: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "",
-            "    return new ExpressionTuple().addExtraToken(leftParen).addExtraToken(rightParen)",
-            "}" ],
-
-
-        [   "private fun makeExpressionTuple1(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftParen: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val expressions: pointer<Expressions> = getContainerValue(results, 1) as pointer<Expressions>",
+            "    val expressions: pointer<ArrayList> = unwrapExpressionList(results, 1)",
             "    val rightParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "",
-            "    return new ExpressionTuple(expressions.getExpressions())",
-            "       .addExtraTokens(expressions.getExtraTokens())",
-            "       .addExtraToken(leftParen).addExtraToken(rightParen)",
+            "    return new ExpressionTuple(expressions)",
+            "        .addExtraToken(leftParen)",
+            "        .addExtraToken(rightParen)",
             "}" ],
 
 
-        [   "private fun makeExpressionTuple2(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftParen: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val expressions: pointer<Expressions> = getContainerValue(results, 1) as pointer<Expressions>",
-            "    val comma: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "",
-            "    return new ExpressionTuple(expressions.getExpressions())",
-            "       .addExtraTokens(expressions.getExtraTokens())",
-            "       .addExtraToken(leftParen).addExtraToken(comma).addExtraToken(rightParen)",
-            "}" ],
-
-
-
-
-        [   "private fun makeListLiteral0(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private fun makeListLiteral(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val leftBracket: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val rightBracket: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "",
-            "    return new ListLiteral().addExtraToken(leftBracket).addExtraToken(rightBracket)",
-            "}" ],
-
-
-        [   "private fun makeListLiteral1(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftBracket: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val expressions: pointer<Expressions> = getContainerValue(results, 1) as pointer<Expressions>",
+            "    val expressions: pointer<ArrayList> = unwrapExpressionList(results, 1)",
             "    val rightBracket: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
             "",
-            "    return new ListLiteral(expressions.getExpressions())",
-            "       .addExtraTokens(expressions.getExtraTokens())",
-            "       .addExtraToken(leftBracket).addExtraToken(rightBracket)",
-            "}" ],
-
-
-        [   "private fun makeListLiteral2(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val leftBracket: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val expressions: pointer<Expressions> = getContainerValue(results, 1) as pointer<Expressions>",
-            "    val comma: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val rightBracket: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "",
-            "    return new ListLiteral(expressions.getExpressions())",
-            "       .addExtraTokens(expressions.getExtraTokens())",
-            "       .addExtraToken(leftBracket).addExtraToken(comma).addExtraToken(rightBracket)",
+            "    return new ListLiteral(expressions)",
+            "        .addExtraToken(leftBracket)",
+            "        .addExtraToken(rightBracket)",
             "}" ]
     ]
 }

@@ -40,6 +40,8 @@ import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.Member
+import xlang.compiler.parser.program.Annotation
+import xlang.compiler.parser.program.PreprocessSetting
 import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.Struct
 import xlang.compiler.parser.program.StructConstructor
@@ -71,10 +73,20 @@ val TEST_GROUP: pointer<TestGroup> = genTest()
 fun genTest() -> pointer<TestGroup>
 {
     val result: pointer<TestGroup> = new TestGroup("xlang.compiler.parser.Parser")
+    val annotationSeparatedValuesTC: pointer<TestCase> =
+        new TestCase("annotationSeparatedValues", annotationSeparatedValuesTest)
+    val preprocessSeparatedValuesTC: pointer<TestCase> =
+        new TestCase("preprocessSeparatedValues", preprocessSeparatedValuesTest)
     val focusedAllSourceProgramsTG: pointer<TestGroup> = genAllSourceProgramsTestGroup()
+    val annotationSeparatedValuesUnion: pointer<TestUnion> =
+        new TestUnion(TestCase.TYPE, annotationSeparatedValuesTC, null)
+    val preprocessSeparatedValuesUnion: pointer<TestUnion> =
+        new TestUnion(TestCase.TYPE, preprocessSeparatedValuesTC, null)
     val focusedAllSourceProgramsUnion: pointer<TestUnion> =
         new TestUnion(TestGroup.TYPE, null, focusedAllSourceProgramsTG)
 
+    result.addTestUnion(annotationSeparatedValuesUnion)
+    result.addTestUnion(preprocessSeparatedValuesUnion)
     result.addTestUnion(focusedAllSourceProgramsUnion)
     return result
 
@@ -153,6 +165,68 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(statementUnion)
 
     return result
+}
+
+
+private fun annotationValueCount(text: pointer<char>) -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.tokenize(text)
+    val annotation: pointer<Annotation> = Parser.parseAnnotation(tokens)
+
+    if annotation == null:
+        return -1
+
+    if tokens.length() > 0 && !tokens.get(0).isEOF():
+        return -1
+
+    val values: pointer<ArrayList> = annotation.getValue()
+    return if values == null: -1 else: values.length
+}
+
+
+private fun annotationSeparatedValuesTest() -> int
+{
+    if annotationValueCount("@Sample()") != 0:
+        return 1
+
+    if annotationValueCount("@Sample(0, 1)") != 2:
+        return 2
+
+    if annotationValueCount("@Sample(0, 1,)") != 2:
+        return 3
+
+    return 0
+}
+
+
+private fun preprocessValueCount(text: pointer<char>) -> int
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
+    val setting: pointer<PreprocessSetting> = Parser.parsePreprocessSetting(tokens)
+
+    if setting == null:
+        return -1
+
+    if tokens.length() > 0 && !tokens.get(0).isEOF():
+        return -1
+
+    val values: pointer<ArrayList> = setting.getValue()
+    return if values == null: -1 else: values.length
+}
+
+
+private fun preprocessSeparatedValuesTest() -> int
+{
+    if preprocessValueCount("#sample()\n") != 0:
+        return 1
+
+    if preprocessValueCount("#sample(0, 1)\n") != 2:
+        return 2
+
+    if preprocessValueCount("#sample(0, 1,)\n") != 2:
+        return 3
+
+    return 0
 }
 
 

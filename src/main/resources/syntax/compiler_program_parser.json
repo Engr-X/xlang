@@ -60,8 +60,10 @@
             "class": "PreprocessSetting",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeEmptyPreprocessSetting" },
-                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Atom]" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
+                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, 
+                { "kind": "[$Atom]", "split_by": { "kind": "Tokenizer.COMMA" }}, 
+                
+                { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
             ]
         },
         {
@@ -76,8 +78,10 @@
             "class": "Annotation",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Atom]" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
-                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyAnnotation" },
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" },
+                { "kind": "[$Atom]", "split_by": { "kind": "Tokenizer.COMMA" }}, 
+                { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
+
                 { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }], "action": "makeAnnotation" }
             ]
         },
@@ -235,20 +239,6 @@
             "}" ],
 
 
-        [   "private inline fun makeEmptyPreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val hashToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
-            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "",
-            "    return new PreprocessSetting(qualifiedName, null)",
-            "        .addExtraToken(hashToken)",
-            "        .addExtraToken(leftParen)",
-            "        .addExtraToken(rightParen)",
-            "}" ],
-
-
         [   "private inline fun makePreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val hashToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
@@ -285,20 +275,6 @@
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "",
             "    return new Annotation(qualifiedName).addExtraToken(atToken)",
-            "}" ],
-
-
-        [   "private inline fun makeEmptyAnnotation(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val atToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
-            "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val rightParen: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
-            "",
-            "    return new Annotation(qualifiedName, null)",
-            "        .addExtraToken(atToken)",
-            "        .addExtraToken(leftParen)",
-            "        .addExtraToken(rightParen)",
             "}" ],
 
 

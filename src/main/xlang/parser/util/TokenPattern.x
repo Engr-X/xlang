@@ -207,6 +207,15 @@ struct PatternList
         this.patterns = new ArrayList(sizeof(PatternAtom))
 
 
+    constructor(pattern: pointer<PatternAtom>)
+    {
+        this.patterns = new ArrayList(sizeof(PatternAtom))
+
+        if pattern != null:
+            this.patterns.push(pattern)
+    }
+
+
     /**
      * Appends a kind-only pattern atom.
      *
