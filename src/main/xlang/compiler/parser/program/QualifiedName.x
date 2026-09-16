@@ -106,7 +106,7 @@ struct QualifiedName
 
 
     fun toImportDeclaration() -> pointer<ImportDeclaration>
-        = new ImportDeclaration(this)
+        = ImportDeclaration.fromNamespace(new NamespaceImport(this))
 
 
     fun getAllTokens() -> pointer<ArrayList>

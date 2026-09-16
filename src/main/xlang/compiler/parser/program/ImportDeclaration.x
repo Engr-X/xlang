@@ -24,63 +24,59 @@
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token
-import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
 struct ImportDeclaration
 {
-    private var qualifiedName: pointer<QualifiedName>
-
-    private var extraTokens: pointer<ArrayList>
+    static val NAMESPACE_TYPE: int = 1
 
 
-    constructor(qualifiedName: pointer<QualifiedName>)
+    static fun fromNamespace(namespaceImport: pointer<NamespaceImport>) -> pointer<ImportDeclaration> =
+        new ImportDeclaration(NAMESPACE_TYPE, namespaceImport)
+
+
+    private var kind: int
+
+    private var host: pointer<*>
+
+
+    constructor(kind: int, host: pointer<*>)
     {
-        this.qualifiedName = qualifiedName
-        this.extraTokens = new ArrayList(sizeof(Token))
+        this.kind = kind
+        this.host = host
     }
 
 
-    fun getQualifiedName() -> pointer<QualifiedName> = this.qualifiedName
+    fun getKind() -> int = this.kind
 
 
-    fun addExtraToken(token: pointer<Token>) -> pointer<ImportDeclaration>
-    {
-        if token != null:
-            this.extraTokens.push(token)
-
-        return this
-    }
+    fun getHost() -> pointer<*> = this.host
 
 
-    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+    fun getAllTokens() -> pointer<ArrayList> =
+        if this.host == null:
+            new ArrayList(sizeof(Token))
+        elif this.kind == NAMESPACE_TYPE:
+        {
+            val namespaceImport: pointer<NamespaceImport> = this.host as pointer<NamespaceImport>
+            namespaceImport.getAllTokens()
+        }
+        else:
+            new ArrayList(sizeof(Token))
 
 
-    fun getAllTokens() -> pointer<ArrayList>
-    {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-
-        if this.qualifiedName != null:
-            result.pushAll(this.qualifiedName.getAllTokens())
-
-        result.pushAll(this.extraTokens)
-        result.setComparator(TokenPosition.compareToken)
-        result.sort()
-        return result
-    }
-
-
-    fun toString() -> pointer<StringBuilder>
-    {
-        val sb: pointer<StringBuilder> = new StringBuilder("import ")
-
-        if this.qualifiedName != null:
-            sb.append(this.qualifiedName.toString())
-
-        return sb
-    }
+    fun toString() -> pointer<StringBuilder> =
+        if this.host == null:
+            new StringBuilder()
+        elif this.kind == NAMESPACE_TYPE:
+        {
+            val namespaceImport: pointer<NamespaceImport> = this.host as pointer<NamespaceImport>
+            namespaceImport.toString()
+        }
+        else:
+            new StringBuilder()
 }
 
 
@@ -90,16 +86,15 @@ struct ImportDeclarationsMaybe
 
 
     constructor():
-        this.imports = new ArrayList(sizeof(ImportDeclaration))
+        this.imports = new ArrayList(sizeof(NamespaceImport))
 
 
     constructor(imports: pointer<ArrayList>):
         this.imports = if imports == null:
-                new ArrayList(sizeof(ImportDeclaration))
+                new ArrayList(sizeof(NamespaceImport))
             else:
                 imports
 
 
     fun toImportDeclarations() -> pointer<ArrayList> = this.imports
 }
-

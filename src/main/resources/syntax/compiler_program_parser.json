@@ -7,7 +7,6 @@
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Atom",
-        "xlang.compiler.parser.expression.Atoms",
         "xlang.compiler.parser.expression.Expression",
         "xlang.compiler.parser.program.Annotation",
         "xlang.compiler.parser.program.AnnotationsMaybe",
@@ -24,6 +23,7 @@
         "xlang.compiler.parser.program.Program",
         "xlang.compiler.parser.program.ImportDeclaration",
         "xlang.compiler.parser.program.ImportDeclarationsMaybe",
+        "xlang.compiler.parser.program.NamespaceImport",
         "xlang.compiler.parser.program.Modifier",
         "xlang.compiler.parser.program.ModifierListMaybe",
         "xlang.compiler.parser.program.PackageDeclaration",
@@ -61,7 +61,7 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeEmptyPreprocessSetting" },
-                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
+                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Atom]" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
             ]
         },
         {
@@ -76,7 +76,7 @@
             "class": "Annotation",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "$Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Atom]" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
                 { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeEmptyAnnotation" },
                 { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }], "action": "makeAnnotation" }
             ]
@@ -113,10 +113,17 @@
             ]
         },
         {
+            "class": "NamespaceImport",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeNamespaceImport" }
+            ]
+        },
+        {
             "class": "ImportDeclaration",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeImportDeclaration" }
+                { "patterns": [{ "kind": "$NamespaceImport" }], "action": "makeImportFromNamespace" }
             ]
         },
         {
@@ -247,10 +254,10 @@
             "    val hashToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val value: pointer<Atoms> = getContainerValue(results, 3) as pointer<Atoms>",
+            "    val value: pointer<ArrayList> = getContainerValue(results, 3) as pointer<ArrayList>",
             "    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "",
-            "    return new PreprocessSetting(qualifiedName, value.getAtoms())",
+            "    return new PreprocessSetting(qualifiedName, value)",
             "        .addExtraToken(hashToken)",
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",
@@ -300,10 +307,10 @@
             "    val atToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "    val leftParen: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
-            "    val value: pointer<Atoms> = getContainerValue(results, 3) as pointer<Atoms>",
+            "    val value: pointer<ArrayList> = getContainerValue(results, 3) as pointer<ArrayList>",
             "    val rightParen: pointer<Token> = getContainerValue(results, 4, false) as pointer<Token>",
             "",
-            "    return new Annotation(qualifiedName, value.getAtoms())",
+            "    return new Annotation(qualifiedName, value)",
             "        .addExtraToken(atToken)",
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",
@@ -364,13 +371,17 @@
         [   "private inline fun makeEmptyPackageDeclarationMaybe(results: pointer<ArrayList>) -> pointer<*> = new PackageDeclarationMaybe()" ],
 
 
-        [   "private inline fun makeImportDeclaration(results: pointer<ArrayList>) -> pointer<*>",
+        [   "private inline fun makeNamespaceImport(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val importToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "",
-            "    return qualifiedName.toImportDeclaration().addExtraToken(importToken)",
+            "    return new NamespaceImport(qualifiedName).addExtraToken(importToken)",
             "}" ],
+
+
+        [   "private inline fun makeImportFromNamespace(results: pointer<ArrayList>) -> pointer<*> =",
+            "    ImportDeclaration.fromNamespace(getContainerValue(results, 0) as pointer<NamespaceImport>)" ],
 
 
         [   "private inline fun makeImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*>",
