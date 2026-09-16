@@ -34,6 +34,9 @@
     "constants": [
 
     ],
+    "patterns": [
+        
+    ],
     "rules": [
         {
             "class": "Modifier",
@@ -53,17 +56,15 @@
             "class": "ModifierListMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "[$Modifier]" }], "action": "makeModifierListMaybe" }
+                { "patterns": [{ "kind": "[$Modifier]" }], "action": "makeModifierListMaybe" },
+                { "patterns": [], "action": "makeEmptyModifierListMaybe" }
             ]
         },
         {
             "class": "PreprocessSetting",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, 
-                { "kind": "[$Atom]", "split_by": { "kind": "Tokenizer.COMMA" }}, 
-                
-                { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
+                { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" },  { "kind": "#Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
             ]
         },
         {
@@ -78,10 +79,7 @@
             "class": "Annotation",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" },
-                { "kind": "[$Atom]", "split_by": { "kind": "Tokenizer.COMMA" }}, 
-                { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
-
+                { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "#Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeAnnotationWithValues" },
                 { "patterns": [{ "kind": "Tokenizer.AT" }, { "kind": "$QualifiedName" }], "action": "makeAnnotation" }
             ]
         },
@@ -102,17 +100,10 @@
             ]
         },
         {
-            "class": "PackageDeclaration",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.KW_PACKAGE" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePackageDeclaration" }
-            ]
-        },
-        {
             "class": "PackageDeclarationMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$PackageDeclaration" }], "action": "makePackageDeclarationMaybe" },
+                { "patterns": [{ "kind": "Tokenizer.KW_PACKAGE" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePackageDeclarationMaybe" },
                 { "patterns": [], "action": "makeEmptyPackageDeclarationMaybe" }
             ]
         },
@@ -222,7 +213,6 @@
         [   "private inline fun makeModifier(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val token: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
-            "",
             "    return new Modifier(token.text).addExtraToken(token)",
             "}" ],
 
@@ -237,6 +227,9 @@
             "",
             "    return new ModifierListMaybe(modifiers)",
             "}" ],
+
+        
+        [   "private inline fun makeEmptyModifierListMaybe(results: pointer<ArrayList>) -> pointer<*> = new ModifierListMaybe()" ],
 
 
         [   "private inline fun makePreprocessSetting(results: pointer<ArrayList>) -> pointer<*>",
@@ -328,18 +321,13 @@
             "}" ],
 
 
-        [   "private inline fun makePackageDeclaration(results: pointer<ArrayList>) -> pointer<*>",
+
+        [   "private inline fun makePackageDeclarationMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val packageToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "",
-            "    return qualifiedName.toPackageDecl().addExtraToken(packageToken)",
-            "}" ],
-
-
-        [   "private inline fun makePackageDeclarationMaybe(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val packageDeclaration: pointer<PackageDeclaration> = getContainerValue(results, 0) as pointer<PackageDeclaration>",
+            "    val packageDeclaration: pointer<PackageDeclaration> = qualifiedName.toPackageDecl().addExtraToken(packageToken)",
             "    return new PackageDeclarationMaybe(packageDeclaration)",
             "}" ],
 

@@ -28,6 +28,10 @@
     "constants": [
         "val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)"
     ],
+    "patterns": [
+        { "name": "Atoms", "patterns": [{ "kind": "[$Atom]", "split_by": { "kind": "Tokenizer.COMMA" }}]},
+        { "name": "Expressions", "patterns": [{ "kind": "[$Expression]", "split_by": { "kind": "Tokenizer.COMMA" }}]}
+    ],
     "rules": [
         {
             "class": "Expression",
@@ -253,18 +257,14 @@
             "class": "ExpressionTuple",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, 
-                { "kind": "[$Expression]", "split_by": { "kind": "Tokenizer.COMMA" }},
-                { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple" }
+                { "patterns": [{ "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "#Expressions" }, { "kind": "Tokenizer.RIGHT_PAREN" }], "action": "makeExpressionTuple" }
             ]
         },
         {
             "class": "ListLiteral",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" },
-                { "kind": "[$Expression]", "split_by": { "kind": "Tokenizer.COMMA" }}, 
-                { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral" }
+                { "patterns": [{ "kind": "Tokenizer.LEFT_BRACKET" }, { "kind": "#Expressions" }, { "kind": "Tokenizer.RIGHT_BRACKET" }], "action": "makeListLiteral" }
             ]
         }
     ],

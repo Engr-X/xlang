@@ -68,6 +68,115 @@ def getConfigList(config: JsonObject, name: str) -> list[object]:
     return value
 
 
+def getNamedPatternDefinitions(config: JsonObject) -> dict[str, list[object]]:
+    definitions: dict[str, list[object]] = {}
+
+    for definition in getConfigList(config, "patterns"):
+        if not isinstance(definition, dict):
+            raise TypeError(f"named pattern definition must be an object: {definition!r}")
+
+        name = definition.get("name")
+
+        if not isinstance(name, str) or not name or name.startswith("#"):
+            raise ValueError(f"named pattern must have a non-empty name without '#': {definition!r}")
+
+        if name in definitions:
+            raise ValueError(f"duplicate named pattern: {name!r}")
+
+        patterns = definition.get("patterns", [])
+
+        if not isinstance(patterns, list):
+            raise TypeError(f"named pattern patterns must be a list: {definition!r}")
+
+        definitions[name] = patterns
+
+    return definitions
+
+
+def getNamedPatternReference(pattern: object) -> str | None:
+    if not isinstance(pattern, dict):
+        return None
+
+    kind = pattern.get("kind")
+
+    if not isinstance(kind, str) or not kind.startswith("#"):
+        return None
+
+    if len(pattern) != 1:
+        raise ValueError(f"named pattern reference cannot contain other fields: {pattern!r}")
+
+    name = kind[1:]
+
+    if not name:
+        raise ValueError(f"named pattern reference must contain a name: {pattern!r}")
+
+    return name
+
+
+def expandNamedPatternList(
+    patterns: list[object],
+    definitions: dict[str, list[object]],
+    stack: tuple[str, ...] = (),
+) -> list[object]:
+    result: list[object] = []
+
+    for pattern in patterns:
+        name = getNamedPatternReference(pattern)
+
+        if name is not None:
+            if name not in definitions:
+                raise ValueError(f"undefined named pattern: {name!r}")
+
+            if name in stack:
+                cycle = " -> ".join((*stack, name))
+                raise ValueError(f"recursive named pattern: {cycle}")
+
+            result.extend(expandNamedPatternList(definitions[name], definitions, (*stack, name)))
+            continue
+
+        if isinstance(pattern, dict) and "split_by" in pattern:
+            split_by = pattern["split_by"]
+            split_patterns = split_by if isinstance(split_by, list) else [split_by]
+            expanded_split = expandNamedPatternList(split_patterns, definitions, stack)
+            pattern = dict(pattern)
+            pattern["split_by"] = expanded_split[0] if len(expanded_split) == 1 else expanded_split
+
+        result.append(pattern)
+
+    return result
+
+
+def expandNamedPatterns(config: JsonObject) -> JsonObject:
+    definitions = getNamedPatternDefinitions(config)
+
+    if not definitions:
+        return config
+
+    result: JsonObject = dict(config)
+    expanded_rules: list[JsonObject] = []
+
+    for rule in getRules(config):
+        expanded_rule: JsonObject = dict(rule)
+        expanded_sub_rules: list[JsonObject] = []
+
+        for sub_rule in getSubRules(rule):
+            if not isinstance(sub_rule, dict):
+                raise TypeError(f"sub_rules item must be object: {sub_rule!r}")
+
+            expanded_sub_rule: JsonObject = dict(sub_rule)
+            expanded_sub_rule["patterns"] = expandNamedPatternList(
+                validateSubRulePatterns(rule, sub_rule),
+                definitions,
+            )
+            expanded_sub_rules.append(expanded_sub_rule)
+
+        expanded_rule["sub_rules"] = expanded_sub_rules
+        expanded_rules.append(expanded_rule)
+
+    result["rules"] = expanded_rules
+    return result
+
+
 def mergeConfigs(configs: list[JsonObject]) -> JsonObject:
     if not configs:
         raise ValueError("at least one parser config is required")
@@ -76,6 +185,7 @@ def mergeConfigs(configs: list[JsonObject]) -> JsonObject:
     result["imports"] = []
     result["constants"] = []
     result["operations"] = []
+    result["patterns"] = []
     result["rules"] = []
     result["others"] = []
 
@@ -98,6 +208,7 @@ def mergeConfigs(configs: list[JsonObject]) -> JsonObject:
         result["imports"].extend(getConfigList(config, "imports"))
         result["constants"].extend(getConfigList(config, "constants"))
         result["operations"].extend(getConfigList(config, "operations"))
+        result["patterns"].extend(getConfigList(config, "patterns"))
         result["rules"].extend(getConfigList(config, "rules"))
         result["others"].extend(getCodeBlocks(config, "others"))
 
@@ -509,11 +620,6 @@ def getRuleClass(rule: JsonObject) -> str:
 
 
 def getRuleLabel(rule: JsonObject) -> str:
-    parser_name = rule.get("parser_name", rule.get("parserName", None))
-
-    if isinstance(parser_name, str) and parser_name:
-        return parser_name
-
     class_name = rule.get("class")
 
     if isinstance(class_name, str) and class_name:
@@ -523,14 +629,6 @@ def getRuleLabel(rule: JsonObject) -> str:
 
 
 def getParserName(rule: JsonObject) -> str:
-    value = rule.get("parser_name", rule.get("parserName", None))
-
-    if value is not None:
-        if not isinstance(value, str) or not value:
-            raise ValueError(f"parser name must be a non-empty string: {rule!r}")
-
-        return value
-
     return f"{upperSnake(getRuleClass(rule))}_PARSER"
 
 
@@ -1131,6 +1229,7 @@ def genParseEntrypoints(rules: list[JsonObject], tabs: int) -> str:
 
 def codegen(config: JsonObject, dest: Path) -> str:
     ensure_type(config, PARSER_RULES_TYPE, "parser config")
+    config = expandNamedPatterns(config)
 
     package_name = getPackageName(config)
     class_name = getClassName(config, dest)
