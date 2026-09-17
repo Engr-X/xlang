@@ -65,6 +65,42 @@ struct TypeParser
 
     fun parse(tokens: pointer<TokenList>, index: int) -> int
     {
+        this.reset()
+        val consumed: int = this.parseType(tokens, index)
+
+        if !this.haveError(consumed):
+            return consumed
+
+        if tokens == null || index < 0 || index >= tokens.length():
+            return -1
+
+        val leftParen: pointer<Token> = tokens.get(index)
+
+        if leftParen.kind != Tokenizer.LEFT_PAREN:
+            return -1
+
+        this.reset()
+        val innerConsumed: int = this.parse(tokens, index + 1)
+
+        if this.haveError(innerConsumed):
+            return -1
+
+        val rightParenIndex: int = index + innerConsumed + 1
+
+        if rightParenIndex >= tokens.length():
+            return this.failCannotParseType(tokens, tokens.length() - 1)
+
+        val rightParen: pointer<Token> = tokens.get(rightParenIndex)
+
+        if rightParen.kind != Tokenizer.RIGHT_PAREN:
+            return this.failCannotParseType(tokens, rightParenIndex)
+
+        return innerConsumed + 2
+    }
+
+
+    private fun parseType(tokens: pointer<TokenList>, index: int) -> int
+    {
         if index >= 0 && index < tokens.length():
         {
             val token: pointer<Token> = tokens.get(index)

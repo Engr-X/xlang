@@ -44,6 +44,8 @@ fun genTest() -> pointer<TestGroup>
     val pointerVoidTC: pointer<TestCase> = new TestCase("pointerVoid", pointerVoidTest)
     val topLevelStarTC: pointer<TestCase> = new TestCase("topLevelStar", topLevelStarTest)
     val normalParseTC: pointer<TestCase> = new TestCase("normalParse", normalParseTest)
+    val parenthesizedTypeTC: pointer<TestCase> = new TestCase("parenthesizedType", parenthesizedTypeTest)
+    val parenthesizedFunctionTC: pointer<TestCase> = new TestCase("parenthesizedFunction", parenthesizedFunctionTest)
     val blobExpressionTC: pointer<TestCase> = new TestCase("blobExpression", blobExpressionTest)
     val emptyFunctionTC: pointer<TestCase> = new TestCase("emptyFunction", emptyFunctionTest)
     val functionParametersTC: pointer<TestCase> = new TestCase("functionParameters", functionParametersTest)
@@ -52,6 +54,8 @@ fun genTest() -> pointer<TestGroup>
     val pointerVoidUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, pointerVoidTC, null)
     val topLevelStarUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, topLevelStarTC, null)
     val normalParseUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, normalParseTC, null)
+    val parenthesizedTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedTypeTC, null)
+    val parenthesizedFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedFunctionTC, null)
     val blobExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, blobExpressionTC, null)
     val emptyFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, emptyFunctionTC, null)
     val functionParametersUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionParametersTC, null)
@@ -61,6 +65,8 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(pointerVoidUnion)
     result.addTestUnion(topLevelStarUnion)
     result.addTestUnion(normalParseUnion)
+    result.addTestUnion(parenthesizedTypeUnion)
+    result.addTestUnion(parenthesizedFunctionUnion)
     result.addTestUnion(blobExpressionUnion)
     result.addTestUnion(emptyFunctionUnion)
     result.addTestUnion(functionParametersUnion)
@@ -174,6 +180,46 @@ private fun blobExpressionTest() -> int
 
     if !tokenTextAt(typeTokens, 6, "3") || !tokenTextAt(typeTokens, 7, "]"):
         return 5
+
+    return 0
+}
+
+
+private fun parenthesizedTypeTest() -> int
+{
+    val typeTokens: pointer<ArrayList> = parseTypeTokens("((int))", 5)
+
+    if typeTokens == null || typeTokens.length != 1:
+        return 1
+
+    if !tokenTextAt(typeTokens, 0, "int"):
+        return 2
+
+    return 0
+}
+
+
+private fun parenthesizedFunctionTest() -> int
+{
+    val typeTokens: pointer<ArrayList> = parseTypeTokens("((int), double) -> (() -> void)", 14)
+
+    if typeTokens == null || typeTokens.length != 10:
+        return 1
+
+    if !tokenTextAt(typeTokens, 0, "(") || !tokenTextAt(typeTokens, 1, "int"):
+        return 2
+
+    if !tokenTextAt(typeTokens, 2, ",") || !tokenTextAt(typeTokens, 3, "double"):
+        return 3
+
+    if !tokenTextAt(typeTokens, 4, ")") || !tokenTextAt(typeTokens, 5, "->"):
+        return 4
+
+    if !tokenTextAt(typeTokens, 6, "(") || !tokenTextAt(typeTokens, 7, ")"):
+        return 5
+
+    if !tokenTextAt(typeTokens, 8, "->") || !tokenTextAt(typeTokens, 9, "void"):
+        return 6
 
     return 0
 }
