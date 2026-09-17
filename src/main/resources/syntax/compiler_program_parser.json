@@ -19,16 +19,18 @@
         "xlang.compiler.parser.program.Struct",
         "xlang.compiler.parser.program.StructConstructor",
         "xlang.compiler.parser.program.PreprocessSetting",
-        "xlang.compiler.parser.program.PreprocessSettingsMaybe",
         "xlang.compiler.parser.program.Program",
         "xlang.compiler.parser.program.ImportDeclaration",
         "xlang.compiler.parser.program.ImportDeclarationsMaybe",
+        "xlang.compiler.parser.program.ImportedFunction",
+        "xlang.compiler.parser.program.ImportedFunctionAliasMaybe",
         "xlang.compiler.parser.program.NamespaceImport",
         "xlang.compiler.parser.program.Modifier",
         "xlang.compiler.parser.program.ModifierListMaybe",
         "xlang.compiler.parser.program.PackageDeclaration",
         "xlang.compiler.parser.program.PackageDeclarationMaybe",
         "xlang.compiler.parser.program.QualifiedName",
+        "xlang.compiler.parser.program.SelectiveImports",
         "xlang.compiler.parser.stmtexpr.Block"
     ],
     "constants": [
@@ -65,14 +67,6 @@
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.HASH" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.LEFT_PAREN" },  { "kind": "#Atoms" }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makePreprocessSetting" }
-            ]
-        },
-        {
-            "class": "PreprocessSettingsMaybe",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "[$PreprocessSetting]" }], "action": "makePreprocessSettingsMaybe" },
-                { "patterns": [], "action": "makeEmptyPreprocessSettingsMaybe" }
             ]
         },
         {
@@ -115,17 +109,43 @@
             ]
         },
         {
+            "class": "ImportedFunctionAliasMaybe",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_AS" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeImportedFunctionAliasMaybe" },
+                { "patterns": [], "action": "makeEmptyImportedFunctionAliasMaybe" }
+            ]
+        },
+        {
+            "class": "ImportedFunction",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Type]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$ImportedFunctionAliasMaybe" }], "action": "makeImportedFunction" }
+            ]
+        },
+        {
+            "class": "SelectiveImports",
+            "parser": "recursively-down",
+            "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER", "regex": "^from$" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedFunction]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER", "regex": "^from$" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedFunction]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER", "regex": "^from$" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$ImportedFunction" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImport" }
+            ]
+        },
+        {
             "class": "ImportDeclaration",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$NamespaceImport" }], "action": "makeImportFromNamespace" }
+                { "patterns": [{ "kind": "$NamespaceImport" }], "action": "makeImportFromNamespace" },
+                { "patterns": [{ "kind": "$SelectiveImports" }], "action": "makeImportFromSelective" }
             ]
         },
         {
             "class": "ImportDeclarationsMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "[$ImportDeclaration]" }], "action": "makeImportDeclarationsMaybe" }
+                { "patterns": [{ "kind": "[$ImportDeclaration]" }], "action": "makeImportDeclarationsMaybe" },
+                { "patterns": [], "action": "makeEmptyImportDeclarationsMaybe" }
             ]
         },
         {
@@ -137,18 +157,10 @@
             ]
         },
         {
-            "class": "FunctionParams",
-            "parser": "recursively-down",
-            "sub_rules": [
-                { "patterns": [{ "kind": "$FunctionParam" }, { "kind": "Tokenizer.COMMA" }, { "kind": "$FunctionParams" }], "action": "makeFunctionParamsIt" },
-                { "patterns": [{ "kind": "$FunctionParam" }], "action": "makeFunctionParams" }
-            ]
-        },
-        {
             "class": "FunctionParamsMaybe",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$FunctionParams" }], "action": "makeFunctionParamsMaybe" },
+                { "patterns": [{ "kind": "[$FunctionParam]", "split_by": { "kind": "Tokenizer.COMMA" }}], "action": "makeFunctionParamsMaybe" },
                 { "patterns": [], "action": "makeEmptyFunctionParamsMaybe" }
             ]
         },
@@ -205,7 +217,7 @@
             "class": "Program",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$PreprocessSettingsMaybe" }, { "kind": "$PackageDeclarationMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgram" }
+                { "patterns": [{ "kind": "[$PreprocessSetting]" }, { "kind": "$PackageDeclarationMaybe" }, { "kind": "$ImportDeclarationsMaybe" }, { "kind": "[$Member]" }], "action": "makeProgram" }
             ]
         }
     ],
@@ -245,21 +257,6 @@
             "        .addExtraToken(leftParen)",
             "        .addExtraToken(rightParen)",
             "}" ],
-
-
-        [   "private inline fun makePreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val parsedSettings: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
-            "    val settings: pointer<ArrayList> = new ArrayList(sizeof(PreprocessSetting))",
-            "",
-            "    for (var i = 0; i < parsedSettings.length; i++):",
-            "        settings.push(getContainerValue(parsedSettings, i) as pointer<PreprocessSetting>)",
-            "",
-            "    return new PreprocessSettingsMaybe(settings)",
-            "}" ],
-
-
-        [   "private inline fun makeEmptyPreprocessSettingsMaybe(results: pointer<ArrayList>) -> pointer<*> = new PreprocessSettingsMaybe()" ],
 
 
         [   "private inline fun makeAnnotation(results: pointer<ArrayList>) -> pointer<*>",
@@ -348,6 +345,60 @@
             "    ImportDeclaration.fromNamespace(getContainerValue(results, 0) as pointer<NamespaceImport>)" ],
 
 
+        [   "private inline fun makeImportFromSelective(results: pointer<ArrayList>) -> pointer<*> =",
+            "    ImportDeclaration.fromSelective(getContainerValue(results, 0) as pointer<SelectiveImports>)" ],
+
+
+        [   "private inline fun makeImportedFunction(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val parsedTypes: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
+            "    val alias: pointer<ImportedFunctionAliasMaybe> =",
+            "        getContainerValue(results, 4) as pointer<ImportedFunctionAliasMaybe>",
+            "    val parameterTypes: pointer<ArrayList> = new ArrayList(sizeof(Type))",
+            "",
+            "    for (var i = 0; i < parsedTypes.length; i++):",
+            "        parameterTypes.push(getContainerValue(parsedTypes, i) as pointer<Type>)",
+            "",
+            "    return new ImportedFunction(nameToken.text, parameterTypes, alias.getAliasName())",
+            "}" ],
+
+
+        [   "private inline fun makeImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val aliasToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
+            "    return new ImportedFunctionAliasMaybe(aliasToken.text)",
+            "}" ],
+
+
+        [   "private inline fun makeEmptyImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*> =",
+            "    new ImportedFunctionAliasMaybe()" ],
+
+
+        [   "private inline fun makeSelectiveImport(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val importedFunction: pointer<ImportedFunction> = getContainerValue(results, 3) as pointer<ImportedFunction>",
+            "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedFunction))",
+            "",
+            "    importedFunctions.push(importedFunction)",
+            "    return new SelectiveImports(qualifiedName, importedFunctions)",
+            "}" ],
+
+
+        [   "private inline fun makeSelectiveImports(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val parsedFunctions: pointer<ArrayList> = getContainerValue(results, 4) as pointer<ArrayList>",
+            "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedFunction))",
+            "",
+            "    for (var i = 0; i < parsedFunctions.length; i++):",
+            "        importedFunctions.push(getContainerValue(parsedFunctions, i) as pointer<ImportedFunction>)",
+            "",
+            "    return new SelectiveImports(qualifiedName, importedFunctions)",
+            "}" ],
+
+
         [   "private inline fun makeImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val parsedImports: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
@@ -358,6 +409,10 @@
             "",
             "    return new ImportDeclarationsMaybe(imports)",
             "}" ],
+
+
+        [   "private inline fun makeEmptyImportDeclarationsMaybe(results: pointer<ArrayList>) -> pointer<*> =",
+            "    new ImportDeclarationsMaybe()" ],
 
 
         [   "private inline fun makeFunctionParam(results: pointer<ArrayList>) -> pointer<*>",
@@ -389,26 +444,17 @@
             "}" ],
 
 
-        [   "private inline fun makeFunctionParamsIt(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val param: pointer<FunctionParam> = getContainerValue(results, 0) as pointer<FunctionParam>",
-            "    val commaToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    val params: pointer<FunctionParams> = getContainerValue(results, 2) as pointer<FunctionParams>",
-            "",
-            "    return new FunctionParams(param).addExtraToken(commaToken).pushAll(params)",
-            "}" ],
-
-
-        [   "private inline fun makeFunctionParams(results: pointer<ArrayList>) -> pointer<*>",
-            "{",
-            "    val param: pointer<FunctionParam> = getContainerValue(results, 0) as pointer<FunctionParam>",
-            "    return new FunctionParams(param)",
-            "}" ],
-
-
         [   "private inline fun makeFunctionParamsMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val params: pointer<FunctionParams> = getContainerValue(results, 0) as pointer<FunctionParams>",
+            "    val parsedParams: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
+            "    val params: pointer<FunctionParams> = new FunctionParams()",
+            "",
+            "    if parsedParams != null:",
+            "    {",
+            "        for (var i = 0; i < parsedParams.length; i++):",
+            "            params.push(getContainerValue(parsedParams, i) as pointer<FunctionParam>)",
+            "    }",
+            "",
             "    return new FunctionParamsMaybe(params)",
             "}" ],
 
@@ -627,13 +673,17 @@
 
         [   "private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>",
             "{",
-            "    val settings: pointer<PreprocessSettingsMaybe> = getContainerValue(results, 0) as pointer<PreprocessSettingsMaybe>",
+            "    val parsedSettings: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
+            "    val settings: pointer<ArrayList> = new ArrayList(sizeof(PreprocessSetting))",
             "    val packageDeclaration: pointer<PackageDeclarationMaybe> = getContainerValue(results, 1) as pointer<PackageDeclarationMaybe>",
             "    val imports: pointer<ImportDeclarationsMaybe> = getContainerValue(results, 2) as pointer<ImportDeclarationsMaybe>",
             "    val members: pointer<ArrayList> = getContainerValue(results, 3) as pointer<ArrayList>",
             "",
+            "    for (var i = 0; i < parsedSettings.length; i++):",
+            "        settings.push(getContainerValue(parsedSettings, i) as pointer<PreprocessSetting>)",
+            "",
             "    return new Program(members)",
-            "        .setPreprocessSettings(settings.toPreprocessSettings())",
+            "        .setPreprocessSettings(settings)",
             "        .setPackageDeclaration(packageDeclaration.toPackageDeclaration())",
             "        .setImportDeclarations(imports.toImportDeclarations())",
             "}" ]

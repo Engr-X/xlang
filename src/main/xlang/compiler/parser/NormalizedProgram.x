@@ -23,11 +23,17 @@
 #file.outerClass("NormalizedProgram")
 package xlang.compiler.parser.program
 
+import xlang.compiler.parser.program.ImportDeclaration
+import xlang.compiler.parser.program.PackageDeclaration
+import xlang.compiler.parser.program.PreprocessSetting
+import xlang.compiler.parser.program.Struct
 import xlang.util.ArrayList
 
 
 struct NormalizedProgram
 {
+    private var preprocessSettings: pointer<ArrayList>
+
     private var packageDeclaration: pointer<PackageDeclaration>
 
     private var imports: pointer<ArrayList>
@@ -36,11 +42,17 @@ struct NormalizedProgram
 
 
     constructor(
+        preprocessSettings: pointer<ArrayList>,
         packageDeclaration: pointer<PackageDeclaration>,
         imports: pointer<ArrayList>,
         structDeclaration: pointer<Struct>
     )
     {
+        this.preprocessSettings = if preprocessSettings == null:
+                new ArrayList(sizeof(PreprocessSetting))
+            else:
+                preprocessSettings
+
         this.packageDeclaration = packageDeclaration
         this.imports = if imports == null:
                 new ArrayList(sizeof(ImportDeclaration))
@@ -49,6 +61,9 @@ struct NormalizedProgram
 
         this.structDeclaration = structDeclaration
     }
+
+
+    fun getPreprocessSettings() -> pointer<ArrayList> = this.preprocessSettings
 
 
     fun getPackageDeclaration() -> pointer<PackageDeclaration> = this.packageDeclaration

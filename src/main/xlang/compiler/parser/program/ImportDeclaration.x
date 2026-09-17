@@ -32,9 +32,15 @@ struct ImportDeclaration
 {
     static val NAMESPACE_TYPE: int = 1
 
+    static val SELECTIVE_TYPE: int = 2
+
 
     static fun fromNamespace(namespaceImport: pointer<NamespaceImport>) -> pointer<ImportDeclaration> =
         new ImportDeclaration(NAMESPACE_TYPE, namespaceImport)
+
+
+    static fun fromSelective(selectiveImports: pointer<SelectiveImports>) -> pointer<ImportDeclaration> =
+        new ImportDeclaration(SELECTIVE_TYPE, selectiveImports)
 
 
     private var kind: int

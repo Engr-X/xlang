@@ -58,6 +58,23 @@ struct ImportedFunction
 }
 
 
+struct ImportedFunctionAliasMaybe
+{
+    private var aliasName: pointer<char>
+
+
+    constructor():
+        this.aliasName = null
+
+
+    constructor(aliasName: pointer<char>):
+        this.aliasName = aliasName
+
+
+    fun getAliasName() -> pointer<char> = this.aliasName
+}
+
+
 struct SelectiveImports
 {
     private var qualifiedName: pointer<QualifiedName>

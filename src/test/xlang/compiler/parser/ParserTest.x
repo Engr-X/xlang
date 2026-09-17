@@ -39,10 +39,14 @@ import xlang.compiler.parser.expression.TypeCast
 import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParams
+import xlang.compiler.parser.program.ImportDeclaration
+import xlang.compiler.parser.program.ImportedFunction
 import xlang.compiler.parser.program.Member
 import xlang.compiler.parser.program.Annotation
 import xlang.compiler.parser.program.PreprocessSetting
 import xlang.compiler.parser.program.Program
+import xlang.compiler.parser.program.QualifiedName
+import xlang.compiler.parser.program.SelectiveImports
 import xlang.compiler.parser.program.Struct
 import xlang.compiler.parser.program.StructConstructor
 import xlang.compiler.parser.statement.ExprListStatement
@@ -77,16 +81,21 @@ fun genTest() -> pointer<TestGroup>
         new TestCase("annotationSeparatedValues", annotationSeparatedValuesTest)
     val preprocessSeparatedValuesTC: pointer<TestCase> =
         new TestCase("preprocessSeparatedValues", preprocessSeparatedValuesTest)
+    val selectiveImportsTC: pointer<TestCase> =
+        new TestCase("selectiveImports", selectiveImportsTest)
     val focusedAllSourceProgramsTG: pointer<TestGroup> = genAllSourceProgramsTestGroup()
     val annotationSeparatedValuesUnion: pointer<TestUnion> =
         new TestUnion(TestCase.TYPE, annotationSeparatedValuesTC, null)
     val preprocessSeparatedValuesUnion: pointer<TestUnion> =
         new TestUnion(TestCase.TYPE, preprocessSeparatedValuesTC, null)
+    val selectiveImportsUnion: pointer<TestUnion> =
+        new TestUnion(TestCase.TYPE, selectiveImportsTC, null)
     val focusedAllSourceProgramsUnion: pointer<TestUnion> =
         new TestUnion(TestGroup.TYPE, null, focusedAllSourceProgramsTG)
 
     result.addTestUnion(annotationSeparatedValuesUnion)
     result.addTestUnion(preprocessSeparatedValuesUnion)
+    result.addTestUnion(selectiveImportsUnion)
     result.addTestUnion(focusedAllSourceProgramsUnion)
     return result
 
@@ -225,6 +234,120 @@ private fun preprocessSeparatedValuesTest() -> int
 
     if preprocessValueCount("#sample(0, 1,)\n") != 2:
         return 3
+
+    return 0
+}
+
+
+private fun parseSelectiveImportsText(text: pointer<char>) -> pointer<SelectiveImports>
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
+    val selectiveImports: pointer<SelectiveImports> = Parser.parseSelectiveImports(tokens)
+
+    if selectiveImports == null:
+    {
+        printTokenDump("selective import parse failed: ", tokens)
+        return null
+    }
+
+    if tokens.length() > 0 && !tokens.get(0).isEOF():
+    {
+        printTokenDump("selective import left tokens: ", tokens)
+        return null
+    }
+
+    return selectiveImports
+}
+
+
+private fun parseImportedFunctionText(text: pointer<char>) -> pointer<ImportedFunction>
+{
+    val tokens: pointer<TokenList> = Tokenizer.tokenize(text)
+    val importedFunction: pointer<ImportedFunction> = Parser.parseImportedFunction(tokens)
+
+    if importedFunction == null:
+        return null
+
+    if tokens.length() > 0 && !tokens.get(0).isEOF():
+        return null
+
+    return importedFunction
+}
+
+
+private fun selectiveImportsTest() -> int
+{
+    val single: pointer<SelectiveImports> = parseSelectiveImportsText("from Math import sin()\n")
+
+    if single == null:
+        return 1
+
+    val qualifiedName: pointer<QualifiedName> = single.getQualifiedName()
+
+    if qualifiedName == null || !String.streq(qualifiedName.getPart(0), "Math"):
+        return 2
+
+    val singleFunctions: pointer<ArrayList> = single.getImportedFunctions()
+
+    if singleFunctions == null || singleFunctions.length != 1:
+        return 3
+
+    val singleFunction: pointer<ImportedFunction> = singleFunctions.get(0) as pointer<ImportedFunction>
+
+    if singleFunction == null || !String.streq(singleFunction.getName(), "sin"):
+        return 4
+
+    val singleParameterTypes: pointer<ArrayList> = singleFunction.getParameterTypes()
+
+    if singleFunction.getAliasName() != null || singleParameterTypes == null || singleParameterTypes.length != 0:
+        return 5
+
+    if parseImportedFunctionText("sin(int)") == null:
+        return 6
+
+    if parseImportedFunctionText("sin(double) as sinDouble") == null:
+        return 7
+
+    val overloads: pointer<SelectiveImports> =
+        parseSelectiveImportsText("from Math import {sin(int), sin(double) as sinDouble}\n")
+
+    if overloads == null:
+        return 8
+
+    val overloadedFunctions: pointer<ArrayList> = overloads.getImportedFunctions()
+
+    if overloadedFunctions == null || overloadedFunctions.length != 2:
+        return 9
+
+    val intFunction: pointer<ImportedFunction> = overloadedFunctions.get(0) as pointer<ImportedFunction>
+    val doubleFunction: pointer<ImportedFunction> = overloadedFunctions.get(1) as pointer<ImportedFunction>
+
+    if intFunction == null || !String.streq(intFunction.getName(), "sin"):
+        return 10
+
+    val intParameterTypes: pointer<ArrayList> = intFunction.getParameterTypes()
+
+    if intFunction.getAliasName() != null || intParameterTypes == null || intParameterTypes.length != 1:
+        return 11
+
+    if doubleFunction == null || !String.streq(doubleFunction.getName(), "sin"):
+        return 12
+
+    val doubleAlias: pointer<char> = doubleFunction.getAliasName()
+    val doubleParameterTypes: pointer<ArrayList> = doubleFunction.getParameterTypes()
+
+    if doubleAlias == null || !String.streq(doubleAlias, "sinDouble") || doubleParameterTypes == null || doubleParameterTypes.length != 1:
+        return 13
+
+    val empty: pointer<SelectiveImports> = parseSelectiveImportsText("from Math import {}\n")
+
+    if empty == null:
+        return 14
+
+    val emptyFunctions: pointer<ArrayList> = empty.getImportedFunctions()
+
+    if emptyFunctions == null || emptyFunctions.length != 0:
+        return 15
 
     return 0
 }
