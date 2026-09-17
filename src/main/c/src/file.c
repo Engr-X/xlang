@@ -36,47 +36,22 @@
 #endif
 
 #include "xlang/xtypedef.h"
-
-
-static size_t xchar_strlen(const x_char* const value)
-{
-    size_t length = 0;
-
-    while (value[length] != 0)
-        length++;
-
-    return length;
-}
-
-
-static char* narrow_xchar_string(const x_char* const value)
-{
-    const size_t length = xchar_strlen(value);
-    char* const result = malloc(length + 1);
-
-    if (result == NULL)
-        return NULL;
-
-    for (size_t i = 0; i < length; i++)
-        result[i] = (char)(value[i] & 0xff);
-
-    result[length] = '\0';
-    return result;
-}
+#include "util.h"
 
 
 int filesize(const x_char* const path)
 {
-    char* narrow_path;
-    FILE* file;
-    long size;
-
     if (path == NULL)
         return -1;
 
-    narrow_path = narrow_xchar_string(path);
+    char* narrow_path = (char*)(malloc((xchar_strlen(path) + 1) * sizeof(char)));
+    FILE* file;
+    long size;
+
     if (narrow_path == NULL)
         return -1;
+
+    narrow_xchar_string(path, narrow_path);
 
     file = fopen(narrow_path, "rb");
     free(narrow_path);
@@ -96,37 +71,39 @@ int filesize(const x_char* const path)
     if (size < 0 || size > INT_MAX)
         return -4;
 
-    return (int)size;
+    return (int)(size);
 }
 
 
 int read(x_char* const dest, const x_char* const path)
 {
-    char* narrow_path;
+    if (dest == NULL || path == NULL)
+        return -1;
+    
+    char* narrow_path = (char*)(malloc((xchar_strlen(path) + 1) * sizeof(char)));
     char* bytes;
     FILE* file;
     int size;
     size_t read_size;
-
-    if (dest == NULL || path == NULL)
-        return -1;
-
     size = filesize(path);
 
     if (size < 0)
+    {
+        free(narrow_path);
         return size;
+    }
 
-    narrow_path = narrow_xchar_string(path);
     if (narrow_path == NULL)
         return -1;
 
+    narrow_xchar_string(path, narrow_path);
     file = fopen(narrow_path, "rb");
     free(narrow_path);
 
     if (file == NULL)
         return -2;
 
-    bytes = malloc((size_t)size + 1);
+    bytes = (char*)(malloc((size_t)size + 1));
     if (bytes == NULL)
     {
         fclose(file);
@@ -158,22 +135,20 @@ int read(x_char* const dest, const x_char* const path)
 
 int sub_files(const x_char* const path, x_char* const dest)
 {
-    char* narrow_path;
-    size_t dest_index = 0;
-    int first = 1;
-    int count = 0;
-
-    if (dest == NULL)
+    if (dest == NULL || path == NULL)
         return 0;
 
     dest[0] = 0;
 
-    if (path == NULL)
-        return 0;
+    char* narrow_path = (char*)(malloc((xchar_strlen(path) + 1) * sizeof(char)));
+    size_t dest_index = 0;
+    int first = 1;
+    int count = 0;
 
-    narrow_path = narrow_xchar_string(path);
     if (narrow_path == NULL)
         return 0;
+
+    narrow_xchar_string(path, narrow_path);
 
 #ifdef _WIN32
     {
@@ -205,6 +180,7 @@ int sub_files(const x_char* const path, x_char* const dest)
 
         pattern[pattern_length] = 0;
         free(narrow_path);
+        narrow_path = NULL;
 
         handle = FindFirstFileA(pattern, &find_data);
         free(pattern);
@@ -242,7 +218,11 @@ int sub_files(const x_char* const path, x_char* const dest)
     struct dirent* entry;
 
     dir = opendir(narrow_path);
-    free(narrow_path);
+    if (narrow_path != NULL)
+    {
+        free(narrow_path);
+        narrow_path = NULL;
+    }
 
     if (dir == NULL)
         return 0;
@@ -272,6 +252,8 @@ int sub_files(const x_char* const path, x_char* const dest)
     }
 #endif
 
+    if (narrow_path != NULL)
+        free(narrow_path);
     dest[dest_index] = 0;
     return count;
 }
@@ -279,14 +261,17 @@ int sub_files(const x_char* const path, x_char* const dest)
 
 bool is_directory(const x_char* const full_path)
 {
-    char* narrow_path;
-
     if (full_path == NULL)
         return false;
 
-    narrow_path = narrow_xchar_string(full_path);
+    char* narrow_path = (char*)(malloc((xchar_strlen(full_path) + 1) * sizeof(char)));
+    narrow_xchar_string(full_path, narrow_path);
+
     if (narrow_path == NULL)
+    {
+        free(narrow_path);
         return false;
+    }
 
 #ifdef _WIN32
     {
@@ -309,15 +294,21 @@ bool is_directory(const x_char* const full_path)
 
 bool is_file(const x_char* const full_path)
 {
-    char* narrow_path;
+   
 
     if (full_path == NULL)
         return false;
 
-    narrow_path = narrow_xchar_string(full_path);
-    if (narrow_path == NULL)
-        return false;
+    char* narrow_path = (char*)(malloc((xchar_strlen(full_path) + 1) * sizeof(char)));
+    narrow_xchar_string(full_path, narrow_path);
 
+    if (narrow_path == NULL)
+    {
+        free(narrow_path);
+        return false;
+    }
+
+    
 #ifdef _WIN32
     {
         const DWORD attributes = GetFileAttributesA(narrow_path);

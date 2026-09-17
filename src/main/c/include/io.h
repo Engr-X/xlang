@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _XLANG_UTIL_IO_
-#define _XLANG_UTIL_IO_
+#ifndef _XLANG_UTIL_IO_H_
+#define _XLANG_UTIL_IO_H_
 
 #define COLOR_RESET   0
 #define COLOR_RED     31
@@ -54,5 +54,6 @@ int colored_sprint(x_char* const dest, const x_char* const value, const int colo
 
 
 int colored_sprintln(x_char* const dest, const x_char* const value, const int color);
+
 
 #endif

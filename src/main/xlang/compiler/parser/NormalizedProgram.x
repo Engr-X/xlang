@@ -21,7 +21,7 @@
  */
 
 #file.outerClass("NormalizedProgram")
-package xlang.compiler.parser.program
+package xlang.compiler.parser
 
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.PackageDeclaration

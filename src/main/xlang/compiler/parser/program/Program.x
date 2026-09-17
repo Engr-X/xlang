@@ -56,6 +56,54 @@ struct Program
     }
 
 
+    fun collectStructs() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Struct))
+
+        for (var i = 0; i < this.members.length; i++):
+        {
+            val member: pointer<Member> = this.get(i)
+
+            if member != null && member.isStruct():
+                result.push(member as pointer<Struct>)
+        }
+
+        return result
+    }
+
+
+    fun collectFunctions() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Function))
+
+        for (var i = 0; i < this.members.length; i++):
+        {
+            val member: pointer<Member> = this.get(i)
+
+            if member != null && member.isFunction():
+                result.push(member as pointer<Function>)
+        }
+
+        return result
+    }
+
+
+    fun collectFields() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Field))
+
+        for (var i = 0; i < this.members.length; i++):
+        {
+            val member: pointer<Member> = this.get(i)
+
+            if member != null && member.isField():
+                result.push(member as pointer<Variable>)
+        }
+
+        return result
+    }
+
+
     fun getPreprocessSettings() -> pointer<ArrayList> = this.preprocessSettings
 
 

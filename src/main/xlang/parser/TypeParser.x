@@ -35,8 +35,9 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.lexer.TokenPosition
+import xlang.parser.util.ParserRefs
+import xlang.parser.util.PatternAtom
 import xlang.util.ArrayList
-import xlang.util.TypeConvert
 
 
 struct TypeParser
@@ -123,177 +124,70 @@ struct TypeParser
         val leftParen: pointer<Token> = tokens.get(index)
 
         if leftParen.kind != Tokenizer.LEFT_PAREN:
-        {
-            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-            val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
-                leftParen.pos.offset,
-                leftParen.pos.line,
-                leftParen.pos.column,
-                leftParen.pos.length)
-
-            locations.push(location)
-            this.error = Diagnostic.makeError(
-                Diagnostic.CANNOT_PARSE_TYPE,
-                locations,
-                Diagnostic.CANNOT_PARSE_TYPE_MSG)
-            return -1
-        }
+            return this.failCannotParseType(tokens, index)
 
         val parameters: pointer<ArrayList> = new ArrayList(sizeof(Type))
         val extraTokens: pointer<ArrayList> = new ArrayList(sizeof(Token))
         extraTokens.push(leftParen)
 
         var consumed: int = 1
-        var closed: bool = false
 
-        if index + consumed < tokens.length():
+        if index + consumed >= tokens.length():
+            return this.failCannotParseType(tokens, tokens.length() - 1)
+
+        val firstAfterLeftParen: pointer<Token> = tokens.get(index + consumed)
+
+        if firstAfterLeftParen.kind != Tokenizer.RIGHT_PAREN:
         {
-            val nextToken: pointer<Token> = tokens.get(index + consumed)
+            val parameterRefs: pointer<ParserRefs> = new ParserRefs(
+                Parser.TYPE_PARSER.clone(),
+                new PatternAtom(Tokenizer.COMMA, null),
+                false)
+            val parameterLength: int = parameterRefs.parse(tokens, index + consumed)
 
-            if nextToken.kind == Tokenizer.RIGHT_PAREN:
+            if parameterLength <= 0:
+                return this.failCannotParseType(tokens, index + consumed)
+
+            val parameterResult: pointer<ParseContainer> = parameterRefs.getResult()
+            val parameterValues: pointer<ArrayList> = parameterResult.getValue() as pointer<ArrayList>
+
+            for (var i = 0; i < parameterValues.length; i++):
             {
-                extraTokens.push(nextToken)
-                consumed++
-                closed = true
-            }
-        }
+                val slot: pointer<pointer<*>> = parameterValues.get(i) as pointer<pointer<*>>
+                val container: pointer<ParseContainer> = slot.deref as pointer<ParseContainer>
+                val parameterType: pointer<Type> = container.getValue() as pointer<Type>
 
-        while !closed && index + consumed < tokens.length():
-        {
-            val parameterParser: pointer<TypeParser> = this.clone()
-            val parameterLength: int = parameterParser.parse(tokens, index + consumed)
-
-            if parameterParser.haveError(parameterLength):
-            {
-                this.error = parameterParser.getError()
-                return -1
+                parameters.push(parameterType)
             }
 
-            val parameterResult: pointer<ParseContainer> = parameterParser.getResult()
-            val parameterType: pointer<Type> = parameterResult.getValue() as pointer<Type>
-
-            parameters.push(parameterType)
+            extraTokens.pushAll(parameterRefs.getExtraTokens())
             consumed += parameterLength
 
             if index + consumed >= tokens.length():
-                break
-
-            val delimiter: pointer<Token> = tokens.get(index + consumed)
-
-            if delimiter.kind == Tokenizer.RIGHT_PAREN:
-            {
-                extraTokens.push(delimiter)
-                consumed++
-                closed = true
-                break
-            }
-
-            if delimiter.kind != Tokenizer.COMMA:
-            {
-                val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-                val location: pointer<SourceLocation> = new SourceLocation(
-                    tokens.filePath,
-                    delimiter.pos.offset,
-                    delimiter.pos.line,
-                    delimiter.pos.column,
-                    delimiter.pos.length)
-
-                locations.push(location)
-                this.error = Diagnostic.makeError(
-                    Diagnostic.CANNOT_PARSE_TYPE,
-                    locations,
-                    Diagnostic.CANNOT_PARSE_TYPE_MSG)
-                return -1
-            }
-
-            extraTokens.push(delimiter)
-            consumed++
+                return this.failCannotParseType(tokens, tokens.length() - 1)
         }
 
-        if !closed:
-        {
-            var errorIndex: int = index + consumed
+        val rightParen: pointer<Token> = tokens.get(index + consumed)
 
-            if errorIndex >= tokens.length():
-                errorIndex = tokens.length() - 1
+        if rightParen.kind != Tokenizer.RIGHT_PAREN:
+            return this.failCannotParseType(tokens, index + consumed)
 
-            val errorToken: pointer<Token> = tokens.get(errorIndex)
-            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-            val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
-                errorToken.pos.offset,
-                errorToken.pos.line,
-                errorToken.pos.column,
-                errorToken.pos.length)
-
-            locations.push(location)
-            this.error = Diagnostic.makeError(
-                Diagnostic.CANNOT_PARSE_TYPE,
-                locations,
-                Diagnostic.CANNOT_PARSE_TYPE_MSG)
-            return -1
-        }
+        extraTokens.push(rightParen)
+        consumed++
 
         if index + consumed >= tokens.length():
-        {
-            val errorToken: pointer<Token> = tokens.get(tokens.length() - 1)
-            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-            val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
-                errorToken.pos.offset,
-                errorToken.pos.line,
-                errorToken.pos.column,
-                errorToken.pos.length)
-
-            locations.push(location)
-            this.error = Diagnostic.makeError(
-                Diagnostic.CANNOT_PARSE_TYPE,
-                locations,
-                Diagnostic.CANNOT_PARSE_TYPE_MSG)
-            return -1
-        }
+            return this.failCannotParseType(tokens, index + consumed - 1)
 
         val arrow: pointer<Token> = tokens.get(index + consumed)
 
         if arrow.kind != Tokenizer.ARROW:
-        {
-            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-            val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
-                arrow.pos.offset,
-                arrow.pos.line,
-                arrow.pos.column,
-                arrow.pos.length)
-
-            locations.push(location)
-            this.error = Diagnostic.makeError(
-                Diagnostic.CANNOT_PARSE_TYPE,
-                locations,
-                Diagnostic.CANNOT_PARSE_TYPE_MSG)
-            return -1
-        }
+            return this.failCannotParseType(tokens, index + consumed)
 
         extraTokens.push(arrow)
         consumed++
 
         if index + consumed >= tokens.length():
-        {
-            val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-            val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
-                arrow.pos.offset,
-                arrow.pos.line,
-                arrow.pos.column,
-                arrow.pos.length)
-
-            locations.push(location)
-            this.error = Diagnostic.makeError(
-                Diagnostic.CANNOT_PARSE_TYPE,
-                locations,
-                Diagnostic.CANNOT_PARSE_TYPE_MSG)
-            return -1
-        }
+            return this.failCannotParseType(tokens, index + consumed - 1)
 
         val returnParser: pointer<TypeParser> = this.clone()
         val returnLength: int = returnParser.parse(tokens, index + consumed)
@@ -319,6 +213,35 @@ struct TypeParser
 
         this.result = new ParseContainer(this.id, parsedType)
         return consumed
+    }
+
+
+    private fun failCannotParseType(tokens: pointer<TokenList>, index: int) -> int
+    {
+        var errorIndex: int = index
+
+        if errorIndex < 0:
+            errorIndex = 0
+
+        if errorIndex >= tokens.length():
+            errorIndex = tokens.length() - 1
+
+        val errorToken: pointer<Token> = tokens.get(errorIndex)
+        val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+        val location: pointer<SourceLocation> = new SourceLocation(
+            tokens.filePath,
+            errorToken.pos.offset,
+            errorToken.pos.line,
+            errorToken.pos.column,
+            errorToken.pos.length)
+
+        locations.push(location)
+        this.error = Diagnostic.makeError(
+            Diagnostic.CANNOT_PARSE_TYPE,
+            locations,
+            Diagnostic.CANNOT_PARSE_TYPE_MSG)
+
+        return -1
     }
 
 
@@ -492,52 +415,36 @@ struct TypeParser
             val blobToken: pointer<Token> = tokens.get(index)
             val leftBracket: pointer<Token> = tokens.get(index + 1)
 
-            if leftBracket.kind != Tokenizer.LEFT_BRACKET:
-                errorIndex = index + 1
-            else:
+            if blobToken.kind == Tokenizer.KW_BLOB && leftBracket.kind == Tokenizer.LEFT_BRACKET:
             {
-                val expressionTokens: pointer<TokenList> = tokens.subToken(index + 2, tokens.length())
-                val expressionTokenCount: int = expressionTokens.length()
-                val blobSize: pointer<Expression> = Parser.parseExpression(expressionTokens)
+                val expressionLength: int = Parser.EXPRESSION_PARSER.parse(tokens, index + 2)
+                val expressionResult: pointer<ParseContainer> = Parser.EXPRESSION_PARSER.getResult()
+                val rightBracketIndex: int = index + 2 + expressionLength
 
-                if blobSize != null:
+                if expressionLength > 0 && expressionResult != null && rightBracketIndex < tokens.length():
                 {
-                    val expressionLength: int = expressionTokenCount - expressionTokens.length()
-                    val rightBracketIndex: int = index + 2 + expressionLength
+                    val rightBracket: pointer<Token> = tokens.get(rightBracketIndex)
 
-                    if rightBracketIndex < tokens.length():
+                    if rightBracket.kind == Tokenizer.RIGHT_BRACKET:
                     {
-                        val rightBracket: pointer<Token> = tokens.get(rightBracketIndex)
+                        val blobSize: pointer<Expression> = expressionResult.getValue() as pointer<Expression>
 
-                        if rightBracket.kind == Tokenizer.RIGHT_BRACKET:
-                        {
-                            var memSize: int = 0
-                            val sizeToken: pointer<Token> = tokens.get(index + 2)
+                        val parsedType: pointer<BlobType> = new BlobType(blobSize, 0)
+                            .addExtraToken(blobToken)
+                            .addExtraToken(leftBracket)
+                            .addExtraToken(rightBracket)
 
-                            if expressionLength == 1 && sizeToken.kind == Tokenizer.TK_INTEGER:
-                            {
-                                val size: long = TypeConvert.stringToLong(sizeToken.text)
-                                val parsedSize: int = size as int
-
-                                if (parsedSize as long) == size:
-                                    memSize = parsedSize
-                            }
-
-                            val parsedType: pointer<BlobType> = new BlobType(blobSize, memSize)
-                                .addExtraToken(blobToken)
-                                .addExtraToken(leftBracket)
-                                .addExtraToken(rightBracket)
-
-                            this.result = new ParseContainer(this.id, parsedType)
-                            return expressionLength + 3
-                        }
-
-                        errorIndex = rightBracketIndex
+                        this.result = new ParseContainer(this.id, parsedType)
+                        return expressionLength + 3
                     }
-                }
 
-                errorIndex = index + 2
+                    errorIndex = rightBracketIndex
+                }
+                else:
+                    errorIndex = index + 2
             }
+            else:
+                errorIndex = index + 1
         }
         else:
             errorIndex = tokens.length() - 1

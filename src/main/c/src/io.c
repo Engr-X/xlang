@@ -24,6 +24,7 @@
  */
 
 #include "io.h"
+#include "util.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,33 +67,6 @@ static int is_valid_color(const int color)
 }
 
 
-static size_t xchar_strlen(const x_char* const value)
-{
-    size_t length = 0;
-
-    while (value[length] != 0)
-        length++;
-
-    return length;
-}
-
-
-static char* narrow_xchar_string(const x_char* const value)
-{
-    const size_t length = xchar_strlen(value);
-    char* const result = malloc(length + 1);
-
-    if (result == NULL)
-        return NULL;
-
-    for (size_t i = 0; i < length; i++)
-        result[i] = (char)(value[i] & 0xff);
-
-    result[length] = '\0';
-    return result;
-}
-
-
 static void widen_c_string(x_char* const dest, const char* const value, const int length)
 {
     for (int i = 0; i < length; i++)
@@ -104,20 +78,21 @@ static void widen_c_string(x_char* const dest, const char* const value, const in
 
 static int write_colored_string(x_char* const dest, const x_char* const value, const int color, const int newline)
 {
-    char* narrow_value;
-    char* buffer;
-    int required;
-    int written;
-
     if (dest == NULL || value == NULL)
         return -1;
 
     if (!is_valid_color(color))
         return -3;
 
-    narrow_value = narrow_xchar_string(value);
+    char* narrow_value = (char*)(malloc((xchar_strlen(value) + 1) * sizeof(char)));
+    char* buffer;
+    int required;
+    int written;
+    
     if (narrow_value == NULL)
         return -4;
+
+    narrow_xchar_string(value, narrow_value);
 
     if (color == COLOR_RESET)
         required = snprintf(NULL, 0, newline ? "%s\n" : "%s", narrow_value);
@@ -130,7 +105,7 @@ static int write_colored_string(x_char* const dest, const x_char* const value, c
         return -4;
     }
 
-    buffer = malloc((size_t)required + 1);
+    buffer = (char*)(malloc((required + 1) * sizeof(char)));
     if (buffer == NULL)
     {
         free(narrow_value);

@@ -50,7 +50,7 @@ struct PreprocessSetting
     fun getName() -> pointer<QualifiedName> = this.name
 
 
-    fun getValue() -> pointer<ArrayList> = this.value.clone()
+    fun getValue() -> pointer<ArrayList> = this.value
 
 
     fun addExtraToken(token: pointer<Token>) -> pointer<PreprocessSetting>

@@ -231,6 +231,41 @@ struct StringBuilder
 
 
     /**
+     * Compares this string builder with another string builder for content equality.
+     *
+     * <p>Two string builders are considered equal if they have the same length
+     * and contain the same sequence of characters.
+     *
+     * <p>If {@code other} is {@code null}, this method returns {@code false}.
+     *
+     * @param other             a pointer to the string builder to compare with
+     * @return                  {@code true} if both string builders contain the same characters;
+     *                          {@code false} otherwise
+     */
+    fun equals(other: pointer<StringBuilder>) -> bool =
+        if other == null || this.length != other.length:
+            false
+        else: String.streq(this.list, other.list)
+
+
+    /**
+     * Compares this string builder with a null-terminated character string
+     * for content equality.
+     *
+     * <p>The comparison is performed character by character against the current
+     * contents of this string builder.
+     *
+     * <p>If {@code other} is {@code null}, this method returns {@code false}.
+     *
+     * @param other             a pointer to the null-terminated character string to compare with
+     * @return                  {@code true} if both strings contain the same sequence of characters;
+     *                          {@code false} otherwise
+     */
+    fun equals(other: pointer<char>) -> bool = 
+        if other == null: false else: String.streq(this.list, other)
+
+
+    /**
      * Copies the builder content into a destination buffer.
      *
      * The copied string is null-terminated. The destination buffer must have

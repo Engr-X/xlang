@@ -95,7 +95,7 @@ struct Atom
         {
             val slot: pointer<pointer<*>> = this.tokens.get(i) as pointer<pointer<*>>
 
-            if slot == null:
+            if slot == null || slot.deref == null:
                 continue
 
             val token: pointer<Token> = slot.deref as pointer<Token>

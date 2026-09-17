@@ -71,6 +71,8 @@
 #include <limits.h>
 
 
+#define XLANG_NULL_CHAR ((char)(0))
+
 typedef int8_t      x_i8;
 typedef int16_t     x_i16;
 typedef int32_t     x_i32;

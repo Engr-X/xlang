@@ -68,6 +68,18 @@ struct Member
     }
 
 
+    fun isField() -> bool = this.kind == FIELD_TYPE
+
+
+    fun isFunction() -> bool = this.kind == FUNCTION_TYPE
+
+
+    fun isStructConstructor() -> bool = this.kind == STRUCT_CONSTRUCTOR_TYPE
+
+
+    fun isStruct() -> bool = this.kind == STRUCT_TYPE
+
+
     fun getKind() -> int = this.kind
 
 

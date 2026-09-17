@@ -24,6 +24,7 @@
  */
 
 #include "string_regex.h"
+#include "util.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -37,17 +38,6 @@
 
 
 static x_char regex_pattern_buffer[REGEX_PATTERN_BUFFER_SIZE];
-
-
-static size_t xchar_strlen(const x_char* const value)
-{
-    size_t length = 0;
-
-    while (value[length] != 0)
-        length++;
-
-    return length;
-}
 
 
 static int regex_match_raw(const x_char* const pattern, const x_char* const str)

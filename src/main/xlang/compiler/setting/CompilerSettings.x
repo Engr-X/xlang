@@ -23,6 +23,9 @@
 #file.outerClass("CompilerSettings")
 package xlang.compiler.setting
 
+import xlang.compiler.parser.expression.Atom
+import xlang.compiler.parser.program.PreprocessSetting
+
 
 /**
  * Stores global configuration for the current compiler invocation.
@@ -40,15 +43,6 @@ package xlang.compiler.setting
  */
 struct CompilerSettings
 {
-    /**
-     * Shared settings instance used by compiler components.
-     *
-     * The instance is created once when CompilerSettings is initialized and is
-     * returned by {@link #getInstance()}.
-     */
-    private static val instance: pointer<CompilerSettings> = new CompilerSettings()
-
-
     /**
      * Number of worker threads available to the compiler.
      *
@@ -73,6 +67,17 @@ struct CompilerSettings
      */
     private var operatingSystem: int
 
+    /**
+     * The name of the enclosing class for this class.
+     *
+     * <p>This is used for nested classes to identify their outer class,
+     * similarly to the enclosing class name stored in JVM class metadata.
+     *
+     * <p>The value is {@code null} if this class is not nested inside
+     * another class.
+     */
+    private var outerClass: pointer<char>
+
 
     /**
      * Creates compiler settings using the default configuration.
@@ -80,11 +85,12 @@ struct CompilerSettings
      * The default target is a 64-bit Windows system and the compiler is
      * configured to use a single worker thread.
      */
-    constructor()
+    constructor(filepath: pointer<char>)
     {
         this.thread = 1
         this.systemBits = SystemBits.BITS_64
         this.operatingSystem = OperatingSystem.WINDOWS
+        outerClass = "TODO"
     }
 
 
@@ -96,7 +102,7 @@ struct CompilerSettings
      *
      * @return the global CompilerSettings instance
      */
-    static fun getInstance() -> pointer<CompilerSettings> = instance
+    static fun getInstance() -> pointer<CompilerSettings> = new CompilerSettings("TODO")
 
 
     /**
@@ -167,6 +173,48 @@ struct CompilerSettings
     fun setOperatingSystem(operatingSystem: int) -> pointer<CompilerSettings>
     {
         this.operatingSystem = operatingSystem
+        return this
+    }
+
+
+    /**
+     * Applies a preprocessing setting to this compiler settings instance.
+     *
+     * <p>If {@code setting} is {@code null}, no changes are made and this
+     * instance is returned unchanged.
+     *
+     * <p>The setting is identified by its qualified name. Recognized settings
+     * are parsed and stored in the corresponding fields of this instance.
+     *
+     * <p>Currently, the following setting is supported:
+     * <ul>
+     *     <li>
+     *         {@code file.outerClass} - Specifies the name of the outer class
+     *         associated with the current source file. The value is obtained from
+     *         the first token of the first value atom.
+     *     </li>
+     * </ul>
+     *
+     * <p>Unrecognized settings are ignored.
+     *
+     * @param setting           a pointer to the preprocessing setting to apply
+     * @return                  this {@code CompilerSettings} instance
+     */
+    fun set(setting: pointer<PreprocessSetting>) -> pointer<CompilerSettings>
+    {
+        if setting == null:
+            return this
+
+        val name: pointer<QualifiedName> = setting.getName()
+        val nameString: pointer<StringBuilder> = name.toString()
+
+        if nameString.equals("file.outerClass"):
+        {
+            val atom: pointer<Atom> = setting.getValue().get(0) as pointer<Atom>
+            val token: pointer<Token> = atom.getAllTokens().get(0) as pointer<Token>
+            this.outerClass = token.text
+        }
+
         return this
     }
 }

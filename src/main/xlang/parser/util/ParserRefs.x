@@ -24,6 +24,7 @@
 #file.outerClass("ParserRefs")
 package xlang.parser.util
 
+import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.parser.ParseContainer
 import xlang.util.ArrayList
@@ -37,6 +38,8 @@ struct ParserRefs
 
     private var allowTrailing: bool
 
+    private var extraTokens: pointer<ArrayList>
+
     private var results: pointer<ArrayList>
 
 
@@ -45,6 +48,7 @@ struct ParserRefs
         this.parser = parser
         this.splitBy = null
         this.allowTrailing = false
+        this.extraTokens = new ArrayList(sizeof(Token))
         this.results = new ArrayList(sizeof(pointer<*>))
     }
 
@@ -58,6 +62,7 @@ struct ParserRefs
                 new PatternList(splitBy)
 
         this.allowTrailing = true
+        this.extraTokens = new ArrayList(sizeof(Token))
         this.results = new ArrayList(sizeof(pointer<*>))
     }
 
@@ -67,6 +72,7 @@ struct ParserRefs
         this.parser = parser
         this.splitBy = splitBy
         this.allowTrailing = true
+        this.extraTokens = new ArrayList(sizeof(Token))
         this.results = new ArrayList(sizeof(pointer<*>))
     }
 
@@ -80,6 +86,7 @@ struct ParserRefs
                 new PatternList(splitBy)
 
         this.allowTrailing = allowTrailing
+        this.extraTokens = new ArrayList(sizeof(Token))
         this.results = new ArrayList(sizeof(pointer<*>))
     }
 
@@ -89,6 +96,7 @@ struct ParserRefs
         this.parser = parser
         this.splitBy = splitBy
         this.allowTrailing = allowTrailing
+        this.extraTokens = new ArrayList(sizeof(Token))
         this.results = new ArrayList(sizeof(pointer<*>))
     }
 
@@ -140,6 +148,7 @@ struct ParserRefs
             if !this.splitBy.regMatch(tokens, index + consumed):
                 break
 
+            val splitStart: int = index + consumed
             val splitLength: int = this.splitBy.length()
             val nextIndex: int = index + consumed + splitLength
 
@@ -154,11 +163,22 @@ struct ParserRefs
             val result: pointer<ParseContainer> = this.parser.getResult()
 
             this.results.push(result.ref)
+
+            for (var i = 0; i < splitLength; i++):
+                this.extraTokens.push(tokens.get(splitStart + i))
+
             consumed += splitLength + innerConsumed
         }
 
         if this.allowTrailing && this.splitBy.regMatch(tokens, index + consumed):
+        {
+            val splitStart: int = index + consumed
+
+            for (var i = 0; i < this.splitBy.length(); i++):
+                this.extraTokens.push(tokens.get(splitStart + i))
+
             consumed += this.splitBy.length()
+        }
 
         return consumed
     }
@@ -167,6 +187,7 @@ struct ParserRefs
     fun parse(tokens: pointer<TokenList>, index: int) -> int
     {
         this.results = new ArrayList(sizeof(pointer<*>))
+        this.extraTokens = new ArrayList(sizeof(Token))
 
         if this.parser == null || tokens == null || index < 0 || index >= tokens.length():
             return 0
@@ -185,6 +206,9 @@ struct ParserRefs
 
     fun getResult() -> pointer<ParseContainer> =
         new ParseContainer(ParseContainer.ARRAY_LIST_KIND, this.results)
+
+
+    fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
     fun clone() -> pointer<ParserRefs> =

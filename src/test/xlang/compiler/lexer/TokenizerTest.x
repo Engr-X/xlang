@@ -532,8 +532,8 @@ private fun stringEscapeTest() -> int
 
 private fun numbersTest() -> int
 {
-    val kindsSpace: blob[sizeof(int) * 7]
-    val textsSpace: blob[sizeof(pointer<char>) * 7]
+    val kindsSpace: blob[sizeof(int) * 10]
+    val textsSpace: blob[sizeof(pointer<char>) * 10]
     val kinds: pointer<int> = kindsSpace as pointer<int>
     val texts: pointer<pointer<char>> = textsSpace as pointer<pointer<char>>
 
@@ -549,10 +549,16 @@ private fun numbersTest() -> int
     texts[4] = "*"
     kinds[5] = Tokenizer.TK_FLOAT
     texts[5] = "3.14e-2f"
-    kinds[6] = Token.EOF_KIND
-    texts[6] = Token.EOF_STRING
+    kinds[6] = Tokenizer.TK_DOUBLE
+    texts[6] = "1e10"
+    kinds[7] = Tokenizer.TK_DOUBLE
+    texts[7] = "1."
+    kinds[8] = Tokenizer.TK_DOUBLE
+    texts[8] = "0x1.8p10"
+    kinds[9] = Token.EOF_KIND
+    texts[9] = Token.EOF_STRING
 
-    return checkTokens("0x1f + -42L * 3.14e-2f", kinds, texts, 7)
+    return checkTokens("0x1f + -42L * 3.14e-2f 1e10 1. 0x1.8p10", kinds, texts, 10)
 }
 
 
