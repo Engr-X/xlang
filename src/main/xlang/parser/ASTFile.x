@@ -60,17 +60,20 @@ struct ASTFile
      *
      * <p>The diagnostic is stored by reference and is not copied.
      *
-     * @param diagnostics       a pointer to the diagnostic to add
+     * @param diagnostic        a pointer to the diagnostic to add
      * @return                  this {@code ASTFile} instance
      */
-    fun pushDiagnostic(diagnostics: pointer<Diagnostic>) -> pointer<ASTFile>
+    fun pushDiagnostic(diagnostic: pointer<Diagnostic>) -> pointer<ASTFile>
     {
-        diagnostics.setFilePath(this.path)
+        if diagnostic == null:
+            return this
 
-        if diagnostics.isError():
-            this.errors.push(diagnostics)
-        elif diagnostics.isWarning():
-            this.warnings.push(diagnostics)
+        diagnostic.setFilePath(this.path)
+
+        if diagnostic.isError():
+            this.errors.push(diagnostic)
+        elif diagnostic.isWarning():
+            this.warnings.push(diagnostic)
         else:
             pass
 
