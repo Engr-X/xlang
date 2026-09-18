@@ -354,14 +354,6 @@ struct Token
 struct TokenList
 {
     /**
-     * Points to the source file path associated with this token list.
-     *
-     * The path is optional. A null path means the token list is not tied to
-     * a named source file, such as code from a REPL or an in-memory test.
-     */
-    var filePath: pointer<char>
-
-    /**
      * Stores the internal token collection.
      *
      * This list is owned and managed by the TokenList instance.
@@ -375,54 +367,8 @@ struct TokenList
      * A new internal ArrayList is created using the size of Token
      * as its element size.
      */
-    constructor()
-    {
-        this.filePath = null
+    constructor():
         this.tokens = new ArrayList(sizeof(Token))
-    }
-
-
-    /**
-     * Initializes an empty token list associated with a source file path.
-     *
-     * The supplied file path is duplicated. A null path remains null.
-     *
-     * @param filePath          the source file path for this token list
-     */
-    constructor(filePath: pointer<char>)
-    {
-        this.filePath = String.strdup(filePath)
-        this.tokens = new ArrayList(sizeof(Token))
-    }
-
-
-    /**
-     * Updates the source path associated with this token list.
-     *
-     * The supplied path is duplicated. A null path clears the path.
-     *
-     * @param path              the new source path
-     *
-     * @return                  this token list for chained calls
-     */
-    fun setPath(path: pointer<char>) -> pointer<TokenList>
-    {
-        this.filePath = String.strdup(path)
-        return this
-    }
-
-
-    /**
-     * Updates the source file path associated with this token list.
-     *
-     * This is the explicit-name alias of setPath.
-     *
-     * @param filePath          the new source file path
-     *
-     * @return                  this token list for chained calls
-     */
-    fun setFilePath(filePath: pointer<char>) -> pointer<TokenList> =
-        this.setPath(filePath)
 
 
     /**
@@ -604,7 +550,7 @@ struct TokenList
         if copiedTokens == null:
             return null
 
-        val result: pointer<TokenList> = new TokenList(this.filePath)
+        val result: pointer<TokenList> = new TokenList()
         result.tokens = copiedTokens
 
         return result

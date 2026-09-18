@@ -112,7 +112,7 @@ private fun sourceLocation(tokens: pointer<TokenList>, pos: pointer<TokenPositio
     if pos == null:
         return null
 
-    return new SourceLocation(tokens.filePath, pos.offset, pos.line, pos.column, pos.length)
+    return new SourceLocation(null, pos.offset, pos.line, pos.column, pos.length)
 }
 
 

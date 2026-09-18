@@ -30,11 +30,13 @@ import xlang.System
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
 import xlang.lexer.TokenList
+import xlang.lexer.TokenizedFile
 import xlang.lexer.TokenizeFSM
 import xlang.test.TestCase
 import xlang.test.TestGroup
 import xlang.test.TestUnion
 import xlang.util.ArrayList
+import xlang.util.File
 import xlang.util.string.String
 
 
@@ -138,7 +140,12 @@ private fun sourceTokenTest() -> int
         if source == null:
             return 1
 
-        val tokens: pointer<TokenList> = Tokenizer.fullTokenize(source, path)
+        val file: pointer<File> = new File(path)
+        val tokenizedFile: pointer<TokenizedFile> = Tokenizer.fullTokenize(file)
+        val tokens: pointer<TokenList> = if tokenizedFile == null:
+                null
+            else:
+                tokenizedFile.getTokens()
 
         if tokens == null:
             return 2

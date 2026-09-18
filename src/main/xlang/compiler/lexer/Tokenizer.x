@@ -9,6 +9,8 @@ import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.lexer.TokenizeFSM
 import xlang.lexer.TokenizeRule
+import xlang.lexer.TokenizedFile
+import xlang.util.File
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
@@ -309,9 +311,9 @@ val rule3: pointer<TokenizeRule> = new TokenizeRule(3, TokenizeFSM.DEFAULT, "\\'
 val rule4: pointer<TokenizeRule> = new TokenizeRule(4, TokenizeFSM.DEFAULT, "\"", beginString)
 val rule5: pointer<TokenizeRule> = new TokenizeRule(5, TokenizeFSM.DEFAULT, "\\r?\\n", eatLineTerminator)
 val rule6: pointer<TokenizeRule> = new TokenizeRule(6, TokenizeFSM.DEFAULT, "[\\ \\t\\r\\n\\f\\v]", skip)
-val rule7: pointer<TokenizeRule> = new TokenizeRule(7, TokenizeFSM.DEFAULT, "[0-9]*\\.[0-9]+[eE][\\-\\+]?[0-9]+[lL]|[0-9]*\\.[0-9]+[lL]", eatLongDoubleLit)
-val rule8: pointer<TokenizeRule> = new TokenizeRule(8, TokenizeFSM.DEFAULT, "[0-9]*\\.[0-9]+[eE][\\-\\+]?[0-9]+[fF]|[0-9]*\\.[0-9]+[fF]", eatFloatLit)
-val rule9: pointer<TokenizeRule> = new TokenizeRule(9, TokenizeFSM.DEFAULT, "0[xX][0-9a-fA-F]+\\.[0-9a-fA-F]*[pP][\\-\\+]?[0-9]+|0[xX]\\.[0-9a-fA-F]+[pP][\\-\\+]?[0-9]+|0[xX][0-9a-fA-F]+[pP][\\-\\+]?[0-9]+|[0-9]*\\.[0-9]+[eE][\\-\\+]?[0-9]+|[0-9]*\\.[0-9]+|[0-9]+[eE][\\-\\+]?[0-9]+|[0-9]+\\.", eatDoubleLit)
+val rule7: pointer<TokenizeRule> = new TokenizeRule(7, TokenizeFSM.DEFAULT, "0[xX][0-9a-fA-F]+[pP][\\-\\+]?[0-9]+[lL]|0[xX][0-9a-fA-F]+\\.[0-9a-fA-F]*[pP][\\-\\+]?[0-9]+[lL]|0[xX][0-9a-fA-F]*\\.[0-9a-fA-F]+[pP][\\-\\+]?[0-9]+[lL]|[0-9]+[eE][\\-\\+]?[0-9]+[lL]|[0-9]+\\.[0-9]*[eE][\\-\\+]?[0-9]+[lL]|[0-9]*\\.[0-9]+[eE][\\-\\+]?[0-9]+[lL]|[0-9]+\\.[0-9]*[lL]|[0-9]*\\.[0-9]+[lL]", eatLongDoubleLit)
+val rule8: pointer<TokenizeRule> = new TokenizeRule(8, TokenizeFSM.DEFAULT, "0[xX][0-9a-fA-F]+[pP][\\-\\+]?[0-9]+[fF]|0[xX][0-9a-fA-F]+\\.[0-9a-fA-F]*[pP][\\-\\+]?[0-9]+[fF]|0[xX][0-9a-fA-F]*\\.[0-9a-fA-F]+[pP][\\-\\+]?[0-9]+[fF]|[0-9]+[eE][\\-\\+]?[0-9]+[fF]|[0-9]+\\.[0-9]*[eE][\\-\\+]?[0-9]+[fF]|[0-9]*\\.[0-9]+[eE][\\-\\+]?[0-9]+[fF]|[0-9]+\\.[0-9]*[fF]|[0-9]*\\.[0-9]+[fF]", eatFloatLit)
+val rule9: pointer<TokenizeRule> = new TokenizeRule(9, TokenizeFSM.DEFAULT, "0[xX][0-9a-fA-F]+[pP][\\-\\+]?[0-9]+|0[xX][0-9a-fA-F]+\\.[0-9a-fA-F]*[pP][\\-\\+]?[0-9]+|0[xX][0-9a-fA-F]*\\.[0-9a-fA-F]+[pP][\\-\\+]?[0-9]+|[0-9]+[eE][\\-\\+]?[0-9]+|[0-9]+\\.[0-9]*[eE][\\-\\+]?[0-9]+|[0-9]*\\.[0-9]+[eE][\\-\\+]?[0-9]+|[0-9]+\\.[0-9]*|[0-9]*\\.[0-9]+", eatDoubleLit)
 val rule10: pointer<TokenizeRule> = new TokenizeRule(10, TokenizeFSM.DEFAULT, "0[xX][0-9a-fA-F]+[lL]|[0-9]+[lL]", eatLongLit)
 val rule11: pointer<TokenizeRule> = new TokenizeRule(11, TokenizeFSM.DEFAULT, "0[xX][0-9a-fA-F]+", eatIntLit)
 val rule12: pointer<TokenizeRule> = new TokenizeRule(12, TokenizeFSM.DEFAULT, "[0-9]+[a-zA-Z_][a-zA-Z0-9_]*", invalidIdentError)
@@ -589,25 +591,26 @@ private fun endString(input: pointer<LexInput>, dest: pointer<TokenizeFSM>) -> p
 }
 
 
-fun tokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>
-{
-    val tokens: pointer<TokenList> = tokenize(code)
-    tokens.setPath(filePath)
-    return tokens
-}
-
-
 fun fullTokenize(code: pointer<char>) -> pointer<TokenList>
 {
+    if code == null:
+        return null
+
     val tokens: pointer<TokenList> = tokenize(code)
     return TokenNormalizer.normalize(tokens)
 }
 
 
-fun fullTokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>
+fun fullTokenize(file: pointer<File>) -> pointer<TokenizedFile>
 {
-    val tokens: pointer<TokenList> = tokenize(code, filePath)
-    return TokenNormalizer.normalize(tokens)
+    if file == null:
+        return null
+
+    if !file.hasContent():
+        return new TokenizedFile(file.getPath(), file.getContent(), null)
+
+    val tokens: pointer<TokenList> = fullTokenize(file.getContent())
+    return new TokenizedFile(file.getPath(), file.getContent(), tokens)
 }
 
 

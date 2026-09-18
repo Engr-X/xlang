@@ -222,7 +222,7 @@ struct NormalizeReceiver
         if list == null || list.length() != this.length:
             return null
 
-        val result: pointer<TokenList> = new TokenList(list.filePath)
+        val result: pointer<TokenList> = new TokenList()
         var deleteCursor: pointer<bool> = this.deleted
         var addCursor: pointer<pointer<Token>> = this.addedTokens
 

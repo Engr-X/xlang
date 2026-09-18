@@ -31,6 +31,30 @@ import xlang.util.string.StringBuilder
 
 struct Modifier
 {
+    static fun fromPrivate() -> pointer<Modifier> = new Modifier("private")
+
+
+    static fun fromProtected() -> pointer<Modifier> = new Modifier("protected")
+
+
+    static fun fromPublic() -> pointer<Modifier> = new Modifier("public")
+
+
+    static fun fromStatic() -> pointer<Modifier> = new Modifier("static")
+
+
+    static fun fromFinal() -> pointer<Modifier> = new Modifier("final")
+
+
+    static fun fromInline() -> pointer<Modifier> = new Modifier("inline")
+
+
+    static fun fromNative() -> pointer<Modifier> = new Modifier("native")
+
+
+    static fun fromIntrinsic() -> pointer<Modifier> = new Modifier("intrinsic")
+
+
     private var keyword: pointer<char>
 
     private var extraTokens: pointer<ArrayList>

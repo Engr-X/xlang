@@ -264,7 +264,7 @@ struct TypeParser
         val errorToken: pointer<Token> = tokens.get(errorIndex)
         val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
         val location: pointer<SourceLocation> = new SourceLocation(
-            tokens.filePath,
+            null,
             errorToken.pos.offset,
             errorToken.pos.line,
             errorToken.pos.column,
@@ -306,7 +306,7 @@ struct TypeParser
 
             val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
             val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
+                null,
                 token.pos.offset,
                 token.pos.line,
                 token.pos.column,
@@ -334,7 +334,7 @@ struct TypeParser
         {
             val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
             val location: pointer<SourceLocation> = new SourceLocation(
-                tokens.filePath,
+                null,
                 token.pos.offset,
                 token.pos.line,
                 token.pos.column,
@@ -425,7 +425,7 @@ struct TypeParser
         val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
         val errorToken: pointer<Token> = tokens.get(errorIndex)
         val location: pointer<SourceLocation> = new SourceLocation(
-            tokens.filePath,
+            null,
             errorToken.pos.offset,
             errorToken.pos.line,
             errorToken.pos.column,
@@ -487,7 +487,7 @@ struct TypeParser
         val errorToken: pointer<Token> = tokens.get(errorIndex)
         val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
         val location: pointer<SourceLocation> = new SourceLocation(
-            tokens.filePath,
+            null,
             errorToken.pos.offset,
             errorToken.pos.line,
             errorToken.pos.column,

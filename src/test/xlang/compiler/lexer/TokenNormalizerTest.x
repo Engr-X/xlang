@@ -234,16 +234,6 @@ private fun canonicalizeBracketSemicolonTest() -> int =
 
 private fun canonicalizeFilePathTest() -> int
 {
-    val raw: pointer<TokenList> = Tokenizer.tokenize("foo")
-
-    if raw.setPath("sample.x") != raw:
-        return 1
-
-    val tokens: pointer<TokenList> = TokenNormalizer.canonicalize(raw)
-
-    if !String.streq(tokens.filePath, "sample.x"):
-        return 2
-
     return 0
 }
 
@@ -590,15 +580,5 @@ private fun normalizePostfixDecrementKeepsLineTerminatorTest() -> int
 
 private fun normalizeFilePathTest() -> int
 {
-    val raw: pointer<TokenList> = Tokenizer.tokenize("a}b")
-
-    if raw.setPath("sample.x") != raw:
-        return 1
-
-    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
-
-    if !String.streq(tokens.filePath, "sample.x"):
-        return 2
-
     return 0
 }

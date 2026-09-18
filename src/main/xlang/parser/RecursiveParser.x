@@ -172,7 +172,7 @@ struct RecursiveParser
         val errorToken: pointer<Token> = token.get(errorIndex)
         val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
         val location: pointer<SourceLocation> = new SourceLocation(
-            token.filePath,
+            null,
             errorToken.pos.offset,
             errorToken.pos.line,
             errorToken.pos.column,

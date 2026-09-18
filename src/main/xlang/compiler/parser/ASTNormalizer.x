@@ -47,18 +47,18 @@ private fun initPreprocessSettings(path: pointer<char>, preprocessSettings: poin
 }
 
 
-fun splitProgram(program: pointer<Program>) -> pointer<ArrayList>
-{
-    val result: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
+// fun splitProgram(program: pointer<Program>) -> pointer<ArrayList>
+// {
+//     val result: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
 
-    if program == null:
-        return result
+//     if program == null:
+//         return result
 
-    val preprocessSettings: pointer<ArrayList> = program.getPreprocessSettings()
+//     val preprocessSettings: pointer<ArrayList> = program.getPreprocessSettings()
 
-    val config: pointer<CompilerSettings> = initPreprocessSettings(null, preprocessSettings)
-    val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
-    val imports: pointer<ArrayList> = program.getImportDeclarations()
+//     val config: pointer<CompilerSettings> = initPreprocessSettings(, preprocessSettings)
+//     val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
+//     val imports: pointer<ArrayList> = program.getImportDeclarations()
 
-    return result
-}
+//     return result
+// }

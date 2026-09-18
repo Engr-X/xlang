@@ -99,11 +99,11 @@ private fun initBanBefore() -> pointer<HashSet>
     val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)
 
     addCommonBanKinds(result)
-    addBanKind(result, Tokenizer.RIGHT_BRACKET)
     addBanKind(result, Tokenizer.DOUBLE_PLUS)
     addBanKind(result, Tokenizer.DOUBLE_MINUS)
     addBanKind(result, Tokenizer.GREATER)
     addBanKind(result, Tokenizer.RIGHT_PAREN)
+    addBanKind(result, Tokenizer.RIGHT_BRACKET)
 
     return result
 }
@@ -247,7 +247,7 @@ private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens
 
 fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>
 {
-    val canonical: pointer<TokenList> = new TokenList(tokenlist.filePath)
+    val canonical: pointer<TokenList> = new TokenList()
     var parenthesis: int = 0
     var bracket: int = 0
 
@@ -285,7 +285,7 @@ fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>
         canonical.push(token)
     }
 
-    val result: pointer<TokenList> = new TokenList(tokenlist.filePath)
+    val result: pointer<TokenList> = new TokenList()
 
     for (var i = 0; i < canonical.length(); i++):
     {

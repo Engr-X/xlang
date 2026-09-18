@@ -4,6 +4,8 @@
     "class": "Tokenizer",
     "imports": [
         "xlang.System",
+        "xlang.lexer.TokenizedFile",
+        "xlang.util.File",
         "xlang.util.string.StringBuilder"
     ],
     "constants": [
@@ -169,11 +171,16 @@
         { "key": "decimal_int_lit", "pattern": "$digit+" },
         { "key": "int_lit", "pattern": "$hex_int_lit|$decimal_int_lit" },
         { "key": "long_lit", "pattern": "$hex_int_lit$long_postfix|$decimal_int_lit$long_postfix" },
-        { "key": "double_no_exp_lit", "pattern": "$digit*\\.$digit+" },
-        { "key": "double_exp_lit", "pattern": "$digit*\\.$digit+[eE]$sign?$digit+" },
-        { "key": "double_lit", "pattern": "$double_exp_lit|$double_no_exp_lit" },
-        { "key": "float_lit", "pattern": "$double_exp_lit$float_postfix|$double_no_exp_lit$float_postfix" },
-        { "key": "long_double_lit", "pattern": "$double_exp_lit$long_postfix|$double_no_exp_lit$long_postfix" },
+        { "key": "decimal_dot_lit", "pattern": "$digit+\\.$digit*|$digit*\\.$digit+" },
+        { "key": "decimal_exp_lit", "pattern": "$digit+[eE]$sign?$digit+|$digit+\\.$digit*[eE]$sign?$digit+|$digit*\\.$digit+[eE]$sign?$digit+" },
+        { "key": "hex_double_lit", "pattern": "0[xX]$hex_digit+[pP]$sign?$digit+|0[xX]$hex_digit+\\.$hex_digit*[pP]$sign?$digit+|0[xX]$hex_digit*\\.$hex_digit+[pP]$sign?$digit+" },
+        { "key": "decimal_float_lit", "pattern": "$digit+[eE]$sign?$digit+$float_postfix|$digit+\\.$digit*[eE]$sign?$digit+$float_postfix|$digit*\\.$digit+[eE]$sign?$digit+$float_postfix|$digit+\\.$digit*$float_postfix|$digit*\\.$digit+$float_postfix" },
+        { "key": "hex_float_lit", "pattern": "0[xX]$hex_digit+[pP]$sign?$digit+$float_postfix|0[xX]$hex_digit+\\.$hex_digit*[pP]$sign?$digit+$float_postfix|0[xX]$hex_digit*\\.$hex_digit+[pP]$sign?$digit+$float_postfix" },
+        { "key": "decimal_long_double_lit", "pattern": "$digit+[eE]$sign?$digit+$long_postfix|$digit+\\.$digit*[eE]$sign?$digit+$long_postfix|$digit*\\.$digit+[eE]$sign?$digit+$long_postfix|$digit+\\.$digit*$long_postfix|$digit*\\.$digit+$long_postfix" },
+        { "key": "hex_long_double_lit", "pattern": "0[xX]$hex_digit+[pP]$sign?$digit+$long_postfix|0[xX]$hex_digit+\\.$hex_digit*[pP]$sign?$digit+$long_postfix|0[xX]$hex_digit*\\.$hex_digit+[pP]$sign?$digit+$long_postfix" },
+        { "key": "double_lit", "pattern": "$hex_double_lit|$decimal_exp_lit|$decimal_dot_lit" },
+        { "key": "float_lit", "pattern": "$hex_float_lit|$decimal_float_lit" },
+        { "key": "long_double_lit", "pattern": "$hex_long_double_lit|$decimal_long_double_lit" },
         { "key": "ident", "pattern": "[a-zA-Z_][a-zA-Z0-9_]*" },
         { "key": "invalid_ident", "pattern": "$decimal_int_lit[a-zA-Z_][a-zA-Z0-9_]*" },
         { "key": "escaped_char", "pattern": "\\\\." },
@@ -413,25 +420,26 @@
             "}" ],
 
 
-        [   "fun tokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
-            "{",
-            "    val tokens: pointer<TokenList> = tokenize(code)",
-            "    tokens.setPath(filePath)",
-            "    return tokens",
-            "}" ],
-
-
         [   "fun fullTokenize(code: pointer<char>) -> pointer<TokenList>",
             "{",
+            "    if code == null:",
+            "        return null",
+            "",
             "    val tokens: pointer<TokenList> = tokenize(code)",
             "    return TokenNormalizer.normalize(tokens)",
             "}" ],
 
             
-        [   "fun fullTokenize(code: pointer<char>, filePath: pointer<char>) -> pointer<TokenList>",
+        [   "fun fullTokenize(file: pointer<File>) -> pointer<TokenizedFile>",
             "{",
-            "    val tokens: pointer<TokenList> = tokenize(code, filePath)",
-            "    return TokenNormalizer.normalize(tokens)",
+            "    if file == null:",
+            "        return null",
+            "",
+            "    if !file.hasContent():",
+            "        return new TokenizedFile(file.getPath(), file.getContent(), null)",
+            "",
+            "    val tokens: pointer<TokenList> = fullTokenize(file.getContent())",
+            "    return new TokenizedFile(file.getPath(), file.getContent(), tokens)",
             "}" ]
     ]
 }
