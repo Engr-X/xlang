@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("TypeCast")
 package xlang.compiler.parser.expression
 
 import xlang.compiler.Type

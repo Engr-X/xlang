@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("BlobType")
 package xlang.compiler
 
 import xlang.compiler.parser.expression.Expression

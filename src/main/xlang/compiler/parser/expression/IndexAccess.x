@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("IndexAccess")
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

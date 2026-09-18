@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("Modifier")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

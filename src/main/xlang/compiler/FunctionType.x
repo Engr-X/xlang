@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("FunctionType")
 package xlang.compiler
 
 import xlang.lexer.Token

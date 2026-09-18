@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("SizeOf")
 package xlang.compiler.parser.expression.intrisic
 
 import xlang.System

@@ -21,7 +21,6 @@
  *
  */
 
-#file.outerClass("ArrayList")
 package xlang.util
 
 import xlang.System

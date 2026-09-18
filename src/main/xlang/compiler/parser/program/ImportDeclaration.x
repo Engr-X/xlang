@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("ImportDeclaration")
 package xlang.compiler.parser.program
 
 import xlang.lexer.Token

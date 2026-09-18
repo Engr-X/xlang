@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("Statement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression

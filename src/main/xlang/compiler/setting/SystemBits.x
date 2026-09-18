@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("SystemBits")
 package xlang.compiler.setting
 
 

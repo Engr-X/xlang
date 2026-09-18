@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("WhileStatement")
 package xlang.compiler.parser.statement
 
 import xlang.compiler.parser.expression.Expression

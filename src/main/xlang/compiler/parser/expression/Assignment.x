@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("Assignment")
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

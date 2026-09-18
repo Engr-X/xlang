@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("ElseStatement")
 package xlang.compiler.parser.statement
 
 import xlang.lexer.Token

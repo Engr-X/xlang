@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("OperatingSystem")
 package xlang.compiler.setting
 
 

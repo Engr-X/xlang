@@ -23,7 +23,6 @@
  *
  */
 
-#file.outerClass("Operation")
 package xlang
 
 import xlang.util.string.String

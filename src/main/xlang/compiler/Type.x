@@ -22,7 +22,6 @@
  *
  */
 
-#file.outerClass("Type")
 package xlang.compiler
 
 import xlang.compiler.setting.CompilerSettings

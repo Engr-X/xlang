@@ -21,7 +21,6 @@
  *
  */
 
-#file.outerClass("ExpressionTuple") 
 package xlang.compiler.parser.expression
 
 import xlang.lexer.Token

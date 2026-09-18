@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("Struct")
 package xlang.compiler.parser.program
 
 import xlang.compiler.parser.expression.Expression

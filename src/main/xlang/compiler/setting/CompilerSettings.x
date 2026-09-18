@@ -20,11 +20,13 @@
  *
  */
 
-#file.outerClass("CompilerSettings")
 package xlang.compiler.setting
 
+import xlang.System
 import xlang.compiler.parser.expression.Atom
 import xlang.compiler.parser.program.PreprocessSetting
+import xlang.util.IO
+import xlang.util.string.StringBuilder
 
 
 /**
@@ -43,6 +45,9 @@ import xlang.compiler.parser.program.PreprocessSetting
  */
 struct CompilerSettings
 {
+    static val OUTER_CLASS_POSTFIX: pointer<char> = "X"
+
+
     /**
      * Number of worker threads available to the compiler.
      *
@@ -90,7 +95,12 @@ struct CompilerSettings
         this.thread = 1
         this.systemBits = SystemBits.BITS_64
         this.operatingSystem = OperatingSystem.WINDOWS
-        outerClass = "TODO"
+
+        val outerClassName: pointer<StringBuilder> = IO.getFileName(filepath)
+        outerClassName.append(OUTER_CLASS_POSTFIX)
+
+        this.outerClass = System.allocMemory((outerClassName.length + 1) * sizeof(char)) as pointer<char>
+        outerClassName.toString(this.outerClass)
     }
 
 
