@@ -155,6 +155,7 @@ struct TokenizedFile
      * <p>The diagnostic is stored by reference and is not copied.
      *
      * @param diagnostic        a pointer to the diagnostic to add
+     *
      * @return                  this {@code ASTFile} instance
      */
     fun pushDiagnostic(diagnostic: pointer<Diagnostic>) -> pointer<ASTFile>
@@ -187,6 +188,7 @@ struct TokenizedFile
     * <p>The diagnostics are stored by reference and are not copied.
     *
     * @param diagnostics        a pointer to the list of diagnostics to add
+    *
     * @return                   this {@code ASTFile} instance
     */
     fun pushDiagnostics(diagnostics: pointer<ArrayList>) -> pointer<ASTFile>

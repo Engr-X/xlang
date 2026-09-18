@@ -24,7 +24,6 @@
  */
 
 #file.outerClass("ParserUtil")
-
 package xlang.parser
 
 import xlang.Diagnostic

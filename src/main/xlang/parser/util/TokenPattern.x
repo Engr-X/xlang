@@ -122,6 +122,15 @@ struct PatternAtom
     }
 
 
+    /**
+     * Creates a pattern atom backed by a single parser reference.
+     *
+     * <p>This pattern atom does not perform token-kind or regular-expression
+     * matching. Instead, matching is delegated to the supplied
+     * {@code ParserRef}.
+     *
+     * @param refParser          a pointer to the parser reference used by this pattern atom
+     */
     constructor(refParser: pointer<ParserRef>)
     {
         this.kind = Token.AnyKind
@@ -132,6 +141,16 @@ struct PatternAtom
     }
 
 
+    /**
+     * Creates a pattern atom backed by a repeated parser reference.
+     *
+     * <p>This pattern atom does not perform token-kind or regular-expression
+     * matching. Instead, matching is delegated to the supplied
+     * {@code ParserRefs}.
+     *
+     * @param refsParser        a pointer to the repeated parser reference used by this
+     *                          pattern atom
+     */
     constructor(refsParser: pointer<ParserRefs>)
     {
         this.kind = Token.AnyKind
@@ -142,6 +161,28 @@ struct PatternAtom
     }
 
 
+    /**
+     * Attempts to match the token at the specified index against the token-kind
+     * and regular-expression constraints of this pattern atom.
+     *
+     * <p>This method may only be used for regular token pattern atoms. If this
+     * pattern atom contains a parser reference, the match fails immediately.
+     *
+     * <p>If a specific token kind is configured, the token must have the same
+     * kind. {@code Token.AnyKind} disables token-kind filtering.
+     *
+     * <p>If no regular expression is configured, a matching token kind is
+     * sufficient for a successful match.
+     *
+     * <p>If a regular expression is configured, the token text is matched against
+     * either the compiled regular expression, when available, or the original
+     * regular-expression string otherwise.
+     *
+     * @param tokens            a pointer to the token list to inspect
+     * @param index             the index of the token to match
+     * @return                  {@code 1} if the token matches this pattern atom;
+     *                          {@code -1} otherwise
+     */
     fun matchRegex(tokens: pointer<TokenList>, index: int) -> int
     {
         if !this.isRegex() || tokens == null || index < 0 || index >= tokens.length():
@@ -165,14 +206,50 @@ struct PatternAtom
     }
 
 
+    /**
+     * Checks whether this pattern atom represents a regular token pattern.
+     *
+     * <p>A pattern atom is considered a regular token pattern when it contains
+     * neither a single parser reference nor a repeated parser reference.
+     *
+     * @return                  {@code true} if this pattern atom performs token or regular-expression
+     *                          matching; {@code false} otherwise
+     */
     inline fun isRegex() -> bool = this.refParser == null && this.refsParser == null
 
+    /**
+     * Checks whether this pattern atom contains a single parser reference.
+     *
+     * @return                  {@code true} if a {@code ParserRef} is associated with this pattern
+     *                          atom; {@code false} otherwise
+     */
     inline fun isRef() -> bool = this.refParser != null
 
+
+    /**
+     * Checks whether this pattern atom contains a repeated parser reference.
+     *
+     * @return                  {@code true} if a {@code ParserRefs} instance is associated with this
+     *                          pattern atom; {@code false} otherwise
+     */
     inline fun isRefs() -> bool = this.refsParser != null
 
+
+    /**
+     * Returns the single parser reference associated with this pattern atom.
+     *
+     * @return                  a pointer to the associated {@code ParserRef}, or {@code null} if
+     *                          this pattern atom does not contain one
+     */
     inline fun getRefParser() -> pointer<ParserRef> = this.refParser
 
+
+    /**
+     * Returns the repeated parser reference associated with this pattern atom.
+     *
+     * @return                  a pointer to the associated {@code ParserRefs}, or {@code null} if
+     *                          this pattern atom does not contain one
+     */
     inline fun getRefsParser() -> pointer<ParserRefs> = this.refsParser
 }
 
