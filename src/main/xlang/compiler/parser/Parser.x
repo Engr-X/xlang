@@ -61,6 +61,8 @@ import xlang.compiler.parser.stmtexpr.StatementExpression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.lexer.TokenPosition
+import xlang.lexer.TokenizedFile
+import xlang.parser.ASTFile
 import xlang.parser.ParseContainer
 import xlang.parser.PrattParser
 import xlang.parser.util.ParserRef
@@ -1752,6 +1754,22 @@ private inline fun makeProgram(results: pointer<ArrayList>) -> pointer<*>
         .setPreprocessSettings(settings)
         .setPackageDeclaration(packageDeclaration.toPackageDeclaration())
         .setImportDeclarations(imports.toImportDeclarations())
+}
+
+private inline fun parse(input: pointer<TokenList>) -> pointer<Program>
+{
+    PROGRAM_PARSER.doParse(input)
+
+    val result: pointer<ParseContainer> = PROGRAM_PARSER.getResult()
+    return result.getValue() as pointer<Program>
+}
+
+private inline fun parse(input: pointer<TokenizedFile>) -> pointer<ASTFile>
+{
+    PROGRAM_PARSER.doParse(input.getTokens())
+    val program: pointer<ParseContainer> = PROGRAM_PARSER.getResult()
+    val result: pointer<ASTFile> = new ASTFile(input.getPath(), program.getValue())
+    return result.pushDiagnostic(PROGRAM_PARSER.getError())
 }
 
 

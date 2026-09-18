@@ -31,7 +31,9 @@
         "xlang.compiler.parser.program.PackageDeclarationMaybe",
         "xlang.compiler.parser.program.QualifiedName",
         "xlang.compiler.parser.program.SelectiveImports",
-        "xlang.compiler.parser.stmtexpr.Block"
+        "xlang.compiler.parser.stmtexpr.Block",
+        "xlang.lexer.TokenizedFile",
+        "xlang.parser.ASTFile"
     ],
     "constants": [
 
@@ -686,6 +688,24 @@
             "        .setPreprocessSettings(settings)",
             "        .setPackageDeclaration(packageDeclaration.toPackageDeclaration())",
             "        .setImportDeclarations(imports.toImportDeclarations())",
+            "}" ],
+
+
+        [   "private inline fun parse(input: pointer<TokenList>) -> pointer<Program>",
+            "{",
+            "    PROGRAM_PARSER.doParse(input)",
+            "",
+            "    val result: pointer<ParseContainer> = PROGRAM_PARSER.getResult()",
+            "    return result.getValue() as pointer<Program>",
+            "}" ],
+
+
+        [   "private inline fun parse(input: pointer<TokenizedFile>) -> pointer<ASTFile>",
+            "{",
+            "    PROGRAM_PARSER.doParse(input.getTokens())",
+            "    val program: pointer<ParseContainer> = PROGRAM_PARSER.getResult()",
+            "    val result: pointer<ASTFile> = new ASTFile(input.getPath(), program.getValue())",
+            "    return result.pushDiagnostic(PROGRAM_PARSER.getError())",
             "}" ]
     ]
 }

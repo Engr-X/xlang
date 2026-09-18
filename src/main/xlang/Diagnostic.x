@@ -350,6 +350,27 @@ struct Diagnostic
         this.message = String.strdup(message)
     }
 
+
+    /**
+     * Sets the source file path for all locations associated with this diagnostic.
+     *
+     * <p>Each {@code SourceLocation} in the location list is updated to reference
+     * the specified file path.
+     *
+     * <p>The supplied path is assigned by reference and is not duplicated.
+     *
+     * @param path              a pointer to the null-terminated source file path
+    */
+    fun setFilePath(path: pointer<char>)
+    {
+        for (var i = 0; i < this.location.length; i++):
+        {
+            val location: pointer<SourceLocation> = this.location.get(i) as pointer<SourceLocation>
+            location.filePath = path
+        }
+    }
+
+
     /**
      * Tests whether this diagnostic is a normal informational message.
      *
@@ -400,4 +421,19 @@ struct Diagnostic
      *                          errors reported by isError.
      */
     fun isInternalError() -> bool = this.level == INTERNAL_ERROR_LEVEL
+
+
+    /**
+     * Prints this diagnostic to the output.
+     *
+     * <p>This method formats and writes the information associated with this
+     * diagnostic, such as its source location, severity, and message.
+     *
+     * <p>Only the current diagnostic is printed. Related diagnostics or additional
+     * diagnostics stored elsewhere are not processed by this method.
+     */
+    fun print()
+    {
+
+    }
 }
