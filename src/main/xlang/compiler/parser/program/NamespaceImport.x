@@ -162,12 +162,11 @@ struct NamespaceImport
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        val result: pointer<ArrayList> = this.extraTokens.clone()
 
         if this.qualifiedName != null:
             result.pushAll(this.qualifiedName.getAllTokens())
 
-        result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result

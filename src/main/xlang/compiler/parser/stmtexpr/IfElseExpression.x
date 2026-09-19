@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("IfElseExpression")
 package xlang.compiler.parser.stmtexpr
 
 import xlang.compiler.parser.expression.Expression
@@ -31,17 +30,83 @@ import xlang.util.ArrayList
 import xlang.util.string.StringBuilder
 
 
+/**
+ * Represents an if-else construct used as a statement-expression AST node.
+ *
+ * <p>An {@code IfElseExpression} stores an optional condition expression, an
+ * ordered collection of statements forming the if branch, an ordered collection
+ * of statements forming the optional else branch, and additional syntax tokens
+ * retained from the original source.
+ *
+ * <p>The condition may initially be absent and can later be assigned through
+ * {@code setCondition()}.
+ *
+ * <p>The if-branch collection is always allocated internally by the available
+ * constructors. The else-branch collection may either be allocated internally
+ * or supplied directly by the caller.
+ *
+ * <p>The condition and contained statements are stored by reference and are not
+ * copied or cloned.
+ *
+ * <p>Additional syntax tokens may contain the {@code if} and {@code else}
+ * keywords, parentheses, branch separators, punctuation, or other lexical
+ * elements that are not directly owned by the condition or nested statements.
+ *
+ * <p>All tokens belonging to the conditional expression and its child AST nodes
+ * can be collected in lexical source order using {@code getAllTokens()}.
+ */
 struct IfElseExpression
 {
+    /**
+     * The optional condition expression controlling branch selection.
+     *
+     * <p>The expression is stored by reference and is not copied or cloned.
+     *
+     * <p>A {@code null} value indicates that no condition has currently been
+     * assigned to this conditional expression.
+     */
     private var condition: pointer<Expression>
 
+    /**
+     * The ordered collection of statements forming the if branch.
+     *
+     * <p>This collection is allocated internally by every constructor.
+     *
+     * <p>The statements contained by the list are stored by reference and are
+     * not recursively copied or cloned.
+     */
     private val ifStmts: pointer<ArrayList>
 
+    /**
+     * The ordered collection of statements forming the optional else branch.
+     *
+     * <p>An empty collection represents an if-else expression without any
+     * effective else-body statements.
+     *
+     * <p>Depending on the constructor used, this collection is either allocated
+     * internally or supplied directly by the caller.
+     */
     private val elseStmts: pointer<ArrayList>
 
+    /**
+     * Additional syntax tokens associated directly with this if-else
+     * expression.
+     *
+     * <p>This collection may contain conditional keywords, parentheses,
+     * separators, punctuation, or other lexical tokens that are not directly
+     * represented by the condition or nested statements.
+     */
     private var extraTokens: pointer<ArrayList>
 
 
+    /**
+     * Creates an empty if-else expression.
+     *
+     * <p>The condition is initialized to {@code null}.
+     *
+     * <p>New empty collections are allocated for the if branch, else branch,
+     * and additional syntax tokens.
+     */
     constructor()
     {
         this.condition = null
@@ -51,6 +116,27 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Creates an if-else expression using the specified else-body collection.
+     *
+     * <p>The condition is initialized to {@code null}, and a new empty
+     * if-statement collection is allocated.
+     *
+     * <p>The supplied {@code elseStmts} collection is stored directly and is not
+     * copied or cloned.
+     *
+     * <p>This constructor does not normalize a {@code null} collection to an
+     * empty list. Methods such as {@code haveElseStatement()},
+     * {@code getAllTokens()}, and {@code toString()} access
+     * {@code elseStmts} directly and therefore assume that the pointer refers to
+     * a valid {@code ArrayList}.
+     *
+     * <p>A new empty collection is allocated independently for additional syntax
+     * tokens.
+     *
+     * @param elseStmts         a pointer to the ordered else-body statement
+     *                          collection
+     */
     constructor(elseStmts: pointer<ArrayList>)
     {
         this.condition = null
@@ -60,6 +146,25 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Creates an if-else expression containing an optional initial else
+     * statement.
+     *
+     * <p>The condition is initialized to {@code null}.
+     *
+     * <p>New empty collections are allocated for the if branch, else branch,
+     * and additional syntax tokens.
+     *
+     * <p>If {@code elseStatement} is not {@code null}, it is appended to the
+     * else-body collection. A {@code null} value therefore leaves the else
+     * branch empty.
+     *
+     * <p>The supplied statement is stored by reference and is not copied or
+     * cloned.
+     *
+     * @param elseStatement     a pointer to the initial else-body statement, or
+     *                          {@code null} to leave the else branch empty
+     */
     constructor(elseStatement: pointer<Statement>)
     {
         this.condition = null
@@ -72,6 +177,19 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Replaces the condition expression associated with this if-else
+     * expression.
+     *
+     * <p>The supplied expression is stored directly and is not copied or cloned.
+     *
+     * <p>Passing {@code null} clears the currently stored condition.
+     *
+     * @param expr              a pointer to the condition expression, or
+     *                          {@code null} to clear the current condition
+     *
+     * @return                  this {@code IfElseExpression} instance
+     */
     fun setCondition(expr: pointer<Expression>) -> pointer<IfElseExpression>
     {
         this.condition = expr
@@ -79,6 +197,21 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Appends a statement to the if branch.
+     *
+     * <p>If {@code statement} is {@code null}, no modification is performed.
+     *
+     * <p>A valid statement is appended to the end of the internal if-statement
+     * collection, preserving insertion order.
+     *
+     * <p>The statement is stored by reference and is not copied or cloned.
+     *
+     * @param statement         a pointer to the statement to append to the if
+     *                          branch
+     *
+     * @return                  this {@code IfElseExpression} instance
+     */
     fun addIfStatement(statement: pointer<Statement>) -> pointer<IfElseExpression>
     {
         if statement != null:
@@ -88,6 +221,26 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Appends all statements from the specified collection to the if branch.
+     *
+     * <p>If {@code statement} is {@code null}, no modification is performed.
+     *
+     * <p>Otherwise, all entries are appended to the internal if-statement
+     * collection in their existing order using {@code ArrayList.pushAll()}.
+     *
+     * <p>The supplied collection itself is not modified, and the contained
+     * {@code Statement} objects are not recursively copied or cloned.
+     *
+     * <p>This method does not filter null entries already present in the supplied
+     * collection. Such entries are ignored later by methods such as
+     * {@code getAllTokens()} and {@code toString()}.
+     *
+     * @param statement         a pointer to the statement collection to append
+     *                          to the if branch
+     *
+     * @return                  this {@code IfElseExpression} instance
+     */
     fun addIfStatements(statement: pointer<ArrayList>) -> pointer<IfElseExpression>
     {
         if statement != null:
@@ -97,21 +250,94 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Returns whether the if branch contains at least one stored statement.
+     *
+     * <p>The result is determined exclusively from the length of the internal
+     * if-statement collection.
+     *
+     * @return                  {@code true} if at least one if-branch statement
+     *                          is stored; {@code false} otherwise
+     */
     fun haveIfStatement() -> bool = this.ifStmts.length > 0
 
 
+    /**
+     * Returns whether the else branch contains at least one stored statement.
+     *
+     * <p>The result is determined exclusively from the length of the internal
+     * else-statement collection.
+     *
+     * <p>This method assumes that {@code elseStmts} references a valid
+     * collection.
+     *
+     * @return                  {@code true} if at least one else-branch
+     *                          statement is stored; {@code false} otherwise
+     */
     fun haveElseStatement() -> bool = this.elseStmts.length > 0
 
 
+    /**
+     * Returns the condition expression associated with this if-else expression.
+     *
+     * <p>The returned pointer refers directly to the internally stored
+     * {@code Expression} object and is not copied or cloned.
+     *
+     * <p>The result may be {@code null} if no condition has been assigned.
+     *
+     * @return                  a pointer to the internally stored condition
+     *                          expression, or {@code null} if no condition is
+     *                          available
+     */
     fun getCondition() -> pointer<Expression> = this.condition
 
 
+    /**
+     * Returns the statement collection forming the if branch.
+     *
+     * <p>The returned pointer refers directly to the internally stored
+     * {@code ArrayList}. The collection is not copied or cloned.
+     *
+     * <p>Changes made through the returned list affect the same if-branch
+     * collection referenced internally by this {@code IfElseExpression}.
+     *
+     * @return                  a pointer to the internally stored if-branch
+     *                          statement collection
+     */
     fun getIfStatements() -> pointer<ArrayList> = this.ifStmts
 
 
+    /**
+     * Returns the statement collection forming the else branch.
+     *
+     * <p>The returned pointer refers directly to the internally stored
+     * {@code ArrayList}. The collection is not copied or cloned.
+     *
+     * <p>Changes made through the returned list affect the same else-branch
+     * collection referenced internally by this {@code IfElseExpression}.
+     *
+     * @return                  a pointer to the internally stored else-branch
+     *                          statement collection
+     */
     fun getElseStatements() -> pointer<ArrayList> = this.elseStmts
 
 
+    /**
+     * Adds an additional syntax token to this if-else expression.
+     *
+     * <p>If {@code token} is {@code null}, no modification is performed.
+     *
+     * <p>The supplied token is appended to the internal extra-token collection
+     * and is stored by reference rather than cloned.
+     *
+     * <p>Tokens added through this method participate in
+     * {@code getAllTokens()} when the complete source-token collection is
+     * constructed.
+     *
+     * @param token             a pointer to the syntax token to add
+     *
+     * @return                  this {@code IfElseExpression} instance
+     */
     fun addExtraToken(token: pointer<Token>) -> pointer<IfElseExpression>
     {
         if token != null:
@@ -121,6 +347,23 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Appends all tokens from the specified collection to this if-else
+     * expression.
+     *
+     * <p>If {@code tokens} is {@code null}, no modification is performed.
+     *
+     * <p>Otherwise, all entries are appended to the internal extra-token
+     * collection in their existing order using {@code ArrayList.pushAll()}.
+     *
+     * <p>The supplied collection itself is not modified, and the individual
+     * {@code Token} objects are not recursively cloned.
+     *
+     * @param tokens            a pointer to the syntax-token collection to
+     *                          append
+     *
+     * @return                  this {@code IfElseExpression} instance
+     */
     fun addExtraTokens(tokens: pointer<ArrayList>) -> pointer<IfElseExpression>
     {
         if tokens != null:
@@ -130,12 +373,63 @@ struct IfElseExpression
     }
 
 
+    /**
+     * Returns the additional syntax-token collection associated with this
+     * if-else expression.
+     *
+     * <p>The returned pointer refers directly to the internally stored
+     * {@code ArrayList}. The collection is not copied or cloned.
+     *
+     * <p>Changes made through the returned list affect the same token collection
+     * referenced internally by this {@code IfElseExpression}.
+     *
+     * @return                  a pointer to the internally stored additional
+     *                          syntax-token collection
+     */
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens
 
 
+    /**
+     * Returns all tokens associated with this if-else expression and its child
+     * AST nodes.
+     *
+     * <p>The result collection is initialized by cloning the internal
+     * {@code extraTokens} list. The returned list is therefore structurally
+     * independent from the internal token collection, while the individual
+     * {@code Token} objects are not recursively cloned.
+     *
+     * <p>If a condition expression is present, its token collection is obtained
+     * through {@code Expression.getAllTokens()}. If the returned collection is
+     * not {@code null}, all of its entries are appended to the result.
+     *
+     * <p>The if-branch statement collection is then traversed in its stored
+     * order. Null statement entries are skipped.
+     *
+     * <p>For every valid if-branch statement,
+     * {@code Statement.getAllTokens()} is invoked. If the returned token
+     * collection is not {@code null}, its contents are appended.
+     *
+     * <p>The else-branch statement collection is processed using the same rules
+     * after the if branch.
+     *
+     * <p>After tokens from the condition and both branches have been collected,
+     * {@code TokenPosition.compareToken} is installed as the comparator and the
+     * complete result is sorted according to source position.
+     *
+     * <p>This sorting step restores lexical source order regardless of the order
+     * in which tokens were gathered from the condition, branch statements, or
+     * expression-level extra-token collection.
+     *
+     * <p>This method assumes that both {@code ifStmts} and {@code elseStmts}
+     * reference valid collections.
+     *
+     * @return                  a cloned and extended token collection containing
+     *                          all tokens associated with this if-else
+     *                          expression in source order
+     */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        val result: pointer<ArrayList> = this.extraTokens.clone()
 
         if this.condition != null:
         {
@@ -171,13 +465,59 @@ struct IfElseExpression
                 result.pushAll(tokens)
         }
 
-        result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result
     }
 
 
+    /**
+     * Returns the textual representation of this if-else expression.
+     *
+     * <p>If a condition expression is present, the representation begins with
+     * {@code "(if "}, followed by the textual representation returned by
+     * {@code Expression.toString()}.
+     *
+     * <p>The sequence {@code ":\n"} is appended unconditionally after the
+     * optional condition header.
+     *
+     * <p>The if-branch statement collection is then traversed in its stored
+     * order. Null entries are skipped. Each valid statement contributes the
+     * textual representation returned by {@code Statement.toString()}, followed
+     * by a newline.
+     *
+     * <p>If {@code haveElseStatement()} returns {@code true}, the sequence
+     * {@code "else:\n"} is appended and all valid else-branch statements are
+     * emitted in their stored order, each followed by a newline.
+     *
+     * <p>The representation always ends with {@code ")\n"}.
+     *
+     * <p>A conditional expression with both branches therefore generally has the
+     * form:
+     *
+     * <pre>
+     * (if condition:
+     * ifStatement1
+     * ifStatement2
+     * else:
+     * elseStatement1
+     * )
+     * </pre>
+     *
+     * <p>If {@code condition} is {@code null}, the current implementation does
+     * not emit the opening {@code "(if "} text but still emits {@code ":\n"},
+     * the branch contents, and the final closing parenthesis.
+     *
+     * <p>The current implementation does not insert indentation before nested
+     * statements.
+     *
+     * <p>The returned {@code StringBuilder} is newly allocated and modifying its
+     * contents does not modify the underlying if-else-expression AST node.
+     *
+     * @return                  a pointer to a newly created {@code StringBuilder}
+     *                          containing the textual representation of this
+     *                          if-else expression
+     */
     fun toString() -> pointer<StringBuilder>
     {
         val sb: pointer<StringBuilder> = new StringBuilder()

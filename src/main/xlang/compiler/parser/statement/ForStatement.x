@@ -274,7 +274,7 @@ struct ForHeader
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        val result: pointer<ArrayList> = this.extraTokens.clone()
 
         if this.initStmt != null:
         {
@@ -300,7 +300,6 @@ struct ForHeader
                 result.pushAll(tokens)
         }
 
-        result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result

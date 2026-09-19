@@ -459,7 +459,7 @@ struct Field
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        val result: pointer<ArrayList> = this.extraTokens.clone()
 
         if this.annotations != null:
         {
@@ -489,7 +489,6 @@ struct Field
         if this.initialValue != null:
             result.pushAll(this.initialValue.getAllTokens())
 
-        result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result

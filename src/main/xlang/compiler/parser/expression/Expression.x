@@ -351,7 +351,8 @@ struct Expression
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        val result: pointer<ArrayList> = this.extraTokens.clone()
+        
         var rootTokens: pointer<ArrayList> = if this.kind == ATOM_KIND:
         {
             val atom: pointer<Atom> = this.root as pointer<Atom>
@@ -412,7 +413,6 @@ struct Expression
         if rootTokens != null:
             result.pushAll(rootTokens)
 
-        result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result

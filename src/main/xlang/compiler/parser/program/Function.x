@@ -252,11 +252,7 @@ struct FunctionParam
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-
-        if this.paramType != null:
-            result.pushAll(this.paramType.getAllTokens())
-
+        val result: pointer<ArrayList> = this.extraTokens.clone()
         result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()

@@ -256,9 +256,7 @@ struct Modifier
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-
-        result.pushAll(this.extraTokens)
+        val result: pointer<ArrayList> = this.extraTokens.clone()
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result

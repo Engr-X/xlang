@@ -11,8 +11,7 @@
         "xlang.compiler.parser.statement.Statement",
         "xlang.compiler.parser.stmtexpr.Block",
         "xlang.compiler.parser.stmtexpr.IfExpression",
-        "xlang.compiler.parser.stmtexpr.IfElseExpression",
-        "xlang.compiler.parser.stmtexpr.StatementExpression"
+        "xlang.compiler.parser.stmtexpr.IfElseExpression"
     ],
     "constants": [
         

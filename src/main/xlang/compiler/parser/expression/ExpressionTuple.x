@@ -176,7 +176,7 @@ struct ExpressionTuple
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+        val result: pointer<ArrayList> = this.extraTokens.clone()
 
         for (var i = 0; i < this.list.length; i++):
         {
@@ -193,8 +193,6 @@ struct ExpressionTuple
 
             result.pushAll(tokens)
         }
-
-        result.pushAll(this.extraTokens)
 
         result.setComparator(TokenPosition.compareToken)
         result.sort()

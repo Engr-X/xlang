@@ -222,9 +222,7 @@ struct PreprocessSetting
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
-
-        result.pushAll(this.extraTokens)
+        val result: pointer<ArrayList> = this.extraTokens.clone()
 
         if this.name != null:
             result.pushAll(this.name.getAllTokens())

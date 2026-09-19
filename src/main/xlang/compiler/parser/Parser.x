@@ -57,7 +57,6 @@ import xlang.compiler.parser.statement.WhileStatement
 import xlang.compiler.parser.stmtexpr.Block
 import xlang.compiler.parser.stmtexpr.IfElseExpression
 import xlang.compiler.parser.stmtexpr.IfExpression
-import xlang.compiler.parser.stmtexpr.StatementExpression
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.lexer.TokenPosition
