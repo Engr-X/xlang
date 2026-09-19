@@ -20,7 +20,6 @@
  *
  */
 
-#file.outerClass("NormalizedProgram")
 package xlang.compiler.parser
 
 import xlang.compiler.parser.program.ImportDeclaration
