@@ -35,10 +35,44 @@ import xlang.parser.util.Rule
 import xlang.util.ArrayList
 
 
+/**
+ * Implements a Pratt parser for expressions and other precedence-based
+ * grammatical constructs.
+ *
+ * <p>The parser separates grammar rules into starter rules and continuation
+ * rules. Starter rules are used to begin an expression, while continuation
+ * rules extend an already parsed left-hand expression.
+ *
+ * <p>Rules are evaluated according to their priority. When continuation rules
+ * recursively parse a right-hand expression, the minimum accepted priority is
+ * adjusted according to the associativity of the matched operation.
+ *
+ * <p>The parser stores the most recent parse result and any internal diagnostics
+ * generated during parsing.
+ */
 struct PrattParser
 {
+    /**
+     * The minimum possible parsing priority.
+     *
+     * <p>This value is used when parsing an expression without imposing a lower
+     * priority bound.
+     */
     static val MIN_PRIORITY: int = -2147483647 - 1
 
+
+    /**
+     * Compares two parser rules by priority.
+     *
+     * <p>Rules with higher priority are ordered before rules with lower priority.
+     * This comparator is used when sorting starter and continuation rule lists.
+     *
+     * @param left              a pointer to the first rule
+     * @param right             a pointer to the second rule
+     *
+     * @return                  {@code 0} if both rules have the same priority, a negative value
+     *                          if the left rule has higher priority, or a positive value otherwise
+     */
     private static fun compareRulePriority(left: pointer<*>, right: pointer<*>) -> int
     {
         val leftRule: pointer<Rule> = left as pointer<Rule>
@@ -47,23 +81,53 @@ struct PrattParser
         if leftRule.priority == rightRule.priority:
             return 0
 
-        return if leftRule.priority > rightRule.priority:
-            -1
-        else:
-            1
+        return if leftRule.priority > rightRule.priority: -1 else: 1
     }
 
+
+    /**
+     * The identifier assigned to parse results produced by this parser.
+     *
+     * <p>The identifier is stored as the {@code kind} of each resulting
+     * {@code ParseContainer}.
+     */
     private var id: int
 
+    /**
+     * The list of diagnostics generated during the current parse operation.
+     *
+     * <p>This collection is reset before each top-level call to {@code parse}.
+     */
     private var errors: pointer<ArrayList>
 
+
+    /**
+     * The most recent parse result produced by this parser.
+     *
+     * <p>This value is {@code null} when no successful result is currently
+     * available.
+     */
     private var result: pointer<*>
 
+
+    /**
+     * The collection of rules that may begin an expression.
+     */
     private var starterRules: pointer<ArrayList>
 
+
+    /**
+     * The collection of rules that may continue an already parsed expression.
+     */
     private var continuationRules: pointer<ArrayList>
 
 
+    /**
+     * Creates an empty Pratt parser.
+     *
+     * <p>The parser initially uses {@code ParseContainer.ARRAY_LIST_KIND} as its
+     * result identifier and contains no starter or continuation rules.
+     */
     constructor()
     {
         this.id = ParseContainer.ARRAY_LIST_KIND
@@ -74,6 +138,16 @@ struct PrattParser
     }
 
 
+    /**
+     * Creates a Pratt parser using the supplied starter and continuation rules.
+     *
+     * <p>The supplied rule collections are stored by reference and are not copied.
+     * The parser initially uses {@code ParseContainer.ARRAY_LIST_KIND} as its
+     * result identifier.
+     *
+     * @param starterRules      a pointer to the starter-rule collection
+     * @param continuationRules a pointer to the continuation-rule collection
+     */
     constructor(starterRules: pointer<ArrayList>, continuationRules: pointer<ArrayList>)
     {
         this.id = ParseContainer.ARRAY_LIST_KIND
@@ -84,6 +158,12 @@ struct PrattParser
     }
 
 
+    /**
+     * Sets the identifier assigned to results produced by this parser.
+     *
+     * @param id                the result identifier to assign
+     * @return                  this {@code PrattParser} instance
+     */
     fun setId(id: int) -> pointer<PrattParser>
     {
         this.id = id
@@ -91,14 +171,38 @@ struct PrattParser
     }
 
 
+    /**
+     * Returns the most recently generated diagnostic.
+     *
+     * @return                  a pointer to the most recent diagnostic, or {@code null} if no
+     *                          diagnostic is available
+     */
     fun getLastError() -> pointer<Diagnostic> =
         this.errors.peek() as pointer<Diagnostic>
 
 
+    /**
+     * Checks whether the current parse operation should be considered failed.
+     *
+     * <p>A parse is considered erroneous when at least one diagnostic is
+     * available or when the number of consumed tokens is not positive.
+     *
+     * @param eaten             the number of tokens reported as consumed
+     *
+     * @return                  {@code true} if the parse failed; {@code false} otherwise
+     */
     fun haveError(eaten: int) -> bool =
         this.getLastError() != null || eaten <= 0
 
 
+    /**
+     * Resets the transient state of this parser.
+     *
+     * <p>The diagnostic list and current result are cleared. Parser rules and
+     * the parser identifier are preserved.
+     *
+     * @return                  this {@code PrattParser} instance
+     */
     fun reset() -> pointer<PrattParser>
     {
         this.errors = new ArrayList(sizeof(Diagnostic))
@@ -107,6 +211,17 @@ struct PrattParser
     }
 
 
+    /**
+     * Creates and stores an internal parser diagnostic.
+     *
+     * <p>The generated diagnostic does not contain a source location unless one
+     * is added later by another stage of the compiler.
+     *
+     * @param code              the diagnostic code
+     * @param message           a pointer to the diagnostic message
+     *
+     * @return                  this {@code PrattParser} instance
+     */
     private fun pushInternalError(code: int, message: pointer<char>) -> pointer<PrattParser>
     {
         this.errors.push(Diagnostic.makeInternalError(
@@ -117,9 +232,24 @@ struct PrattParser
     }
 
 
+    /**
+     * Returns the most recent result produced by this parser.
+     *
+     * @return                  a pointer to the current parse result, or {@code null} if no
+     *                          successful result is available
+     */
     fun getResult() -> pointer<*> = this.result
 
 
+    /**
+     * Adds a starter rule to this parser.
+     *
+     * <p>Starter rules are used to begin new Pratt expressions.
+     *
+     * @param rule              a pointer to the starter rule to add
+     *
+     * @return                  this {@code PrattParser} instance
+     */
     fun addStarterRule(rule: pointer<Rule>) -> pointer<PrattParser>
     {
         this.starterRules.push(rule)
@@ -127,6 +257,15 @@ struct PrattParser
     }
 
 
+    /**
+     * Adds a continuation rule to this parser.
+     *
+     * <p>Continuation rules extend an already parsed left-hand expression.
+     *
+     * @param rule              a pointer to the continuation rule to add
+     *
+     * @return                  this {@code PrattParser} instance
+     */
     fun addContinuationRule(rule: pointer<Rule>) -> pointer<PrattParser>
     {
         this.continuationRules.push(rule)
@@ -134,6 +273,14 @@ struct PrattParser
     }
 
 
+    /**
+     * Sorts all parser rules by descending priority.
+     *
+     * <p>Starter and continuation rule collections are sorted independently.
+     * Rules with higher priority are placed before rules with lower priority.
+     *
+     * @return                  this {@code PrattParser} instance
+     */
     fun sortByPriority() -> pointer<PrattParser>
     {
         this.starterRules.setComparator(compareRulePriority)
@@ -144,51 +291,92 @@ struct PrattParser
     }
 
 
-    /*
-     * Parses one Pratt expression from cursor.
+    /**
+     * Attempts to parse a Pratt expression beginning at the specified cursor.
      *
-     * Pseudocode:
+     * <p>This overload performs parsing without an explicit minimum priority and
+     * therefore delegates to the priority-aware overload using
+     * {@code MIN_PRIORITY}.
      *
-     *     left = parse starter rule at cursor
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index at which parsing begins
+     * @param matchLength       a pointer that receives the number of consumed tokens
      *
-     *     if left failed:
-     *         return null
-     *
-     *     consumed = starter length
-     *
-     *     while true:
-     *         continuation = match continuation rule at cursor + consumed
-     *
-     *         if no continuation matched:
-     *             break
-     *
-     *         if continuation.priority < minPriority:
-     *             break
-     *
-     *         right = parse expression after continuation
-     *             with minPriority = continuation.priority + 1
-     *
-     *         if right failed:
-     *             return null
-     *
-     *         left = continuation.constructResult(left, continuation parts, right)
-     *         consumed += continuation length + right length
-     *
-     *     matchLength = consumed
-     *     result = left
-     *     return left
+     * @return                  a pointer to the parsed result, or {@code null} if parsing fails
      */
     fun tryParse(
         token: pointer<TokenList>, cursor: int,
         matchLength: pointer<int>) -> pointer<ParseContainer> =
         this.tryParse(token, cursor, MIN_PRIORITY, matchLength)
-        
 
+
+    /**
+     * Attempts to parse a Pratt expression using the specified minimum priority.
+     *
+     * <p>The parser first matches a starter rule to produce the initial
+     * left-hand result. It then repeatedly searches for continuation rules that
+     * can extend that result.
+     *
+     * <p>A continuation rule is applied only when its priority is greater than
+     * or equal to {@code minPriority}. If the continuation requires a right-hand
+     * expression, that expression is recursively parsed using a priority limit
+     * derived from the continuation rule and its associativity.
+     *
+     * <p>For right-associative operations, the right-hand side may use the same
+     * priority as the current rule. For other associativities, the right-hand
+     * side must have a strictly greater priority.
+     *
+     * <p>After a continuation rule is successfully constructed, its configured
+     * post-processing function is invoked.
+     *
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index at which parsing begins
+     * @param minPriority       the minimum continuation-rule priority that may be used
+     * @param matchLength       a pointer that receives the total number of consumed tokens
+     *
+     * @return                  a pointer to the resulting parse container, or {@code null} if
+     *                          parsing fails
+     */    
     fun tryParse(
         token: pointer<TokenList>, cursor: int,
         minPriority: int,
         matchLength: pointer<int>) -> pointer<ParseContainer>
     {
+        /*
+         * Parses one Pratt expression from cursor.
+         *
+         * Pseudocode:
+         *
+         *     left = parse starter rule at cursor
+         *
+         *     if left failed:
+         *         return null
+         *
+         *     consumed = starter length
+         *
+         *     while true:
+         *         continuation = match continuation rule at cursor + consumed
+         *
+         *         if no continuation matched:
+         *             break
+         *
+         *         if continuation.priority < minPriority:
+         *             break
+         *
+         *         right = parse expression after continuation
+         *             with minPriority = continuation.priority + 1
+         *
+         *         if right failed:
+         *             return null
+         *
+         *         left = continuation.constructResult(left, continuation parts, right)
+         *         consumed += continuation length + right length
+         *
+         *     matchLength = consumed
+         *     result = left
+         *     return left
+         */
+
         var consumed: int = 0
         var starterLength: int = 0
         var left: pointer<ParseContainer> = this.tryParseStarter(token, cursor, starterLength.ref)
@@ -286,6 +474,21 @@ struct PrattParser
     }
 
 
+    /**
+     * Parses a Pratt expression beginning at the specified token index.
+     *
+     * <p>The parser state is reset before parsing begins.
+     *
+     * <p>If {@code token} is {@code null}, a {@code Diagnostic.NULL_INPUT}
+     * diagnostic is generated. If the token list is empty or {@code cursor}
+     * lies outside the valid range, a {@code Diagnostic.EMPTY_INPUT}
+     * diagnostic is generated.
+     *
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index at which parsing begins
+     *
+     * @return                  the number of consumed tokens, or {@code -1} if parsing fails
+     */
     fun parse(token: pointer<TokenList>, cursor: int) -> int
     {
         this.reset()
@@ -312,6 +515,21 @@ struct PrattParser
     }
 
 
+    /**
+     * Parses an expression from the beginning of the supplied token list and
+     * removes the successfully consumed tokens.
+     *
+     * <p>If parsing fails or produces a diagnostic, this method returns
+     * {@code -1} and leaves the input unchanged.
+     *
+     * <p>An internal diagnostic is generated if the parser reports consuming
+     * more tokens than are present in the input.
+     *
+     * @param input             a pointer to the token list to parse
+     *
+     * @return                  the number of tokens consumed and removed from {@code input},
+     *                          or {@code -1} if parsing fails
+     */
     fun doParse(input: pointer<TokenList>) -> int
     {
         val consumed: int = this.parse(input, 0)
@@ -329,6 +547,28 @@ struct PrattParser
         return consumed
     }
 
+
+    /**
+     * Attempts to parse the starter portion of a Pratt expression.
+     *
+     * <p>Starter rules are considered by priority, beginning with the highest
+     * available priority. All rules at the same priority are tested before
+     * lower-priority rules are considered.
+     *
+     * <p>If exactly one rule at a priority level matches, its result is
+     * returned. If multiple rules at the same priority match successfully, an
+     * {@code Diagnostic.AMBIGUOUS_PARSER_RULE} diagnostic is generated.
+     *
+     * <p>If no rule at the current priority matches, parsing continues with the
+     * next lower priority.
+     *
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index at which starter parsing begins
+     * @param matchLength       a pointer that receives the number of consumed tokens
+     *
+     * @return                  a pointer to the matched starter result, or {@code null} if no
+     *                          starter rule matches
+     */
     private fun tryParseStarter(
         token: pointer<TokenList>, cursor: int,
         matchLength: pointer<int>) -> pointer<ParseContainer>
@@ -416,6 +656,34 @@ struct PrattParser
     }
 
 
+    /**
+     * Attempts to match a specific starter rule.
+     *
+     * <p>The rule pattern is processed sequentially beginning at
+     * {@code patternStart}. Regular pattern atoms match and clone tokens,
+     * parser-reference atoms invoke the referenced parser, and repeated-parser
+     * atoms invoke their associated {@code ParserRefs}.
+     *
+     * <p>When a prefix rule references this Pratt parser itself, recursive Pratt
+     * parsing is performed using the priority of the current rule. This allows
+     * prefix operators to participate correctly in precedence handling.
+     *
+     * <p>Successfully parsed pattern results are collected and passed to the
+     * rule's result constructor. If construction succeeds, the resulting object
+     * is wrapped in a {@code ParseContainer} using this parser's identifier.
+     *
+     * <p>The rule's post-processing function is invoked after successful result
+     * construction.
+     *
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index at which matching begins
+     * @param rule              a pointer to the starter rule being tested
+     * @param patternStart      the first pattern atom to process
+     * @param matchLength       a pointer that receives the number of consumed tokens
+     *
+     * @return                  a pointer to the constructed parse result, or {@code null} if the
+     *                          rule cannot be matched
+     */
     private fun tryParseStarterRule(
         token: pointer<TokenList>, cursor: int,
         rule: pointer<Rule>, patternStart: int,
@@ -528,6 +796,35 @@ struct PrattParser
     }
 
 
+    /**
+     * Attempts to match the head of a continuation rule for an existing
+     * left-hand expression.
+     *
+     * <p>A valid continuation rule must begin with a parser reference whose
+     * identifier matches the kind of {@code left}. This first self-reference
+     * represents the already parsed left-hand expression and is not parsed
+     * again.
+     *
+     * <p>Continuation rules are considered by priority. At each priority level,
+     * every compatible rule is tested. If more than one rule matches at the
+     * same priority, an {@code Diagnostic.AMBIGUOUS_PARSER_RULE} diagnostic is
+     * generated.
+     *
+     * <p>Pattern elements following the initial left reference are parsed until
+     * another reference to the same parser kind is reached. Such a reference is
+     * interpreted as the right-hand expression and is parsed later by the main
+     * Pratt loop.
+     *
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index immediately following the left-hand expression
+     * @param left              a pointer to the already parsed left-hand result
+     * @param results           a pointer that receives the intermediate continuation results
+     * @param matchLength       a pointer that receives the number of consumed continuation
+     *                          tokens before the right-hand expression
+     *
+     * @return                  a pointer to the matched continuation rule, or {@code null} if no
+     *                          compatible rule matches
+     */
     private fun tryParseContinuationHead(
         token: pointer<TokenList>, cursor: int,
         left: pointer<ParseContainer>,
@@ -641,6 +938,31 @@ struct PrattParser
     }
 
 
+    /**
+     * Parses a continuation-rule pattern until a self-reference is encountered.
+     *
+     * <p>The pattern is processed starting at {@code patternStart}. Regular token
+     * atoms, external parser references, and repeated parser references are
+     * parsed normally.
+     *
+     * <p>If a parser-reference atom has the same identifier as the kind of
+     * {@code left}, parsing stops before that atom. The matching self-reference
+     * is treated as the position of the right-hand expression and is therefore
+     * handled by the outer Pratt parsing routine.
+     *
+     * <p>All successfully parsed intermediate values are appended to the
+     * returned result list.
+     *
+     * @param token             a pointer to the token list to parse
+     * @param cursor            the token index at which parsing begins
+     * @param rule              a pointer to the continuation rule being processed
+     * @param patternStart      the first pattern atom to process
+     * @param left              a pointer to the previously parsed left-hand result
+     * @param matchLength       a pointer that receives the number of consumed tokens
+     *
+     * @return                  a list containing the successfully parsed continuation components,
+     *                          or {@code null} if matching fails
+     */
     private fun tryParseUntilSelfRef(
         token: pointer<TokenList>, cursor: int,
         rule: pointer<Rule>, patternStart: int,
@@ -731,6 +1053,15 @@ struct PrattParser
     }
 
 
+    /**
+     * Creates a new Pratt parser with the same configuration as this parser.
+     *
+     * <p>The parser identifier is copied, while the starter and continuation
+     * rule collections are shared by reference. Runtime state such as the
+     * current result and diagnostic list is not copied.
+     *
+     * @return                  a pointer to the cloned {@code PrattParser}
+     */
     fun clone() -> pointer<PrattParser>
     {
         val result: pointer<PrattParser> = new PrattParser(this.starterRules, this.continuationRules)
