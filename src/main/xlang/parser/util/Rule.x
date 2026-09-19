@@ -41,6 +41,46 @@ import xlang.util.ArrayList
 struct Rule
 {
     /**
+     * Compares two parser rules by priority.
+     *
+     * <p>Rules with higher priority are ordered before rules with lower priority.
+     * This comparator is used when sorting starter and continuation rule lists.
+     *
+     * @param left              a pointer to the first rule
+     * @param right             a pointer to the second rule
+     *
+     * @return                  {@code 0} if both rules have the same priority, a negative value
+     *                          if the left rule has higher priority, or a positive value otherwise
+     */
+    private static fun compareRulePriority(left: pointer<*>, right: pointer<*>) -> int
+    {
+        val leftRule: pointer<Rule> = left as pointer<Rule>
+        val rightRule: pointer<Rule> = right as pointer<Rule>
+
+        if leftRule.priority == rightRule.priority:
+            return 0
+
+        return if leftRule.priority > rightRule.priority: -1 else: 1
+    }
+
+
+    /**
+     * Sorts all parser rules by descending priority.
+     *
+     * <p>Starter and continuation rule collections are sorted independently.
+     * Rules with higher priority are placed before rules with lower priority.
+     *
+     * @return                  this {@code PrattParser} instance
+     */
+    static fun sortRules(rules: pointer<ArrayList>) -> pointer<ArrayList>
+    {
+        rules.setComparator(compareRulePriority)
+        rules.sort()
+        return rules
+    }
+
+
+    /**
      * Default post-processing function used when no custom function is supplied.
      *
      * <p>This implementation performs no transformation and simply returns the
