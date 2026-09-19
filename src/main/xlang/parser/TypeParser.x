@@ -822,6 +822,7 @@ struct TypeParser
      * if the number of consumed tokens is not positive.
      *
      * @param eaten             the number of tokens reported as consumed
+     *
      * @return                  {@code true} if parsing failed; {@code false} otherwise
      */
     fun haveError(eaten: int) -> bool = this.error != null || eaten <= 0
