@@ -122,7 +122,8 @@
             "class": "ImportedSymbol",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Type]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$ImportedSymbolAliasMaybe" }], "action": "makeImportedFunction" }
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Type]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$ImportedSymbolAliasMaybe" }], "action": "makeImportedFunction" },
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "$ImportedSymbolAliasMaybe" }], "action": "makeImportedVariable" }
             ]
         },
         {
@@ -363,6 +364,16 @@
             "        parameterTypes.push(getContainerValue(parsedTypes, i) as pointer<Type>)",
             "",
             "    return ImportedSymbol.fromFunction(nameToken.text, parameterTypes, alias.getAliasName())",
+            "}" ],
+
+
+        [   "private inline fun makeImportedVariable(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val alias: pointer<ImportedSymbolAliasMaybe> =",
+            "        getContainerValue(results, 1) as pointer<ImportedSymbolAliasMaybe>",
+            "",
+            "    return ImportedSymbol.fromVariable(nameToken.text, alias.getAliasName())",
             "}" ],
 
 
@@ -700,7 +711,7 @@
             "}" ],
 
 
-        [   "private inline fun parse(input: pointer<TokenizedFile>) -> pointer<ASTFile>",
+        [   "fun parseProgram(input: pointer<TokenizedFile>) -> pointer<ASTFile>",
             "{",
             "    PROGRAM_PARSER.doParse(input.getTokens())",
             "    val program: pointer<ParseContainer> = PROGRAM_PARSER.getResult()",

@@ -260,18 +260,18 @@ private fun parseSelectiveImportsText(text: pointer<char>) -> pointer<SelectiveI
 }
 
 
-private fun parseImportedFunctionText(text: pointer<char>) -> pointer<ImportedSymbol>
+private fun parseImportedSymbolText(text: pointer<char>) -> pointer<ImportedSymbol>
 {
     val tokens: pointer<TokenList> = Tokenizer.tokenize(text)
-    val importedFunction: pointer<ImportedSymbol> = Parser.parseImportedSymbol(tokens)
+    val importedSymbol: pointer<ImportedSymbol> = Parser.parseImportedSymbol(tokens)
 
-    if importedFunction == null:
+    if importedSymbol == null:
         return null
 
     if tokens.length() > 0 && !tokens.get(0).isEOF():
         return null
 
-    return importedFunction
+    return importedSymbol
 }
 
 
@@ -302,10 +302,10 @@ private fun selectiveImportsTest() -> int
     if singleFunction.getAliasName() != null || singleParameterTypes == null || singleParameterTypes.length != 0:
         return 5
 
-    if parseImportedFunctionText("sin(int)") == null:
+    if parseImportedSymbolText("sin(int)") == null:
         return 6
 
-    if parseImportedFunctionText("sin(double) as sinDouble") == null:
+    if parseImportedSymbolText("sin(double) as sinDouble") == null:
         return 7
 
     val overloads: pointer<SelectiveImports> =
@@ -348,6 +348,64 @@ private fun selectiveImportsTest() -> int
 
     if emptyFunctions == null || emptyFunctions.length != 0:
         return 15
+
+    val variable: pointer<ImportedSymbol> = parseImportedSymbolText("PI")
+
+    if variable == null || !String.streq(variable.getName(), "PI"):
+        return 16
+
+    if variable.getAliasName() != null:
+        return 17
+
+    val variableTypes: pointer<ArrayList> = variable.getParameterTypes()
+
+    if variableTypes == null || variableTypes.length != 0:
+        return 18
+
+    val aliasedVariable: pointer<ImportedSymbol> = parseImportedSymbolText("PI as pi")
+
+    if aliasedVariable == null || !String.streq(aliasedVariable.getName(), "PI"):
+        return 19
+
+    val variableAlias: pointer<char> = aliasedVariable.getAliasName()
+
+    if variableAlias == null || !String.streq(variableAlias, "pi"):
+        return 20
+
+    val mixed: pointer<SelectiveImports> =
+        parseSelectiveImportsText("from Math import {sin(int), PI as pi}\n")
+
+    if mixed == null:
+        return 21
+
+    val mixedSymbols: pointer<ArrayList> = mixed.getImportedFunctions()
+
+    if mixedSymbols == null || mixedSymbols.length != 2:
+        return 22
+
+    val mixedFunction: pointer<ImportedSymbol> = mixedSymbols.get(0) as pointer<ImportedSymbol>
+    val mixedVariable: pointer<ImportedSymbol> = mixedSymbols.get(1) as pointer<ImportedSymbol>
+
+    if mixedFunction == null || !String.streq(mixedFunction.getName(), "sin"):
+        return 23
+
+    val mixedFunctionTypes: pointer<ArrayList> = mixedFunction.getParameterTypes()
+
+    if mixedFunctionTypes == null || mixedFunctionTypes.length != 1:
+        return 24
+
+    if mixedVariable == null || !String.streq(mixedVariable.getName(), "PI"):
+        return 25
+
+    val mixedVariableAlias: pointer<char> = mixedVariable.getAliasName()
+
+    if mixedVariableAlias == null || !String.streq(mixedVariableAlias, "pi"):
+        return 26
+
+    val mixedVariableTypes: pointer<ArrayList> = mixedVariable.getParameterTypes()
+
+    if mixedVariableTypes == null || mixedVariableTypes.length != 0:
+        return 27
 
     return 0
 }

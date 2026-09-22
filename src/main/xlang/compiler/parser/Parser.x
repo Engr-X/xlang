@@ -1459,6 +1459,15 @@ private inline fun makeImportedFunction(results: pointer<ArrayList>) -> pointer<
     return ImportedSymbol.fromFunction(nameToken.text, parameterTypes, alias.getAliasName())
 }
 
+private inline fun makeImportedVariable(results: pointer<ArrayList>) -> pointer<*>
+{
+    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
+    val alias: pointer<ImportedSymbolAliasMaybe> =
+        getContainerValue(results, 1) as pointer<ImportedSymbolAliasMaybe>
+
+    return ImportedSymbol.fromVariable(nameToken.text, alias.getAliasName())
+}
+
 private inline fun makeImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
     val aliasToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
@@ -1763,7 +1772,7 @@ private inline fun parse(input: pointer<TokenList>) -> pointer<Program>
     return result.getValue() as pointer<Program>
 }
 
-private inline fun parse(input: pointer<TokenizedFile>) -> pointer<ASTFile>
+fun parseProgram(input: pointer<TokenizedFile>) -> pointer<ASTFile>
 {
     PROGRAM_PARSER.doParse(input.getTokens())
     val program: pointer<ParseContainer> = PROGRAM_PARSER.getResult()
@@ -2288,6 +2297,7 @@ private val IMPORTED_SYMBOL_ALIAS_MAYBE_RULE0: pointer<Rule> = new Rule(new Patt
 private val IMPORTED_SYMBOL_ALIAS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyImportedFunctionAliasMaybe, Rule.STARTER_ROLE, 0)
 
 private val IMPORTED_SYMBOL_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRefs(new ParserRefs(TYPE_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER), makeImportedFunction, Rule.STARTER_ROLE, 0)
+private val IMPORTED_SYMBOL_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRef(IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER), makeImportedVariable, Rule.STARTER_ROLE, 0)
 
 private val SELECTIVE_IMPORTS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FROM).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(IMPORTED_SYMBOL_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImports, Rule.STARTER_ROLE, 0)
 private val SELECTIVE_IMPORTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FROM).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(IMPORTED_SYMBOL_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImports, Rule.STARTER_ROLE, 0)
@@ -2354,7 +2364,7 @@ private val QUALIFIED_NAME_PARSER_SETUP: pointer<ParserRef> = QUALIFIED_NAME_PAR
 private val PACKAGE_DECLARATION_MAYBE_PARSER_SETUP: pointer<ParserRef> = PACKAGE_DECLARATION_MAYBE_PARSER.addRule(PACKAGE_DECLARATION_MAYBE_RULE0).addRule(PACKAGE_DECLARATION_MAYBE_RULE1)
 private val NAMESPACE_IMPORT_PARSER_SETUP: pointer<ParserRef> = NAMESPACE_IMPORT_PARSER.addRule(NAMESPACE_IMPORT_RULE0)
 private val IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER.addRule(IMPORTED_SYMBOL_ALIAS_MAYBE_RULE0).addRule(IMPORTED_SYMBOL_ALIAS_MAYBE_RULE1)
-private val IMPORTED_SYMBOL_PARSER_SETUP: pointer<ParserRef> = IMPORTED_SYMBOL_PARSER.addRule(IMPORTED_SYMBOL_RULE0)
+private val IMPORTED_SYMBOL_PARSER_SETUP: pointer<ParserRef> = IMPORTED_SYMBOL_PARSER.addRule(IMPORTED_SYMBOL_RULE0).addRule(IMPORTED_SYMBOL_RULE1)
 private val SELECTIVE_IMPORTS_PARSER_SETUP: pointer<ParserRef> = SELECTIVE_IMPORTS_PARSER.addRule(SELECTIVE_IMPORTS_RULE0).addRule(SELECTIVE_IMPORTS_RULE1).addRule(SELECTIVE_IMPORTS_RULE2)
 private val IMPORT_DECLARATION_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATION_PARSER.addRule(IMPORT_DECLARATION_RULE0).addRule(IMPORT_DECLARATION_RULE1)
 private val IMPORT_DECLARATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_MAYBE_PARSER.addRule(IMPORT_DECLARATIONS_MAYBE_RULE0).addRule(IMPORT_DECLARATIONS_MAYBE_RULE1)
