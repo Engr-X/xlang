@@ -26,6 +26,7 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.HashSet
 import xlang.util.string.StringBuilder
 
 
@@ -52,13 +53,13 @@ import xlang.util.string.StringBuilder
 struct StructConstructor
 {
     /**
-     * The ordered collection of declaration modifiers attached to this
+     * The set of declaration modifiers attached to this
      * constructor.
      *
-     * <p>The collection is initialized to an empty list during construction and
+     * <p>The collection is initialized to an empty set during construction and
      * may later be replaced through {@code setModifiers()}.
      */
-    private var modifiers: pointer<ArrayList>
+    private var modifiers: pointer<HashSet>
 
 
     /**
@@ -112,7 +113,7 @@ struct StructConstructor
      */
     constructor(params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
-        this.modifiers = new ArrayList(sizeof(Modifier))
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
         this.params = if params == null:
                 new FunctionParams()
             else:
@@ -128,7 +129,7 @@ struct StructConstructor
      * constructor.
      *
      * <p>The returned pointer refers directly to the internally stored
-     * {@code ArrayList}. The collection is not copied or cloned.
+     * {@code HashSet}. The collection is not copied or cloned.
      *
      * <p>Modifications performed through the returned list affect the same
      * modifier collection referenced by this {@code StructConstructor}.
@@ -136,15 +137,15 @@ struct StructConstructor
      * @return                  a pointer to the internally stored modifier
      *                          collection
      */
-    fun getModifiers() -> pointer<ArrayList> = this.modifiers
+    fun getModifiers() -> pointer<HashSet> = this.modifiers
 
 
     /**
      * Replaces the declaration-modifier collection associated with this
      * constructor.
      *
-     * <p>If {@code modifiers} is {@code null}, a new empty modifier collection
-     * is allocated. Otherwise, the supplied list is stored directly and is not
+     * <p>If {@code modifiers} is {@code null}, a new empty modifier set is
+     * allocated. Otherwise, the supplied set is stored directly and is not
      * copied or cloned.
      *
      * <p>This normalization ensures that the constructor retains a valid
@@ -155,10 +156,10 @@ struct StructConstructor
      *
      * @return                  this {@code StructConstructor} instance
      */
-    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<StructConstructor>
+    fun setModifiers(modifiers: pointer<HashSet>) -> pointer<StructConstructor>
     {
         this.modifiers = if modifiers == null:
-                new ArrayList(sizeof(Modifier))
+                new HashSet(sizeof(Modifier), Modifier.compareModifier)
             else:
                 modifiers
 
@@ -393,13 +394,13 @@ struct Struct
     private var annotations: pointer<ArrayList>
 
     /**
-     * The ordered collection of declaration modifiers attached to this
+     * The set of declaration modifiers attached to this
      * structure.
      *
-     * <p>The collection is initialized to an empty list and may later be
+     * <p>The collection is initialized to an empty set and may later be
      * replaced using {@code setModifiers()}.
      */
-    private var modifiers: pointer<ArrayList>
+    private var modifiers: pointer<HashSet>
 
     /**
      * The null-terminated name of this structure.
@@ -451,7 +452,7 @@ struct Struct
     constructor(structName: pointer<char>, members: pointer<ArrayList>)
     {
         this.annotations = new ArrayList(sizeof(Annotation))
-        this.modifiers = new ArrayList(sizeof(Modifier))
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
         this.structName = structName
         this.members = if members == null:
                 new ArrayList(sizeof(Member))
@@ -506,23 +507,23 @@ struct Struct
     /**
      * Returns the declaration-modifier collection attached to this structure.
      *
-     * <p>The returned pointer refers directly to the internally stored list and
+     * <p>The returned pointer refers directly to the internally stored set and
      * is not copied or cloned.
      *
      * <p>Changes made through the returned collection therefore affect the same
-     * modifier list referenced by this structure.
+     * modifier set referenced by this structure.
      *
      * @return                  a pointer to the internally stored modifier
      *                          collection
      */
-    fun getModifiers() -> pointer<ArrayList> = this.modifiers
+    fun getModifiers() -> pointer<HashSet> = this.modifiers
 
 
     /**
      * Replaces the declaration-modifier collection attached to this structure.
      *
-     * <p>If {@code modifiers} is {@code null}, a new empty modifier collection
-     * is allocated. Otherwise, the supplied list is stored directly and is not
+     * <p>If {@code modifiers} is {@code null}, a new empty modifier set is
+     * allocated. Otherwise, the supplied set is stored directly and is not
      * copied or cloned.
      *
      * @param modifiers         a pointer to the declaration-modifier
@@ -530,10 +531,10 @@ struct Struct
      *
      * @return                  this {@code Struct} instance
      */
-    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<Struct>
+    fun setModifiers(modifiers: pointer<HashSet>) -> pointer<Struct>
     {
         this.modifiers = if modifiers == null:
-                new ArrayList(sizeof(Modifier))
+                new HashSet(sizeof(Modifier), Modifier.compareModifier)
             else:
                 modifiers
 

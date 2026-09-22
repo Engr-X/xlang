@@ -27,6 +27,7 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.HashSet
 import xlang.util.string.StringBuilder
 
 
@@ -691,10 +692,9 @@ struct Function
 
 
     /**
-     * The ordered collection of declaration modifiers attached to this
-     * function.
+     * The set of declaration modifiers attached to this function.
      */
-    private var modifiers: pointer<ArrayList>
+    private var modifiers: pointer<HashSet>
 
 
     /**
@@ -766,7 +766,7 @@ struct Function
     constructor(functionName: pointer<char>, params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
         this.annotations = new ArrayList(sizeof(Annotation))
-        this.modifiers = new ArrayList(sizeof(Modifier))
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
         this.functionName = functionName
         this.params = params
         this.returnType = null
@@ -828,30 +828,32 @@ struct Function
     /**
      * Returns the declaration-modifier collection attached to this function.
      *
-     * <p>The returned pointer refers directly to the internally stored list and
+     * <p>The returned pointer refers directly to the internally stored set and
      * is not copied or cloned.
      *
      * @return				    a pointer to the internally stored modifier
      * 					        collection
      */
-    fun getModifiers() -> pointer<ArrayList> = this.modifiers
+    fun getModifiers() -> pointer<HashSet> = this.modifiers
 
 
     /**
-     * Adds a declaration modifier to this field.
+     * Adds a declaration modifier to this function.
      *
-     * <p>The specified modifier is appended directly to the internally stored
-     * modifier collection.
+     * <p>The specified modifier is added directly to the internally stored
+     * modifier set. Duplicate modifier keywords are ignored by the set.
      *
-     * <p>This operation modifies the current field instance and returns the
+     * <p>This operation modifies the current function instance and returns the
      * same instance, allowing method chaining.
      *
      * @param modifier          a pointer point to modifier to add
-     * @return                  a pointer to this field
+     * @return                  a pointer to this function
      */
-    fun addModifier(modifier: pointer<Modifier>) -> pointer<Field>
+    fun addModifier(modifier: pointer<Modifier>) -> pointer<Function>
     {
-        this.modifiers.push(modifier)
+        if modifier != null:
+            this.modifiers.add(modifier)
+
         return this
     }
 
@@ -859,18 +861,18 @@ struct Function
     /**
      * Replaces the declaration-modifier collection attached to this function.
      *
-     * <p>If {@code modifiers} is {@code null}, a new empty modifier collection
-     * is allocated. Otherwise, the supplied list is stored directly.
+     * <p>If {@code modifiers} is {@code null}, a new empty modifier set is
+     * allocated. Otherwise, the supplied set is stored directly.
      *
      * @param modifiers			a pointer to the new declaration-modifier
      * 					        collection, or {@code null} to use an empty list
      *
      * @return				    this {@code Function} instance
      */
-    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<Function>
+    fun setModifiers(modifiers: pointer<HashSet>) -> pointer<Function>
     {
         this.modifiers = if modifiers == null:
-                new ArrayList(sizeof(Modifier))
+                new HashSet(sizeof(Modifier), Modifier.compareModifier)
             else:
                 modifiers
 

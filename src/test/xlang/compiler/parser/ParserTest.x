@@ -62,6 +62,7 @@ import xlang.compiler.parser.stmtexpr.Block
 import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
+import xlang.util.HashSet
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 import xlang.test.TestCase
@@ -927,7 +928,7 @@ private fun structRuleTest() -> int
     if !String.streq(structDecl.getStructName(), "Box"):
         return 2
 
-    val modifiers: pointer<ArrayList> = structDecl.getModifiers()
+    val modifiers: pointer<HashSet> = structDecl.getModifiers()
 
     if modifiers == null || modifiers.length != 1:
         return 3

@@ -70,6 +70,7 @@ import xlang.parser.util.PatternAtom
 import xlang.parser.util.PatternList
 import xlang.parser.util.Rule
 import xlang.util.ArrayList
+import xlang.util.HashSet
 
 
 val TYPE_PARSER: pointer<ParserRef> = ParserRef.fromType(1000)
@@ -1343,10 +1344,10 @@ private inline fun makeModifier(results: pointer<ArrayList>) -> pointer<*>
 private inline fun makeModifierListMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
     val parsedModifiers: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>
-    val modifiers: pointer<ArrayList> = new ArrayList(sizeof(Modifier))
+    val modifiers: pointer<HashSet> = new HashSet(sizeof(Modifier), Modifier.compareModifier)
 
     for (var i = 0; i < parsedModifiers.length; i++):
-        modifiers.push(getContainerValue(parsedModifiers, i) as pointer<Modifier>)
+        modifiers.add(getContainerValue(parsedModifiers, i) as pointer<Modifier>)
 
     return new ModifierListMaybe(modifiers)
 }
@@ -1592,7 +1593,7 @@ private inline fun buildField(results: pointer<ArrayList>) -> pointer<Field>
 
     return result
         .setAnnotations(annotations.toAnnotations())
-        .setModifiers(modifiers.toModifierList())
+        .setModifiers(modifiers.toModifierSet())
         .addExtraToken(varToken)
         .addExtraToken(nameToken)
         .addExtraToken(colonToken)
@@ -1621,7 +1622,7 @@ private inline fun buildFunction(results: pointer<ArrayList>, returnType: pointe
 
     return new Function(functionNameToken.text, params.toFunctionParams(), bodyExpr)
         .setAnnotations(annotations.toAnnotations())
-        .setModifiers(modifiers.toModifierList())
+        .setModifiers(modifiers.toModifierSet())
         .setReturnType(returnType)
 }
 
@@ -1702,7 +1703,7 @@ private inline fun makeStructConstructor(results: pointer<ArrayList>) -> pointer
     val bodyExpr: pointer<Expression> = getContainerValue(results, 6) as pointer<Expression>
 
     return new StructConstructor(params.toFunctionParams(), bodyExpr)
-        .setModifiers(modifiers.toModifierList())
+        .setModifiers(modifiers.toModifierSet())
         .addExtraToken(constructorToken)
         .addExtraToken(leftParen)
         .addExtraToken(rightParen)
@@ -1720,7 +1721,7 @@ private inline fun makeStructConstructorFromBlock(results: pointer<ArrayList>) -
     val bodyExpr: pointer<Expression> = Expression.fromBlockExpr(block)
 
     return new StructConstructor(params.toFunctionParams(), bodyExpr)
-        .setModifiers(modifiers.toModifierList())
+        .setModifiers(modifiers.toModifierSet())
         .addExtraToken(constructorToken)
         .addExtraToken(leftParen)
         .addExtraToken(rightParen)
@@ -1760,7 +1761,7 @@ private inline fun makeStruct(results: pointer<ArrayList>) -> pointer<*>
     val rightBrace: pointer<Token> = getContainerValue(results, 5, false) as pointer<Token>
 
     return new Struct(nameToken.text, members)
-        .setModifiers(modifiers.toModifierList())
+        .setModifiers(modifiers.toModifierSet())
         .addExtraToken(structToken)
         .addExtraToken(nameToken)
         .addExtraToken(leftBrace)

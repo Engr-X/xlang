@@ -44,6 +44,7 @@ struct HashSet
     var length: int
 
     private var list: pointer<ArrayList>
+    
     private var cmp: (pointer<*>, pointer<*>) -> int
 
 

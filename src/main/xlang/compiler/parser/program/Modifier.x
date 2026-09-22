@@ -25,6 +25,7 @@ package xlang.compiler.parser.program
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.HashSet
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
@@ -49,6 +50,33 @@ import xlang.util.string.StringBuilder
  */
 struct Modifier
 {
+    /**
+     * Compares two modifier values by keyword.
+     *
+     * <p>This comparator is used by modifier sets so that duplicate declaration
+     * modifiers collapse to a single stored entry.
+     *
+     * @param left              stored modifier slot
+     * @param right             modifier value being compared
+     *
+     * @return                  {@code 0} when the two modifiers have the same
+     *                          keyword; non-zero otherwise
+     */
+    static fun compareModifier(left: pointer<*>, right: pointer<*>) -> int
+    {
+        val lhs: pointer<Modifier> = left as pointer<Modifier>
+        val rhs: pointer<Modifier> = right as pointer<Modifier>
+
+        if lhs == rhs:
+            return 0
+
+        if lhs == null || rhs == null:
+            return 1
+
+        return if String.streq(lhs.keyword, rhs.keyword): 0 else: 1
+    }
+
+
     /**
      * Creates a {@code private} declaration modifier.
      *
@@ -287,11 +315,11 @@ struct Modifier
  * a modifier sequence may be absent.
  *
  * <p>Instead of preserving {@code null} to represent the absence of modifiers,
- * this structure normalizes the state to an empty {@code ArrayList}. Consumers
+ * this structure normalizes the state to an empty {@code HashSet}. Consumers
  * can therefore retrieve a modifier collection without repeatedly checking
- * whether the list itself exists.
+ * whether the set itself exists.
  *
- * <p>If an existing modifier list is supplied to the constructor, that list is
+ * <p>If an existing modifier set is supplied to the constructor, that set is
  * stored directly and is not copied or cloned.
  */
 struct ModifierListMaybe
@@ -299,38 +327,38 @@ struct ModifierListMaybe
     /**
      * The normalized collection of declaration modifiers.
      *
-     * <p>This field contains either the list supplied to the constructor or a
-     * newly allocated empty modifier list when no collection was provided.
+     * <p>This field contains either the set supplied to the constructor or a
+     * newly allocated empty modifier set when no collection was provided.
      */
-    private var list: pointer<ArrayList>
+    private var list: pointer<HashSet>
 
 
     /**
      * Creates an empty optional modifier collection.
      *
-     * <p>A new empty {@code ArrayList} is allocated to represent the absence of
+     * <p>A new empty {@code HashSet} is allocated to represent the absence of
      * declaration modifiers without retaining a {@code null} list pointer.
      */
     constructor():
-        this.list = new ArrayList(sizeof(Modifier))
+        this.list = new HashSet(sizeof(Modifier), Modifier.compareModifier)
 
 
     /**
-     * Creates an optional modifier collection from the specified list.
+     * Creates an optional modifier collection from the specified set.
      *
-     * <p>If {@code list} is {@code null}, a new empty modifier collection is
-     * allocated. Otherwise, the supplied list is stored directly and is not
+     * <p>If {@code list} is {@code null}, a new empty modifier set is
+     * allocated. Otherwise, the supplied set is stored directly and is not
      * copied or cloned.
      *
      * <p>This normalization ensures that the internal modifier collection is
-     * represented by a valid {@code ArrayList} after construction.
+     * represented by a valid {@code HashSet} after construction.
      *
      * @param list			    a pointer to the modifier collection, or
      * 					        {@code null} to represent an empty collection
      */
-    constructor(list: pointer<ArrayList>):
+    constructor(list: pointer<HashSet>):
         this.list = if list == null:
-                new ArrayList(sizeof(Modifier))
+                new HashSet(sizeof(Modifier), Modifier.compareModifier)
             else:
                 list
 
@@ -339,9 +367,9 @@ struct ModifierListMaybe
      * Returns the normalized modifier collection represented by this wrapper.
      *
      * <p>The returned pointer refers directly to the internally stored
-     * {@code ArrayList}. The collection is not copied or cloned.
+     * {@code HashSet}. The collection is not copied or cloned.
      *
-     * <p>Because both constructors normalize an absent modifier list to an empty
+     * <p>Because both constructors normalize an absent modifier set to an empty
      * collection, this method normally returns a valid list even when no
      * modifiers were present in the parsed declaration.
      *
@@ -352,5 +380,5 @@ struct ModifierListMaybe
      * @return				    a pointer to the internally stored modifier
      * 					        collection
      */
-    fun toModifierList() -> pointer<ArrayList> = this.list
+    fun toModifierSet() -> pointer<HashSet> = this.list
 }

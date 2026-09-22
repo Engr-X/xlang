@@ -27,6 +27,7 @@ import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
+import xlang.util.HashSet
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
@@ -86,12 +87,12 @@ struct Field
 
 
     /**
-     * The ordered collection of declaration modifiers attached to this field.
+     * The set of declaration modifiers attached to this field.
      *
      * <p>These modifiers are separate from the internal mutability flag used to
      * select between {@code val} and {@code var}.
      */
-    private var modifiers: pointer<ArrayList>
+    private var modifiers: pointer<HashSet>
 
     /**
      * The null-terminated name of this field.
@@ -175,7 +176,7 @@ struct Field
     {
         this.modifier = CONST_MODIFIER
         this.annotations = new ArrayList(sizeof(Annotation))
-        this.modifiers = new ArrayList(sizeof(Modifier))
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
         this.fieldName = fieldName
         this.fieldType = fieldType
         this.initialValue = null
@@ -237,14 +238,14 @@ struct Field
      * @return				    a pointer to the internally stored modifier
      * 					        collection
      */
-    fun getModifiers() -> pointer<ArrayList> = this.modifiers
+    fun getModifiers() -> pointer<HashSet> = this.modifiers
 
 
     /**
      * Adds a declaration modifier to this field.
      *
-     * <p>The specified modifier is appended directly to the internally stored
-     * modifier collection.
+     * <p>The specified modifier is added directly to the internally stored
+     * modifier set. Duplicate modifier keywords are ignored by the set.
      *
      * <p>This operation modifies the current field instance and returns the
      * same instance, allowing method chaining.
@@ -254,7 +255,9 @@ struct Field
      */
     fun addModifier(modifier: pointer<Modifier>) -> pointer<Field>
     {
-        this.modifiers.push(modifier)
+        if modifier != null:
+            this.modifiers.add(modifier)
+
         return this
     }
 
@@ -262,7 +265,7 @@ struct Field
     /**
      * Replaces the declaration-modifier collection associated with this field.
      *
-     * <p>If {@code modifiers} is {@code null}, a new empty modifier list is
+     * <p>If {@code modifiers} is {@code null}, a new empty modifier set is
      * allocated. Otherwise, the supplied collection is stored directly and is
      * not copied or cloned.
      *
@@ -274,10 +277,10 @@ struct Field
      *
      * @return				    this {@code Field} instance
      */
-    fun setModifiers(modifiers: pointer<ArrayList>) -> pointer<Field>
+    fun setModifiers(modifiers: pointer<HashSet>) -> pointer<Field>
     {
         this.modifiers = if modifiers == null:
-                new ArrayList(sizeof(Modifier))
+                new HashSet(sizeof(Modifier), Modifier.compareModifier)
             else:
                 modifiers
 
