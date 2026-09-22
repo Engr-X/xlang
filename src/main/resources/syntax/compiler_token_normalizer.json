@@ -19,6 +19,8 @@
         { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Token.AnyKind" }, { "kind": "Tokenizer.KW_ELIF" }], "pivot_index": "1", "action": "insertLineTerminatorBeforeElif" },
         { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Token.AnyKind" }, { "kind": "Tokenizer.KW_ELSE" }], "pivot_index": "1", "action": "insertLineTerminatorBeforeElse" },
         { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Token.AnyKind" }], "pivot_index": "0", "action": "deleteLineTerminatorBeforeBanToken" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.DOT" }, { "kind": "Tokenizer.STAR" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Token.AnyKind" }], "pivot_index": "2", "action": "keepLineTerminator" },
+        { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.STAR" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Token.AnyKind" }], "pivot_index": "2", "action": "keepLineTerminator" },
         { "state": "NormalizeFSM.DEFAULT", "patterns": [{ "kind": "Token.AnyKind" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Token.AnyKind" }], "pivot_index": "1", "action": "deleteLineTerminatorAfterBanToken" }
     ],
     "others": [
@@ -262,7 +264,11 @@
             "    return true",
             "}" ],
 
-            
+
+        [   "private fun keepLineTerminator(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool =",
+            "    true" ],
+
+             
         [   "fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>",
             "{",
             "    val canonical: pointer<TokenList> = new TokenList()",

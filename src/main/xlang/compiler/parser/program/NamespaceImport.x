@@ -47,6 +47,46 @@ import xlang.util.string.StringBuilder
  */
 struct NamespaceImport
 {
+    // Indicates that this import refers to a single qualified name.   
+    static val SINGLE_TYPE: int = 0
+
+    // Indicates that this import imports all members from the namespace.
+    static val ALL_TYPE: int = 1
+
+
+    /**
+     * Creates a namespace import that refers to a single qualified name.
+     *
+     * @param qualifiedName     a pointer to the qualified namespace name, or
+     *                          {@code null} if no qualified name is available
+     *
+     * @return                  a pointer to the newly created single import
+     */
+    static fun fromSingle(qualifiedName: pointer<QualifiedName>) -> pointer<NamespaceImport> = new NamespaceImport(qualifiedName, SINGLE_TYPE)
+
+
+    /**
+     * Creates a namespace import that imports all members from the specified
+     * namespace.
+     *
+     * @param qualifiedName     a pointer to the qualified namespace name, or
+     *                          {@code null} if no qualified name is available
+     *
+     * @return                  a pointer to the newly created all-members import
+     */
+    static fun fromAll(qualifiedName: pointer<QualifiedName>) -> pointer<NamespaceImport> = new NamespaceImport(qualifiedName, ALL_TYPE)
+
+
+    /**
+     * The type of this namespace import.
+     *
+     * <p>The value is either {@link #SINGLE_TYPE} for a single-name import or
+     * {@link #ALL_TYPE} for an import that includes all members of the
+     * namespace.
+     */
+    private var type: int
+
+
     /**
      * The qualified name identifying the namespace being imported.
      *
@@ -65,22 +105,47 @@ struct NamespaceImport
 
 
     /**
-     * Creates a namespace import declaration for the specified qualified name.
+     * Creates a namespace import declaration for the specified qualified name
+     * and import type.
      *
      * <p>The supplied qualified name is stored by reference and is not copied or
      * cloned.
      *
+     * <p>The {@code type} determines whether this declaration represents a
+     * single-name import or an all-members import.
+     *
      * <p>A new empty collection is allocated for additional syntax tokens
      * associated with the import declaration.
      *
-     * @param qualifiedName		a pointer to the qualified namespace name, or
-     * 					        {@code null} if no qualified name is available
+     * @param qualifiedName         a pointer to the qualified namespace name, or
+     *                              {@code null} if no qualified name is available
+     * @param type                  the import type, typically
+     *                              {@link #SINGLE_TYPE} or {@link #ALL_TYPE}
      */
-    constructor(qualifiedName: pointer<QualifiedName>)
+    constructor(qualifiedName: pointer<QualifiedName>, type: int)
     {
         this.qualifiedName = qualifiedName
+        this.type = type
         this.extraTokens = new ArrayList(sizeof(Token))
     }
+
+
+    /**
+     * Returns whether this import refers to a single qualified name.
+     *
+     * @return                      {@code true} if this import is of
+     *                              {@link #SINGLE_TYPE}; otherwise {@code false}
+     */
+    fun isSingle() -> bool = this.type == SINGLE_TYPE
+
+
+    /**
+     * Returns whether this import imports all members from the namespace.
+     *
+     * @return                      {@code true} if this import is of
+     *                              {@link #ALL_TYPE}; otherwise {@code false}
+     */
+    fun isAll() -> bool = this.type == ALL_TYPE
 
 
     /**

@@ -24,7 +24,9 @@
 package xlang.compiler.parser
 
 import xlang.compiler.setting.CompilerSettings
+import xlang.compiler.parser.program.Fiekd
 import xlang.compiler.parser.program.Member
+import xlang.compiler.parser.program.Modifier
 import xlang.compiler.parser.program.NormalizedProgram
 import xlang.compiler.parser.program.PackageDeclaration
 import xlang.compiler.parser.program.PreprocessSetting
@@ -73,6 +75,7 @@ private fun getFunField(members: pointer<ArrayList>) -> pointer<ArrayList>
 
         if member.isFunction() || member.isField():
             result.push(member)
+
     }
 
     return result

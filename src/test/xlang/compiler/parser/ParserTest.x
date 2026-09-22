@@ -42,6 +42,7 @@ import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.ImportedSymbol
 import xlang.compiler.parser.program.Member
+import xlang.compiler.parser.program.NamespaceImport
 import xlang.compiler.parser.program.Annotation
 import xlang.compiler.parser.program.PreprocessSetting
 import xlang.compiler.parser.program.Program
@@ -81,6 +82,8 @@ fun genTest() -> pointer<TestGroup>
         new TestCase("annotationSeparatedValues", annotationSeparatedValuesTest)
     val preprocessSeparatedValuesTC: pointer<TestCase> =
         new TestCase("preprocessSeparatedValues", preprocessSeparatedValuesTest)
+    val namespaceImportsTC: pointer<TestCase> =
+        new TestCase("namespaceImports", namespaceImportsTest)
     val selectiveImportsTC: pointer<TestCase> =
         new TestCase("selectiveImports", selectiveImportsTest)
     val focusedAllSourceProgramsTG: pointer<TestGroup> = genAllSourceProgramsTestGroup()
@@ -88,6 +91,8 @@ fun genTest() -> pointer<TestGroup>
         new TestUnion(TestCase.TYPE, annotationSeparatedValuesTC, null)
     val preprocessSeparatedValuesUnion: pointer<TestUnion> =
         new TestUnion(TestCase.TYPE, preprocessSeparatedValuesTC, null)
+    val namespaceImportsUnion: pointer<TestUnion> =
+        new TestUnion(TestCase.TYPE, namespaceImportsTC, null)
     val selectiveImportsUnion: pointer<TestUnion> =
         new TestUnion(TestCase.TYPE, selectiveImportsTC, null)
     val focusedAllSourceProgramsUnion: pointer<TestUnion> =
@@ -95,6 +100,7 @@ fun genTest() -> pointer<TestGroup>
 
     result.addTestUnion(annotationSeparatedValuesUnion)
     result.addTestUnion(preprocessSeparatedValuesUnion)
+    result.addTestUnion(namespaceImportsUnion)
     result.addTestUnion(selectiveImportsUnion)
     result.addTestUnion(focusedAllSourceProgramsUnion)
     return result
@@ -272,6 +278,91 @@ private fun parseImportedSymbolText(text: pointer<char>) -> pointer<ImportedSymb
         return null
 
     return importedSymbol
+}
+
+
+private fun parseNamespaceImportText(text: pointer<char>) -> pointer<NamespaceImport>
+{
+    val tokens: pointer<TokenList> = Tokenizer.fullTokenize(text)
+    val namespaceImport: pointer<NamespaceImport> = Parser.parseNamespaceImport(tokens)
+
+    if namespaceImport == null:
+    {
+        printTokenDump("namespace import parse failed: ", tokens)
+        return null
+    }
+
+    if tokens.length() > 0 && !tokens.get(0).isEOF():
+    {
+        printTokenDump("namespace import left tokens: ", tokens)
+        return null
+    }
+
+    return namespaceImport
+}
+
+
+private fun namespaceImportsTest() -> int
+{
+    val single: pointer<NamespaceImport> = parseNamespaceImportText("import Math\n")
+
+    if single == null:
+        return 1
+
+    val singleName: pointer<QualifiedName> = single.getQualifiedName()
+
+    if singleName == null || !String.streq(singleName.getPart(0), "Math"):
+        return 2
+
+    val singleExtraTokens: pointer<ArrayList> = single.getExtraTokens()
+
+    if singleExtraTokens == null || singleExtraTokens.length != 1:
+        return 3
+
+    val singleAllTokens: pointer<ArrayList> = single.getAllTokens()
+
+    if singleAllTokens == null || singleAllTokens.length != 2:
+        return 4
+
+    val all: pointer<NamespaceImport> = parseNamespaceImportText("import Math.*")
+
+    if all == null:
+        return 5
+
+    val allName: pointer<QualifiedName> = all.getQualifiedName()
+
+    if allName == null || !String.streq(allName.getPart(0), "Math"):
+        return 6
+
+    val allExtraTokens: pointer<ArrayList> = all.getExtraTokens()
+
+    if allExtraTokens == null || allExtraTokens.length != 3:
+        return 7
+
+    val allTokens: pointer<ArrayList> = all.getAllTokens()
+
+    if allTokens == null || allTokens.length != 4:
+        return 8
+
+    val nestedAll: pointer<NamespaceImport> = parseNamespaceImportText("import com.example.Math.*")
+
+    if nestedAll == null:
+        return 9
+
+    val nestedName: pointer<QualifiedName> = nestedAll.getQualifiedName()
+
+    if nestedName == null:
+        return 10
+
+    if !String.streq(nestedName.getPart(0), "com") || !String.streq(nestedName.getPart(1), "example") || !String.streq(nestedName.getPart(2), "Math"):
+        return 11
+
+    val nestedExtraTokens: pointer<ArrayList> = nestedAll.getExtraTokens()
+
+    if nestedExtraTokens == null || nestedExtraTokens.length != 3:
+        return 12
+
+    return 0
 }
 
 

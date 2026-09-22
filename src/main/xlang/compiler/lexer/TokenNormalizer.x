@@ -16,8 +16,8 @@ val banBefore: pointer<HashSet> = initBanBefore()
 
 
 var normalizerIsInit: bool = false
-val ruleLength: int = 10
-val rulesSpace: blob[sizeof(pointer<NormalizeRule>) * 10]
+val ruleLength: int = 12
+val rulesSpace: blob[sizeof(pointer<NormalizeRule>) * 12]
 val rulePtr: pointer<pointer<NormalizeRule>> = rulesSpace as pointer<pointer<NormalizeRule>>
 
 
@@ -245,6 +245,9 @@ private fun deleteLineTerminatorAfterBanToken(fsm: pointer<NormalizeFSM>, tokens
     return true
 }
 
+private fun keepLineTerminator(fsm: pointer<NormalizeFSM>, tokens: pointer<ArrayList>) -> bool =
+    true
+
 fun canonicalize(tokenlist: pointer<TokenList>) -> pointer<TokenList>
 {
     val canonical: pointer<TokenList> = new TokenList()
@@ -348,7 +351,9 @@ private fun normalizerInit()
     rulePtr[6] = new NormalizeRule(6, NormalizeFSM.DEFAULT, insertLineTerminatorBeforeElif).addPattern(Token.AnyKind).addPattern(Tokenizer.KW_ELIF).setPivot(1)
     rulePtr[7] = new NormalizeRule(7, NormalizeFSM.DEFAULT, insertLineTerminatorBeforeElse).addPattern(Token.AnyKind).addPattern(Tokenizer.KW_ELSE).setPivot(1)
     rulePtr[8] = new NormalizeRule(8, NormalizeFSM.DEFAULT, deleteLineTerminatorBeforeBanToken).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(0)
-    rulePtr[9] = new NormalizeRule(9, NormalizeFSM.DEFAULT, deleteLineTerminatorAfterBanToken).addPattern(Token.AnyKind).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(1)
+    rulePtr[9] = new NormalizeRule(9, NormalizeFSM.DEFAULT, keepLineTerminator).addPattern(Tokenizer.DOT).addPattern(Tokenizer.STAR).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(2)
+    rulePtr[10] = new NormalizeRule(10, NormalizeFSM.DEFAULT, keepLineTerminator).addPattern(Tokenizer.KW_IMPORT).addPattern(Tokenizer.STAR).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(2)
+    rulePtr[11] = new NormalizeRule(11, NormalizeFSM.DEFAULT, deleteLineTerminatorAfterBanToken).addPattern(Token.AnyKind).addPattern(Tokenizer.TK_LINE_TERMINATOR).addPattern(Token.AnyKind).setPivot(1)
     normalizerIsInit = true
 }
 

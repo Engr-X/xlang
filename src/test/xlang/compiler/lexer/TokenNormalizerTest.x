@@ -295,6 +295,11 @@ private fun normalizeTest() -> int
     if result != 0:
         return 11
 
+    result = normalizeDotStarKeepsLineTerminatorTest()
+
+    if result != 0:
+        return 12
+
     return 0
 }
 
@@ -573,6 +578,38 @@ private fun normalizePostfixDecrementKeepsLineTerminatorTest() -> int
 
     if items.kind != Tokenizer.TK_IDENTIFIER:
         return 4
+
+    return 0
+}
+
+
+private fun normalizeDotStarKeepsLineTerminatorTest() -> int
+{
+    val raw: pointer<TokenList> = Tokenizer.tokenize("Math.*\nnext")
+    val tokens: pointer<TokenList> = TokenNormalizer.normalize(raw)
+
+    if tokens.length() < 5:
+        return 1
+
+    val dot: pointer<Token> = tokens.get(1)
+
+    if dot.kind != Tokenizer.DOT:
+        return 2
+
+    val star: pointer<Token> = tokens.get(2)
+
+    if star.kind != Tokenizer.STAR:
+        return 3
+
+    val terminator: pointer<Token> = tokens.get(3)
+
+    if terminator.kind != Tokenizer.TK_LINE_TERMINATOR:
+        return 4
+
+    val next: pointer<Token> = tokens.get(4)
+
+    if next.kind != Tokenizer.TK_IDENTIFIER || !String.streq(next.text, "next"):
+        return 5
 
     return 0
 }

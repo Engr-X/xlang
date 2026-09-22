@@ -319,6 +319,60 @@ struct ImportedSymbolAliasMaybe
  */
 struct SelectiveImports
 {
+    // Indicates that only explicitly specified symbols are imported.
+    private static var CERTAIN_KIND: int = 0
+
+    // Indicates that all applicable symbols are imported.
+    private static var ALL_KIND: int = 1
+
+
+    /**
+     * Creates a selective-import declaration that imports only the explicitly
+     * specified symbols.
+     *
+     * <p>The supplied qualified name and imported-symbol collection are stored by
+     * reference and are not copied or cloned.
+     *
+     * <p>If {@code importedFunctions} is {@code null}, the created declaration
+     * contains a new empty imported-symbol collection.
+     * 
+     * @param qualifiedName     a pointer to the qualified import target, or
+     *                          {@code null} if no target name is available
+     * @param importedFunctions a pointer to the explicitly imported symbols, or
+     *                          {@code null} to create an empty collection
+     *
+     * @return                   a pointer to the newly created selective import
+     */
+    static fun fromCertain(qualifiedName: pointer<QualifiedName>, importedFunctions: pointer<ArrayList>) -> pointer<SelectiveImports> = 
+        new SelectiveImports(qualifiedName, CERTAIN_KIND, importedFunctions)
+
+
+    /**
+     * Creates a selective-import declaration that imports all applicable symbols
+     * from the specified qualified target.
+     *
+     * <p>The supplied qualified name is stored by reference and is not copied or
+     * cloned.
+     *
+     * @param qualifiedName     a pointer to the qualified import target, or
+     *                          {@code null} if no target name is available
+     *
+     * @return                  a pointer to the newly created all-symbol import
+     */
+    static fun fromAll(qualifiedName: pointer<QualifiedName>) -> pointer<SelectiveImports> =
+        new SelectiveImports(qualifiedName, ALL_KIND, null)
+
+
+    /**
+     * The kind of this selective import declaration.
+     *
+     * <p>The value is typically either {@link #CERTAIN_KIND}, indicating that
+     * only explicitly specified symbols are imported, or {@link #ALL_KIND},
+     * indicating that all applicable symbols are imported.
+     */
+    private var type: int
+
+
     /**
      * The qualified name identifying the namespace or declaration from which
      * functions are selectively imported.
@@ -339,8 +393,8 @@ struct SelectiveImports
 
 
     /**
-     * Creates a selective-import declaration with the specified qualified name
-     * and imported-function collection.
+     * Creates a selective-import declaration with the specified qualified name,
+     * import kind, and imported-symbol collection.
      *
      * <p>The supplied qualified name is stored by reference and is not copied or
      * cloned.
@@ -352,13 +406,20 @@ struct SelectiveImports
      *
      * @param qualifiedName     a pointer to the qualified import target, or
      *                          {@code null} if no target name is available
+     * @param type              the import kind, typically
+     *                          {@link #CERTAIN_KIND} or {@link #ALL_KIND}
      * @param importedFunctions
-     *                          a pointer to the imported-function collection, or
+     *                          a pointer to the imported-symbol collection, or
      *                          {@code null} to create an empty collection
      */
-    constructor(qualifiedName: pointer<QualifiedName>, importedFunctions: pointer<ArrayList>)
+    private constructor(
+        qualifiedName: pointer<QualifiedName>,
+        type: int,
+        importedFunctions: pointer<ArrayList>
+    )
     {
         this.qualifiedName = qualifiedName
+        this.type = type
         this.importedFunctions = if importedFunctions == null:
                 new ArrayList(sizeof(ImportedSymbol))
             else:

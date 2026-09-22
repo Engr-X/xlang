@@ -838,6 +838,25 @@ struct Function
 
 
     /**
+     * Adds a declaration modifier to this field.
+     *
+     * <p>The specified modifier is appended directly to the internally stored
+     * modifier collection.
+     *
+     * <p>This operation modifies the current field instance and returns the
+     * same instance, allowing method chaining.
+     *
+     * @param modifier          a pointer point to modifier to add
+     * @return                  a pointer to this field
+     */
+    fun addModifier(modifier: pointer<Modifier>) -> pointer<Field>
+    {
+        this.modifiers.push(modifier)
+        return this
+    }
+
+
+    /**
      * Replaces the declaration-modifier collection attached to this function.
      *
      * <p>If {@code modifiers} is {@code null}, a new empty modifier collection
@@ -978,8 +997,8 @@ struct Function
      */
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
 
-    /**
 
+    /**
      * Returns all tokens associated with this function declaration.
      *
      * <p>Tokens belonging to all valid annotations are collected first. Null

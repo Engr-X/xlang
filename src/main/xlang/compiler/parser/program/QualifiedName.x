@@ -288,7 +288,7 @@ struct QualifiedName
      *                          qualified name
      */
     fun toImportDeclaration() -> pointer<ImportDeclaration>
-        = ImportDeclaration.fromNamespace(new NamespaceImport(this))
+        = ImportDeclaration.fromNamespace(NamespaceImport.fromSingle(this))
 
 
     /**

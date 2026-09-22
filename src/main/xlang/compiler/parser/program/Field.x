@@ -241,6 +241,25 @@ struct Field
 
 
     /**
+     * Adds a declaration modifier to this field.
+     *
+     * <p>The specified modifier is appended directly to the internally stored
+     * modifier collection.
+     *
+     * <p>This operation modifies the current field instance and returns the
+     * same instance, allowing method chaining.
+     *
+     * @param modifier          a pointer point to modifier to add
+     * @return                  a pointer to this field
+     */
+    fun addModifier(modifier: pointer<Modifier>) -> pointer<Field>
+    {
+        this.modifiers.push(modifier)
+        return this
+    }
+
+
+    /**
      * Replaces the declaration-modifier collection associated with this field.
      *
      * <p>If {@code modifiers} is {@code null}, a new empty modifier list is

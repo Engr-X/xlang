@@ -107,6 +107,7 @@
             "class": "NamespaceImport",
             "parser": "recursively-down",
             "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.DOT" }, { "kind": "Tokenizer.STAR" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeAllNamespaceImport" },
                 { "patterns": [{ "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeNamespaceImport" }
             ]
         },
@@ -130,6 +131,7 @@
             "class": "SelectiveImports",
             "parser": "recursively-down",
             "sub_rules": [
+                { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.STAR" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeAllSelectiveImport" },
                 { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedSymbol]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
                 { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedSymbol]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
                 { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$ImportedSymbol" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImport" }
@@ -340,7 +342,21 @@
             "    val importToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "",
-            "    return new NamespaceImport(qualifiedName).addExtraToken(importToken)",
+            "    return NamespaceImport.fromSingle(qualifiedName).addExtraToken(importToken)",
+            "}" ],
+
+
+        [   "private inline fun makeAllNamespaceImport(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val importToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "    val dotToken: pointer<Token> = getContainerValue(results, 2, false) as pointer<Token>",
+            "    val starToken: pointer<Token> = getContainerValue(results, 3, false) as pointer<Token>",
+            "",
+            "    return NamespaceImport.fromAll(qualifiedName)",
+            "        .addExtraToken(importToken)",
+            "        .addExtraToken(dotToken)",
+            "        .addExtraToken(starToken)",
             "}" ],
 
 
@@ -388,6 +404,14 @@
             "    new ImportedSymbolAliasMaybe()" ],
 
 
+        [   "private inline fun makeAllSelectiveImport(results: pointer<ArrayList>) -> pointer<*>",
+            "{",
+            "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
+            "",
+            "    return SelectiveImports.fromAll(qualifiedName)",
+            "}" ],
+
+
         [   "private inline fun makeSelectiveImport(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
@@ -395,7 +419,7 @@
             "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedSymbol))",
             "",
             "    importedFunctions.push(importedFunction)",
-            "    return new SelectiveImports(qualifiedName, importedFunctions)",
+            "    return SelectiveImports.fromCertain(qualifiedName, importedFunctions)",
             "}" ],
 
 
@@ -408,7 +432,7 @@
             "    for (var i = 0; i < parsedFunctions.length; i++):",
             "        importedFunctions.push(getContainerValue(parsedFunctions, i) as pointer<ImportedSymbol>)",
             "",
-            "    return new SelectiveImports(qualifiedName, importedFunctions)",
+            "    return SelectiveImports.fromCertain(qualifiedName, importedFunctions)",
             "}" ],
 
 
