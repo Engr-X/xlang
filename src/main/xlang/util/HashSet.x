@@ -15,103 +15,146 @@
  *
  *
  *
+ *
+ *
+ *
+ *
+ *
+ *
  */
 
 package xlang.util
 
-import xlang.util.ArrayList
 
-
-/**
- * Minimal set container backed by ArrayList.
- *
- * This is intentionally a compatibility shell for the future hash-table
- * implementation. It preserves set semantics, but lookup, insertion, and
- * removal are currently linear because every operation scans the backing
- * ArrayList with the configured comparator.
- *
- * The comparator contract is the same as ArrayList:
- * - first argument is the stored element slot
- * - second argument is the caller-provided item
- * - return 0 when the two values are equal
- *
- * The set stores byte copies of fixed-width element slots. For pointer<T>
- * elements, construct it with sizeof(pointer<T>) and pass pointer slot
- * addresses to add(), contains(), and remove().
- */
 struct HashSet
 {
+    private static val DEFAULT_CAPACITY: int = 16
+
+    private static val DEFAULT_LOAD_FACTOR: double = 0.75
+
     var length: int
 
-    private var list: pointer<ArrayList>
-    
+    private var tsize: int
+
+    private var bucketCount: int
+
+    private var loadFactor: double
+
+    private var buckets: pointer<ArrayList>
+
     private var cmp: (pointer<*>, pointer<*>) -> int
 
+    private var hashCode: (pointer<*>) -> int
 
-    /**
-     * Creates an empty set for fixed-width elements.
-     *
-     * @param tsize             size in bytes of one stored element slot
-     * @param cmp               equality comparator
-     */
-    constructor(tsize: int, cmp: (pointer<*>, pointer<*>) -> int)
+
+    constructor(tsize: int, bucketCount: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int, hashCode: (pointer<*>) -> int)
     {
         this.length = 0
+        this.tsize = tsize
+        this.bucketCount = bucketCount
+        this.loadFactor = loadFactor
         this.cmp = cmp
-        this.list = new ArrayList(tsize)
-        this.list.setComparator(cmp)
+        this.hashCode = hashCode
+        this.buckets = this.createBuckets(this.bucketCount)
     }
 
 
-    /**
-     * Creates an empty set with explicit ArrayList allocation settings.
-     *
-     * @param tsize             size in bytes of one stored element slot
-     * @param initialCapacity   initial backing-list capacity
-     * @param loadFactor        backing-list resize threshold
-     * @param cmp               equality comparator
-     */
-    constructor(tsize: int, initialCapacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
+    constructor(tsize: int, cmp: (pointer<*>, pointer<*>) -> int, hashCode: (pointer<*>) -> int)
     {
         this.length = 0
+        this.tsize = tsize
+        this.bucketCount = DEFAULT_CAPACITY
+        this.loadFactor = DEFAULT_LOAD_FACTOR
         this.cmp = cmp
-        this.list = new ArrayList(tsize, initialCapacity, loadFactor, cmp)
+        this.hashCode = hashCode
+        this.buckets = this.createBuckets(this.bucketCount)
     }
 
 
-    /**
-     * Returns true if an equal element is already present.
-     */
-    fun contains(item: pointer<*>) -> bool =
-        this.list.contains(item)
-
-
-    /**
-     * Adds item if it is not already present.
-     *
-     * The item bytes are copied into the set. Adding a duplicate leaves the set
-     * unchanged.
-     *
-     * @return                  true when a new element was inserted
-     */
-    fun addIfAbsent(item: pointer<*>) -> bool
+    private fun createBuckets(count: int) -> pointer<ArrayList>
     {
-        if this.contains(item):
+        val result: pointer<ArrayList> = new ArrayList(sizeof(pointer<ArrayList>))
+
+        for (var i: int = 0; i < count; i++):
+        {
+            val bucket: pointer<ArrayList> = new ArrayList(this.tsize)
+
+            bucket.setComparator(this.cmp)
+            result.push(bucket.ref)
+        }
+
+        return result
+    }
+
+
+    private fun getBucket(index: int) -> pointer<ArrayList>
+    {
+        val slot: pointer<pointer<ArrayList>> =
+            this.buckets.get(index) as pointer<pointer<ArrayList>>
+
+        if slot == null:
+            return null
+
+        return slot.deref
+    }
+
+
+    private fun getBucketIndex(item: pointer<*>) -> int
+    {
+        var index: int = this.hashCode(item) % this.bucketCount
+
+        if index < 0:
+            index += this.bucketCount
+
+        return index
+    }
+
+
+    private fun getBucketFor(item: pointer<*>) -> pointer<ArrayList> =
+        this.getBucket(this.getBucketIndex(item))
+
+
+    fun contains(item: pointer<*>) -> bool
+    {
+        if item == null:
             return false
 
-        this.list.push(item)
-        this.length = this.list.length
+        val bucket: pointer<ArrayList> =
+            this.getBucketFor(item)
+
+        if bucket == null:
+            return false
+
+        return bucket.contains(item)
+    }
+
+
+    fun addIfAbsent(item: pointer<*>) -> bool
+    {
+        if item == null:
+            return false
+
+        var bucket: pointer<ArrayList> =
+            this.getBucketFor(item)
+
+        if bucket != null && bucket.contains(item):
+            return false
+
+        if ((this.length + 1) as double) > (this.bucketCount as double) * this.loadFactor:
+        {
+            this.rehash(this.bucketCount * 2)
+            bucket = this.getBucketFor(item)
+        }
+
+        if bucket == null:
+            return false
+
+        bucket.push(item)
+        this.length++
         return true
     }
 
 
-    /**
-     * Adds item and returns this set for chained initialization.
-     *
-     * This has the same insertion semantics as addIfAbsent(), but discards the
-     * inserted/duplicate result so callers can write:
-     *     set.add(a).add(b).add(c)
-     */
     fun add(item: pointer<*>) -> pointer<HashSet>
     {
         this.addIfAbsent(item)
@@ -119,37 +162,113 @@ struct HashSet
     }
 
 
-    /**
-     * Removes item if an equal element exists.
-     *
-     * @return                  true when an element was removed
-     */
     fun remove(item: pointer<*>) -> bool
     {
-        val index: int = this.list.indexOf(item)
+        if item == null:
+            return false
+
+        val bucket: pointer<ArrayList> =
+            this.getBucketFor(item)
+
+        if bucket == null:
+            return false
+
+        val index: int =
+            bucket.indexOf(item)
 
         if index < 0:
             return false
 
-        this.list.removeAt(index)
-        this.length = this.list.length
+        bucket.removeAt(index)
+        this.length--
         return true
     }
 
 
-    /**
-     * Returns the stored element slot at index.
-     *
-     * The returned pointer belongs to the backing ArrayList and is invalidated
-     * by later mutations that resize or shift the list.
-     */
-    fun get(index: int) -> pointer<*> =
-        this.list.get(index)
+    private fun rehash(newBucketCount: int)
+    {
+        val oldBuckets: pointer<ArrayList> =
+            this.buckets
+
+        val oldBucketCount: int =
+            this.bucketCount
+
+        this.bucketCount = newBucketCount
+        this.buckets = this.createBuckets(newBucketCount)
+
+        for (var i: int = 0; i < oldBucketCount; i++):
+        {
+            val slot: pointer<pointer<ArrayList>> =
+                oldBuckets.get(i) as pointer<pointer<ArrayList>>
+
+            if slot == null:
+                continue
+
+            val oldBucket: pointer<ArrayList> =
+                slot.deref
+
+            if oldBucket == null:
+                continue
+
+            for (var j: int = 0; j < oldBucket.length; j++):
+            {
+                val item: pointer<*> =
+                    oldBucket.get(j)
+
+                if item == null:
+                    continue
+
+                val bucket: pointer<ArrayList> =
+                    this.getBucketFor(item)
+
+                if bucket != null:
+                    bucket.push(item)
+            }
+        }
+    }
 
 
-    /**
-     * Returns the backing storage as an ArrayList clone.
-     */
-    fun toArray() -> pointer<ArrayList> =
-        this.list.clone()
+    fun get(index: int) -> pointer<*>
+    {
+        if index < 0 || index >= this.length:
+            return null
+
+        var offset: int = 0
+
+        for (var i: int = 0; i < this.bucketCount; i++):
+        {
+            val bucket: pointer<ArrayList> =
+                this.getBucket(i)
+
+            if bucket == null:
+                continue
+
+            if index < offset + bucket.length:
+                return bucket.get(index - offset)
+
+            offset += bucket.length
+        }
+
+        return null
+    }
+
+
+    fun toArray() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> =
+            new ArrayList(this.tsize)
+
+        result.setComparator(this.cmp)
+
+        for (var i: int = 0; i < this.bucketCount; i++):
+        {
+            val bucket: pointer<ArrayList> =
+                this.getBucket(i)
+
+            if bucket != null:
+                result.pushAll(bucket)
+        }
+
+        return result
+    }
 }

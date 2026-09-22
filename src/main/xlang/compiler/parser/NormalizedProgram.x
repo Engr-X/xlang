@@ -51,6 +51,68 @@ import xlang.util.ArrayList
  */
 struct NormalizedProgram
 {
+     /**
+     * Indicates that the normalized program represents a {@code struct}
+     * declaration body.
+     */
+    private static val STRUCT_TYPE: int = 0
+
+    /**
+     * Indicates that the normalized program represents a {@code class}
+     * declaration body.
+     */
+    private static val CLASS_TYPE: int = 1
+
+    /**
+     * Indicates that the normalized program represents an {@code interface}
+     * declaration body.
+     */
+    private static val INTERFACE_TYPE: int = 2
+
+    /**
+     * Indicates that the normalized program represents an {@code annotation}
+     * declaration body.
+     */
+    private static val ANNOTATION_TYPE: int = 3
+
+
+    /**
+     * Creates a normalized program whose body is a structure declaration.
+     *
+     * @param preprocessSettings
+     *                          a pointer to the preprocessing-setting collection,
+     *                           or {@code null} to create an empty collection
+     * @param packageDeclaration
+     *                          a pointer to the package declaration, or
+     *                          {@code null} if no package declaration is available
+     * @param imports           a pointer to the import-declaration collection, or
+     *                          {@code null} to create an empty collection
+     * @param body              a pointer to the structure declaration, or
+     *                          {@code null} if no structure body is available
+     * @return                  a pointer to the newly created normalized program
+     */
+    static fun fromStruct(
+        preprocessSettings: pointer<ArrayList>,
+        packageDeclaration: pointer<PackageDeclaration>,
+        imports: pointer<ArrayList>,
+        body: pointer<Struct>
+    ) -> pointer<NormalizedProgram> = new NormalizedProgram(
+        preprocessSettings,
+        packageDeclaration,
+        imports,
+        STRUCT_TYPE,
+        body
+    )
+
+
+    /**
+     * The type of declaration body represented by this normalized program.
+     *
+     * <p>The value is one of {@link #STRUCT_TYPE}, {@link #CLASS_TYPE},
+     * {@link #INTERFACE_TYPE}, or {@link #ANNOTATION_TYPE}.
+     */
+    private var bodyType: int
+
     /**
      * The ordered collection of preprocessing settings associated with the
      * normalized program.
@@ -94,7 +156,7 @@ struct NormalizedProgram
      * <p>A {@code null} value indicates that no normalized structure declaration
      * is currently associated with the program.
      */
-    private var structDeclaration: pointer<Struct>
+    private var body: pointer<Struct>
 
 
     /**
@@ -114,8 +176,7 @@ struct NormalizedProgram
      * Otherwise, the supplied import collection is stored directly and is not
      * copied or cloned.
      *
-     * <p>The supplied structure declaration is stored directly and may be
-     * {@code null}.
+     * <p>The supplied body is stored by reference and is not copied or cloned.
      *
      * @param preprocessSettings
      *                          a pointer to the preprocessing-setting
@@ -127,16 +188,16 @@ struct NormalizedProgram
      *                          available
      * @param imports           a pointer to the import-declaration collection,
      *                          or {@code null} to create an empty collection
-     * @param structDeclaration
-     *                          a pointer to the normalized structure
-     *                          declaration, or {@code null} if no structure is
-     *                          available
+     * @param bodyType          the type of declaration body
+     * @param body              a pointer to the normalized declaration body, or
+     *                          {@code null} if no body is available
      */
-    constructor(
+    private constructor(
         preprocessSettings: pointer<ArrayList>,
         packageDeclaration: pointer<PackageDeclaration>,
         imports: pointer<ArrayList>,
-        structDeclaration: pointer<Struct>
+        bodyType: int,
+        body: pointer<*>
     )
     {
         this.preprocessSettings = if preprocessSettings == null:
@@ -145,12 +206,14 @@ struct NormalizedProgram
                 preprocessSettings
 
         this.packageDeclaration = packageDeclaration
+
         this.imports = if imports == null:
                 new ArrayList(sizeof(ImportDeclaration))
             else:
                 imports
 
-        this.structDeclaration = structDeclaration
+        this.bodyType = bodyType
+        this.body = body
     }
 
 
@@ -224,5 +287,5 @@ struct NormalizedProgram
      *                          structure declaration, or {@code null} if no
      *                          structure is available
      */
-    fun getStruct() -> pointer<Struct> = this.structDeclaration
+    fun getStruct() -> pointer<Struct> = this.body
 }

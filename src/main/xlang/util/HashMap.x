@@ -15,6 +15,12 @@
  *
  *
  *
+ *
+ *
+ *
+ *
+ *
+ *
  */
 
 package xlang.util
@@ -23,7 +29,7 @@ import xlang.util.ArrayList
 import xlang.util.HashSet
 
 
-struct HashMapEntry
+struct MapEntry
 {
     var key: pointer<*>
 
@@ -31,27 +37,45 @@ struct HashMapEntry
 
     var keyCmp: (pointer<*>, pointer<*>) -> int
 
+    var keyHashCode: (pointer<*>) -> int
 
-    constructor(
-        key: pointer<*>,
-        value: pointer<*>,
-        keyCmp: (pointer<*>, pointer<*>) -> int
+
+    constructor(key: pointer<*>, value: pointer<*>,
+        keyCmp: (pointer<*>, pointer<*>) -> int, keyHashCode: (pointer<*>) -> int
     )
     {
         this.key = key
         this.value = value
         this.keyCmp = keyCmp
+        this.keyHashCode = keyHashCode
     }
 }
 
 
-fun hashMapEntryCmp(a: pointer<*>, b: pointer<*>) -> int
+private fun hashMapEntryCmp(a: pointer<*>, b: pointer<*>) -> int
 {
-    val entryA: pointer<HashMapEntry> = a
-    val entryB: pointer<HashMapEntry> = b
+    val entryA: pointer<MapEntry> =
+        a as pointer<MapEntry>
 
-    return entryA.keyCmp(entryA.key, entryB.key)
+    val entryB: pointer<MapEntry> =
+        b as pointer<MapEntry>
+
+    return entryA.keyCmp(
+        entryA.key,
+        entryB.key
+    )
 }
+
+
+private fun hashMapEntryHashCode(item: pointer<*>) -> int
+{
+    val entry: pointer<MapEntry> = item as pointer<MapEntry>
+
+    return entry.keyHashCode(entry.key)
+}
+
+
+private fun hashMapDefaultHashCode(item: pointer<*>) -> int = 0
 
 
 struct HashMap
@@ -62,110 +86,114 @@ struct HashMap
 
     private var keyCmp: (pointer<*>, pointer<*>) -> int
 
+    private var keyHashCode: (pointer<*>) -> int
+
 
     constructor(cmp: (pointer<*>, pointer<*>) -> int)
     {
         this.length = 0
         this.keyCmp = cmp
+        this.keyHashCode = hashMapDefaultHashCode
+
         this.entries = new HashSet(
-            sizeof(HashMapEntry),
-            hashMapEntryCmp
+            sizeof(MapEntry),
+            hashMapEntryCmp,
+            hashMapEntryHashCode
         )
     }
 
 
-    constructor(
-        initialCapacity: int,
-        loadFactor: double,
-        cmp: (pointer<*>, pointer<*>) -> int
-    )
+    constructor(capacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
     {
         this.length = 0
         this.keyCmp = cmp
+        this.keyHashCode = hashMapDefaultHashCode
+
         this.entries = new HashSet(
-            sizeof(HashMapEntry),
-            initialCapacity,
-            loadFactor,
-            hashMapEntryCmp
+            sizeof(MapEntry),
+            hashMapEntryCmp,
+            hashMapEntryHashCode
         )
     }
 
 
-    private fun makeEntry(
-        key: pointer<*>,
-        value: pointer<*>
-    ) -> HashMapEntry =
-        HashMapEntry(key, value, this.keyCmp)
-
-
-    private fun indexOf(key: pointer<*>) -> int
+    constructor(cmp: (pointer<*>, pointer<*>) -> int, hashCode: (pointer<*>) -> int)
     {
-        val targetSpace: blob[sizeof(HashMapEntry)]
-        val target: pointer<HashMapEntry> =
-            targetSpace as pointer<HashMapEntry>
+        this.length = 0
+        this.keyCmp = cmp
+        this.keyHashCode = hashCode
 
-        target.key = key
-        target.value = null
-        target.keyCmp = this.keyCmp
-
-        var i: int = 0
-
-        while i < this.entries.length:
-        {
-            val entry: pointer<HashMapEntry> =
-                this.entries.get(i)
-
-            if hashMapEntryCmp(entry, target) == 0:
-                return i
-
-            i++
-        }
-
-        return -1
+        this.entries = new HashSet(
+            sizeof(MapEntry),
+            hashMapEntryCmp,
+            hashMapEntryHashCode
+        )
     }
 
 
-    fun containsKey(key: pointer<*>) -> bool =
-        this.indexOf(key) >= 0
+
+    private fun initEntry(entry: pointer<MapEntry>, key: pointer<*>, value: pointer<*>)
+    {
+        entry.key = key
+        entry.value = value
+        entry.keyCmp = this.keyCmp
+        entry.keyHashCode = this.keyHashCode
+    }
+
+
+    private fun findEntry(key: pointer<*>) -> pointer<MapEntry>
+    {
+        for (var i = 0; i < this.entries.length; i++):
+        {
+            val entry: pointer<MapEntry> = this.entries.get(i) as pointer<MapEntry>
+
+            if entry != null && this.keyCmp(entry.key, key) == 0:
+                return entry
+        }
+
+        return null
+    }
+
+
+    fun containsKey(key: pointer<*>) -> bool
+    {
+        return this.findEntry(key) != null
+    }
 
 
     fun get(key: pointer<*>) -> pointer<*>
     {
-        val index: int = this.indexOf(key)
+        val entry: pointer<MapEntry> =
+            this.findEntry(key)
 
-        if index < 0:
+        if entry == null:
             return null
-
-        val entry: pointer<HashMapEntry> =
-            this.entries.get(index)
 
         return entry.value
     }
 
 
-    fun put(
-        key: pointer<*>,
-        value: pointer<*>
-    ) -> pointer<HashMap>
+    fun put(key: pointer<*>, value: pointer<*>) -> pointer<HashMap>
     {
-        val index: int = this.indexOf(key)
+        val current: pointer<MapEntry> =
+            this.findEntry(key)
 
-        if index >= 0:
+        if current != null:
         {
-            val entry: pointer<HashMapEntry> =
-                this.entries.get(index)
-
-            entry.value = value
+            current.value = value
             return this
         }
 
-        val entrySpace: blob[sizeof(HashMapEntry)]
-        val entry: pointer<HashMapEntry> =
-            entrySpace as pointer<HashMapEntry>
+        val entrySpace: blob[sizeof(MapEntry)]
 
-        entry.key = key
-        entry.value = value
-        entry.keyCmp = this.keyCmp
+        val entry: pointer<MapEntry> =
+            entrySpace as pointer<MapEntry>
+
+        this.initEntry(
+            entry,
+            key,
+            value
+        )
 
         this.entries.add(entry)
         this.length = this.entries.length
@@ -174,41 +202,37 @@ struct HashMap
     }
 
 
-    fun putIfAbsent(
-        key: pointer<*>,
-        value: pointer<*>
-    ) -> bool
+    fun putIfAbsent(key: pointer<*>, value: pointer<*>) -> bool
     {
-        if this.containsKey(key):
-            return false
+        val entrySpace: blob[sizeof(MapEntry)]
 
-        val entrySpace: blob[sizeof(HashMapEntry)]
-        val entry: pointer<HashMapEntry> =
-            entrySpace as pointer<HashMapEntry>
+        val entry: pointer<MapEntry> =
+            entrySpace as pointer<MapEntry>
 
-        entry.key = key
-        entry.value = value
-        entry.keyCmp = this.keyCmp
+        this.initEntry(
+            entry,
+            key,
+            value
+        )
 
-        this.entries.add(entry)
+        val inserted: bool = this.entries.addIfAbsent(entry)
+
         this.length = this.entries.length
 
-        return true
+        return inserted
     }
 
 
     fun remove(key: pointer<*>) -> bool
     {
-        val index: int = this.indexOf(key)
+        val targetSpace: blob[sizeof(MapEntry)]
 
-        if index < 0:
-            return false
+        val target: pointer<MapEntry> =
+            targetSpace as pointer<MapEntry>
 
-        val entry: pointer<HashMapEntry> =
-            this.entries.get(index)
+        this.initEntry(target, key, null)
 
-        val removed: bool =
-            this.entries.remove(entry)
+        val removed: bool = this.entries.remove(target)
 
         this.length = this.entries.length
 
@@ -218,18 +242,15 @@ struct HashMap
 
     fun clear()
     {
-        while this.entries.length > 0:
-        {
-            val entry: pointer<*> =
-                this.entries.get(this.entries.length - 1)
-
-            this.entries.remove(entry)
-        }
+        this.entries = new HashSet(
+            sizeof(MapEntry),
+            hashMapEntryCmp,
+            hashMapEntryHashCode
+        )
 
         this.length = 0
     }
 
 
-    fun toArray() -> pointer<ArrayList> =
-        this.entries.toArray()
+    fun toArray() -> pointer<ArrayList> = this.entries.toArray()
 }

@@ -32,6 +32,8 @@ private fun tokenKindCmp(left: pointer<*>, right: pointer<*>) -> int
     return (if lhs < rhs: -1 else: 1)
 }
 
+private fun tokenKindHash(value: pointer<*>) -> int  = (value as pointer<int>).deref
+
 private inline fun addBanKind(set: pointer<HashSet>, kind: int) -> pointer<HashSet>
 {
     var kindSpace: int = kind
@@ -87,7 +89,7 @@ private fun addCommonBanKinds(set: pointer<HashSet>)
 
 private fun initBanAfter() -> pointer<HashSet>
 {
-    val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)
+    val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp, tokenKindHash)
 
     addCommonBanKinds(result)
 
@@ -96,7 +98,7 @@ private fun initBanAfter() -> pointer<HashSet>
 
 private fun initBanBefore() -> pointer<HashSet>
 {
-    val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp)
+    val result: pointer<HashSet> = new HashSet(sizeof(int), tokenKindCmp, tokenKindHash)
 
     addCommonBanKinds(result)
     addBanKind(result, Tokenizer.DOUBLE_PLUS)

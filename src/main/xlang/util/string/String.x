@@ -335,3 +335,42 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
 @Native("regex_match")
 native inline fun strRegMatch(pattern: pointer<char>, str: pointer<char>) -> int
 
+
+/**
+ * Computes a hash code for the specified null-terminated character sequence.
+ *
+ * <p>If {@code str} is {@code null}, zero is returned.
+ *
+ * <p>The hash value is calculated by traversing the character sequence from
+ * left to right until the terminating {@code '\0'} character is encountered.
+ *
+ * <p>For each character, the current hash value is multiplied by {@code 31}
+ * and the integer value of the character is added.
+ *
+ * <p>Two strings containing the same character sequence produce the same hash
+ * value.
+ *
+ * @param str                   a pointer to the null-terminated character sequence
+ *                              to hash, or {@code null}
+ *
+ * @return                      the computed hash code, or {@code 0} if
+ *                              {@code str} is {@code null}
+ */
+fun strHash(item: pointer<*>) -> int
+{
+    val str: pointer<char> = item as pointer<char>
+
+    if str == null:
+        return 0
+
+    var hash: int = 0
+    var i: int = 0
+
+    while str[i] != '\0':
+    {
+        hash = hash * 31 + str[i] as int
+        i++
+    }
+
+    return hash
+}

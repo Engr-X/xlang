@@ -113,7 +113,7 @@ struct StructConstructor
      */
     constructor(params: pointer<FunctionParams>, bodyExpr: pointer<Expression>)
     {
-        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
         this.params = if params == null:
                 new FunctionParams()
             else:
@@ -159,7 +159,7 @@ struct StructConstructor
     fun setModifiers(modifiers: pointer<HashSet>) -> pointer<StructConstructor>
     {
         this.modifiers = if modifiers == null:
-                new HashSet(sizeof(Modifier), Modifier.compareModifier)
+                new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
             else:
                 modifiers
 
@@ -452,7 +452,7 @@ struct Struct
     constructor(structName: pointer<char>, members: pointer<ArrayList>)
     {
         this.annotations = new ArrayList(sizeof(Annotation))
-        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
         this.structName = structName
         this.members = if members == null:
                 new ArrayList(sizeof(Member))
@@ -534,7 +534,7 @@ struct Struct
     fun setModifiers(modifiers: pointer<HashSet>) -> pointer<Struct>
     {
         this.modifiers = if modifiers == null:
-                new HashSet(sizeof(Modifier), Modifier.compareModifier)
+                new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
             else:
                 modifiers
 

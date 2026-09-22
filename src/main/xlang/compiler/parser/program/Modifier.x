@@ -78,6 +78,34 @@ struct Modifier
 
 
     /**
+     * Computes a hash code for a modifier using its keyword.
+     *
+     * <p>This hash function is intended to be used together with
+     * {@code compareModifier()} by hash-based modifier collections.
+     *
+     * <p>Only the modifier keyword participates in the hash calculation, matching
+     * the equality semantics defined by {@code compareModifier()}.
+     * 
+     * <p>If {@code item} or its modifier keyword is {@code null}, zero is returned.
+     *
+     * @param item              a pointer to the modifier value to hash
+     *
+     * @return                  the hash code of the modifier keyword, or
+     *                          {@code 0} if no valid keyword is available
+     */
+    static fun hashcode(item: pointer<*>) -> int
+    {
+        val modifier: pointer<Modifier> =
+            item as pointer<Modifier>
+
+        if modifier == null || modifier.keyword == null:
+            return 0
+
+        return String.strHash(modifier.keyword)
+    }
+
+
+    /**
      * Creates a {@code private} declaration modifier.
      *
      * <p>The returned modifier stores {@code "private"} as its keyword and has
@@ -340,7 +368,7 @@ struct ModifierListMaybe
      * declaration modifiers without retaining a {@code null} list pointer.
      */
     constructor():
-        this.list = new HashSet(sizeof(Modifier), Modifier.compareModifier)
+        this.list = new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
 
 
     /**
@@ -358,7 +386,7 @@ struct ModifierListMaybe
      */
     constructor(list: pointer<HashSet>):
         this.list = if list == null:
-                new HashSet(sizeof(Modifier), Modifier.compareModifier)
+                new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
             else:
                 list
 

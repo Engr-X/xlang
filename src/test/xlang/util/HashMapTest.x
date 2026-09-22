@@ -239,8 +239,8 @@ private fun toArrayTest() -> int
     if array.length != 2:
         return 2
 
-    val firstEntry: pointer<HashMapEntry> = array.get(0) as pointer<HashMapEntry>
-    val secondEntry: pointer<HashMapEntry> = array.get(1) as pointer<HashMapEntry>
+    val firstEntry: pointer<MapEntry> = array.get(0) as pointer<MapEntry>
+    val secondEntry: pointer<MapEntry> = array.get(1) as pointer<MapEntry>
 
     if firstEntry == null || secondEntry == null:
         return 3

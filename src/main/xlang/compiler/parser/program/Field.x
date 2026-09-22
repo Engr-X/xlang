@@ -176,7 +176,7 @@ struct Field
     {
         this.modifier = CONST_MODIFIER
         this.annotations = new ArrayList(sizeof(Annotation))
-        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier)
+        this.modifiers = new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
         this.fieldName = fieldName
         this.fieldType = fieldType
         this.initialValue = null
@@ -280,7 +280,7 @@ struct Field
     fun setModifiers(modifiers: pointer<HashSet>) -> pointer<Field>
     {
         this.modifiers = if modifiers == null:
-                new HashSet(sizeof(Modifier), Modifier.compareModifier)
+                new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)
             else:
                 modifiers
 

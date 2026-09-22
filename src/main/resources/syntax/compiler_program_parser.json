@@ -238,7 +238,7 @@
         [   "private inline fun makeModifierListMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val parsedModifiers: pointer<ArrayList> = getContainerValue(results, 0) as pointer<ArrayList>",
-            "    val modifiers: pointer<HashSet> = new HashSet(sizeof(Modifier), Modifier.compareModifier)",
+            "    val modifiers: pointer<HashSet> = new HashSet(sizeof(Modifier), Modifier.compareModifier, Modifier.hashcode)",
             "",
             "    for (var i = 0; i < parsedModifiers.length; i++):",
             "        modifiers.add(getContainerValue(parsedModifiers, i) as pointer<Modifier>)",

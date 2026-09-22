@@ -79,6 +79,16 @@ struct QualifiedName
 
 
     /**
+     * Creates an empty qualified name.
+     */
+    constructor()
+    {
+        this.parts = new ArrayList(sizeof(pointer<char>))
+        this.extraTokens = new ArrayList(sizeof(Token))
+    }
+
+
+    /**
      * Creates a qualified name containing the specified initial name part.
      *
      * <p>A new empty part collection and a new empty extra-token collection are
@@ -98,6 +108,24 @@ struct QualifiedName
         this.parts = new ArrayList(sizeof(pointer<char>))
         this.extraTokens = new ArrayList(sizeof(Token))
         this.push(part)
+    }
+
+
+    /**
+     * Creates a qualified name from an existing part list.
+     *
+     * <p>The list object is cloned, but each stored name pointer is kept as-is.
+     *
+     * @param parts             qualified-name parts to copy
+     */
+    constructor(parts: pointer<ArrayList>)
+    {
+        this.parts = if parts == null:
+                new ArrayList(sizeof(pointer<char>))
+            else:
+                parts.clone()
+
+        this.extraTokens = new ArrayList(sizeof(Token))
     }
 
 
@@ -235,6 +263,38 @@ struct QualifiedName
      *                          qualified name
      */
     fun getExtraTokens() -> pointer<ArrayList> = this.extraTokens.clone()
+
+
+    /**
+     * Creates a copy of this qualified name.
+     *
+     * <p>The returned {@code QualifiedName} receives a newly allocated part
+     * collection, populated from the current part list. The stored character
+     * pointers are copied as list elements and are not duplicated again.
+     *
+     * <p>Additional syntax tokens are copied into a cloned token list. The
+     * token objects themselves are not recursively cloned, matching the
+     * token-retention behavior used by other AST clone helpers.
+     *
+     * <p>The original qualified name is not modified.
+     *
+     * @return                  a newly allocated qualified name with copied
+     *                          name parts and the same additional token
+     *                          references
+     */
+    fun clone() -> pointer<QualifiedName>
+    {
+        val result: pointer<QualifiedName> = new QualifiedName()
+
+        result.parts.pushAll(this.parts)
+
+        result.extraTokens = if this.extraTokens == null:
+                new ArrayList(sizeof(Token))
+            else:
+                this.extraTokens.clone()
+
+        return result
+    }
 
 
     /**

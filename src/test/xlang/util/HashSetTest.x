@@ -65,9 +65,18 @@ private fun intCmp(left: pointer<*>, right: pointer<*>) -> int
 }
 
 
+private fun intHash(value: pointer<*>) -> int
+{
+    if value == null:
+        return 0
+
+    return (value as pointer<int>).deref
+}
+
+
 private fun basicTest() -> int
 {
-    val set: pointer<HashSet> = new HashSet(sizeof(int), intCmp)
+    val set: pointer<HashSet> = new HashSet(sizeof(int), intCmp, intHash)
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
@@ -105,7 +114,7 @@ private fun basicTest() -> int
 
 private fun chainAddTest() -> int
 {
-    val set: pointer<HashSet> = new HashSet(sizeof(int), intCmp)
+    val set: pointer<HashSet> = new HashSet(sizeof(int), intCmp, intHash)
     val valueSpace: blob[sizeof(int) * 3]
     val values: pointer<int> = valueSpace as pointer<int>
 
@@ -133,7 +142,7 @@ private fun chainAddTest() -> int
 
 private fun removeTest() -> int
 {
-    val set: pointer<HashSet> = new HashSet(sizeof(int), 2, 0.75, intCmp)
+    val set: pointer<HashSet> = new HashSet(sizeof(int), 2, 0.75, intCmp, intHash)
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 
@@ -179,7 +188,7 @@ private fun removeTest() -> int
 
 private fun toArrayTest() -> int
 {
-    val set: pointer<HashSet> = new HashSet(sizeof(int), intCmp)
+    val set: pointer<HashSet> = new HashSet(sizeof(int), intCmp, intHash)
     val valueSpace: blob[sizeof(int)]
     val value: pointer<int> = valueSpace as pointer<int>
 

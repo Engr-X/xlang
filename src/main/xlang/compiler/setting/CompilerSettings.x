@@ -116,6 +116,14 @@ struct CompilerSettings
 
 
     /**
+     * Returns the configured outer class name.
+     *
+     * @return                  outer class name for the current source file
+     */
+    fun getOuterClass() -> pointer<char> = this.outerClass
+
+
+    /**
      * Returns the configured number of worker threads.
      *
      * @return the number of worker threads available to the compiler
