@@ -872,12 +872,12 @@ struct ArrayList
      * Copies a half-open range into a new ArrayList.
      *
      * The range follows Java-style bounds:
-     * - from is inclusive.
-     * - to is exclusive.
-     * - the returned list length is to - from.
+     * - fromIndex is inclusive.
+     * - toIndex is exclusive.
+     * - the returned list length is toIndex - fromIndex.
      *
      * Valid bounds are:
-     *     0 <= from && from <= to && to <= length
+     *     0 <= fromIndex && fromIndex <= toIndex && toIndex <= length
      *
      * This function returns a new list with copied element bytes. It is not a
      * view into the original list. Later changes to either list do not update
@@ -885,24 +885,24 @@ struct ArrayList
      *
      * Invalid ranges return null.
      *
-     * @param from              inclusive start index
-     * @param to                exclusive end index
+     * @param fromIndex         inclusive start index
+     * @param toIndex           exclusive end index
      *
      * @return                  copied sublist, or null for an invalid range
      */
-    fun sublist(from: int, to: int) -> pointer<ArrayList>
+    fun sublist(fromIndex: int, toIndex: int) -> pointer<ArrayList>
     {
-        if from < 0 || to < from || to > this.length:
+        if fromIndex < 0 || toIndex < fromIndex || toIndex > this.length:
             return null
 
-        val size: int = to - from
+        val size: int = toIndex - fromIndex
         val sublist: pointer<ArrayList> = new ArrayList(this.tsize, size + 1, this.loadFactor, this.cmp)
 
         if size > 0:
         {
             System.memcopy(
                 sublist.data,
-                this.data + from * this.tsize,
+                this.data + fromIndex * this.tsize,
                 size * this.tsize)
             sublist.length = size
         }

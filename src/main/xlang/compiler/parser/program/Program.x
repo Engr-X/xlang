@@ -444,7 +444,7 @@ struct Program
      * @return                  a pointer to a cloned list containing the
      *                          top-level members of this program
      */
-    fun getMembers() -> pointer<ArrayList> = this.members.clone()
+    fun getMembers() -> pointer<ArrayList> = this.members
 
 
     /**

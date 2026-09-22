@@ -47,6 +47,7 @@
         { "name": "KW_FALSE", "pattern": "false" },
         { "name": "KW_FINAL", "pattern": "final" },
         { "name": "KW_FLOAT", "pattern": "float" },
+        { "name": "KW_FROM", "pattern": "from" },
         { "name": "KW_FOR", "pattern": "for" },
         { "name": "KW_FUN", "pattern": "fun" },
         { "name": "KW_IF", "pattern": "if" },

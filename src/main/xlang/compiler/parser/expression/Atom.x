@@ -185,7 +185,21 @@ struct Atom
      */
     fun getAllTokens() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = this.tokens.clone()
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Token))
+
+        for (var i = 0; i < this.tokens.length; i++):
+        {
+            val slot: pointer<pointer<*>> = this.tokens.get(i) as pointer<pointer<*>>
+
+            if slot == null || slot.deref == null:
+                continue
+
+            val token: pointer<Token> = slot.deref as pointer<Token>
+
+            if token != null:
+                result.push(token)
+        }
+
         result.setComparator(TokenPosition.compareToken)
         result.sort()
         return result

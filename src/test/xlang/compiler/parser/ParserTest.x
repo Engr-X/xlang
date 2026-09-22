@@ -40,7 +40,7 @@ import xlang.compiler.parser.program.Field
 import xlang.compiler.parser.program.Function
 import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.ImportDeclaration
-import xlang.compiler.parser.program.ImportedFunction
+import xlang.compiler.parser.program.ImportedSymbol
 import xlang.compiler.parser.program.Member
 import xlang.compiler.parser.program.Annotation
 import xlang.compiler.parser.program.PreprocessSetting
@@ -260,10 +260,10 @@ private fun parseSelectiveImportsText(text: pointer<char>) -> pointer<SelectiveI
 }
 
 
-private fun parseImportedFunctionText(text: pointer<char>) -> pointer<ImportedFunction>
+private fun parseImportedFunctionText(text: pointer<char>) -> pointer<ImportedSymbol>
 {
     val tokens: pointer<TokenList> = Tokenizer.tokenize(text)
-    val importedFunction: pointer<ImportedFunction> = Parser.parseImportedFunction(tokens)
+    val importedFunction: pointer<ImportedSymbol> = Parser.parseImportedSymbol(tokens)
 
     if importedFunction == null:
         return null
@@ -292,7 +292,7 @@ private fun selectiveImportsTest() -> int
     if singleFunctions == null || singleFunctions.length != 1:
         return 3
 
-    val singleFunction: pointer<ImportedFunction> = singleFunctions.get(0) as pointer<ImportedFunction>
+    val singleFunction: pointer<ImportedSymbol> = singleFunctions.get(0) as pointer<ImportedSymbol>
 
     if singleFunction == null || !String.streq(singleFunction.getName(), "sin"):
         return 4
@@ -319,8 +319,8 @@ private fun selectiveImportsTest() -> int
     if overloadedFunctions == null || overloadedFunctions.length != 2:
         return 9
 
-    val intFunction: pointer<ImportedFunction> = overloadedFunctions.get(0) as pointer<ImportedFunction>
-    val doubleFunction: pointer<ImportedFunction> = overloadedFunctions.get(1) as pointer<ImportedFunction>
+    val intFunction: pointer<ImportedSymbol> = overloadedFunctions.get(0) as pointer<ImportedSymbol>
+    val doubleFunction: pointer<ImportedSymbol> = overloadedFunctions.get(1) as pointer<ImportedSymbol>
 
     if intFunction == null || !String.streq(intFunction.getName(), "sin"):
         return 10

@@ -29,7 +29,7 @@ import xlang.util.ArrayList
 /**
  * Represents a function imported through a selective import declaration.
  *
- * <p>An {@code ImportedFunction} stores the original function name, the ordered
+ * <p>An {@code ImportedSymbol} stores the original function name, the ordered
  * collection of parameter types used to identify the imported function
  * signature, and an optional alias name.
  *
@@ -39,8 +39,81 @@ import xlang.util.ArrayList
  * <p>The function name and alias name are stored by reference and are not copied
  * or duplicated by this structure.
  */
-struct ImportedFunction
+struct ImportedSymbol
 {
+    
+    // Identifies an imported variable.
+    private static val VARIABLE_KIND: int = 1
+
+    // Identifies an imported function.
+    private static val FUNCTION_KIND: int = 2
+
+
+    /**
+     * Creates an imported function descriptor.
+     *
+     * <p>The resulting object is marked with {@code FUNCTION_KIND}.
+     *
+     * <p>The supplied function name and alias name are stored directly and are not
+     * copied or duplicated.
+     *
+     * <p>If {@code parameterTypes} is {@code null}, the private constructor
+     * normalizes it to a newly allocated empty {@code ArrayList} capable of storing
+     * {@code Type} entries.
+     *
+     * <p>Otherwise, the supplied parameter-type collection is stored directly and
+     * is not copied or cloned.
+     *
+     * @param name              a pointer to the null-terminated original function
+     *                          name
+     * @param parameterTypes    a pointer to the ordered parameter-type collection,
+     *                          or {@code null} if no parameter types are available
+    * @param aliasName         a pointer to the optional null-terminated alias, or
+    *                          {@code null} if no alias is specified
+    *
+    * @return                  a newly created imported-symbol descriptor
+    *                          representing a function
+    */
+    static fun fromFunction(name: pointer<char>, parameterTypes: pointer<ArrayList>, aliasName: pointer<char>) -> pointer<ImportedSymbol> =
+        new ImportedSymbol(FUNCTION_KIND, name, parameterTypes, aliasName)
+
+
+    /**
+     * Creates an imported variable descriptor.
+     *
+     * <p>The resulting object is marked with {@code VARIABLE_KIND}.
+     *
+     * <p>The supplied variable name and alias name are stored directly and are not
+     * copied or duplicated.
+     *
+     * <p>An imported variable does not require function parameter types. A
+     * {@code null} parameter-type collection is therefore passed to the private
+     * constructor, which normalizes it to an empty {@code ArrayList}.
+     *
+     * @param name              a pointer to the null-terminated original variable
+     *                          name
+     * @param aliasName         a pointer to the optional null-terminated alias, or
+     *                          {@code null} if no alias is specified
+     *
+     * @return                  a newly created imported-symbol descriptor
+     *                          representing a variable
+     */
+    static fun fromVariable(name: pointer<char>, aliasName: pointer<char>) -> pointer<ImportedSymbol> =
+        new ImportedSymbol(VARIABLE_KIND, name, null, aliasName)
+
+
+    /**
+    * The discriminator identifying the kind of imported symbol represented by
+    * this object.
+    *
+    * <p>The value is expected to be either {@code VARIABLE_KIND} or
+    * {@code FUNCTION_KIND}.
+    *
+    * <p>The field is initialized exclusively by the private constructor and is
+    * therefore determined by the factory method used to create the object.
+    */
+    private var kind: int
+
     /**
      * The original name of the imported function.
      *
@@ -70,29 +143,44 @@ struct ImportedFunction
 
 
     /**
-     * Creates an imported-function descriptor with the specified name,
+     * Creates an imported-symbol descriptor with the specified kind, name,
      * parameter types, and optional alias.
      *
-     * <p>The supplied function name and alias name are stored directly and are
-     * not copied or duplicated.
+     * <p>This constructor is private so callers must create imported symbols through
+     * {@code fromFunction()} or {@code fromVariable()}. This keeps the stored kind
+     * consistent with the semantic form of the imported symbol.
+     *
+     * <p>The supplied name and alias name are stored directly and are not copied or
+     * duplicated.
      *
      * <p>If {@code parameterTypes} is {@code null}, a new empty
      * {@code ArrayList} capable of storing {@code Type} entries is allocated.
-     * Otherwise, the supplied collection is stored directly and is not copied
-     * or cloned.
+     * Otherwise, the supplied collection is stored directly and is not copied or
+     * cloned.
      *
-     * @param name              a pointer to the null-terminated original
-     *                          function name
-     * @param parameterTypes    a pointer to the ordered parameter-type
-     *                          collection, or {@code null} to create an empty
-     *                          parameter list
-     * @param aliasName         a pointer to the optional null-terminated alias,
-     *                          or {@code null} if no alias is specified
+     * <p>For function imports, {@code parameterTypes} describes the ordered
+     * parameter types used to identify the imported function.
+     *
+     * <p>For variable imports, the parameter-type collection is normally empty and
+     * has no semantic meaning.
+     *
+     * @param kind              the imported-symbol kind discriminator
+     * @param name              a pointer to the null-terminated original symbol
+     *                          name
+     * @param parameterTypes    a pointer to the ordered function parameter-type
+     *                          collection, or {@code null} to create an empty list
+     * @param aliasName         a pointer to the optional null-terminated alias, or
+     *                          {@code null} if no alias is specified
      */
-    constructor(name: pointer<char>, parameterTypes: pointer<ArrayList>, aliasName: pointer<char>)
+    private constructor(kind: int, name: pointer<char>,
+        parameterTypes: pointer<ArrayList>, aliasName: pointer<char>
+    )
     {
+        this.kind = kind
         this.name = name
-        this.parameterTypes = if parameterTypes == null:
+        
+        this.parameterTypes =
+            if parameterTypes == null:
                 new ArrayList(sizeof(Type))
             else:
                 parameterTypes
@@ -129,7 +217,7 @@ struct ImportedFunction
      *
      * <p>Modifications performed through the returned collection affect the same
      * parameter-type list referenced internally by this
-     * {@code ImportedFunction}.
+     * {@code ImportedSymbol}.
      *
      * @return                  a pointer to the internally stored parameter-type
      *                          collection
@@ -156,13 +244,13 @@ struct ImportedFunction
 /**
  * Represents an optional alias for an imported function.
  *
- * <p>{@code ImportedFunctionAliasMaybe} is intended for parser productions in
+ * <p>{@code ImportedSymbolAliasMaybe} is intended for parser productions in
  * which an imported-function alias may be omitted.
  *
  * <p>Unlike wrappers that normalize an absent value to an empty object, this
  * structure preserves the absence of an alias using a {@code null} pointer.
  */
-struct ImportedFunctionAliasMaybe
+struct ImportedSymbolAliasMaybe
 {
     /**
      * The optional alias name represented by this wrapper.
@@ -221,7 +309,7 @@ struct ImportedFunctionAliasMaybe
  * name with an ordered collection of specific functions to import from that
  * target.
  *
- * <p>Each imported function is represented by an {@code ImportedFunction}
+ * <p>Each imported function is represented by an {@code ImportedSymbol}
  * object, allowing the selective import to retain the original function name,
  * parameter-type signature, and optional alias information.
  *
@@ -258,7 +346,7 @@ struct SelectiveImports
      * cloned.
      *
      * <p>If {@code importedFunctions} is {@code null}, a new empty
-     * {@code ArrayList} capable of storing {@code ImportedFunction} entries is
+     * {@code ArrayList} capable of storing {@code ImportedSymbol} entries is
      * allocated. Otherwise, the supplied list is stored directly and is not
      * copied or cloned.
      *
@@ -272,7 +360,7 @@ struct SelectiveImports
     {
         this.qualifiedName = qualifiedName
         this.importedFunctions = if importedFunctions == null:
-                new ArrayList(sizeof(ImportedFunction))
+                new ArrayList(sizeof(ImportedSymbol))
             else:
                 importedFunctions
     }

@@ -47,18 +47,53 @@ private fun initPreprocessSettings(path: pointer<char>, preprocessSettings: poin
 }
 
 
-// fun splitProgram(program: pointer<Program>) -> pointer<ArrayList>
-// {
-//     val result: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
+private fun getStructs(members: pointer<ArrayList>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(Member))
 
-//     if program == null:
-//         return result
+    for (var i = 0; i < members.length; i++):
+    {
+        val member: pointer<Member> = members.get(i) as pointer<Member>
 
-//     val preprocessSettings: pointer<ArrayList> = program.getPreprocessSettings()
+        if member.isStruct():
+            result.push(member)
+    }
 
-//     val config: pointer<CompilerSettings> = initPreprocessSettings(, preprocessSettings)
-//     val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
-//     val imports: pointer<ArrayList> = program.getImportDeclarations()
+    return result
+}
 
-//     return result
-// }
+
+private fun getFunField(members: pointer<ArrayList>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(Member))
+
+    for (var i = 0; i < members.length; i++):
+    {
+        val member: pointer<Member> = members.get(i) as pointer<Member>
+
+        if member.isFunction() || member.isField():
+            result.push(member)
+    }
+
+    return result
+}
+
+
+fun splitProgram(program: pointer<Program>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
+
+    if program == null:
+        return result
+
+    val members: pointer<ArrayList> = program.getMembers()
+    val structs: pointer<ArrayList> = getStructs(members)
+    val fieldFunction: pointer<ArrayList> = getFunField(members)
+
+    val preprocessSettings: pointer<ArrayList> = program.getPreprocessSettings()
+    val config: pointer<CompilerSettings> = initPreprocessSettings(null, preprocessSettings)
+    val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
+    val imports: pointer<ArrayList> = program.getImportDeclarations()
+
+    return result
+}

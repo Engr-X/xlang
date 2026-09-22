@@ -22,8 +22,8 @@
         "xlang.compiler.parser.program.Program",
         "xlang.compiler.parser.program.ImportDeclaration",
         "xlang.compiler.parser.program.ImportDeclarationsMaybe",
-        "xlang.compiler.parser.program.ImportedFunction",
-        "xlang.compiler.parser.program.ImportedFunctionAliasMaybe",
+        "xlang.compiler.parser.program.ImportedSymbol",
+        "xlang.compiler.parser.program.ImportedSymbolAliasMaybe",
         "xlang.compiler.parser.program.NamespaceImport",
         "xlang.compiler.parser.program.Modifier",
         "xlang.compiler.parser.program.ModifierListMaybe",
@@ -111,7 +111,7 @@
             ]
         },
         {
-            "class": "ImportedFunctionAliasMaybe",
+            "class": "ImportedSymbolAliasMaybe",
             "parser": "recursively-down",
             "sub_rules": [
                 { "patterns": [{ "kind": "Tokenizer.KW_AS" }, { "kind": "Tokenizer.TK_IDENTIFIER" }], "action": "makeImportedFunctionAliasMaybe" },
@@ -119,19 +119,19 @@
             ]
         },
         {
-            "class": "ImportedFunction",
+            "class": "ImportedSymbol",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Type]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$ImportedFunctionAliasMaybe" }], "action": "makeImportedFunction" }
+                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER" }, { "kind": "Tokenizer.LEFT_PAREN" }, { "kind": "[$Type]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_PAREN" }, { "kind": "$ImportedSymbolAliasMaybe" }], "action": "makeImportedFunction" }
             ]
         },
         {
             "class": "SelectiveImports",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER", "regex": "^from$" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedFunction]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER", "regex": "^from$" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedFunction]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
-                { "patterns": [{ "kind": "Tokenizer.TK_IDENTIFIER", "regex": "^from$" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$ImportedFunction" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImport" }
+                { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedSymbol]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "Tokenizer.LEFT_BRACE" }, { "kind": "[$ImportedSymbol]", "split_by": { "kind": "Tokenizer.COMMA" } }, { "kind": "Tokenizer.RIGHT_BRACE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImports" },
+                { "patterns": [{ "kind": "Tokenizer.KW_FROM" }, { "kind": "$QualifiedName" }, { "kind": "Tokenizer.KW_IMPORT" }, { "kind": "$ImportedSymbol" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeSelectiveImport" }
             ]
         },
         {
@@ -355,33 +355,33 @@
             "{",
             "    val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>",
             "    val parsedTypes: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>",
-            "    val alias: pointer<ImportedFunctionAliasMaybe> =",
-            "        getContainerValue(results, 4) as pointer<ImportedFunctionAliasMaybe>",
+            "    val alias: pointer<ImportedSymbolAliasMaybe> =",
+            "        getContainerValue(results, 4) as pointer<ImportedSymbolAliasMaybe>",
             "    val parameterTypes: pointer<ArrayList> = new ArrayList(sizeof(Type))",
             "",
             "    for (var i = 0; i < parsedTypes.length; i++):",
             "        parameterTypes.push(getContainerValue(parsedTypes, i) as pointer<Type>)",
             "",
-            "    return new ImportedFunction(nameToken.text, parameterTypes, alias.getAliasName())",
+            "    return ImportedSymbol.fromFunction(nameToken.text, parameterTypes, alias.getAliasName())",
             "}" ],
 
 
         [   "private inline fun makeImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val aliasToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>",
-            "    return new ImportedFunctionAliasMaybe(aliasToken.text)",
+            "    return new ImportedSymbolAliasMaybe(aliasToken.text)",
             "}" ],
 
 
         [   "private inline fun makeEmptyImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*> =",
-            "    new ImportedFunctionAliasMaybe()" ],
+            "    new ImportedSymbolAliasMaybe()" ],
 
 
         [   "private inline fun makeSelectiveImport(results: pointer<ArrayList>) -> pointer<*>",
             "{",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
-            "    val importedFunction: pointer<ImportedFunction> = getContainerValue(results, 3) as pointer<ImportedFunction>",
-            "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedFunction))",
+            "    val importedFunction: pointer<ImportedSymbol> = getContainerValue(results, 3) as pointer<ImportedSymbol>",
+            "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedSymbol))",
             "",
             "    importedFunctions.push(importedFunction)",
             "    return new SelectiveImports(qualifiedName, importedFunctions)",
@@ -392,10 +392,10 @@
             "{",
             "    val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>",
             "    val parsedFunctions: pointer<ArrayList> = getContainerValue(results, 4) as pointer<ArrayList>",
-            "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedFunction))",
+            "    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedSymbol))",
             "",
             "    for (var i = 0; i < parsedFunctions.length; i++):",
-            "        importedFunctions.push(getContainerValue(parsedFunctions, i) as pointer<ImportedFunction>)",
+            "        importedFunctions.push(getContainerValue(parsedFunctions, i) as pointer<ImportedSymbol>)",
             "",
             "    return new SelectiveImports(qualifiedName, importedFunctions)",
             "}" ],

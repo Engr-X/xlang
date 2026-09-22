@@ -529,8 +529,8 @@ struct TokenList
      * Copies a half-open token range into a new TokenList.
      *
      * The range follows Java-style bounds:
-     * - from is inclusive.
-     * - to is exclusive.
+     * - fromIndex is inclusive.
+     * - toIndex is exclusive.
      *
      * Token values are copied into a new backing ArrayList. Token text,
      * position and error-info pointers inside each Token value are not
@@ -538,14 +538,14 @@ struct TokenList
      *
      * Invalid ranges return null.
      *
-     * @param from              inclusive start index
-     * @param to                exclusive end index
+     * @param fromIndex         inclusive start index
+     * @param toIndex           exclusive end index
      *
      * @return                  copied token list, or null for an invalid range
      */
-    fun subToken(from: int, to: int) -> pointer<TokenList>
+    fun subToken(fromIndex: int, toIndex: int) -> pointer<TokenList>
     {
-        val copiedTokens: pointer<ArrayList> = this.tokens.sublist(from, to)
+        val copiedTokens: pointer<ArrayList> = this.tokens.sublist(fromIndex, toIndex)
 
         if copiedTokens == null:
             return null
@@ -561,22 +561,22 @@ struct TokenList
      * Removes a half-open token range from this list.
      *
      * The range follows Java-style bounds:
-     * - from is inclusive.
-     * - to is exclusive.
+     * - fromIndex is inclusive.
+     * - toIndex is exclusive.
      *
      * Invalid ranges are ignored. Removing an empty range is a no-op.
      *
-     * @param from              inclusive start index
-     * @param to                exclusive end index
+     * @param fromIndex         inclusive start index
+     * @param toIndex           exclusive end index
      */
-    fun removeIndex(from: int, to: int)
+    fun removeIndex(fromIndex: int, toIndex: int)
     {
-        if from < 0 || to < from || to > this.tokens.length:
+        if fromIndex < 0 || toIndex < fromIndex || toIndex > this.tokens.length:
             return
 
-        var i: int = to
+        var i: int = toIndex
 
-        while i > from:
+        while i > fromIndex:
         {
             i--
             this.tokens.removeAt(i)
@@ -589,21 +589,21 @@ struct TokenList
      *
      * This is the short-name alias of removeIndex.
      *
-     * @param from              inclusive start index
-     * @param to                exclusive end index
+     * @param fromIndex         inclusive start index
+     * @param toIndex           exclusive end index
      */
-    fun remove(from: int, to: int):
-        this.removeIndex(from, to)
+    fun remove(fromIndex: int, toIndex: int):
+        this.removeIndex(fromIndex, toIndex)
 
 
     /**
      * Compatibility alias for removeIndex.
      *
-     * @param from              inclusive start index
-     * @param to                exclusive end index
+     * @param fromIndex         inclusive start index
+     * @param toIndex           exclusive end index
      */
-    fun romoveIndex(from: int, to: int):
-        this.removeIndex(from, to)
+    fun romoveIndex(fromIndex: int, toIndex: int):
+        this.removeIndex(fromIndex, toIndex)
 
 
     /**

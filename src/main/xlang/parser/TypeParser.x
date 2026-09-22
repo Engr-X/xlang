@@ -606,63 +606,57 @@ struct TypeParser
      */
     private fun parseBlob(tokens: pointer<TokenList>, index: int) -> int
     {
-        var errorIndex: int = index
+        if index < 0 || index >= tokens.length():
+            return this.failCannotParseType(tokens, index)
 
-        if index + 2 < tokens.length():
-        {
-            val blobToken: pointer<Token> = tokens.get(index)
-            val leftBracket: pointer<Token> = tokens.get(index + 1)
+        val blobToken: pointer<Token> = tokens.get(index)
 
-            if blobToken.kind == Tokenizer.KW_BLOB && leftBracket.kind == Tokenizer.LEFT_BRACKET:
-            {
-                val expressionLength: int = Parser.EXPRESSION_PARSER.parse(tokens, index + 2)
-                val expressionResult: pointer<ParseContainer> = Parser.EXPRESSION_PARSER.getResult()
-                val rightBracketIndex: int = index + 2 + expressionLength
+        if blobToken.kind != Tokenizer.KW_BLOB:
+            return this.failCannotParseType(tokens, index)
 
-                if expressionLength > 0 && expressionResult != null && rightBracketIndex < tokens.length():
-                {
-                    val rightBracket: pointer<Token> = tokens.get(rightBracketIndex)
+        if index + 1 >= tokens.length():
+            return this.failCannotParseType(tokens, index)
 
-                    if rightBracket.kind == Tokenizer.RIGHT_BRACKET:
-                    {
-                        val blobSize: pointer<Expression> = expressionResult.getValue() as pointer<Expression>
+        val leftBracket: pointer<Token> = tokens.get(index + 1)
 
-                        val parsedType: pointer<BlobType> = new BlobType(blobSize, 0)
-                            .addExtraToken(blobToken)
-                            .addExtraToken(leftBracket)
-                            .addExtraToken(rightBracket)
+        if leftBracket.kind != Tokenizer.LEFT_BRACKET:
+            return this.failCannotParseType(tokens, index + 1)
 
-                        this.result = new ParseContainer(this.id, parsedType)
-                        return expressionLength + 3
-                    }
+        if index + 2 >= tokens.length():
+            return this.failCannotParseType(tokens, index + 1)
 
-                    errorIndex = rightBracketIndex
-                }
-                else:
-                    errorIndex = index + 2
-            }
-            else:
-                errorIndex = index + 1
-        }
-        else:
-            errorIndex = tokens.length() - 1
+        val expressionLength: int = Parser.EXPRESSION_PARSER.parse(tokens, index + 2)
 
-        val errorToken: pointer<Token> = tokens.get(errorIndex)
-        val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
-        val location: pointer<SourceLocation> = new SourceLocation(
-            null,
-            errorToken.pos.offset,
-            errorToken.pos.line,
-            errorToken.pos.column,
-            errorToken.pos.length)
+        if Parser.EXPRESSION_PARSER.haveError(expressionLength) || expressionLength <= 0:
+            return this.failCannotParseType(tokens, index + 2)
 
-        locations.push(location)
-        this.error = Diagnostic.makeError(
-            Diagnostic.CANNOT_PARSE_TYPE,
-            locations,
-            Diagnostic.CANNOT_PARSE_TYPE_MSG)
+        val expressionResult: pointer<ParseContainer> = Parser.EXPRESSION_PARSER.getResult()
 
-        return -1
+        if expressionResult == null:
+            return this.failCannotParseType(tokens, index + 2)
+
+        val rightBracketIndex: int = index + 2 + expressionLength
+
+        if rightBracketIndex >= tokens.length():
+            return this.failCannotParseType(tokens, tokens.length() - 1)
+
+        val rightBracket: pointer<Token> = tokens.get(rightBracketIndex)
+
+        if rightBracket.kind != Tokenizer.RIGHT_BRACKET:
+            return this.failCannotParseType(tokens, rightBracketIndex)
+
+        val blobSize: pointer<Expression> = expressionResult.getValue() as pointer<Expression>
+
+        if blobSize == null:
+            return this.failCannotParseType(tokens, index + 2)
+
+        val parsedType: pointer<BlobType> = new BlobType(blobSize, 0)
+            .addExtraToken(blobToken)
+            .addExtraToken(leftBracket)
+            .addExtraToken(rightBracket)
+
+        this.result = new ParseContainer(this.id, parsedType)
+        return expressionLength + 3
     }
 
 

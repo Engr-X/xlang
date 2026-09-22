@@ -27,8 +27,8 @@ import xlang.compiler.parser.program.FunctionParams
 import xlang.compiler.parser.program.FunctionParamsMaybe
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.ImportDeclarationsMaybe
-import xlang.compiler.parser.program.ImportedFunction
-import xlang.compiler.parser.program.ImportedFunctionAliasMaybe
+import xlang.compiler.parser.program.ImportedSymbol
+import xlang.compiler.parser.program.ImportedSymbolAliasMaybe
 import xlang.compiler.parser.program.Member
 import xlang.compiler.parser.program.Modifier
 import xlang.compiler.parser.program.ModifierListMaybe
@@ -98,8 +98,8 @@ private val ANNOTATIONS_MAYBE_PARSER_ID: int = 20
 private val QUALIFIED_NAME_PARSER_ID: int = 21
 private val PACKAGE_DECLARATION_MAYBE_PARSER_ID: int = 22
 private val NAMESPACE_IMPORT_PARSER_ID: int = 23
-private val IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER_ID: int = 24
-private val IMPORTED_FUNCTION_PARSER_ID: int = 25
+private val IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER_ID: int = 24
+private val IMPORTED_SYMBOL_PARSER_ID: int = 25
 private val SELECTIVE_IMPORTS_PARSER_ID: int = 26
 private val IMPORT_DECLARATION_PARSER_ID: int = 27
 private val IMPORT_DECLARATIONS_MAYBE_PARSER_ID: int = 28
@@ -1449,30 +1449,30 @@ private inline fun makeImportedFunction(results: pointer<ArrayList>) -> pointer<
 {
     val nameToken: pointer<Token> = getContainerValue(results, 0, false) as pointer<Token>
     val parsedTypes: pointer<ArrayList> = getContainerValue(results, 2) as pointer<ArrayList>
-    val alias: pointer<ImportedFunctionAliasMaybe> =
-        getContainerValue(results, 4) as pointer<ImportedFunctionAliasMaybe>
+    val alias: pointer<ImportedSymbolAliasMaybe> =
+        getContainerValue(results, 4) as pointer<ImportedSymbolAliasMaybe>
     val parameterTypes: pointer<ArrayList> = new ArrayList(sizeof(Type))
 
     for (var i = 0; i < parsedTypes.length; i++):
         parameterTypes.push(getContainerValue(parsedTypes, i) as pointer<Type>)
 
-    return new ImportedFunction(nameToken.text, parameterTypes, alias.getAliasName())
+    return ImportedSymbol.fromFunction(nameToken.text, parameterTypes, alias.getAliasName())
 }
 
 private inline fun makeImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*>
 {
     val aliasToken: pointer<Token> = getContainerValue(results, 1, false) as pointer<Token>
-    return new ImportedFunctionAliasMaybe(aliasToken.text)
+    return new ImportedSymbolAliasMaybe(aliasToken.text)
 }
 
 private inline fun makeEmptyImportedFunctionAliasMaybe(results: pointer<ArrayList>) -> pointer<*> =
-    new ImportedFunctionAliasMaybe()
+    new ImportedSymbolAliasMaybe()
 
 private inline fun makeSelectiveImport(results: pointer<ArrayList>) -> pointer<*>
 {
     val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>
-    val importedFunction: pointer<ImportedFunction> = getContainerValue(results, 3) as pointer<ImportedFunction>
-    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedFunction))
+    val importedFunction: pointer<ImportedSymbol> = getContainerValue(results, 3) as pointer<ImportedSymbol>
+    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedSymbol))
 
     importedFunctions.push(importedFunction)
     return new SelectiveImports(qualifiedName, importedFunctions)
@@ -1482,10 +1482,10 @@ private inline fun makeSelectiveImports(results: pointer<ArrayList>) -> pointer<
 {
     val qualifiedName: pointer<QualifiedName> = getContainerValue(results, 1) as pointer<QualifiedName>
     val parsedFunctions: pointer<ArrayList> = getContainerValue(results, 4) as pointer<ArrayList>
-    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedFunction))
+    val importedFunctions: pointer<ArrayList> = new ArrayList(sizeof(ImportedSymbol))
 
     for (var i = 0; i < parsedFunctions.length; i++):
-        importedFunctions.push(getContainerValue(parsedFunctions, i) as pointer<ImportedFunction>)
+        importedFunctions.push(getContainerValue(parsedFunctions, i) as pointer<ImportedSymbol>)
 
     return new SelectiveImports(qualifiedName, importedFunctions)
 }
@@ -1819,9 +1819,9 @@ val PACKAGE_DECLARATION_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursi
 
 val NAMESPACE_IMPORT_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(NAMESPACE_IMPORT_PARSER_ID)
 
-val IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER_ID)
+val IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER_ID)
 
-val IMPORTED_FUNCTION_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORTED_FUNCTION_PARSER_ID)
+val IMPORTED_SYMBOL_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(IMPORTED_SYMBOL_PARSER_ID)
 
 val SELECTIVE_IMPORTS_PARSER: pointer<ParserRef> = ParserRef.fromRecursiveDown(SELECTIVE_IMPORTS_PARSER_ID)
 
@@ -2284,14 +2284,14 @@ private val PACKAGE_DECLARATION_MAYBE_RULE1: pointer<Rule> = new Rule(new Patter
 
 private val NAMESPACE_IMPORT_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_IMPORT).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeNamespaceImport, Rule.STARTER_ROLE, 0)
 
-private val IMPORTED_FUNCTION_ALIAS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_AS).pushRegex(Tokenizer.TK_IDENTIFIER), makeImportedFunctionAliasMaybe, Rule.STARTER_ROLE, 0)
-private val IMPORTED_FUNCTION_ALIAS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyImportedFunctionAliasMaybe, Rule.STARTER_ROLE, 0)
+private val IMPORTED_SYMBOL_ALIAS_MAYBE_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_AS).pushRegex(Tokenizer.TK_IDENTIFIER), makeImportedFunctionAliasMaybe, Rule.STARTER_ROLE, 0)
+private val IMPORTED_SYMBOL_ALIAS_MAYBE_RULE1: pointer<Rule> = new Rule(new PatternList(), makeEmptyImportedFunctionAliasMaybe, Rule.STARTER_ROLE, 0)
 
-private val IMPORTED_FUNCTION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRefs(new ParserRefs(TYPE_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER), makeImportedFunction, Rule.STARTER_ROLE, 0)
+private val IMPORTED_SYMBOL_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER).pushRegex(Tokenizer.LEFT_PAREN).pushRefs(new ParserRefs(TYPE_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.RIGHT_PAREN).pushRef(IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER), makeImportedFunction, Rule.STARTER_ROLE, 0)
 
-private val SELECTIVE_IMPORTS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER, "^from$").pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(IMPORTED_FUNCTION_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImports, Rule.STARTER_ROLE, 0)
-private val SELECTIVE_IMPORTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER, "^from$").pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(IMPORTED_FUNCTION_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImports, Rule.STARTER_ROLE, 0)
-private val SELECTIVE_IMPORTS_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.TK_IDENTIFIER, "^from$").pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRef(IMPORTED_FUNCTION_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImport, Rule.STARTER_ROLE, 0)
+private val SELECTIVE_IMPORTS_RULE0: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FROM).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(IMPORTED_SYMBOL_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.TK_LINE_TERMINATOR).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImports, Rule.STARTER_ROLE, 0)
+private val SELECTIVE_IMPORTS_RULE1: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FROM).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRegex(Tokenizer.LEFT_BRACE).pushRefs(new ParserRefs(IMPORTED_SYMBOL_PARSER, new PatternAtom(Tokenizer.COMMA, null))).pushRegex(Tokenizer.RIGHT_BRACE).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImports, Rule.STARTER_ROLE, 0)
+private val SELECTIVE_IMPORTS_RULE2: pointer<Rule> = new Rule(new PatternList().pushRegex(Tokenizer.KW_FROM).pushRef(QUALIFIED_NAME_PARSER).pushRegex(Tokenizer.KW_IMPORT).pushRef(IMPORTED_SYMBOL_PARSER).pushRegex(Tokenizer.TK_LINE_TERMINATOR), makeSelectiveImport, Rule.STARTER_ROLE, 0)
 
 private val IMPORT_DECLARATION_RULE0: pointer<Rule> = new Rule(new PatternList().pushRef(NAMESPACE_IMPORT_PARSER), makeImportFromNamespace, Rule.STARTER_ROLE, 0)
 private val IMPORT_DECLARATION_RULE1: pointer<Rule> = new Rule(new PatternList().pushRef(SELECTIVE_IMPORTS_PARSER), makeImportFromSelective, Rule.STARTER_ROLE, 0)
@@ -2353,8 +2353,8 @@ private val ANNOTATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = ANNOTATIONS_MAY
 private val QUALIFIED_NAME_PARSER_SETUP: pointer<ParserRef> = QUALIFIED_NAME_PARSER.addRule(QUALIFIED_NAME_RULE0).addRule(QUALIFIED_NAME_RULE1)
 private val PACKAGE_DECLARATION_MAYBE_PARSER_SETUP: pointer<ParserRef> = PACKAGE_DECLARATION_MAYBE_PARSER.addRule(PACKAGE_DECLARATION_MAYBE_RULE0).addRule(PACKAGE_DECLARATION_MAYBE_RULE1)
 private val NAMESPACE_IMPORT_PARSER_SETUP: pointer<ParserRef> = NAMESPACE_IMPORT_PARSER.addRule(NAMESPACE_IMPORT_RULE0)
-private val IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER.addRule(IMPORTED_FUNCTION_ALIAS_MAYBE_RULE0).addRule(IMPORTED_FUNCTION_ALIAS_MAYBE_RULE1)
-private val IMPORTED_FUNCTION_PARSER_SETUP: pointer<ParserRef> = IMPORTED_FUNCTION_PARSER.addRule(IMPORTED_FUNCTION_RULE0)
+private val IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER.addRule(IMPORTED_SYMBOL_ALIAS_MAYBE_RULE0).addRule(IMPORTED_SYMBOL_ALIAS_MAYBE_RULE1)
+private val IMPORTED_SYMBOL_PARSER_SETUP: pointer<ParserRef> = IMPORTED_SYMBOL_PARSER.addRule(IMPORTED_SYMBOL_RULE0)
 private val SELECTIVE_IMPORTS_PARSER_SETUP: pointer<ParserRef> = SELECTIVE_IMPORTS_PARSER.addRule(SELECTIVE_IMPORTS_RULE0).addRule(SELECTIVE_IMPORTS_RULE1).addRule(SELECTIVE_IMPORTS_RULE2)
 private val IMPORT_DECLARATION_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATION_PARSER.addRule(IMPORT_DECLARATION_RULE0).addRule(IMPORT_DECLARATION_RULE1)
 private val IMPORT_DECLARATIONS_MAYBE_PARSER_SETUP: pointer<ParserRef> = IMPORT_DECLARATIONS_MAYBE_PARSER.addRule(IMPORT_DECLARATIONS_MAYBE_RULE0).addRule(IMPORT_DECLARATIONS_MAYBE_RULE1)
@@ -2736,36 +2736,36 @@ fun parseNamespaceImport(input: pointer<TokenList>) -> pointer<NamespaceImport>
     return result.getValue() as pointer<NamespaceImport>
 }
 
-fun parseImportedFunctionAliasMaybe(input: pointer<TokenList>) -> pointer<ImportedFunctionAliasMaybe>
+fun parseImportedSymbolAliasMaybe(input: pointer<TokenList>) -> pointer<ImportedSymbolAliasMaybe>
 {
     if input == null:
         return null
 
-    if IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER.doParse(input) < 0:
+    if IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER.doParse(input) < 0:
         return null
 
-    val result: pointer<ParseContainer> = IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER.getResult()
+    val result: pointer<ParseContainer> = IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER.getResult()
 
-    if result == null || result.isKind(IMPORTED_FUNCTION_ALIAS_MAYBE_PARSER_ID) == false:
+    if result == null || result.isKind(IMPORTED_SYMBOL_ALIAS_MAYBE_PARSER_ID) == false:
         return null
 
-    return result.getValue() as pointer<ImportedFunctionAliasMaybe>
+    return result.getValue() as pointer<ImportedSymbolAliasMaybe>
 }
 
-fun parseImportedFunction(input: pointer<TokenList>) -> pointer<ImportedFunction>
+fun parseImportedSymbol(input: pointer<TokenList>) -> pointer<ImportedSymbol>
 {
     if input == null:
         return null
 
-    if IMPORTED_FUNCTION_PARSER.doParse(input) < 0:
+    if IMPORTED_SYMBOL_PARSER.doParse(input) < 0:
         return null
 
-    val result: pointer<ParseContainer> = IMPORTED_FUNCTION_PARSER.getResult()
+    val result: pointer<ParseContainer> = IMPORTED_SYMBOL_PARSER.getResult()
 
-    if result == null || result.isKind(IMPORTED_FUNCTION_PARSER_ID) == false:
+    if result == null || result.isKind(IMPORTED_SYMBOL_PARSER_ID) == false:
         return null
 
-    return result.getValue() as pointer<ImportedFunction>
+    return result.getValue() as pointer<ImportedSymbol>
 }
 
 fun parseSelectiveImports(input: pointer<TokenList>) -> pointer<SelectiveImports>
