@@ -251,6 +251,66 @@ struct PatternAtom
      *                          this pattern atom does not contain one
      */
     inline fun getRefsParser() -> pointer<ParserRefs> = this.refsParser
+
+
+    /**
+     * Returns whether this parser element can match without consuming any tokens.
+     *
+     * <p>A reference-list parser is considered empty-matchable directly.
+     *
+     * <p>For a single parser reference, the decision is delegated to the referenced
+     * parser through {@code ParserRef.canBeEmpty()}.
+     *
+     * <p>Other parser-element kinds, including regular-expression elements, are
+     *  considered unable to match an empty token sequence by this method.
+     *
+     * @return                  {@code true} if this parser element may successfully
+     *                          match without consuming tokens; {@code false}
+     *                          otherwise
+     */
+    fun canBeEmpty() -> bool =
+        if this.isRefs():
+            true
+        elif this.isRef():
+            this.refParser.canBeEmpty()
+        else:
+            false
+
+
+    /**
+     * Returns whether this parser element may begin matching at the specified token
+     * position.
+     *
+     * <p>For a regular-expression element, the regular-expression matcher is
+     * evaluated at {@code index}. A non-negative match result indicates that the
+     * element may start at the specified position.
+     *
+     * <p>For a single parser reference, the check is delegated to
+     * {@code ParserRef.mayStartWith()}.
+     *
+     * <p>For a parser-reference sequence, the check is delegated to
+     * {@code ParserRefs.mayStartWith()}.
+     *
+     * <p>Unsupported parser-element kinds return {@code false}.
+     *
+     * <p>This method is intended as a predictive parser check. Whether it consumes
+     * tokens depends on the implementation of the delegated matching methods.
+     *
+     * @param tokens            a pointer to the token list being examined
+     * @param index             the token index at which matching may begin
+     *
+     * @return                  {@code true} if this parser element may begin
+     *                          matching at {@code index}; {@code false} otherwise
+     */
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool =
+        if this.isRegex():
+            this.matchRegex(tokens, index) >= 0
+        elif this.isRef():
+            this.refParser.mayStartWith(tokens, index)
+        elif this.isRefs():
+            this.refsParser.mayStartWith(tokens, index)
+        else:
+            false
 }
 
 
@@ -436,6 +496,51 @@ struct PatternList
                 return false
 
             consumed += length
+        }
+
+        return true
+    }
+
+
+    fun canBeEmpty() -> bool
+    {
+        for (var i = 0; i < this.length(); i++):
+        {
+            val pattern: pointer<PatternAtom> = this.get(i)
+
+            if pattern == null || !pattern.canBeEmpty():
+                return false
+        }
+
+        return true
+    }
+
+
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool =
+        this.mayStartWithFrom(0, tokens, index)
+
+
+    fun mayStartWithFrom(start: int, tokens: pointer<TokenList>, index: int) -> bool
+    {
+        if tokens == null || index < 0 || index >= tokens.length():
+            return false
+
+        var i: int = start
+
+        while i < this.length():
+        {
+            val pattern: pointer<PatternAtom> = this.get(i)
+
+            if pattern == null:
+                return false
+
+            if pattern.mayStartWith(tokens, index):
+                return true
+
+            if !pattern.canBeEmpty():
+                return false
+
+            i++
         }
 
         return true

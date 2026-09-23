@@ -253,10 +253,10 @@ struct RecursiveParser
             val rule: pointer<Rule> = rules.get(i) as pointer<Rule>
             var matchLength: int = 0
 
-            if this.tryParse(token, cursor, rule, 0, matchLength.ref):
-                return matchLength
+            if !rule.mayStartWith(token, cursor):
+                continue
 
-            if this.getError() != null:
+            if this.tryParse(token, cursor, rule, 0, matchLength.ref) || this.getError() != null:
                 return matchLength
 
             if matchLength > maxMatchLength:
@@ -370,7 +370,15 @@ struct RecursiveParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParserRef> = atom.getRefParser().clone()
+                val sourceParser: pointer<ParserRef> = atom.getRefParser()
+
+                if !sourceParser.mayStartWith(token, cursor + consumed):
+                {
+                    matchLength.deref = consumed
+                    return false
+                }
+
+                val refParser: pointer<ParserRef> = sourceParser.clone()
                 val innerConsumed: int = refParser.parse(token, cursor + consumed)
 
                 if !refParser.haveError(innerConsumed):
@@ -392,7 +400,19 @@ struct RecursiveParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParserRefs> = atom.getRefsParser().clone()
+                val sourceParser: pointer<ParserRefs> = atom.getRefsParser()
+
+                if !sourceParser.mayStartWith(token, cursor + consumed):
+                {
+                    val emptyResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
+                    val emptyContainer: pointer<ParseContainer> =
+                        new ParseContainer(ParseContainer.ARRAY_LIST_KIND, emptyResults)
+
+                    results.push(emptyContainer.ref)
+                    continue
+                }
+
+                val refsParser: pointer<ParserRefs> = sourceParser.clone()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:
@@ -471,6 +491,37 @@ struct RecursiveParser
         }
 
         return this.tryParse(token, cursor, this.rules)
+    }
+
+
+    fun canBeEmpty() -> bool
+    {
+        for (var i = 0; i < this.rules.length; i++):
+        {
+            val rule: pointer<Rule> = this.rules.get(i) as pointer<Rule>
+
+            if rule != null && rule.canBeEmpty():
+                return true
+        }
+
+        return false
+    }
+
+
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool
+    {
+        if tokens == null || index < 0 || index >= tokens.length():
+            return false
+
+        for (var i = 0; i < this.rules.length; i++):
+        {
+            val rule: pointer<Rule> = this.rules.get(i) as pointer<Rule>
+
+            if rule != null && rule.mayStartWith(tokens, index):
+                return true
+        }
+
+        return false
     }
 
 

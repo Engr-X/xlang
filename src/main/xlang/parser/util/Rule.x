@@ -24,6 +24,7 @@
 package xlang.parser.util
 
 import xlang.Operation
+import xlang.lexer.TokenList
 import xlang.util.ArrayList
 
 
@@ -269,6 +270,46 @@ struct Rule
      * @return                  a pointer to the rule pattern
      */
     fun getPattern() -> pointer<PatternList> = this.pattern
+
+
+    /**
+     * Returns whether this rule can match without consuming any tokens.
+     *
+     * <p>If this rule does not contain a pattern, it is considered empty and can
+     * therefore match without consuming input.
+     *
+     * <p>If a pattern is present, the decision is delegated to
+     * {@code Pattern.canBeEmpty()}.
+     *
+     * @return                  {@code true} if this rule can successfully match
+     *                          without consuming tokens; {@code false} otherwise
+     */
+    fun canBeEmpty() -> bool =
+        this.pattern == null || this.pattern.canBeEmpty()
+
+
+    /**
+     * Returns whether this rule may begin matching at the specified token position.
+     *
+     * <p>If this rule does not contain a pattern, the rule is considered
+     * immediately matchable and {@code true} is returned.
+     *
+     * <p>If a pattern is present, the predictive check is delegated to
+     * {@code Pattern.mayStartWith()} using the supplied token list and starting
+     * index.
+     *
+     * <p>This method is intended for parser lookahead and rule-selection logic. It
+     * determines whether the rule is a possible candidate at the specified
+     * position rather than performing the complete parse itself.
+     *
+     * @param tokens            a pointer to the token list being examined
+     * @param index             the token index at which this rule may begin
+     *
+     * @return                  {@code true} if this rule may begin matching at
+     *                          {@code index}; {@code false} otherwise
+     */
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool =
+        this.pattern == null || this.pattern.mayStartWith(tokens, index)
 
 
     /**

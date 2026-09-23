@@ -281,6 +281,89 @@ struct ParserRef
 
 
     /**
+     * Returns whether the parser referenced by this wrapper can match without
+     * consuming any tokens.
+     *
+     * <p>For a {@code RECURSIVE_DOWN} reference, the stored host is interpreted as
+     * a {@code RecursiveParser} and the decision is delegated to
+     * {@code RecursiveParser.canBeEmpty()}.
+     *
+     * <p>Other parser-reference types are currently considered unable to match an
+     * empty token sequence and therefore return {@code false}.
+     *
+     * @return                  {@code true} if the referenced parser can
+     *                          successfully match without consuming tokens;
+     *                          {@code false} otherwise
+     */
+    fun canBeEmpty() -> bool
+    {
+        if this.type == RECURSIVE_DOWN:
+        {
+            val parser: pointer<RecursiveParser> =
+                this.host as pointer<RecursiveParser>
+
+            return parser.canBeEmpty()
+        }
+
+        return false
+    }
+
+
+    /**
+     * Returns whether the parser referenced by this wrapper may begin matching at
+     * the specified token position.
+     *
+     * <p>For a {@code RECURSIVE_DOWN} reference, the stored host is interpreted as
+     * a {@code RecursiveParser} and the predictive check is delegated to
+     * {@code RecursiveParser.mayStartWith()}.
+     *
+     * <p>For a {@code PRATT} reference, the stored host is interpreted as a
+     * {@code PrattParser} and the predictive check is delegated to
+     * {@code PrattParser.mayStartWith()}.
+     *
+     * <p>A {@code TYPE_PARSER} reference is currently treated as potentially
+     * matchable at any position and therefore returns {@code true} without
+     * inspecting the token stream.
+     *
+     * <p>Any other parser-reference type also currently returns {@code true}. This
+     * acts as a permissive fallback rather than rejecting an unknown parser type
+     * during predictive rule selection.
+     *
+     * <p>This method performs only a lookahead-style eligibility check and does not
+     * itself execute the complete parse.
+     *
+     * @param tokens            a pointer to the token list being examined
+     * @param index             the token index at which parsing may begin
+     *
+     * @return                  {@code true} if the referenced parser may begin
+     *                          matching at {@code index}; {@code false} otherwise
+     */
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool
+    {
+        if this.type == RECURSIVE_DOWN:
+        {
+            val parser: pointer<RecursiveParser> =
+                this.host as pointer<RecursiveParser>
+
+            return parser.mayStartWith(tokens, index)
+        }
+
+        if this.type == PRATT:
+        {
+            val parser: pointer<PrattParser> =
+                this.host as pointer<PrattParser>
+
+            return parser.mayStartWith(tokens, index)
+        }
+
+        if this.type == TYPE_PARSER:
+            return true
+
+        return true
+    }
+
+
+    /**
      * Returns the parse result produced by the underlying parser.
      *
      * <p>The result is normalized to a {@code ParseContainer} pointer regardless

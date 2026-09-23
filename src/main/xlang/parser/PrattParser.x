@@ -507,6 +507,28 @@ struct PrattParser
     }
 
 
+    fun canBeEmpty() -> bool = false
+
+
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool
+    {
+        if tokens == null || index < 0 || index >= tokens.length():
+            return false
+
+        this.sortRules()
+
+        for (var i = 0; i < this.starterRules.length; i++):
+        {
+            val rule: pointer<Rule> = this.starterRules.get(i) as pointer<Rule>
+
+            if rule != null && rule.mayStartWith(tokens, index):
+                return true
+        }
+
+        return false
+    }
+
+
     /**
      * Parses an expression from the beginning of the supplied token list and
      * removes the successfully consumed tokens.
@@ -592,16 +614,8 @@ struct PrattParser
 
                 index++
 
-                val pattern: pointer<PatternList> = rule.getPattern()
-
-                // Fast rejection using the first regex atom.
-                if pattern.length() > 0:
-                {
-                    val first: pointer<PatternAtom> = pattern.get(0)
-
-                    if first.isRegex() && first.matchRegex(token, cursor) < 0:
-                        continue
-                }
+                if !rule.mayStartWith(token, cursor):
+                    continue
 
                 var currentMatchLength: int = 0
                 val currentResult: pointer<ParseContainer> =
@@ -791,7 +805,15 @@ struct PrattParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParserRef> = atom.getRefParser().clone()
+                val sourceParser: pointer<ParserRef> = atom.getRefParser()
+
+                if !sourceParser.mayStartWith(token, cursor + consumed):
+                {
+                    matchLength.deref = consumed
+                    return null
+                }
+
+                val refParser: pointer<ParserRef> = sourceParser.clone()
                 var innerConsumed: int = 0
                 var innerResult: pointer<ParseContainer> = null
                 var hasError: bool = false
@@ -832,7 +854,19 @@ struct PrattParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParserRefs> = atom.getRefsParser().clone()
+                val sourceParser: pointer<ParserRefs> = atom.getRefsParser()
+
+                if !sourceParser.mayStartWith(token, cursor + consumed):
+                {
+                    val emptyResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
+                    val emptyContainer: pointer<ParseContainer> =
+                        new ParseContainer(ParseContainer.ARRAY_LIST_KIND, emptyResults)
+
+                    results.push(emptyContainer.ref)
+                    continue
+                }
+
+                val refsParser: pointer<ParserRefs> = sourceParser.clone()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:
@@ -949,15 +983,8 @@ struct PrattParser
                 if first.getRefParser().getId() != left.getKind():
                     continue
 
-                // Fast rejection using the first actual continuation atom.
-                if pattern.length() > 1:
-                {
-                    val head: pointer<PatternAtom> = pattern.get(1)
-
-                    if head != null && head.isRegex() &&
-                        head.matchRegex(token, cursor) < 0:
-                        continue
-                }
+                if !pattern.mayStartWithFrom(1, token, cursor):
+                    continue
 
                 var currentMatchLength: int = 0
                 val currentResults: pointer<ArrayList> =
@@ -1174,14 +1201,21 @@ struct PrattParser
             }
             elif atom.isRef():
             {
-                val refParser: pointer<ParserRef> = atom.getRefParser().clone()
+                val sourceParser: pointer<ParserRef> = atom.getRefParser()
 
-                if refParser.getId() == leftId:
+                if sourceParser.getId() == leftId:
                 {
                     matchLength.deref = consumed
                     return results
                 }
 
+                if !sourceParser.mayStartWith(token, cursor + consumed):
+                {
+                    matchLength.deref = consumed
+                    return null
+                }
+
+                val refParser: pointer<ParserRef> = sourceParser.clone()
                 val innerConsumed: int = refParser.parse(token, cursor + consumed)
 
                 if !refParser.haveError(innerConsumed):
@@ -1202,7 +1236,19 @@ struct PrattParser
             }
             elif atom.isRefs():
             {
-                val refsParser: pointer<ParserRefs> = atom.getRefsParser().clone()
+                val sourceParser: pointer<ParserRefs> = atom.getRefsParser()
+
+                if !sourceParser.mayStartWith(token, cursor + consumed):
+                {
+                    val emptyResults: pointer<ArrayList> = new ArrayList(sizeof(pointer<*>))
+                    val emptyContainer: pointer<ParseContainer> =
+                        new ParseContainer(ParseContainer.ARRAY_LIST_KIND, emptyResults)
+
+                    results.push(emptyContainer.ref)
+                    continue
+                }
+
+                val refsParser: pointer<ParserRefs> = sourceParser.clone()
                 val innerConsumed: int = refsParser.parse(token, cursor + consumed)
 
                 if innerConsumed < 0:

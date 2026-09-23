@@ -386,6 +386,46 @@ struct ParserRefs
 
 
     /**
+     * Returns whether this parser-reference collection can match without consuming
+     * any tokens.
+     *
+     * <p>The current implementation always returns {@code true}. This means the
+     * parser-reference collection is treated as optional from the perspective of
+     * empty-match analysis.
+     *
+     * @return                  always {@code true}
+     */
+    fun canBeEmpty() -> bool =
+        true
+
+
+    /**
+     * Returns whether this parser-reference collection may begin matching at the
+     * specified token position.
+     *
+     * <p>If no underlying parser is currently associated with this collection,
+     * {@code false} is returned.
+     *
+     * <p>Otherwise, the predictive check is delegated to
+     * {@code ParserRef.mayStartWith()} using the supplied token list and starting
+     * index.
+     *
+     * <p>This method performs only a lookahead-style eligibility check and does not
+     * execute the complete parse.
+     *
+     * @param tokens            a pointer to the token list being examined
+     * @param index             the token index at which matching may begin
+     *
+     * @return                  {@code true} if an underlying parser exists and may
+     *                          begin matching at {@code index}; {@code false}
+     *                          otherwise
+     */
+    fun mayStartWith(tokens: pointer<TokenList>, index: int) -> bool =
+        this.parser != null &&
+            this.parser.mayStartWith(tokens, index)
+
+
+    /**
      * Creates a copy of this repeated parser configuration.
      *
      * <p>The underlying {@code ParserRef} is cloned. The separator pattern and

@@ -37,9 +37,6 @@
             "class": "Statement",
             "parser": "recursively-down",
             "sub_rules": [
-                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_ExprStatement" },
-                { "patterns": [{ "kind": "#Expressions" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_ExprListStatement" },
-
                 { "patterns": [{ "kind": "#VarDefines" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_VariableDefines" },
                 { "patterns": [{ "kind": "#ValDefines" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_VariableDefines" },
 
@@ -49,7 +46,10 @@
                 
                 { "patterns": [{ "kind": "Tokenizer.KW_BREAK" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_BreakStmt" },
                 { "patterns": [{ "kind": "Tokenizer.KW_CONTINUE" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_ContinueStmt" },
-                { "patterns": [{ "kind": "Tokenizer.KW_PASS" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_PassStmt" }
+                { "patterns": [{ "kind": "Tokenizer.KW_PASS" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_PassStmt" },
+
+                { "patterns": [{ "kind": "$Expression" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_ExprStatement" },
+                { "patterns": [{ "kind": "#Expressions" }, { "kind": "Tokenizer.TK_LINE_TERMINATOR" }], "action": "makeStmtFrom_ExprListStatement" }
             ]
         },
         {
