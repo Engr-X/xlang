@@ -4,7 +4,7 @@
     "package": "xlang.compiler.parser",
     "class": "Parser",
     "imports": [
-        "xlang.compiler.Type",
+        "xlang.compiler.type.Type",
         "xlang.compiler.lexer.Tokenizer",
         "xlang.lexer.Token",
         "xlang.compiler.parser.expression.Assignment",

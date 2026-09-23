@@ -22,7 +22,7 @@
 
 package xlang.compiler.parser.program
 
-import xlang.compiler.Type
+import xlang.compiler.type.Type
 import xlang.util.ArrayList
 
 

@@ -24,10 +24,10 @@ package xlang.parser
 
 import xlang.Diagnostic
 import xlang.SourceLocation
-import xlang.compiler.BlobType
-import xlang.compiler.FunctionType
-import xlang.compiler.NormalType
-import xlang.compiler.Type
+import xlang.compiler.type.BlobType
+import xlang.compiler.type.FunctionType
+import xlang.compiler.type.NormalType
+import xlang.compiler.type.Type
 import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.Parser
 import xlang.compiler.parser.expression.Expression

@@ -165,14 +165,14 @@ fun intToString(mut dest: pointer<char>, mut value: int, radix: int)
 {
     if !checkRadix(radix):
     {
-        dest[0] = '\0'
+        dest[0] = String.NULL_CHAR
         return
     }
 
     if value == 0:
     {
         dest[0] = '0'
-        dest[1] = '\0'
+        dest[1] = String.NULL_CHAR
         return
     }
 
@@ -194,8 +194,16 @@ fun intToString(mut dest: pointer<char>, mut value: int, radix: int)
     }
 
     // then reverse [0 .. offset)
-    FList.reverse(dest, offset, sizeof(char))
-    dest[offset] = '\0'
+    for (var i: int = 0; i < offset / 2; i++):
+    {
+        val j: int = offset - i - 1
+
+        val temp: char = dest[i]
+        dest[i] = dest[j]
+        dest[j] = temp
+    }
+
+    dest[offset] = String.NULL_CHAR
 }
 
 

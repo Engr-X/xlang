@@ -107,7 +107,7 @@ private fun sourceTokenTestName(path: pointer<char>) -> pointer<char>
             result[i] = current
     }
 
-    result[nameLength] = '\0'
+    result[nameLength] = String.NULL_CHAR
     return result
 }
 

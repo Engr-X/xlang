@@ -20,7 +20,7 @@
  *
  */
 
-package xlang.compiler
+package xlang.compiler.type
 
 import xlang.compiler.parser.expression.Expression
 import xlang.lexer.Token

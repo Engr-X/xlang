@@ -155,9 +155,9 @@ private fun collectFiles(root: pointer<char>) -> pointer<ArrayList>
     var cursor: int = 0
     var collected: int = 0
 
-    while collected < count && entries[cursor] != '\0':
+    while collected < count && entries[cursor] != String.NULL_CHAR:
     {
-        while entries[cursor] != '\0' && entries[cursor] != '|':
+        while entries[cursor] != String.NULL_CHAR && entries[cursor] != '|':
             cursor++
 
         val childName: pointer<char> = copyPathPart(entries, start, cursor)
@@ -172,7 +172,7 @@ private fun collectFiles(root: pointer<char>) -> pointer<ArrayList>
 
         collected++
 
-        if entries[cursor] == '\0':
+        if entries[cursor] == String.NULL_CHAR:
             return result
 
         cursor++

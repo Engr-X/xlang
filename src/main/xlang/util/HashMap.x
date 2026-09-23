@@ -75,9 +75,6 @@ private fun hashMapEntryHashCode(item: pointer<*>) -> int
 }
 
 
-private fun hashMapDefaultHashCode(item: pointer<*>) -> int = 0
-
-
 struct HashMap
 {
     var length: int
@@ -87,34 +84,6 @@ struct HashMap
     private var keyCmp: (pointer<*>, pointer<*>) -> int
 
     private var keyHashCode: (pointer<*>) -> int
-
-
-    constructor(cmp: (pointer<*>, pointer<*>) -> int)
-    {
-        this.length = 0
-        this.keyCmp = cmp
-        this.keyHashCode = hashMapDefaultHashCode
-
-        this.entries = new HashSet(
-            sizeof(MapEntry),
-            hashMapEntryCmp,
-            hashMapEntryHashCode
-        )
-    }
-
-
-    constructor(capacity: int, loadFactor: double, cmp: (pointer<*>, pointer<*>) -> int)
-    {
-        this.length = 0
-        this.keyCmp = cmp
-        this.keyHashCode = hashMapDefaultHashCode
-
-        this.entries = new HashSet(
-            sizeof(MapEntry),
-            hashMapEntryCmp,
-            hashMapEntryHashCode
-        )
-    }
 
 
     constructor(cmp: (pointer<*>, pointer<*>) -> int, hashCode: (pointer<*>) -> int)
@@ -129,7 +98,6 @@ struct HashMap
             hashMapEntryHashCode
         )
     }
-
 
 
     private fun initEntry(entry: pointer<MapEntry>, key: pointer<*>, value: pointer<*>)
@@ -252,5 +220,8 @@ struct HashMap
     }
 
 
-    fun toArray() -> pointer<ArrayList> = this.entries.toArray()
+    fun getEntries() -> pointer<ArrayList> = this.entries.toArray()
+
+
+    fun toArray() -> pointer<ArrayList> = this.getEntries()
 }

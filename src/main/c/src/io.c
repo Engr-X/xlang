@@ -143,3 +143,87 @@ int colored_sprintln(x_char* const dest, const x_char* const value, const int co
 {
     return write_colored_string(dest, value, color, 1);
 }
+
+
+int print(const x_char* const str)
+{
+    if (str == NULL)
+        return 0;
+
+    int count = 0;
+
+    for (int i = 0; str[i] != 0; i++)
+    {
+        uint32_t ch = (uint32_t)str[i];
+
+        if (ch <= 0x7F)
+        {
+            if (putchar((int)ch) == EOF)
+                return -1;
+
+            count++;
+        }
+        else if (ch <= 0x7FF)
+        {
+            if (putchar(0xC0 | (ch >> 6)) == EOF)
+                return -1;
+
+            if (putchar(0x80 | (ch & 0x3F)) == EOF)
+                return -1;
+
+            count += 2;
+        }
+        else if (ch <= 0xFFFF)
+        {
+            if (ch >= 0xD800 && ch <= 0xDFFF)
+                return -1;
+
+            if (putchar(0xE0 | (ch >> 12)) == EOF)
+                return -1;
+
+            if (putchar(0x80 | ((ch >> 6) & 0x3F)) == EOF)
+                return -1;
+
+            if (putchar(0x80 | (ch & 0x3F)) == EOF)
+                return -1;
+
+            count += 3;
+        }
+        else if (ch <= 0x10FFFF)
+        {
+            if (putchar(0xF0 | (ch >> 18)) == EOF)
+                return -1;
+
+            if (putchar(0x80 | ((ch >> 12) & 0x3F)) == EOF)
+                return -1;
+
+            if (putchar(0x80 | ((ch >> 6) & 0x3F)) == EOF)
+                return -1;
+
+            if (putchar(0x80 | (ch & 0x3F)) == EOF)
+                return -1;
+
+            count += 4;
+        }
+        else
+        {
+            return -1;
+        }
+    }
+
+    return count;
+}
+
+
+int println(const x_char* const str)
+{
+    int count = print(str);
+
+    if (count < 0)
+        return -1;
+
+    if (putchar('\n') == EOF)
+        return -1;
+
+    return count + 1;
+}

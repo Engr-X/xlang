@@ -84,7 +84,7 @@ struct StringBuilder
         this.length = 0
         this.capacity = INIT_CAPACITY
         this.list = System.allocMemory(this.capacity * sizeof(char))
-        this.list.deref = '\0'
+        this.list.deref = String.NULL_CHAR
     }
 
 
@@ -119,7 +119,7 @@ struct StringBuilder
     fun clear()
     {
         this.length = 0
-        this.list.deref = '\0'
+        this.list.deref = String.NULL_CHAR
     }
 
 
@@ -160,7 +160,7 @@ struct StringBuilder
             this.resize(1)
         
         this.list[this.length++] = ch
-        this.list[this.length] = '\0'
+        this.list[this.length] = String.NULL_CHAR
     }
 
 

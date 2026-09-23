@@ -69,7 +69,7 @@ private fun printTabs(n: int)
         sb.append(' ')
 
     sb.toString(TEXT_BUFFER)
-    put(TEXT_BUFFER)
+    IO.print(TEXT_BUFFER)
 }
 
 
@@ -132,7 +132,7 @@ struct TestCase
 
         sb.newline()
         sb.toString(TEXT_BUFFER)
-        put(TEXT_BUFFER)
+        IO.print(TEXT_BUFFER)
     }
 }
 
@@ -191,7 +191,7 @@ struct TestGroup
     fun runTest(n: int, record: pointer<TestRecord>)
     {
         printTabs(n)
-        putln(this.name)
+        IO.println(this.name)
 
         for (var i = 0; i < this.length; i++):
         {
@@ -222,6 +222,6 @@ struct TestGroup
         }
 
         sb.toString(TEXT_BUFFER)
-        put(TEXT_BUFFER)
+        IO.print(TEXT_BUFFER)
     }
 }

@@ -20,7 +20,7 @@
  *
  */
 
-package xlang.compiler
+package xlang.compiler.type
 
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition

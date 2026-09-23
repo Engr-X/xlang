@@ -3,7 +3,7 @@ package xlang.compiler.parser
 
 
 import xlang.Operation
-import xlang.compiler.Type
+import xlang.compiler.type.Type
 import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
 import xlang.compiler.parser.expression.Atom

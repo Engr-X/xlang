@@ -33,11 +33,13 @@ fun genTest() -> pointer<TestGroup>
     val putGetTC: pointer<TestCase> = new TestCase("putGet", putGetTest)
     val putIfAbsentTC: pointer<TestCase> = new TestCase("putIfAbsent", putIfAbsentTest)
     val removeClearTC: pointer<TestCase> = new TestCase("removeClear", removeClearTest)
+    val getEntriesTC: pointer<TestCase> = new TestCase("getEntries", getEntriesTest)
     val toArrayTC: pointer<TestCase> = new TestCase("toArray", toArrayTest)
 
     result.addTestUnion(new TestUnion(TestCase.TYPE, putGetTC, null))
     result.addTestUnion(new TestUnion(TestCase.TYPE, putIfAbsentTC, null))
     result.addTestUnion(new TestUnion(TestCase.TYPE, removeClearTC, null))
+    result.addTestUnion(new TestUnion(TestCase.TYPE, getEntriesTC, null))
     result.addTestUnion(new TestUnion(TestCase.TYPE, toArrayTC, null))
 
     return result
@@ -59,9 +61,13 @@ private fun intCmp(left: pointer<*>, right: pointer<*>) -> int
 }
 
 
+private fun intHash(value: pointer<*>) -> int =
+    (value as pointer<int>).deref
+
+
 private fun putGetTest() -> int
 {
-    val map: pointer<HashMap> = new HashMap(intCmp)
+    val map: pointer<HashMap> = new HashMap(intCmp, intHash)
     val keySpace: blob[sizeof(int) * 3]
     val valueSpace: blob[sizeof(int) * 3]
     val keys: pointer<int> = keySpace as pointer<int>
@@ -122,7 +128,7 @@ private fun putGetTest() -> int
 
 private fun putIfAbsentTest() -> int
 {
-    val map: pointer<HashMap> = new HashMap(intCmp)
+    val map: pointer<HashMap> = new HashMap(intCmp, intHash)
     val keySpace: blob[sizeof(int) * 2]
     val valueSpace: blob[sizeof(int) * 2]
     val keys: pointer<int> = keySpace as pointer<int>
@@ -162,7 +168,7 @@ private fun putIfAbsentTest() -> int
 
 private fun removeClearTest() -> int
 {
-    val map: pointer<HashMap> = new HashMap(2, 0.75, intCmp)
+    val map: pointer<HashMap> = new HashMap(intCmp, intHash)
     val keySpace: blob[sizeof(int) * 4]
     val valueSpace: blob[sizeof(int) * 3]
     val keys: pointer<int> = keySpace as pointer<int>
@@ -213,9 +219,63 @@ private fun removeClearTest() -> int
 }
 
 
+private fun getEntriesTest() -> int
+{
+    val map: pointer<HashMap> = new HashMap(intCmp, intHash)
+    val keySpace: blob[sizeof(int) * 2]
+    val valueSpace: blob[sizeof(int) * 2]
+    val keys: pointer<int> = keySpace as pointer<int>
+    val values: pointer<int> = valueSpace as pointer<int>
+
+    keys[0] = 20
+    keys[1] = 21
+    values[0] = 200
+    values[1] = 210
+
+    val emptyEntries: pointer<ArrayList> = map.getEntries()
+
+    if emptyEntries == null:
+        return 1
+
+    if emptyEntries.length != 0:
+        return 2
+
+    map.put(keys, values)
+    map.put(keys + 1, values + 1)
+
+    val entries: pointer<ArrayList> = map.getEntries()
+
+    if entries == null:
+        return 3
+
+    if entries.length != 2:
+        return 4
+
+    val firstEntry: pointer<MapEntry> = entries.get(0) as pointer<MapEntry>
+    val secondEntry: pointer<MapEntry> = entries.get(1) as pointer<MapEntry>
+
+    if firstEntry == null || secondEntry == null:
+        return 5
+
+    if (firstEntry.key as pointer<int>).deref != 20:
+        return 6
+
+    if (firstEntry.value as pointer<int>).deref != 200:
+        return 7
+
+    if (secondEntry.key as pointer<int>).deref != 21:
+        return 8
+
+    if (secondEntry.value as pointer<int>).deref != 210:
+        return 9
+
+    return 0
+}
+
+
 private fun toArrayTest() -> int
 {
-    val map: pointer<HashMap> = new HashMap(intCmp)
+    val map: pointer<HashMap> = new HashMap(intCmp, intHash)
     val keySpace: blob[sizeof(int) * 3]
     val valueSpace: blob[sizeof(int) * 3]
     val keys: pointer<int> = keySpace as pointer<int>

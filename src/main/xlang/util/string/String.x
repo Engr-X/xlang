@@ -26,6 +26,8 @@
 #file.outerClass("String")
 package xlang.util.string
 
+import xlang.System
+
 /**
  * Provides basic utilities for C-style null-terminated strings.
  *
@@ -48,7 +50,6 @@ package xlang.util.string
  * - strcat: appends one null-terminated string to another
  * - substring: copies a substring into a destination buffer
  */
-import xlang.System
 
 
 /**
@@ -82,7 +83,7 @@ fun strlen(str: pointer<char>) -> int
 
     var count: int = 0
 
-    for (var ptr: pointer<char> = str; ptr.deref != '\0'; ptr++, count++);
+    for (var ptr: pointer<char> = str; ptr.deref != NULL_CHAR; ptr++, count++);
 
     return count
 }
@@ -108,7 +109,7 @@ fun streq(str1: pointer<char>, str2: pointer<char>) -> bool
     var ptr2: pointer<char> = str2
 
     for (;
-        ptr1.deref != '\0' && ptr2.deref != '\0';
+        ptr1.deref != NULL_CHAR && ptr2.deref != NULL_CHAR;
         ptr1++, ptr2++):
     {
         if ptr1.deref != ptr2.deref:
@@ -147,7 +148,7 @@ fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
     var ptr2: pointer<char> = str2
 
     for (;
-        ptr1.deref != '\0' && ptr2.deref != '\0';
+        ptr1.deref != NULL_CHAR && ptr2.deref != NULL_CHAR;
         ptr1++, ptr2++):
     {
         val ch1: int = ptr1.deref as int
@@ -163,7 +164,7 @@ fun strcmp(str1: pointer<char>, str2: pointer<char>) -> int
     if ptr1.deref == ptr2.deref:
         return 0
 
-    if ptr1.deref == '\0':
+    if ptr1.deref == NULL_CHAR:
         return -1
 
     return 1
@@ -188,10 +189,10 @@ fun strcpy(dest: pointer<char>, src: pointer<char>)
     var destPtr: pointer<char> = dest
     var srcPtr: pointer<char> = src
 
-    for (;srcPtr.deref != '\0'; destPtr++, srcPtr++):
+    for (;srcPtr.deref != NULL_CHAR; destPtr++, srcPtr++):
         destPtr.deref = srcPtr.deref
 
-    destPtr.deref = '\0'
+    destPtr.deref = NULL_CHAR
 }
 
 
@@ -242,19 +243,19 @@ fun strncpy(dest: pointer<char>, src: pointer<char>, maxCopyLength: int) -> int
 
     if src == null || maxCopyLength <= 0:
     {
-        dest[0] = '\0'
+        dest[0] = NULL_CHAR
         return 0
     }
 
     var copiedLength: int = 0
 
-    while copiedLength < maxCopyLength && src[copiedLength] != '\0':
+    while copiedLength < maxCopyLength && src[copiedLength] != NULL_CHAR:
     {
         dest[copiedLength] = src[copiedLength]
         copiedLength++
     }
 
-    dest[copiedLength] = '\0'
+    dest[copiedLength] = NULL_CHAR
 
     return copiedLength
 }
@@ -301,7 +302,7 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
 
     if src == null || start < 0 || length <= 0:
     {
-        dest[0] = '\0'
+        dest[0] = NULL_CHAR
         return 0
     }
 
@@ -309,7 +310,7 @@ fun substring(dest: pointer<char>, src: pointer<char>, start: int, length: int) 
 
     if start >= srcLength:
     {
-        dest[0] = '\0'
+        dest[0] = NULL_CHAR
         return 0
     }
 
@@ -366,7 +367,7 @@ fun strHash(item: pointer<*>) -> int
     var hash: int = 0
     var i: int = 0
 
-    while str[i] != '\0':
+    while str[i] != NULL_CHAR:
     {
         hash = hash * 31 + str[i] as int
         i++

@@ -91,7 +91,7 @@ fun strlenTest() -> int
     for (var i = 0; i < size - 1; i++):
         string3[i] = 'a'
 
-    string3[size - 1] = '\0'
+    string3[size - 1] = String.NULL_CHAR
 
     if String.strlen(string3) != size - 1:
         return 3

@@ -24,7 +24,7 @@
 #file.outerClass("TypeParserTest")
 package xlang.parser
 
-import xlang.compiler.Type
+import xlang.compiler.type.Type
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
 import xlang.lexer.TokenList

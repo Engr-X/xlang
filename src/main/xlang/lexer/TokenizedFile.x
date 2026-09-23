@@ -29,6 +29,7 @@ import xlang.Diagnostic
 import xlang.SourceLocation
 import xlang.util.ArrayList
 import xlang.util.File
+import xlang.util.IO
 import xlang.util.string.String
 
 
@@ -327,14 +328,14 @@ struct TokenizedFile
         {
             val item: pointer<Diagnostic> = this.warnings.get(i) as pointer<Diagnostic>
             item.print()
-            put("\n")
+            IO.print("\n")
         }
 
         for (var i = 0; i < this.errors.length; i++):
         {
             val item: pointer<Diagnostic> = this.errors.get(i) as pointer<Diagnostic>
             item.print()
-            put("\n")
+            IO.print("\n")
         }
     }
 }

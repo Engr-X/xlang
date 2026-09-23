@@ -218,6 +218,63 @@ struct NormalizedProgram
 
 
     /**
+     * Builds and returns the fully qualified path of the current declaration.
+     *
+     * <p>The returned path is composed of the qualified package name, if a
+     * package declaration is present, followed by the name of the declaration
+     * body when the body has a valid name.</p>
+     *
+     * <p>If no package declaration exists, a new empty {@link ArrayList} is
+     * created and used as the base path. When the current body represents a
+     * struct, its struct name is appended to the end of the path.</p>
+     *
+     * <p>For example, a struct named {@code Example} declared inside the package
+     * {@code foo.bar} produces a path equivalent to:</p>
+     *
+     * <pre>
+     * ["foo", "bar", "Example"]
+     * </pre>
+     *
+     * @return                  a list containing the components of the fully qualified path;
+     *                          never {@code null}
+     */
+    fun getFullpath() -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = if this.packageDeclaration == null:
+                new ArrayList(sizeof(pointer<char>))
+            else:
+                this.packageDeclaration.getQualifiedName()
+
+        val bodyName: pointer<char> = this.getBodyName()
+
+        if bodyName != null:
+            result.push(bodyName.ref)
+
+        return result
+    }
+
+
+    /**
+     * Returns the name associated with the current declaration body.
+     *
+     * <p>Currently, only struct bodies provide a body name. If the current body
+     * type is {@code STRUCT_TYPE} and a body object is available, the struct name
+     * is obtained from the underlying struct declaration.</p>
+     *
+     * <p>If the body does not represent a struct, or if no body has been assigned,
+     * this function returns {@code null}.</p>
+     *
+     * @return                  the name of the current struct body, or {@code null} if the current
+     *                          body has no applicable name
+     */
+    fun getBodyName() -> pointer<char> =
+        if this.bodyType == STRUCT_TYPE && this.body != null:
+            this.body.getStructName()
+        else:
+            null
+
+
+    /**
      * Returns the preprocessing-setting collection associated with this
      * normalized program.
      *

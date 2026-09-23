@@ -56,4 +56,10 @@ int colored_sprint(x_char* const dest, const x_char* const value, const int colo
 int colored_sprintln(x_char* const dest, const x_char* const value, const int color);
 
 
+int print(const x_char* const str);
+
+
+int println(const x_char* const str);
+
+
 #endif

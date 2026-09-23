@@ -212,6 +212,42 @@ native inline fun coloredSprintln(dest: pointer<char>, value: pointer<char>, col
 
 
 /**
+ * Prints a null-terminated character sequence to standard output.
+ *
+ * <p>This is a low-level native binding used by higher-level output helpers.
+ *
+ * <p>The native implementation writes the string one character at a time and
+ * does not append a line terminator.
+ *
+ * @param str               pointer to the null-terminated character sequence
+ *                          to print
+ *
+ * @return                  number of characters written, or a negative native
+ *                          error code
+ */
+@Native("print")
+native inline fun print(str: pointer<char>) -> int;
+
+
+/**
+ * Prints a null-terminated character sequence followed by a line terminator.
+ *
+ * <p>This is a low-level native binding used by higher-level output helpers.
+ *
+ * <p>The native implementation first writes the supplied character sequence and
+ * then writes a trailing newline character.
+ *
+ * @param str               pointer to the null-terminated character sequence
+ *                          to print
+ *
+ * @return                  number of characters written including the trailing
+ *                          newline, or a negative native error code
+ */
+@Native("println")
+native inline fun println(str: pointer<char>) -> int;
+
+
+/**
  * Reads one line from standard input into dest.
  *
  * @param dest              destination buffer
@@ -247,7 +283,7 @@ fun splitPath(fullPath: pointer<char>) -> pointer<ArrayList>
     var part: pointer<StringBuilder> = new StringBuilder()
     var index: int = 0
 
-    while fullPath[index] != '\0':
+    while fullPath[index] != String.NULL_CHAR:
     {
         val current: char = fullPath[index]
 

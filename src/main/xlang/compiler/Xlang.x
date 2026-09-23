@@ -77,7 +77,7 @@ fun parseExpressionLoop()
 
         if expression == null:
         {
-            putln("failed to parse expression")
+            IO.println("failed to parse expression")
             continue
         }
 
@@ -96,7 +96,7 @@ fun parseExpressionLoop()
             val output: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
 
             builder.toString(output)
-            putln(output)
+            IO.println(output)
             continue
         }
 
@@ -104,7 +104,7 @@ fun parseExpressionLoop()
         val output: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
 
         builder.toString(output)
-        putln(output)
+        IO.println(output)
     }
 }
 
@@ -126,7 +126,7 @@ fun parseStatementLoop()
 
         if length + 1 >= 1024:
         {
-            putln("failed to parse statement: input too long")
+            IO.println("failed to parse statement: input too long")
             continue
         }
 
@@ -138,7 +138,7 @@ fun parseStatementLoop()
 
         if statement == null:
         {
-            putln("failed to parse statement")
+            IO.println("failed to parse statement")
             continue
         }
 
@@ -157,7 +157,7 @@ fun parseStatementLoop()
             val output: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
 
             builder.toString(output)
-            putln(output)
+            IO.println(output)
             continue
         }
 
@@ -165,6 +165,6 @@ fun parseStatementLoop()
         val output: pointer<char> = System.allocMemory((builder.length + 1) * sizeof(char)) as pointer<char>
 
         builder.toString(output)
-        putln(output)
+        IO.println(output)
     }
 }

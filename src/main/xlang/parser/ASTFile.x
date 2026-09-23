@@ -24,6 +24,7 @@ package xlang.parser
 
 import xlang.Diagnostic
 import xlang.util.ArrayList
+import xlang.util.IO
 
 
 /**
@@ -167,14 +168,14 @@ struct ASTFile
         {
             val item: pointer<Diagnostic> = this.warnings.get(i) as pointer<Diagnostic>
             item.print()
-            put("\n")
+            IO.print("\n")
         }
 
         for (var i = 0; i < this.errors.length; i++):
         {
             val item: pointer<Diagnostic> = this.errors.get(i) as pointer<Diagnostic>
             item.print()
-            put("\n")
+            IO.print("\n")
         }
     }
 }

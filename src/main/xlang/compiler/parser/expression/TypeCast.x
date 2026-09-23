@@ -22,7 +22,7 @@
 
 package xlang.compiler.parser.expression
 
-import xlang.compiler.Type
+import xlang.compiler.type.Type
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList

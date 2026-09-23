@@ -22,7 +22,7 @@
  *
  */
 
-package xlang.compiler
+package xlang.compiler.type
 
 import xlang.compiler.setting.CompilerSettings
 import xlang.compiler.setting.SystemBits

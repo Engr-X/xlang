@@ -27,7 +27,7 @@ import xlang.compiler.parser.expression.Assignment
 import xlang.compiler.parser.expression.Atom
 import xlang.compiler.parser.expression.Expression
 import xlang.compiler.parser.program.Field
-import xlang.compiler.Type
+import xlang.compiler.type.Type
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList

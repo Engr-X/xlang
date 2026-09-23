@@ -24,7 +24,7 @@
 package xlang.compiler.parser
 
 import xlang.Files
-import xlang.compiler.Type
+import xlang.compiler.type.Type
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
 import xlang.compiler.parser.expression.Assignment
@@ -63,6 +63,7 @@ import xlang.lexer.Token
 import xlang.lexer.TokenList
 import xlang.util.ArrayList
 import xlang.util.HashSet
+import xlang.util.IO
 import xlang.util.string.String
 import xlang.util.string.StringBuilder
 import xlang.test.TestCase
@@ -580,7 +581,7 @@ private fun printProgramFailure(path: pointer<char>, reason: pointer<char>, toke
     }
 
     val output: pointer<char> = builderToString(builder)
-    putln(output)
+    IO.println(output)
 }
 
 
@@ -621,7 +622,7 @@ private fun printTokenDump(title: pointer<char>, tokens: pointer<TokenList>)
     if tokens == null:
     {
         builder.append("<null token list>")
-        putln(builderToString(builder))
+        IO.println(builderToString(builder))
         return
     }
 
@@ -640,7 +641,7 @@ private fun printTokenDump(title: pointer<char>, tokens: pointer<TokenList>)
     if i < tokens.length():
         builder.append(" ...")
 
-    putln(builderToString(builder))
+    IO.println(builderToString(builder))
 }
 
 
@@ -1057,7 +1058,7 @@ private fun sourceProgramTestName(path: pointer<char>) -> pointer<char>
             result[i] = current
     }
 
-    result[nameLength] = '\0'
+    result[nameLength] = String.NULL_CHAR
     return result
 }
 
