@@ -115,10 +115,14 @@ private fun splitProgram(program: pointer<Program>) -> pointer<ArrayList>
     for (var i = 0; i < structs.length; i++):
     {
         var structItem: pointer<Struct> = structs.get(i) as pointer<Struct>
-        var nProgram: pointer<NormalizedProgram> = NormalizedProgram.fromStruct(
-            program.getPreprocessSettings(), packageDeclaration, imports.clone(), structItem)
+        val structImports: pointer<ArrayList> = imports.clone()
 
-        result.push(structItem)
+        structImports.push(extraImport)
+
+        var nProgram: pointer<NormalizedProgram> = NormalizedProgram.fromStruct(
+            preprocessSettings, packageDeclaration, structImports, structItem)
+
+        result.push(nProgram)
     }
 
 
@@ -324,7 +328,8 @@ private fun addImportsInSamePackage(classifiedProgram: pointer<HashMap>)
 
     val entries: pointer<ArrayList> = classifiedProgram.getEntries()
 
-    for (var i = 0; i < entries.length; i++)
+
+    for (var i = 0; i < entries.length; i++):
     {
         val entry: pointer<MapEntry> = entries.get(i) as pointer<MapEntry>
         val packageName: pointer<ArrayList> = entry.key as pointer<ArrayList>
@@ -333,7 +338,7 @@ private fun addImportsInSamePackage(classifiedProgram: pointer<HashMap>)
         val newImports: pointer<ArrayList> = addAllPackagesImport(nPrograms)
         
 
-        for (var j = 0; j < nPrograms.length; j++)
+        for (var j = 0; j < nPrograms.length; j++):
         {
             val nProgram: pointer<NormalizedProgram> = nPrograms.get(j) as pointer<NormalizedProgram>
             val imports: pointer<ArrayList> = nProgram.getImports()

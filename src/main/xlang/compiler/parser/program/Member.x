@@ -24,6 +24,7 @@ package xlang.compiler.parser.program
 
 import xlang.lexer.Token
 import xlang.util.ArrayList
+import xlang.util.HashSet
 import xlang.util.string.StringBuilder
 
 
@@ -407,4 +408,251 @@ struct Member
         }
         else:
             new StringBuilder()
+}
+
+
+/**
+ * Maintains a collection of members and provides utilities for querying and
+ * filtering them according to their modifiers.
+ *
+ * <p>A {@code MemberRegistry} acts as a lightweight view over a group of
+ * {@link Member} objects. Members may represent fields, functions, struct
+ * constructors, structs, or other declaration kinds supported by the
+ * compiler.</p>
+ *
+ * <p>The registry does not modify the declarations themselves. Operations
+ * such as {@link #filtrate(int, int)} create a new registry containing only
+ * the members that satisfy the requested conditions.</p>
+ */
+struct MemberRegistry
+{
+    /**
+     * Filter value that accepts every value in the corresponding dimension.
+     */
+    static val ALL: int = 0
+
+    /**
+     * Internal identifier for members declared with the {@code private}
+     * access modifier.
+     */
+    static val PRIVATE_MODIFIER: int = 1
+
+    /**
+     * Internal identifier for members declared with the {@code protected}
+     * access modifier.
+     *
+     * @deprecated This constant appears to contain a spelling error.
+     *             Use {@code PROTECTED_MODIFIER} instead.
+     */
+    static val PROTEXTED_MODIFIER: int = 2
+
+    /**
+     * Internal identifier for members declared with the {@code protected}
+     * access modifier.
+     */
+    static val PROTECTED_MODIFIER: int = 2
+
+    /**
+     * Internal identifier for members with public accessibility.
+     *
+     * <p>Members without an explicit {@code private} or {@code protected}
+     * modifier are currently treated as public.</p>
+     */
+    static val PUBLIC_MODIFIER: int = 3
+
+    /**
+     * Filter value for members declared with the {@code static} modifier.
+     */
+    static val STATIC_MODIFIER: int = 1
+
+    /**
+     * Filter value for members without the {@code static} modifier.
+     */
+    static val NON_STATIC_MODIFIER: int = 2
+
+    /**
+     * Members currently contained in this registry.
+     */
+    private var members: pointer<ArrayList>
+
+
+    /**
+     * Creates a new member registry backed by the specified member list.
+     *
+     * <p>If {@code members} is {@code null}, an empty member list is created
+     * automatically.</p>
+     *
+     * @param members the list of members to register, or {@code null} to
+     *                create an empty registry
+     */
+    constructor(members: pointer<ArrayList>)
+    {
+        this.members = if members == null:
+                new ArrayList(sizeof(Member))
+            else:
+                members
+    }
+
+
+    /**
+     * Returns the modifier set associated with the specified member.
+     *
+     * <p>The actual modifier set is obtained from the declaration represented
+     * by the member. The declaration type is determined through the member
+     * kind and then cast to the corresponding AST node type.</p>
+     *
+     * <p>The following member kinds are currently supported:</p>
+     *
+     * <ul>
+     *     <li>fields</li>
+     *     <li>functions</li>
+     *     <li>struct constructors</li>
+     *     <li>struct declarations</li>
+     * </ul>
+     *
+     * <p>If the member is {@code null}, has no host declaration, or represents
+     * an unsupported member kind, this function returns {@code null}.</p>
+     *
+     * @param member the member whose modifiers should be obtained
+     *
+     * @return the modifier set of the underlying declaration, or
+     *         {@code null} if no modifier set is available
+     */
+    private fun getModifiers(member: pointer<Member>) -> pointer<HashSet> =
+        if member == null || member.getHost() == null:
+            null
+        elif member.isField():
+        {
+            val field: pointer<Field> = member.getHost() as pointer<Field>
+            field.getModifiers()
+        }
+        elif member.isFunction():
+        {
+            val function: pointer<Function> = member.getHost() as pointer<Function>
+            function.getModifiers()
+        }
+        elif member.isStructConstructor():
+        {
+            val structConstructor: pointer<StructConstructor> = member.getHost() as pointer<StructConstructor>
+            structConstructor.getModifiers()
+        }
+        elif member.isStruct():
+        {
+            val structDecl: pointer<Struct> = member.getHost() as pointer<Struct>
+            structDecl.getModifiers()
+        }
+        else:
+            null
+
+
+    /**
+     * Determines whether the specified member contains a particular modifier.
+     *
+     * <p>The modifier set is resolved from the declaration represented by the
+     * member. If the member has no available modifier set, this function
+     * returns {@code false}.</p>
+     *
+     * @param member the member to inspect
+     * @param modifier the modifier to search for
+     *
+     * @return {@code true} if the member contains the specified modifier;
+     *         {@code false} otherwise
+     */
+    private fun hasModifier(member: pointer<Member>, modifier: pointer<Modifier>) -> bool
+    {
+        val modifiers: pointer<HashSet> = this.getModifiers(member)
+
+        return modifiers != null && modifiers.contains(modifier)
+    }
+
+
+    /**
+     * Resolves the effective access level of the specified member.
+     *
+     * <p>Access modifiers are checked in the following order:</p>
+     *
+     * <ol>
+     *     <li>{@code private}</li>
+     *     <li>{@code protected}</li>
+     *     <li>{@code public}</li>
+     * </ol>
+     *
+     * <p>If neither {@code private} nor {@code protected} is explicitly
+     * present, the member is treated as public.</p>
+     *
+     * @param member the member whose access level should be resolved
+     *
+     * @return {@link #PRIVATE_MODIFIER} if the member is private,
+     *         {@link #PROTECTED_MODIFIER} if it is protected, or
+     *         {@link #PUBLIC_MODIFIER} otherwise
+     */
+    private fun getAccessModifier(member: pointer<Member>) -> int =
+        if this.hasModifier(member, Modifier.fromPrivate()):
+            PRIVATE_MODIFIER
+        elif this.hasModifier(member, Modifier.fromProtected()):
+            PROTEXTED_MODIFIER
+        else:
+            PUBLIC_MODIFIER
+    
+    
+    /**
+     * Returns the underlying list of members contained in this registry.
+     *
+     * <p>The returned list is the list currently used by the registry rather
+     * than a copy of it.</p>
+     *
+     * @return the member list maintained by this registry
+     */
+    fun getMembers() -> pointer<ArrayList> = this.members
+
+
+    /**
+     * Creates a new registry containing members that match the specified
+     * access level and static-state filter.
+     *
+     * <p>If either filter is {@link #ALL}, that dimension accepts every
+     * value.</p>
+     *
+     * <p>Null member entries are ignored. The current registry is not modified;
+     * instead, a new {@code MemberRegistry} containing the matching members is
+     * returned.</p>
+     *
+     * @param accessModifier the required access modifier, normally
+     *                       {@link #ALL} or one of
+     *                       {@link #PRIVATE_MODIFIER},
+     *                       {@link #PROTECTED_MODIFIER}, or
+     *                       {@link #PUBLIC_MODIFIER}
+     * @param staticModifier the required static state, normally
+     *                       {@link #ALL}, {@link #STATIC_MODIFIER}, or
+     *                       {@link #NON_STATIC_MODIFIER}
+     *
+     * @return a new registry containing only members matching both filters
+     */
+    fun filtrate(accessModifier: int, staticModifier: int) -> pointer<MemberRegistry>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Member))
+
+        for (var i = 0; i < this.members.length; i++):
+        {
+            val member: pointer<Member> = this.members.get(i) as pointer<Member>
+
+            if member == null:
+                continue
+
+            if accessModifier != ALL && this.getAccessModifier(member) != accessModifier:
+                continue
+
+            val memberStaticModifier: int = if this.hasModifier(member, Modifier.fromStatic()):
+                    STATIC_MODIFIER
+                else:
+                    NON_STATIC_MODIFIER
+
+            if staticModifier != ALL && memberStaticModifier != staticModifier:
+                continue
+
+            result.push(member)
+        }
+
+        return new MemberRegistry(result)
+    }
 }

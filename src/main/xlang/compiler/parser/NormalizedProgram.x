@@ -23,6 +23,8 @@
 package xlang.compiler.parser
 
 import xlang.compiler.parser.program.ImportDeclaration
+import xlang.compiler.parser.program.Member
+import xlang.compiler.parser.program.MemberRegistry
 import xlang.compiler.parser.program.PackageDeclaration
 import xlang.compiler.parser.program.PreprocessSetting
 import xlang.compiler.parser.program.Struct
@@ -33,47 +35,154 @@ import xlang.util.ArrayList
  * Represents a normalized view of a parsed program.
  *
  * <p>A {@code NormalizedProgram} stores the major top-level components produced
- * after program normalization: preprocessing settings, an optional package
- * declaration, import declarations, and a structure declaration representing
- * the normalized program contents.
+ * after program normalization: import declarations, package name, body
+ * identity, and member registries classified by declaration kind.
  *
  * <p>The preprocessing-setting and import collections are normalized to empty
  * {@code ArrayList} instances when {@code null} values are supplied to the
  * constructor. Consumers can therefore access these collections without using
  * a separate null-list representation.
  *
- * <p>The package declaration and structure declaration are not normalized.
- * Their {@code null} values are preserved and may therefore represent missing
- * or unavailable program components.
+ * <p>Package and structure declarations are consumed during construction to
+ * fill the normalized package-name, body-name, and registry fields, but are not
+ * stored afterward.
  *
  * <p>All non-null objects and collections supplied to the constructor are stored
  * directly and are not copied or cloned.
  */
 struct NormalizedProgram
 {
-     /**
+    /**
      * Indicates that the normalized program represents a {@code struct}
      * declaration body.
      */
-    private static val STRUCT_TYPE: int = 0
+    static val STRUCT_TYPE: int = 1
 
     /**
      * Indicates that the normalized program represents a {@code class}
      * declaration body.
      */
-    private static val CLASS_TYPE: int = 1
+    static val CLASS_TYPE: int = 2
 
     /**
      * Indicates that the normalized program represents an {@code interface}
      * declaration body.
      */
-    private static val INTERFACE_TYPE: int = 2
+    static val INTERFACE_TYPE: int = 3
 
     /**
      * Indicates that the normalized program represents an {@code annotation}
      * declaration body.
      */
-    private static val ANNOTATION_TYPE: int = 3
+    static val ANNOTATION_TYPE: int = 4
+
+
+    /**
+     * Creates a member registry containing only function members declared
+     * in the specified struct body.
+     *
+     * <p>All members of the struct are traversed, and only members for which
+     * {@code Member.isFunction()} returns {@code true} are added to the
+     * resulting registry. Null members are ignored.</p>
+     * 
+     * <p>If {@code body} is {@code null}, an empty registry is returned.</p>
+     *
+     * @param body              the struct whose members should be inspected
+     *
+     * @return                  a new registry containing all function members of the struct,
+     *                          or an empty registry if {@code body} is {@code null}
+     */
+    private static fun functionRegistryFrom(body: pointer<Struct>) -> pointer<MemberRegistry>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Member))
+
+        if body == null:
+            return new MemberRegistry(result)
+
+        val members: pointer<ArrayList> = body.getMembers()
+
+        for (var i = 0; i < members.length; i++):
+        {
+            val member: pointer<Member> = members.get(i) as pointer<Member>
+
+            if member != null && member.isFunction():
+                result.push(member)
+        }
+
+        return new MemberRegistry(result)
+    }
+
+
+    /**
+     * Creates a member registry containing only field members declared
+     * in the specified struct body.
+     *
+     * <p>All members of the struct are traversed, and only members for which
+     * {@code Member.isField()} returns {@code true} are added to the
+     * resulting registry. Null members are ignored.</p>
+     *
+     * <p>If {@code body} is {@code null}, an empty registry is returned.</p>
+     *
+     * @param body              the struct whose members should be inspected
+     *
+     * @return                  a new registry containing all field members of the struct,
+     *                          or an empty registry if {@code body} is {@code null}
+     */
+    private static fun variableRegistryFrom(body: pointer<Struct>) -> pointer<MemberRegistry>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Member))
+
+        if body == null:
+            return new MemberRegistry(result)
+
+        val members: pointer<ArrayList> = body.getMembers()
+
+        for (var i = 0; i < members.length; i++):
+        {
+            val member: pointer<Member> = members.get(i) as pointer<Member>
+
+            if member != null && member.isField():
+                result.push(member)
+        }
+
+        return new MemberRegistry(result)
+    }
+
+
+    /**
+     * Creates a member registry containing only struct constructor members
+     * declared in the specified struct body.
+     *
+     * <p>All members of the struct are traversed, and only members for which
+     * {@code Member.isStructConstructor()} returns {@code true} are added to
+     * the resulting registry. Null members are ignored.</p>
+     *
+     * <p>If {@code body} is {@code null}, an empty registry is returned.</p>
+     *
+     * @param body              the struct whose members should be inspected
+     *
+     * @return                  a new registry containing all struct constructor members,
+     *                          or an empty registry if {@code body} is {@code null}
+     */
+    private static fun constructorRegistryFrom(body: pointer<Struct>) -> pointer<MemberRegistry>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Member))
+
+        if body == null:
+            return new MemberRegistry(result)
+
+        val members: pointer<ArrayList> = body.getMembers()
+
+        for (var i = 0; i < members.length; i++):
+        {
+            val member: pointer<Member> = members.get(i) as pointer<Member>
+
+            if member != null && member.isStructConstructor():
+                result.push(member)
+        }
+
+        return new MemberRegistry(result)
+    }
 
 
     /**
@@ -96,22 +205,66 @@ struct NormalizedProgram
         packageDeclaration: pointer<PackageDeclaration>,
         imports: pointer<ArrayList>,
         body: pointer<Struct>
-    ) -> pointer<NormalizedProgram> = new NormalizedProgram(
-        preprocessSettings,
-        packageDeclaration,
-        imports,
-        STRUCT_TYPE,
-        body
-    )
+    ) -> pointer<NormalizedProgram>
+    {
+        val functionRegistry: pointer<MemberRegistry> = NormalizedProgram.functionRegistryFrom(body)
+        val variableRegistry: pointer<MemberRegistry> = NormalizedProgram.variableRegistryFrom(body)
+        val constructorRegistry: pointer<MemberRegistry> = NormalizedProgram.constructorRegistryFrom(body)
+        val result: pointer<NormalizedProgram> = new NormalizedProgram(
+            preprocessSettings,
+            packageDeclaration,
+            imports,
+            STRUCT_TYPE,
+            functionRegistry.getMembers(),
+            variableRegistry.getMembers(),
+            constructorRegistry.getMembers())
+
+        result.bodyName = if body == null:
+                null
+            else:
+                body.getStructName()
+
+        return result
+    }
 
 
     /**
-     * The type of declaration body represented by this normalized program.
+     * Normalized package-name components for this program.
      *
-     * <p>The value is one of {@link #STRUCT_TYPE}, {@link #CLASS_TYPE},
-     * {@link #INTERFACE_TYPE}, or {@link #ANNOTATION_TYPE}.
+     * <p>The representation matches {@code ImportAPI}: each item is a
+     * {@code pointer<char>} slot stored inside an {@code ArrayList}.</p>
+     */
+    private var packageName: pointer<ArrayList>
+
+    /**
+     * The type of declaration body represented by this normalized program.
      */
     private var bodyType: int
+
+    /**
+     * Normalized declaration body name.
+     *
+     * <p>For a struct body, this is the struct name. A {@code null} value means
+     * the body has no normalized name yet.</p>
+     */
+    private var bodyName: pointer<char>
+
+    /**
+     * Registry containing function members declared by the body.
+     */
+    private var functionRegistry: pointer<MemberRegistry>
+
+    /**
+     * Registry containing variable-like members declared by the body.
+     *
+     * <p>Struct fields are treated as variables in the import API layer.</p>
+     */
+    private var variableRegistry: pointer<MemberRegistry>
+
+    /**
+     * Registry containing constructor members declared by the body.
+     */
+    private var constructorRegistry: pointer<MemberRegistry>
 
     /**
      * The ordered collection of preprocessing settings associated with the
@@ -127,16 +280,6 @@ struct NormalizedProgram
     private var preprocessSettings: pointer<ArrayList>
 
     /**
-     * The optional package declaration associated with the normalized program.
-     *
-     * <p>The declaration is stored by reference and is not copied or cloned.
-     *
-     * <p>A {@code null} value indicates that no package declaration is
-     * associated with the normalized program.
-     */
-    private var packageDeclaration: pointer<PackageDeclaration>
-
-    /**
      * The ordered collection of import declarations associated with the
      * normalized program.
      *
@@ -148,16 +291,6 @@ struct NormalizedProgram
      */
     private var imports: pointer<ArrayList>
 
-    /**
-     * The structure declaration representing the normalized program contents.
-     *
-     * <p>The structure is stored by reference and is not copied or cloned.
-     *
-     * <p>A {@code null} value indicates that no normalized structure declaration
-     * is currently associated with the program.
-     */
-    private var body: pointer<Struct>
-
 
     /**
      * Creates a normalized program from the specified top-level program
@@ -168,15 +301,17 @@ struct NormalizedProgram
      * allocated. Otherwise, the supplied collection is stored directly and is
      * not copied or cloned.
      *
-     * <p>The supplied package declaration is stored directly and may be
-     * {@code null}.
+     * <p>The supplied package declaration is consumed immediately to derive the
+     * normalized package name. It is not stored afterward.
      *
      * <p>If {@code imports} is {@code null}, a new empty {@code ArrayList}
      * capable of storing {@code ImportDeclaration} entries is allocated.
      * Otherwise, the supplied import collection is stored directly and is not
      * copied or cloned.
      *
-     * <p>The supplied body is stored by reference and is not copied or cloned.
+     * <p>The supplied member lists are consumed immediately to build the
+     * normalized member registries. The lists themselves are stored inside
+     * those registries.
      *
      * @param preprocessSettings
      *                          a pointer to the preprocessing-setting
@@ -189,15 +324,19 @@ struct NormalizedProgram
      * @param imports           a pointer to the import-declaration collection,
      *                          or {@code null} to create an empty collection
      * @param bodyType          the type of declaration body
-     * @param body              a pointer to the normalized declaration body, or
-     *                          {@code null} if no body is available
+     * @param functionMembers   a pointer to the normalized function-member list
+     * @param variableMembers   a pointer to the normalized variable-member list
+     * @param constructorMembers
+     *                          a pointer to the normalized constructor-member list
      */
     private constructor(
         preprocessSettings: pointer<ArrayList>,
         packageDeclaration: pointer<PackageDeclaration>,
         imports: pointer<ArrayList>,
         bodyType: int,
-        body: pointer<*>
+        functionMembers: pointer<ArrayList>,
+        variableMembers: pointer<ArrayList>,
+        constructorMembers: pointer<ArrayList>
     )
     {
         this.preprocessSettings = if preprocessSettings == null:
@@ -205,7 +344,10 @@ struct NormalizedProgram
             else:
                 preprocessSettings
 
-        this.packageDeclaration = packageDeclaration
+        this.packageName = if packageDeclaration == null:
+                new ArrayList(sizeof(pointer<char>))
+            else:
+                packageDeclaration.getQualifiedName()
 
         this.imports = if imports == null:
                 new ArrayList(sizeof(ImportDeclaration))
@@ -213,7 +355,10 @@ struct NormalizedProgram
                 imports
 
         this.bodyType = bodyType
-        this.body = body
+        this.bodyName = null
+        this.functionRegistry = new MemberRegistry(functionMembers)
+        this.variableRegistry = new MemberRegistry(variableMembers)
+        this.constructorRegistry = new MemberRegistry(constructorMembers)
     }
 
 
@@ -240,15 +385,13 @@ struct NormalizedProgram
      */
     fun getFullpath() -> pointer<ArrayList>
     {
-        val result: pointer<ArrayList> = if this.packageDeclaration == null:
+        val result: pointer<ArrayList> = if this.packageName == null:
                 new ArrayList(sizeof(pointer<char>))
             else:
-                this.packageDeclaration.getQualifiedName()
+                this.packageName.clone()
 
-        val bodyName: pointer<char> = this.getBodyName()
-
-        if bodyName != null:
-            result.push(bodyName.ref)
+        if this.bodyName != null:
+            result.push(this.bodyName.ref)
 
         return result
     }
@@ -257,9 +400,9 @@ struct NormalizedProgram
     /**
      * Returns the name associated with the current declaration body.
      *
-     * <p>Currently, only struct bodies provide a body name. If the current body
-     * type is {@code STRUCT_TYPE} and a body object is available, the struct name
-     * is obtained from the underlying struct declaration.</p>
+     * <p>Currently, only struct bodies provide a body name. The name is
+     * computed during construction and stored in the normalized body-name
+     * field.</p>
      *
      * <p>If the body does not represent a struct, or if no body has been assigned,
      * this function returns {@code null}.</p>
@@ -267,11 +410,37 @@ struct NormalizedProgram
      * @return                  the name of the current struct body, or {@code null} if the current
      *                          body has no applicable name
      */
-    fun getBodyName() -> pointer<char> =
-        if this.bodyType == STRUCT_TYPE && this.body != null:
-            this.body.getStructName()
-        else:
-            null
+    fun getBodyName() -> pointer<char> = this.bodyName
+
+
+    /**
+     * Returns normalized package-name components.
+     */
+    fun getPackageName() -> pointer<ArrayList> = this.packageName
+
+
+    /**
+     * Returns the normalized body type.
+     */
+    fun getBodyType() -> int = this.bodyType
+
+
+    /**
+     * Returns the registry containing function members.
+     */
+    fun getFunctionRegistry() -> pointer<MemberRegistry> = this.functionRegistry
+
+
+    /**
+     * Returns the registry containing variable-like members.
+     */
+    fun getVariableRegistry() -> pointer<MemberRegistry> = this.variableRegistry
+
+
+    /**
+     * Returns the registry containing constructor members.
+     */
+    fun getConstructorRegistry() -> pointer<MemberRegistry> = this.constructorRegistry
 
 
     /**
@@ -296,20 +465,20 @@ struct NormalizedProgram
 
 
     /**
-     * Returns the package declaration associated with this normalized program.
+     * Reconstructs a package declaration from the normalized package name.
      *
-     * <p>The returned pointer refers directly to the internally stored
-     * {@code PackageDeclaration} object and is not copied or cloned.
+     * <p>The original package declaration is not stored. This compatibility
+     * accessor exists for the current normalizer code and should be replaced by
+     * direct {@link #getPackageName()} usage.</p>
      *
-     * <p>The result is {@code null} when the normalized program does not contain
-     * an associated package declaration.
-     *
-     * @return                  a pointer to the internally stored package
-     *                          declaration, or {@code null} if no package
-     *                          declaration is available
+     * @return                  a new package declaration backed by a clone of
+     *                          the normalized package-name component list
      */
-    fun getPackageDeclaration() -> pointer<PackageDeclaration> = this.packageDeclaration
-
+    fun getPackageDeclaration() -> pointer<PackageDeclaration> =
+        if this.packageName == null:
+            null
+        else:
+            new PackageDeclaration(this.packageName.clone())
 
     /**
      * Returns the import-declaration collection associated with this normalized
@@ -330,19 +499,4 @@ struct NormalizedProgram
      */
     fun getImports() -> pointer<ArrayList> = this.imports
 
-
-    /**
-     * Returns the structure declaration representing the normalized program.
-     *
-     * <p>The returned pointer refers directly to the internally stored
-     * {@code Struct} object and is not copied or cloned.
-     *
-     * <p>The result may be {@code null} when normalization has not produced a
-     * structure declaration or no structure is associated with this program.
-     *
-     * @return                  a pointer to the internally stored normalized
-     *                          structure declaration, or {@code null} if no
-     *                          structure is available
-     */
-    fun getStruct() -> pointer<Struct> = this.body
 }
