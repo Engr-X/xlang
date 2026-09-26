@@ -24,6 +24,8 @@
 #file.outerClass("TypeParserTest")
 package xlang.parser
 
+import xlang.compiler.type.BlobType
+import xlang.compiler.type.NormalType
 import xlang.compiler.type.Type
 import xlang.compiler.lexer.Tokenizer
 import xlang.lexer.Token
@@ -47,6 +49,18 @@ fun genTest() -> pointer<TestGroup>
     val parenthesizedTypeTC: pointer<TestCase> = new TestCase("parenthesizedType", parenthesizedTypeTest)
     val parenthesizedFunctionTC: pointer<TestCase> = new TestCase("parenthesizedFunction", parenthesizedFunctionTest)
     val blobExpressionTC: pointer<TestCase> = new TestCase("blobExpression", blobExpressionTest)
+    val voidPrimaryTypeTC: pointer<TestCase> = new TestCase("voidPrimaryType", voidPrimaryTypeTest)
+    val boolPrimaryTypeTC: pointer<TestCase> = new TestCase("boolPrimaryType", boolPrimaryTypeTest)
+    val charPrimaryTypeTC: pointer<TestCase> = new TestCase("charPrimaryType", charPrimaryTypeTest)
+    val bytePrimaryTypeTC: pointer<TestCase> = new TestCase("bytePrimaryType", bytePrimaryTypeTest)
+    val shortPrimaryTypeTC: pointer<TestCase> = new TestCase("shortPrimaryType", shortPrimaryTypeTest)
+    val intPrimaryTypeTC: pointer<TestCase> = new TestCase("intPrimaryType", intPrimaryTypeTest)
+    val longPrimaryTypeTC: pointer<TestCase> = new TestCase("longPrimaryType", longPrimaryTypeTest)
+    val floatPrimaryTypeTC: pointer<TestCase> = new TestCase("floatPrimaryType", floatPrimaryTypeTest)
+    val doublePrimaryTypeTC: pointer<TestCase> = new TestCase("doublePrimaryType", doublePrimaryTypeTest)
+    val pointerPrimaryTypeTC: pointer<TestCase> = new TestCase("pointerPrimaryType", pointerPrimaryTypeTest)
+    val pointerBlobTypeTC: pointer<TestCase> = new TestCase("pointerBlobType", pointerBlobTypeTest)
+    val nestedPointerBlobTypeTC: pointer<TestCase> = new TestCase("nestedPointerBlobType", nestedPointerBlobTypeTest)
     val emptyFunctionTC: pointer<TestCase> = new TestCase("emptyFunction", emptyFunctionTest)
     val functionParametersTC: pointer<TestCase> = new TestCase("functionParameters", functionParametersTest)
     val nestedFunctionTC: pointer<TestCase> = new TestCase("nestedFunction", nestedFunctionTest)
@@ -57,6 +71,18 @@ fun genTest() -> pointer<TestGroup>
     val parenthesizedTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedTypeTC, null)
     val parenthesizedFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, parenthesizedFunctionTC, null)
     val blobExpressionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, blobExpressionTC, null)
+    val voidPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, voidPrimaryTypeTC, null)
+    val boolPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, boolPrimaryTypeTC, null)
+    val charPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, charPrimaryTypeTC, null)
+    val bytePrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, bytePrimaryTypeTC, null)
+    val shortPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, shortPrimaryTypeTC, null)
+    val intPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, intPrimaryTypeTC, null)
+    val longPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, longPrimaryTypeTC, null)
+    val floatPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, floatPrimaryTypeTC, null)
+    val doublePrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, doublePrimaryTypeTC, null)
+    val pointerPrimaryTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, pointerPrimaryTypeTC, null)
+    val pointerBlobTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, pointerBlobTypeTC, null)
+    val nestedPointerBlobTypeUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, nestedPointerBlobTypeTC, null)
     val emptyFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, emptyFunctionTC, null)
     val functionParametersUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, functionParametersTC, null)
     val nestedFunctionUnion: pointer<TestUnion> = new TestUnion(TestCase.TYPE, nestedFunctionTC, null)
@@ -68,12 +94,179 @@ fun genTest() -> pointer<TestGroup>
     result.addTestUnion(parenthesizedTypeUnion)
     result.addTestUnion(parenthesizedFunctionUnion)
     result.addTestUnion(blobExpressionUnion)
+    result.addTestUnion(voidPrimaryTypeUnion)
+    result.addTestUnion(boolPrimaryTypeUnion)
+    result.addTestUnion(charPrimaryTypeUnion)
+    result.addTestUnion(bytePrimaryTypeUnion)
+    result.addTestUnion(shortPrimaryTypeUnion)
+    result.addTestUnion(intPrimaryTypeUnion)
+    result.addTestUnion(longPrimaryTypeUnion)
+    result.addTestUnion(floatPrimaryTypeUnion)
+    result.addTestUnion(doublePrimaryTypeUnion)
+    result.addTestUnion(pointerPrimaryTypeUnion)
+    result.addTestUnion(pointerBlobTypeUnion)
+    result.addTestUnion(nestedPointerBlobTypeUnion)
     result.addTestUnion(emptyFunctionUnion)
     result.addTestUnion(functionParametersUnion)
     result.addTestUnion(nestedFunctionUnion)
     result.addTestUnion(mixedFunctionUnion)
 
     return result
+}
+
+
+private fun parseTypeValue(input: pointer<char>, expectedConsumed: int) -> pointer<Type>
+{
+    val tokens: pointer<TokenList> = Tokenizer.tokenize(input)
+    val parser: pointer<TypeParser> = new TypeParser(1)
+    val consumed: int = parser.parse(tokens, 0)
+
+    if parser.haveError(consumed) || consumed != expectedConsumed:
+        return null
+
+    val container: pointer<ParseContainer> = parser.getResult()
+
+    if container == null || !container.isKind(1):
+        return null
+
+    return container.getValue() as pointer<Type>
+}
+
+
+private fun checkPrimaryType(input: pointer<char>, typeName: pointer<char>, memSize: int) -> int
+{
+    val parsedType: pointer<Type> = parseTypeValue(input, 1)
+
+    if parsedType == null:
+        return 1
+
+    if parsedType.getKind() != Type.NORMAL_KIND:
+        return 2
+
+    val normalType: pointer<NormalType> = parsedType.getHost() as pointer<NormalType>
+
+    if normalType == null:
+        return 3
+
+    if !String.streq(normalType.getPackageName(), "xlang.primary"):
+        return 4
+
+    if !String.streq(normalType.getTypeName(), typeName):
+        return 5
+
+    if normalType.getMemSize() != memSize:
+        return 6
+
+    if normalType.length != 0:
+        return 7
+
+    return 0
+}
+
+
+private fun voidPrimaryTypeTest() -> int = checkPrimaryType("void", "void", 0)
+
+
+private fun boolPrimaryTypeTest() -> int = checkPrimaryType("bool", "bool", 1)
+
+
+private fun charPrimaryTypeTest() -> int = checkPrimaryType("char", "char", 8)
+
+
+private fun bytePrimaryTypeTest() -> int = checkPrimaryType("byte", "byte", 1)
+
+
+private fun shortPrimaryTypeTest() -> int = checkPrimaryType("short", "short", 2)
+
+
+private fun intPrimaryTypeTest() -> int = checkPrimaryType("int", "int", 4)
+
+
+private fun longPrimaryTypeTest() -> int = checkPrimaryType("long", "long", 8)
+
+
+private fun floatPrimaryTypeTest() -> int = checkPrimaryType("float", "float", 4)
+
+
+private fun doublePrimaryTypeTest() -> int = checkPrimaryType("double", "double", 8)
+
+
+private fun pointerPrimaryTypeTest() -> int = checkPrimaryType("pointer", "pointer", 8)
+
+
+private fun pointerBlobTypeTest() -> int
+{
+    val parsedType: pointer<Type> = parseTypeValue("pointer<blob[100]>", 7)
+
+    if parsedType == null || parsedType.getKind() != Type.NORMAL_KIND:
+        return 1
+
+    val pointerType: pointer<NormalType> = parsedType.getHost() as pointer<NormalType>
+
+    if pointerType == null:
+        return 2
+
+    if !String.streq(pointerType.getPackageName(), "xlang.primary") ||
+        !String.streq(pointerType.getTypeName(), "pointer") ||
+        pointerType.getMemSize() != 8:
+        return 3
+
+    if pointerType.length != 1:
+        return 4
+
+    val argument: pointer<Type> = pointerType.getTypeArgument(0)
+
+    if argument == null || argument.getKind() != Type.BLOB_KIND:
+        return 5
+
+    val blobType: pointer<BlobType> = argument.getHost() as pointer<BlobType>
+
+    if blobType == null || blobType.getBlobSize() == null || blobType.getMemSize() != 0:
+        return 6
+
+    return 0
+}
+
+
+private fun nestedPointerBlobTypeTest() -> int
+{
+    val parsedType: pointer<Type> = parseTypeValue("pointer<pointer<blob[1000]>>", 10)
+
+    if parsedType == null || parsedType.getKind() != Type.NORMAL_KIND:
+        return 1
+
+    val outerPointer: pointer<NormalType> = parsedType.getHost() as pointer<NormalType>
+
+    if outerPointer == null ||
+        !String.streq(outerPointer.getPackageName(), "xlang.primary") ||
+        !String.streq(outerPointer.getTypeName(), "pointer") ||
+        outerPointer.length != 1:
+        return 2
+
+    val innerPointerType: pointer<Type> = outerPointer.getTypeArgument(0)
+
+    if innerPointerType == null || innerPointerType.getKind() != Type.NORMAL_KIND:
+        return 3
+
+    val innerPointer: pointer<NormalType> = innerPointerType.getHost() as pointer<NormalType>
+
+    if innerPointer == null ||
+        !String.streq(innerPointer.getPackageName(), "xlang.primary") ||
+        !String.streq(innerPointer.getTypeName(), "pointer") ||
+        innerPointer.length != 1:
+        return 4
+
+    val blobArgument: pointer<Type> = innerPointer.getTypeArgument(0)
+
+    if blobArgument == null || blobArgument.getKind() != Type.BLOB_KIND:
+        return 5
+
+    val blobType: pointer<BlobType> = blobArgument.getHost() as pointer<BlobType>
+
+    if blobType == null || blobType.getBlobSize() == null || blobType.getMemSize() != 0:
+        return 6
+
+    return 0
 }
 
 

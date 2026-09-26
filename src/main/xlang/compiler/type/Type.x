@@ -234,10 +234,10 @@ struct Type
      * Maps a NormalType host to its built-in conversion function name.
      *
      * The caller must only pass a host that is known to be a NormalType. This
-     * helper checks the simple type name and returns the matching conversion
-     * helper used by cast/desugar code, such as `toByte` for byte. Pointer,
-     * blob, void and non-primary names intentionally have no conversion helper
-     * here and return null.
+     * helper checks the package name and simple type name, then returns the
+     * matching conversion helper used by cast/desugar code, such as `toByte`
+     * for `xlang.primary.byte`. Pointer, blob, void and non-primary names
+     * intentionally have no conversion helper here and return null.
      *
      * @param host              NormalType host stored inside a Type wrapper
      *
@@ -246,23 +246,24 @@ struct Type
     static fun normalTypeFunction(host: pointer<*>) -> pointer<char>
     {
         val type: pointer<NormalType> = host as pointer<NormalType>
+        val packageName: pointer<char> = type.getPackageName()
         val typeName: pointer<char> = type.getTypeName()
 
-        return if String.streq(typeName, "bool"):
+        return if String.streq(packageName, "xlang.primary") && String.streq(typeName, "bool"):
             "toBool"
-        elif String.streq(typeName, "char"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "char"):
             "toChar"
-        elif String.streq(typeName, "byte"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "byte"):
             "toByte"
-        elif String.streq(typeName, "short"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "short"):
             "toShort"
-        elif String.streq(typeName, "int"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "int"):
             "toInt"
-        elif String.streq(typeName, "long"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "long"):
             "toLong"
-        elif String.streq(typeName, "float"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "float"):
             "toFloat"
-        elif String.streq(typeName, "double"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(typeName, "double"):
             "toDouble"
         else: null
     }
@@ -297,10 +298,69 @@ struct Type
     }
 
 
+    /**
+     * Returns the kind identifier of this type.
+     *
+     * <p>The kind value determines the concrete category represented by this
+     * {@code Type} instance and is typically used by the compiler to select
+     * type-specific processing logic.</p>
+     *
+     * @return the kind identifier of this type
+     */
     fun getKind() -> int = this.kind
 
 
+    /**
+     * Returns the host object associated with this type.
+     *
+     * <p>The host stores the underlying object or declaration represented by the
+     * current type. Its concrete type depends on the value returned by
+     * {@link #getKind()}.</p>
+     *
+     * @return the host object associated with this type, or {@code null} if this
+     *         type has no associated host
+     */
     fun getHost() -> pointer<*> = this.host
+
+
+    /**
+     * Creates the mangled representation of this type.
+     *
+     * <p>The mangled representation provides a deterministic textual encoding of
+     * the type that can be embedded into mangled symbol names. It allows the
+      * compiler to distinguish declarations whose source-level names are identical
+     * but whose types differ, such as overloaded functions.</p>
+     *
+     * <p>The exact encoding depends on the kind and structure of the current type.
+     * Compound types may include the mangled representations of their component
+     * types so that the resulting representation uniquely describes the complete
+     * type structure.</p>
+     *
+     * <p>The returned value represents the mangling of the type itself and does
+     * not necessarily contain the complete mangled name of a declaration.</p>
+     *
+     * @return                  a {@link StringBuilder} containing the mangled representation of
+     *                          this type, or {@code null} when the wrapped type
+     *                          cannot be mangled
+     */
+    fun getMangling() -> pointer<StringBuilder> = if this.host == null:
+            null
+        elif this.kind == NORMAL_KIND:
+        {
+            val type: pointer<NormalType> = this.host as pointer<NormalType>
+            type.getMangling()
+        }
+        elif this.kind == FUNCTION_KIND:
+        {
+            val type: pointer<FunctionType> = this.host as pointer<FunctionType>
+            type.getMangling()
+        }
+        elif this.kind == BLOB_KIND:
+        {
+            val type: pointer<BlobType> = this.host as pointer<BlobType>
+            type.getMangling()
+        }
+        else: null
 
 
     /**

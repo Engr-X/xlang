@@ -238,6 +238,52 @@ struct FunctionType
 
 
     /**
+     * Builds the mangled representation of this function type.
+     *
+     * <p>The encoding begins with the function marker {@code "F"}, followed by
+     * the mangled representation of each parameter type in declaration order.
+     * The parameter sequence is terminated by the marker {@code "E"}.</p>
+     * 
+     * <p>For example, a function type with two parameter types whose manglings
+     * are {@code "I"} and {@code "B"} would produce the following encoding:</p>
+     *
+     * <pre>FIBE</pre>
+     *
+     * <p>If no parameter types are present, the resulting mangling consists only
+     * of the opening and terminating markers, producing {@code "FE"}.</p>
+     *
+     * <p>If any parameter type cannot provide a valid mangled representation,
+     * this function returns {@code null}, since the complete function type cannot
+     * be encoded reliably.</p>
+     *
+     * @return                  a {@link StringBuilder} containing the mangled representation of
+     *                          this function type, or {@code null} if any parameter type cannot
+     *                          be mangled
+     */
+    fun getMangling() -> pointer<StringBuilder>
+    {
+        val result: pointer<StringBuilder> = new StringBuilder("F")
+
+        if this.parameterTypes != null:
+        {
+            for (var i = 0; i < this.parameterTypes.length; i++):
+            {
+                val parameterType: pointer<Type> = this.parameterTypes.get(i) as pointer<Type>
+                val parameterMangling: pointer<StringBuilder> = parameterType.getMangling()
+
+                if parameterMangling == null:
+                    return null
+
+                result.append(parameterMangling)
+            }
+        }
+
+        result.append('E')
+        return result
+    }
+
+
+    /**
      * Returns all source tokens belonging to this function type tree.
      *
      * <p>The result contains three groups of tokens:</p>

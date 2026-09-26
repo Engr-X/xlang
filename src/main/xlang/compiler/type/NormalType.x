@@ -29,6 +29,7 @@ import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
 import xlang.util.string.String
+import xlang.util.string.StringBuilder
 
 
 /**
@@ -384,6 +385,108 @@ struct NormalType
 
         return typeArgument.clone()
     }
+
+
+    /**
+     * Generates the mangled representation of this pointer type.
+     *
+     * If no pointed-to type is specified, this method returns the pointer
+     * prefix {@code P}.
+     *
+     * Otherwise, the first type argument is treated as the pointed-to type.
+     * The pointed-to type must be a normal type and must provide a valid
+     * mangled representation. The resulting encoding consists of the
+     * pointer prefix {@code P} followed by the mangled representation of
+     * the inner type.
+     *
+     * For example:
+     *
+     * {@code pointer<int>} -> {@code Pi}
+     * {@code pointer<double>} -> {@code Pd}
+     *
+     * Blob types, function types, and other unsupported type kinds cannot
+     * currently be mangled by this method.
+     *
+     * @return                  a builder containing the mangled representation of
+     *                          this pointer type, or {@code null} if the pointed-to
+     *                          type is invalid or unsupported
+     */
+    private fun pointerMangling() -> pointer<StringBuilder>
+    {
+        if this.length <= 0:
+            return new StringBuilder("P")
+
+        val inner: pointer<Type> = this.typeArguments.get(0) as pointer<Type>
+
+        if inner == null:
+            return null
+
+        if inner.getKind() == Type.BLOB_KIND:
+            return null
+
+        if inner.getKind() == Type.FUNCTION_KIND:
+            return null
+
+        if inner.getKind() != Type.NORMAL_KIND:
+            return null
+
+        val innerType: pointer<NormalType> = inner.getHost() as pointer<NormalType>
+
+        if innerType == null:
+            return null
+
+        val innerMangling: pointer<StringBuilder> = innerType.getMangling()
+
+        if innerMangling == null:
+            return null
+
+        val result: pointer<StringBuilder> = new StringBuilder("P")
+        result.append(innerMangling)
+        return result
+    }
+
+
+    /**
+     * Returns the mangled representation of this type.
+     *
+     * Primitive types in the {@code xlang.primary} package are encoded
+     * using Itanium C++ ABI-compatible type codes:
+     *
+     * {@code bool}   -> {@code b}
+     * {@code byte}   -> {@code a}
+     * {@code short}  -> {@code s}
+     * {@code char}   -> {@code c}
+     * {@code int}    -> {@code i}
+     * {@code long}   -> {@code l}
+     * {@code double} -> {@code d}
+     *
+     * Pointer types are encoded using {@link #pointerMangling()}.
+     *
+     * Class and other non-primitive type mangling is not currently
+     * supported.
+     *
+     * @return                  a builder containing the mangled representation of
+     *                          this type, or {@code null} if the type is not
+     *                          currently supported
+     */
+    fun getMangling() -> pointer<StringBuilder> = if String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "bool"):
+            new StringBuilder("b")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "byte"):
+            new StringBuilder("a")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "short"):
+            new StringBuilder("s")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "char"):
+            new StringBuilder("c")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "int"):
+            new StringBuilder("i")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "long"):
+            new StringBuilder("l")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "double"):
+            new StringBuilder("d")
+        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "pointer"):
+            this.pointerMangling()
+        // TODO support class type mangling.
+        else: null
 
 
     /**

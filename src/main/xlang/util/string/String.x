@@ -27,6 +27,7 @@
 package xlang.util.string
 
 import xlang.System
+import xlang.util.ArrayList
 
 /**
  * Provides basic utilities for C-style null-terminated strings.
@@ -371,6 +372,141 @@ fun strHash(item: pointer<*>) -> int
     {
         hash = hash * 31 + str[i] as int
         i++
+    }
+
+    return hash
+}
+
+
+/**
+ * Compares two lists of strings lexicographically.
+ *
+ * <p>Both arguments are expected to point to {@link ArrayList} instances
+ * whose elements contain {@code pointer<char>} string values. The comparison
+ * is performed element by element, using the character contents of each
+ * string rather than the string pointer addresses.</p>
+ *
+ * <p>The comparison follows these rules:</p>
+ *
+ * <ul>
+ *     <li>If both list pointers are identical, the lists are considered equal.</li>
+ *     <li>A {@code null} list is ordered before any non-null list.</li>
+ *     <li>Within a list, a {@code null} string is ordered before any
+ *         non-null string.</li>
+ *     <li>Non-null strings are compared character by character.</li>
+ *     <li>If all shared elements are equal, the shorter list is ordered first.</li>
+ * </ul>
+ *
+ * <p>As a result, lists containing the same sequence of string contents are
+ * considered equal even when the lists or individual strings are stored at
+ * different memory addresses.</p>
+ *
+ * @param left                  the first list to compare
+ * @param right                 the second list to compare
+ *
+ * @return                      a negative value if {@code left} is ordered before {@code right},
+ *                              zero if both lists contain equivalent string sequences, or a
+ *                              positive value if {@code left} is ordered after {@code right}
+ */
+fun stringListCmp(left: pointer<*>, right: pointer<*>) -> int
+{
+    val lhs: pointer<ArrayList> = left as pointer<ArrayList>
+    val rhs: pointer<ArrayList> = right as pointer<ArrayList>
+
+    if lhs == rhs:
+        return 0
+
+    if lhs == null:
+        return -1
+
+    if rhs == null:
+        return 1
+
+    val length: int = if lhs.length < rhs.length:
+            lhs.length
+        else:
+            rhs.length
+
+    for (var i: int = 0; i < length; i++):
+    {
+        val lhsSlot: pointer<pointer<char>> =
+            lhs.get(i) as pointer<pointer<char>>
+
+        val rhsSlot: pointer<pointer<char>> =
+            rhs.get(i) as pointer<pointer<char>>
+
+        val lhsStr: pointer<char> = lhsSlot.deref
+        val rhsStr: pointer<char> = rhsSlot.deref
+
+        if lhsStr == rhsStr:
+            continue
+
+        if lhsStr == null:
+            return -1
+
+        if rhsStr == null:
+            return 1
+
+        var j: int = 0
+
+        while lhsStr[j] != String.NULL_CHAR && rhsStr[j] != String.NULL_CHAR:
+        {
+            if lhsStr[j] != rhsStr[j]:
+                return (lhsStr[j] as int) - (rhsStr[j] as int)
+
+            j++
+        }
+
+        if lhsStr[j] != rhsStr[j]:
+            return (lhsStr[j] as int) - (rhsStr[j] as int)
+    }
+
+    return lhs.length - rhs.length
+}
+
+
+/**
+ * Computes a content-based hash value for a list of strings.
+ *
+ * <p>The supplied value is expected to point to an {@link ArrayList} whose
+ * elements contain {@code pointer<char>} string values. Each string contributes
+ * to the resulting hash according to its character contents rather than its
+ * memory address.</p>
+ *
+ * <p>The hash is accumulated in list order using a multiplier of {@code 31}.
+ * A {@code null} string contributes {@code 0}, while a non-null string
+ * contributes the value returned by {@link String#strHash(pointer<char>)}.</p>
+ *
+ * <p>This function is intended to be used together with
+ * {@link #stringListCmp(pointer<*>, pointer<*>)}. Lists that are considered
+ * equal by {@code stringListCmp} should therefore produce the same hash value.</p>
+ *
+ * @param item                  the string list whose hash value should be computed
+ *
+ * @return                      the content-based hash value of the list, or {@code 0} if
+ *                              {@code item} is {@code null}
+ */
+fun stringListHash(item: pointer<*>) -> int
+{
+    val list: pointer<ArrayList> = item as pointer<ArrayList>
+
+    if list == null:
+        return 0
+
+    var hash: int = 1
+
+    for (var i: int = 0; i < list.length; i++):
+    {
+        val strSlot: pointer<pointer<char>> =
+            list.get(i) as pointer<pointer<char>>
+
+        val str: pointer<char> =
+            if strSlot == null: null else: strSlot.deref
+
+        hash = hash * 31 + if str == null:
+                0
+            else:
+                strHash(str)
     }
 
     return hash

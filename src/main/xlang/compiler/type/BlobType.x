@@ -163,6 +163,22 @@ struct BlobType
 
 
     /**
+     * Returns the mangled representation of the blob type.
+     *
+     * <p>The blob type uses the fixed mangling code {@code "B"}. Since a blob
+     * type does not require any additional type information to describe its
+     * structure, the returned mangling always consists of this single marker.</p>
+     *
+     * <p>This encoding is intended to be embedded into larger mangled symbol
+     * names when the blob type appears as part of a declaration signature.</p>
+     *
+     * @return                  a new {@link StringBuilder} containing the blob type mangling
+     *                          code {@code "B"}
+     */
+    fun getMangling() -> pointer<StringBuilder> = new StringBuilder("B")
+
+
+    /**
      * Creates a shallow copy of this blob type node.
      *
      * The resulting BlobType receives a new container for its extra tokens,

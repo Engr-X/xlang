@@ -397,6 +397,45 @@ struct TypeParser
     }
 
 
+    private fun normalTypeFromToken(token: pointer<Token>) -> pointer<NormalType>
+    {
+        if token == null:
+            return null
+
+        if token.kind == Tokenizer.KW_VOID:
+            return NormalType.voidType()
+
+        if token.kind == Tokenizer.KW_BOOL:
+            return NormalType.boolType()
+
+        if token.kind == Tokenizer.KW_CHAR:
+            return NormalType.charType()
+
+        if token.kind == Tokenizer.KW_BYTE:
+            return NormalType.byteType()
+
+        if token.kind == Tokenizer.KW_SHORT:
+            return NormalType.shortType()
+
+        if token.kind == Tokenizer.KW_INT:
+            return NormalType.intType()
+
+        if token.kind == Tokenizer.KW_LONG:
+            return NormalType.longType()
+
+        if token.kind == Tokenizer.KW_FLOAT:
+            return NormalType.floatType()
+
+        if token.kind == Tokenizer.KW_DOUBLE:
+            return NormalType.doubleType()
+
+        if token.kind == Tokenizer.KW_POINTER:
+            return new NormalType("xlang.primary", "pointer", 8)
+
+        return new NormalType(null, token.text, 0)
+    }
+
+
     /**
      * Parses a normal or generic type.
      *
@@ -499,13 +538,13 @@ struct TypeParser
 
         if nextToken == null || nextToken.kind != Tokenizer.LESS:
         {
-            val parsedType: pointer<NormalType> = new NormalType(null, token.text, 0).addToken(token)
+            val parsedType: pointer<NormalType> = this.normalTypeFromToken(token).addToken(token)
             this.result = new ParseContainer(this.id, parsedType)
             return 1
         }
 
 
-        val parsedType: pointer<NormalType> = new NormalType(null, token.text, 0).addToken(token).addToken(nextToken)
+        val parsedType: pointer<NormalType> = this.normalTypeFromToken(token).addToken(token).addToken(nextToken)
         this.depth++
         var consumed: int = 2
 
