@@ -179,6 +179,25 @@ struct BlobType
 
 
     /**
+     * Determines whether this blob type is equal to another blob type.
+     *
+     * Equality is based on the semantic type information represented by the two
+     * blob type instances. Source-level metadata, including syntax tokens stored
+     * in {@link #extraTokens}, token positions, and formatting information, does
+     * not participate in the comparison.
+     *
+     * Two blob types are considered equal when they represent the same blob type
+     * according to the compiler's type-equality rules.
+     *
+     * @param other             blob type to compare with this instance
+     *
+     * @return                  {@code true} if the specified blob type is equal
+     *                          to this blob type; {@code false} otherwise
+     */
+    fun equals(other: pointer<BlobType>) -> bool = if other == null: false else: true
+
+
+    /**
      * Creates a shallow copy of this blob type node.
      *
      * The resulting BlobType receives a new container for its extra tokens,

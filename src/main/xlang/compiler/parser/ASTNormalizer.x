@@ -41,11 +41,203 @@ import xlang.compiler.parser.program.Program
 import xlang.compiler.parser.program.QualifiedName
 import xlang.compiler.parser.program.SelectiveImports
 import xlang.compiler.parser.program.Struct
+import xlang.compiler.type.NormalType
+import xlang.compiler.type.Type
+import xlang.lexer.Token
 import xlang.util.ArrayList
 import xlang.util.HashMap
 import xlang.util.HashSet
 import xlang.util.MapEntry
 import xlang.util.string.String
+import xlang.util.string.StringBuilder
+
+
+private fun getLastPathPart(path: pointer<ArrayList>) -> pointer<char>
+{
+    if path == null || path.length <= 0:
+        return null
+
+    val slot: pointer<pointer<char>> = path.get(path.length - 1) as pointer<pointer<char>>
+
+    if slot == null:
+        return null
+
+    return slot.deref
+}
+
+
+private fun getPackageNameFromPath(path: pointer<ArrayList>) -> pointer<char>
+{
+    if path == null || path.length <= 1:
+        return null
+
+    val builder: pointer<StringBuilder> = new StringBuilder()
+
+    for (var i = 0; i < path.length - 1; i++):
+    {
+        val slot: pointer<pointer<char>> = path.get(i) as pointer<pointer<char>>
+
+        if slot == null || slot.deref == null:
+            continue
+
+        if builder.length > 0:
+            builder.append('.')
+
+        builder.append(slot.deref)
+    }
+
+    val packageNameSpace: blob[(builder.length + 1) * sizeof(char)]
+    val packageName: pointer<char> = packageNameSpace as pointer<char>
+
+    builder.toString(packageName)
+    return String.strdup(packageName)
+}
+
+
+private fun getImportPath(importDecl: pointer<ImportDeclaration>) -> pointer<ArrayList>
+{
+    if importDecl == null || importDecl.getKind() != ImportDeclaration.NAMESPACE_TYPE:
+        return null
+
+    val namespaceImport: pointer<NamespaceImport> = importDecl.getHost() as pointer<NamespaceImport>
+
+    if namespaceImport == null || !namespaceImport.isSingle():
+        return null
+
+    val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
+
+    if qualifiedName == null:
+        return null
+
+    return qualifiedName.toPackageDecl().getQualifiedName()
+}
+
+
+private fun pushImportNameLocation(locations: pointer<ArrayList>, importDecl: pointer<ImportDeclaration>)
+{
+    if locations == null || importDecl == null || importDecl.getKind() != ImportDeclaration.NAMESPACE_TYPE:
+        return
+
+    val namespaceImport: pointer<NamespaceImport> = importDecl.getHost() as pointer<NamespaceImport>
+
+    if namespaceImport == null:
+        return
+
+    val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
+
+    if qualifiedName == null:
+        return
+
+    val tokens: pointer<ArrayList> = qualifiedName.getAllTokens()
+
+    if tokens == null || tokens.length <= 0:
+        return
+
+    val token: pointer<Token> = tokens.get(tokens.length - 1) as pointer<Token>
+
+    if token == null || token.pos == null:
+        return
+
+    locations.push(new SourceLocation(
+        null,
+        token.pos.offset,
+        token.pos.line,
+        token.pos.column,
+        token.pos.length))
+}
+
+
+private fun findTypeImports(nProgram: pointer<NormalizedProgram>, typeName: pointer<char>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(ImportDeclaration))
+
+    if nProgram == null || typeName == null:
+        return result
+
+    val imports: pointer<ArrayList> = nProgram.getImports()
+
+    if imports == null:
+        return result
+
+    for (var i = 0; i < imports.length; i++):
+    {
+        val importDecl: pointer<ImportDeclaration> = imports.get(i) as pointer<ImportDeclaration>
+        val path: pointer<ArrayList> = getImportPath(importDecl)
+        val importedName: pointer<char> = getLastPathPart(path)
+
+        if importedName != null && String.streq(importedName, typeName):
+            result.push(importDecl)
+    }
+
+    return result
+}
+
+
+private fun getAllFiles(classifiedProgram: pointer<HashMap>, imports: pointer<Imports>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(QualifiedName))
+
+    if classifiedProgram != null:
+    {
+        val entries: pointer<ArrayList> = classifiedProgram.getEntries()
+
+        for (var i = 0; i < entries.length; i++):
+        {
+            val entry: pointer<MapEntry> = entries.get(i) as pointer<MapEntry>
+            val nPrograms: pointer<ArrayList> = entry.value as pointer<ArrayList>
+
+            if nPrograms == null:
+                continue
+
+            for (var j = 0; j < nPrograms.length; j++):
+            {
+                val nProgram: pointer<NormalizedProgram> = nPrograms.get(j) as pointer<NormalizedProgram>
+
+                if nProgram == null:
+                    continue
+
+                val fullPath: pointer<ArrayList> = nProgram.getFullpath()
+
+                if fullPath != null && fullPath.length > 0:
+                    result.push(new QualifiedName(fullPath))
+            }
+        }
+    }
+
+    if imports == null:
+        return result
+
+    val importEntries: pointer<ArrayList> = imports.getEntries()
+
+    for (var i = 0; i < importEntries.length; i++):
+    {
+        val entry: pointer<MapEntry> = importEntries.get(i) as pointer<MapEntry>
+        val importAPIs: pointer<ArrayList> = entry.value as pointer<ArrayList>
+
+        if importAPIs == null:
+            continue
+
+        for (var j = 0; j < importAPIs.length; j++):
+        {
+            val importAPI: pointer<ImportAPI> = importAPIs.get(j) as pointer<ImportAPI>
+
+            if importAPI == null:
+                continue
+
+            val packageName: pointer<ArrayList> = importAPI.getPackageName()
+            val bodyName: pointer<char> = importAPI.getBodyName()
+
+            if packageName == null || bodyName == null:
+                continue
+
+            val fullPath: pointer<ArrayList> = packageName.clone()
+            fullPath.push(bodyName.ref)
+            result.push(new QualifiedName(fullPath))
+        }
+    }
+
+    return result
+}
 
 
 private fun initPreprocessSettings(path: pointer<char>, preprocessSettings: pointer<ArrayList>) -> pointer<CompilerSettings>

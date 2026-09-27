@@ -35,8 +35,8 @@ import xlang.util.string.StringBuilder
 /**
  * Describes a resolved compiler type.
  *
- * A NormalType stores the simple type name, an optional package name, nested type
- * arguments and the runtime memory size used by values of this type.
+ * A NormalType stores the simple type name, optional package-name components,
+ * nested type arguments and the runtime memory size used by values of this type.
  *
  * NormalType arguments make compound types representable without inventing a new
  * struct for every shape. For example, pointer<char> can be represented by a
@@ -47,6 +47,123 @@ import xlang.util.string.StringBuilder
 struct NormalType
 {
     /**
+     * Builds a dotted package-name string from package-name components.
+     *
+     * @param packageName       package-name components
+     *
+     * @return                  newly duplicated dotted package name, or null
+     */
+    private static fun packageNameToString(packageName: pointer<ArrayList>) -> pointer<char>
+    {
+        if packageName == null || packageName.length <= 0:
+            return null
+
+        val builder: pointer<StringBuilder> = new StringBuilder()
+
+        for (var i = 0; i < packageName.length; i++):
+        {
+            val slot: pointer<pointer<char>> = packageName.get(i) as pointer<pointer<char>>
+
+            if slot == null || slot.deref == null:
+                continue
+
+            if builder.length > 0:
+                builder.append('.')
+
+            builder.append(slot.deref)
+        }
+
+        if builder.length <= 0:
+            return null
+
+        val packageNameSpace: blob[(builder.length + 1) * sizeof(char)]
+        val packageNameText: pointer<char> = packageNameSpace as pointer<char>
+
+        builder.toString(packageNameText)
+        return String.strdup(packageNameText)
+    }
+
+
+    /**
+     * Creates a resolved normal type using the specified package name,
+     * type name, and memory size.
+     *
+     * The package name is expected to be represented as a dot-separated
+     * string, such as {@code "xlang.lang.core"}. It is split into individual
+     * package components before the {@link NormalType} instance is created.
+     *
+     * A type created by this method is considered resolved because its
+     * package information is already known.
+     *
+     * @param packageName       the dot-separated package name of the type
+     * @param typeName          the name of the type
+     * @param memSize           the memory size associated with the type
+     *
+     * @return                  a newly created resolved {@link NormalType}
+     */
+    static fun resolved(packageName: pointer<char>, typeName: pointer<char>, memSize: int) -> pointer<NormalType> =
+        new NormalType(String.split(packageName, "."), typeName, memSize)
+
+
+    /**
+    * Creates a resolved normal type using an already parsed package name.
+    *
+    * Unlike {@link resolved(pointer<char>, pointer<char>, int)}, this overload
+    * accepts the package name as an {@link ArrayList} containing its individual
+    * package components. No additional package-name parsing is performed.
+    *
+    * A type created by this method is considered resolved because its
+    * package information is already available.
+    *
+    * @param packageName        the parsed package components of the type
+    * @param typeName           the name of the type
+    * @param memSize            the memory size associated with the type
+    *
+    * @return                   a newly created resolved {@link NormalType}
+    */
+    static fun resolved(packageName: pointer<ArrayList>, typeName: pointer<char>, memSize: int) -> pointer<NormalType> =
+        new NormalType(packageName, typeName, memSize)
+
+
+    /**
+    * Creates an unresolved normal type with the specified type name
+    * and memory size.
+    *
+    * The package name of the resulting type is left unset by assigning
+    * {@code null}. This indicates that the package information has not yet
+    * been resolved and may be determined during a later resolution phase.
+    *
+    * This method is useful when a type reference is encountered before
+    * sufficient context is available to determine its fully qualified name.
+    *
+    * @param typeName           the name of the unresolved type
+    * @param memSize            the memory size associated with the type
+    *
+    * @return                   a newly created unresolved {@link NormalType}
+    */
+    static fun unresolved(typeName: pointer<char>, memSize: int) -> pointer<NormalType>
+    {
+        val packageName: pointer<ArrayList> = null
+        return new NormalType(packageName, typeName, memSize)
+    }
+
+
+    /**
+    * Creates an unresolved normal type with the specified type name.
+    *
+    * The package information is left unresolved, and the memory size is
+    * initialized to {@code 0}. This is a convenience overload of
+    * {@link unresolved(pointer<char>, int)}.
+    *
+    * @param typeName           the name of the unresolved type
+    *
+    * @return                   a newly created unresolved {@link NormalType} with a memory size of {@code 0}
+    */
+    static fun unresolved(typeName: pointer<char>) -> pointer<NormalType> =
+        NormalType.unresolved(typeName, 0)
+
+
+    /**
      * Creates the built-in void type descriptor.
      *
      * The void type represents the absence of a value and cannot store any data.
@@ -56,7 +173,7 @@ struct NormalType
      * The void type is used for functions that do not return a value and for
      * operations where no value is produced.
      */
-    static fun voidType() -> pointer<NormalType> = new NormalType("xlang.primary", "void", 0)
+    static fun voidType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "void", 0)
 
 
     /**
@@ -67,7 +184,7 @@ struct NormalType
      * Boolean values are represented as a single byte value. A value of zero
      * represents false, while any non-zero value represents true.
      */
-    static fun boolType() -> pointer<NormalType> = new NormalType("xlang.primary", "bool", 1)
+    static fun boolType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "bool", 1)
 
 
     /**
@@ -77,7 +194,7 @@ struct NormalType
      *
      * The char type represents an 32-bit signed character value.
      */
-    static fun charType() -> pointer<NormalType> = new NormalType("xlang.primary", "char", 8)
+    static fun charType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "char", 8)
 
 
     /**
@@ -87,7 +204,7 @@ struct NormalType
      *
      * The byte type represents an 8-bit signed integer value.
      */
-    static fun byteType() -> pointer<NormalType> = new NormalType("xlang.primary", "byte", 1)
+    static fun byteType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "byte", 1)
 
 
     /**
@@ -97,7 +214,7 @@ struct NormalType
      *
      * The short type represents a 16-bit signed integer value.
      */
-    static fun shortType() -> pointer<NormalType> = new NormalType("xlang.primary", "short", 2)
+    static fun shortType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "short", 2)
 
 
     /**
@@ -107,7 +224,7 @@ struct NormalType
      *
      * The int type represents a 32-bit signed integer value.
      */
-    static fun intType() -> pointer<NormalType> = new NormalType("xlang.primary", "int", 4)
+    static fun intType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "int", 4)
 
 
     /**
@@ -117,7 +234,7 @@ struct NormalType
      *
      * The long type represents a 64-bit signed integer value.
      */
-    static fun longType() -> pointer<NormalType> = new NormalType("xlang.primary", "long", 8)
+    static fun longType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "long", 8)
 
 
     /**
@@ -127,7 +244,7 @@ struct NormalType
      *
      * The float type follows the IEEE 754 single-precision floating-point format.
      */
-    static fun floatType() -> pointer<NormalType> = new NormalType("xlang.primary", "float", 4)
+    static fun floatType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "float", 4)
 
 
     /**
@@ -137,7 +254,7 @@ struct NormalType
      *
      * The double type follows the IEEE 754 double-precision floating-point format.
      */
-    static fun doubleType() -> pointer<NormalType> = new NormalType("xlang.primary", "double", 8)
+    static fun doubleType() -> pointer<NormalType> = NormalType.resolved("xlang.primary", "double", 8)
 
 
     /**
@@ -149,7 +266,7 @@ struct NormalType
      * structures, functions, or other memory locations.
      */
     static fun pointerType() -> pointer<NormalType> =
-        new NormalType("xlang.primary", "pointer", 8).addTypeArgument(Type.fromNormal(voidType()))
+        NormalType.resolved("xlang.primary", "pointer", 8).addTypeArgument(Type.fromNormal(voidType()))
 
 
     /* Returns the primitive string type used by the compiler bootstrap stage.
@@ -161,7 +278,7 @@ struct NormalType
      * is initialized.
      */
     static fun earlyStringType() -> pointer<NormalType> =
-        new NormalType("xlang.primary", "pointer", 8).addTypeArgument(Type.fromNormal(charType()))
+        NormalType.resolved("xlang.primary", "pointer", 8).addTypeArgument(Type.fromNormal(charType()))
 
 
     /**
@@ -172,12 +289,12 @@ struct NormalType
     private val typeName: pointer<char>
 
     /**
-     * Points to the null-terminated package name.
+     * Stores package-name components.
      *
-     * This value may be null for built-in types, unresolved package names or
-     * types where only the simple name is needed.
+     * Each element stores one pointer<char> component. A null package list means
+     * the package is unresolved; an empty list is a resolved empty package.
      */
-    private val packageName: pointer<char>
+    private var packageName: pointer<ArrayList>
 
     /**
      * Stores nested type arguments.
@@ -210,24 +327,32 @@ struct NormalType
 
 
     /**
-     * Initializes a type with package information.
+     * Initializes a type with package-name components.
      *
-     * Both packageName and typeName are duplicated. The caller may still pass
-     * null for packageName when a package is intentionally absent.
+     * typeName is duplicated. packageName storage is cloned, while component
+     * string pointers are shared.
      *
-     * @param packageName       the null-terminated package name.
+     * @param packageName       package-name components, or null.
      * @param typeName          the null-terminated simple type name.
      * @param memSize           the runtime memory size in bytes.
      */
-    constructor(packageName: pointer<char>, typeName: pointer<char>, memSize: int)
+    private constructor(packageName: pointer<ArrayList>, typeName: pointer<char>, memSize: int)
     {
-        this.typeName = String.strdup(typeName)
-        this.packageName = String.strdup(packageName)
+        this.typeName = typeName
+        this.packageName = packageName
         this.typeArguments = new ArrayList(sizeof(Type))
         this.tokens = new ArrayList(sizeof(Token))
         this.memSize = memSize
         this.length = 0
     }
+
+
+    /**
+     * Checks whether the package of this type has not been resolved.
+     *
+     * @return true if the package name is not available; otherwise, false
+     */
+    fun isPackageUnresolved() -> bool = this.packageName == null
 
 
     /**
@@ -316,11 +441,23 @@ struct NormalType
 
 
     /**
-     * Returns a clone of the package name.
+     * Returns a clone of the package-name components.
+     *
+     * @return                  copied package-name component list
+     */
+    fun getPackageName() -> pointer<ArrayList> =
+        if this.packageName == null:
+            new ArrayList(sizeof(pointer<char>))
+        else:
+            this.packageName.clone()
+
+
+    /**
+     * Returns a dotted package-name string.
      *
      * @return                  copied null-terminated package name, or null when absent
      */
-    fun getPackageName() -> pointer<char> = String.strdup(this.packageName)
+    fun getPackageNameText() -> pointer<char> = NormalType.packageNameToString(this.packageName)
 
 
     /**
@@ -384,6 +521,32 @@ struct NormalType
             return null
 
         return typeArgument.clone()
+    }
+
+
+    /**
+     * Replaces this type's package-name components.
+     *
+     * <p>The package collection is expected to store {@code pointer<char>}
+     * slots, one for each package-name component. The list storage is cloned,
+     * but the contained string pointers are shared.
+     *
+     * <p>A null package list is replaced by an empty list. The type name and
+     * type arguments are left unchanged.
+     *
+     * @param packageParts      package-name components, such as
+     *                          {@code ["xlang", "util"]}
+     *
+     * @return                  this NormalType instance
+     */
+    fun setPackageName(packageParts: pointer<ArrayList>) -> pointer<NormalType>
+    {
+        this.packageName = if packageParts == null:
+                new ArrayList(sizeof(pointer<char>))
+            else:
+                packageParts.clone()
+
+        return this
     }
 
 
@@ -469,72 +632,56 @@ struct NormalType
      *                          this type, or {@code null} if the type is not
      *                          currently supported
      */
-    fun getMangling() -> pointer<StringBuilder> = if String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "bool"):
+    fun getMangling() -> pointer<StringBuilder>
+    {
+        val packageName: pointer<char> = this.getPackageNameText()
+
+        return if String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "bool"):
             new StringBuilder("b")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "byte"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "byte"):
             new StringBuilder("a")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "short"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "short"):
             new StringBuilder("s")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "char"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "char"):
             new StringBuilder("c")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "int"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "int"):
             new StringBuilder("i")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "long"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "long"):
             new StringBuilder("l")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "double"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "double"):
             new StringBuilder("d")
-        elif String.streq(this.packageName, "xlang.primary") && String.streq(this.typeName, "pointer"):
+        elif String.streq(packageName, "xlang.primary") && String.streq(this.typeName, "pointer"):
             this.pointerMangling()
         // TODO support class type mangling.
         else: null
+    }
 
 
     /**
-     * Returns whether another NormalType describes the same type shape.
+     * Checks whether another NormalType refers to the same resolved name.
      *
-     * Package name and simple type name are compared by string content. NormalType
-     * arguments are compared recursively in order.
+     * Both types must already be resolved. The simple type names must be equal,
+     * and the package-name component lists must contain the same components in
+     * the same order.
+     *
+     * Type arguments and memory size are not compared here.
      *
      * @param other             NormalType to compare with this NormalType
      *
-     * @return                  true when both NormalType values are equivalent
+     * @return                  true when both resolved names are equivalent
      */
     fun equals(other: pointer<NormalType>) -> bool
     {
         if other == null:
             return false
 
-        if !String.streq(this.packageName, other.packageName) || !String.streq(this.typeName, other.typeName):
+        if this.isPackageUnresolved() || other.isPackageUnresolved():
             return false
 
-        if this.memSize != other.memSize || this.length != other.length:
+        if !String.streq(this.typeName, other.typeName):
             return false
 
-        for (var i: int = 0; i < this.length; i++):
-        {
-            val left: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
-            val right: pointer<Type> = other.typeArguments.get(i) as pointer<Type>
-
-            if left == null || right == null:
-            {
-                if left != right:
-                    return false
-
-                continue
-            }
-
-            val leftText: pointer<StringBuilder> = left.toString()
-            val rightText: pointer<StringBuilder> = right.toString()
-
-            if leftText.length != rightText.length:
-                return false
-
-            for (var j: int = 0; j < leftText.length; j++):
-                if leftText.get(j) != rightText.get(j):
-                    return false
-        }
-
-        return true
+        return String.stringListCmp(this.packageName, other.packageName) == 0
     }
 
 
@@ -553,8 +700,14 @@ struct NormalType
     fun toString() -> pointer<StringBuilder>
     {
         val sb: pointer<StringBuilder> = new StringBuilder(this.typeName)
-        sb.append('.')
-        sb.append(this.packageName)
+        val packageName: pointer<char> = this.getPackageNameText()
+
+        if packageName != null:
+        {
+            sb.append('.')
+            sb.append(packageName)
+        }
+
         return sb
     }
 }

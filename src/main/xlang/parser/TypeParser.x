@@ -430,9 +430,9 @@ struct TypeParser
             return NormalType.doubleType()
 
         if token.kind == Tokenizer.KW_POINTER:
-            return new NormalType("xlang.primary", "pointer", 8)
+            return NormalType.resolved("xlang.primary", "pointer", 8)
 
-        return new NormalType(null, token.text, 0)
+        return NormalType.unresolved(token.text, 0)
     }
 
 

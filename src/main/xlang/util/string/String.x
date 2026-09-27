@@ -511,3 +511,92 @@ fun stringListHash(item: pointer<*>) -> int
 
     return hash
 }
+
+
+/**
+ * Splits the specified string using the given delimiter string.
+ *
+ * Each non-empty substring separated by {@code spliter} is duplicated or
+ * allocated as a null-terminated character array and stored in a newly
+ * created {@link ArrayList}. Empty substrings are ignored.
+ *
+ * If {@code string} is null or empty, an empty list is returned.
+ * If {@code spliter} is null or empty, the entire input string is copied
+ * and returned as the only element of the list.
+ *
+ * @param string                the null-terminated string to split
+ * @param spliter               the null-terminated delimiter string used to separate parts
+ *
+ * @return                      a newly allocated list containing the non-empty substrings
+ */
+fun split(string: pointer<char>, spliter: pointer<char>) -> pointer<ArrayList>
+{
+    val result: pointer<ArrayList> = new ArrayList(sizeof(pointer<char>))
+
+    if string == null:
+        return result
+
+    val stringLength: int = strlen(string)
+
+    if stringLength <= 0:
+        return result
+
+    val spliterLength: int = strlen(spliter)
+
+    if spliter == null || spliterLength <= 0:
+    {
+        val copied: pointer<char> = strdup(string)
+
+        if copied != null:
+            result.push(copied.ref)
+
+        return result
+    }
+
+    var start: int = 0
+    var index: int = 0
+
+    while index <= stringLength - spliterLength:
+    {
+        var matched: bool = true
+        var spliterIndex: int = 0
+
+        while spliterIndex < spliterLength:
+        {
+            if string[index + spliterIndex] != spliter[spliterIndex]:
+                matched = false
+
+            spliterIndex++
+        }
+
+        if matched:
+        {
+            val partLength: int = index - start
+
+            if partLength > 0:
+            {
+                val part: pointer<char> = System.allocMemory((partLength + 1) * sizeof(char)) as pointer<char>
+
+                strncpy(part, string + start, partLength)
+                result.push(part.ref)
+            }
+
+            index += spliterLength
+            start = index
+        }
+        else:
+            index++
+    }
+
+    val tailLength: int = stringLength - start
+
+    if tailLength > 0:
+    {
+        val tail: pointer<char> = System.allocMemory((tailLength + 1) * sizeof(char)) as pointer<char>
+
+        strncpy(tail, string + start, tailLength)
+        result.push(tail.ref)
+    }
+
+    return result
+}

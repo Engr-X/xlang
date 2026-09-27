@@ -335,6 +335,68 @@ struct FunctionType
 
 
     /**
+     * Determines whether this function type is equal to another function type.
+     *
+     * Two function types are considered equal when they have equivalent return
+     * types and identical parameter lists. Parameter types are compared in order,
+     * so corresponding parameters must represent equal types at the same
+     * positions.
+     *
+     * Null return or parameter types are considered equal only when both
+     * corresponding values are null. Non-null types are compared using their
+     * {@link Type#equals} implementation.
+     *
+     * @param other             function type to compare with this instance
+     *
+     * @return                  {@code true} if both function types represent
+     *                          the same function signature; {@code false}
+     *                          otherwise
+     */
+    fun equals(other: pointer<FunctionType>) -> bool
+    {
+        if other == null:
+            return false
+
+        val otherReturnType: pointer<Type> = other.getReturnType()
+
+        if this.returnType == null || otherReturnType == null:
+        {
+            if this.returnType != otherReturnType:
+                return false
+        }
+        else:
+        {
+            if !this.returnType.equals(otherReturnType):
+                return false
+        }
+
+        if this.parameterCount() != other.parameterCount():
+            return false
+
+        val otherParameterTypes: pointer<ArrayList> = other.getParameterTypes()
+
+        for (var i = 0; i < this.parameterCount(); i++):
+        {
+            val left: pointer<Type> = this.parameterTypes.get(i) as pointer<Type>
+            val right: pointer<Type> = otherParameterTypes.get(i) as pointer<Type>
+
+            if left == null || right == null:
+            {
+                if left != right:
+                    return false
+
+                continue
+            }
+
+            if !left.equals(right):
+                return false
+        }
+
+        return true
+    }
+
+
+    /**
      * Converts this function type into a readable string.
      *
      * <p>The output is intended for diagnostics, debugging and AST tests. It is

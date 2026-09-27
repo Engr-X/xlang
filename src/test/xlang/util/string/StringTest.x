@@ -29,6 +29,7 @@ package xlang.util.string
 import xlang.test.TestCase
 import xlang.test.TestGroup
 import xlang.test.TestUnion
+import xlang.util.ArrayList
 
 
 val TEST_GROUP: pointer<TestGroup> = genTest()
@@ -47,10 +48,11 @@ fun genTest() -> pointer<TestGroup>
     val strcatTC: pointer<TestCase> = new TestCase("strcat", strcatTest)
     val substringTC: pointer<TestCase> = new TestCase("substring", substringTest)
     val strMatchTC: pointer<TestCase> = new TestCase("strMatch", strMatchTest)
+    val splitTC: pointer<TestCase> = new TestCase("split", splitTest)
 
     val testCaseSpace: blob[sizeof(pointer<TestCase>) * 100]
     val testCase: pointer<pointer<TestCase>> = testCaseSpace as pointer<pointer<TestCase>>
-    val testCaseLength: int = 9
+    val testCaseLength: int = 10
 
     testCase[0] = strlenTC
     testCase[1] = streqTC
@@ -61,6 +63,7 @@ fun genTest() -> pointer<TestGroup>
     testCase[6] = strcatTC
     testCase[7] = substringTC
     testCase[8] = strMatchTC
+    testCase[9] = splitTC
 
     for (var i = 0; i < testCaseLength; i++):
     {
@@ -389,6 +392,80 @@ fun strMatchTest() -> int
         return 12
 
     if String.strRegMatch("a|ab", "ab") != 2:
+        return 13
+
+    return 0
+}
+
+
+private fun splitPartEquals(parts: pointer<ArrayList>, index: int, expected: pointer<char>) -> bool
+{
+    if parts == null || index < 0 || index >= parts.length:
+        return false
+
+    val slot: pointer<pointer<char>> = parts.get(index) as pointer<pointer<char>>
+
+    return slot != null && String.streq(slot.deref, expected)
+}
+
+
+fun splitTest() -> int
+{
+    val packageParts: pointer<ArrayList> = String.split("xlang.primary", ".")
+
+    if packageParts == null || packageParts.length != 2:
+        return 1
+
+    if !splitPartEquals(packageParts, 0, "xlang") || !splitPartEquals(packageParts, 1, "primary"):
+        return 2
+
+    val singlePart: pointer<ArrayList> = String.split("ArrayList", ".")
+
+    if singlePart == null || singlePart.length != 1:
+        return 3
+
+    if !splitPartEquals(singlePart, 0, "ArrayList"):
+        return 4
+
+    val multiCharParts: pointer<ArrayList> = String.split("a--b--c", "--")
+
+    if multiCharParts == null || multiCharParts.length != 3:
+        return 5
+
+    if !splitPartEquals(multiCharParts, 0, "a") ||
+        !splitPartEquals(multiCharParts, 1, "b") ||
+        !splitPartEquals(multiCharParts, 2, "c"):
+        return 6
+
+    val sparseParts: pointer<ArrayList> = String.split(".xlang..util.", ".")
+
+    if sparseParts == null || sparseParts.length != 2:
+        return 7
+
+    if !splitPartEquals(sparseParts, 0, "xlang") || !splitPartEquals(sparseParts, 1, "util"):
+        return 8
+
+    val allSpliters: pointer<ArrayList> = String.split("...", ".")
+
+    if allSpliters == null || allSpliters.length != 0:
+        return 9
+
+    val emptyInput: pointer<ArrayList> = String.split("", ".")
+
+    if emptyInput == null || emptyInput.length != 0:
+        return 10
+
+    val nullInput: pointer<ArrayList> = String.split(null, ".")
+
+    if nullInput == null || nullInput.length != 0:
+        return 11
+
+    val emptySpliter: pointer<ArrayList> = String.split("abc", "")
+
+    if emptySpliter == null || emptySpliter.length != 1:
+        return 12
+
+    if !splitPartEquals(emptySpliter, 0, "abc"):
         return 13
 
     return 0

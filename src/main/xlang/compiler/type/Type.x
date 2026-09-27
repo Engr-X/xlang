@@ -246,7 +246,7 @@ struct Type
     static fun normalTypeFunction(host: pointer<*>) -> pointer<char>
     {
         val type: pointer<NormalType> = host as pointer<NormalType>
-        val packageName: pointer<char> = type.getPackageName()
+        val packageName: pointer<char> = type.getPackageNameText()
         val typeName: pointer<char> = type.getTypeName()
 
         return if String.streq(packageName, "xlang.primary") && String.streq(typeName, "bool"):
@@ -321,6 +321,14 @@ struct Type
      *         type has no associated host
      */
     fun getHost() -> pointer<*> = this.host
+
+
+    fun setNormalType(normalType: pointer<NormalType>) -> pointer<Type>
+    {
+        this.kind = NORMAL_KIND
+        this.host = normalType
+        return this
+    }
 
 
     /**
@@ -475,7 +483,6 @@ struct Type
     fun getAllTokens() -> pointer<ArrayList> =
         if this.host == null:
             new ArrayList(sizeof(Token))
-
         elif this.kind == NORMAL_KIND:
         {
             val type: pointer<NormalType> = this.host as pointer<NormalType>
@@ -491,7 +498,81 @@ struct Type
             val type: pointer<BlobType> = this.host as pointer<BlobType>
             type.getAllTokens()
         }
-        else:  new ArrayList(sizeof(Token))
+        else: new ArrayList(sizeof(Token))
+
+
+    /**
+     * Determines whether this type is equal to another type.
+     *
+     * Equality is determined primarily by the type kind. Types with different
+     * kinds are always considered different. If both types have the same kind,
+     * their underlying type representations are compared according to the
+     * semantics of that kind.
+     *
+     * For {@link #NORMAL_KIND}, the underlying {@link NormalType} instances are
+     * compared using {@link NormalType#equals}. For {@link #FUNCTION_KIND}, the
+     * underlying {@link FunctionType} instances are compared using
+     * {@link FunctionType#equals}. For {@link #BLOB_KIND}, the underlying
+     * {@link BlobType} instances are compared using {@link BlobType#equals}.
+     *
+     * If either underlying host is null, the types are considered equal only when
+     * both hosts refer to the same null value. For kinds without a specialized
+     * comparison rule, equality falls back to direct host-pointer equality.
+     *
+     * This method compares the semantic type representation and does not consider
+     * source-level information such as tokens, source positions, or formatting.
+     *
+     * @param other             type to compare with this instance
+     *
+     * @return                  {@code true} if both instances represent the
+     *                          same type; {@code false} otherwise
+    */
+    fun equals(other: pointer<Type>) -> bool
+    {
+        if other == null:
+            return false
+
+        if this.kind != other.getKind():
+            return false
+
+        if this.host == null || other.getHost() == null:
+            return this.host == other.getHost()
+
+        if this.kind == NORMAL_KIND:
+        {
+            val left: pointer<NormalType> = this.host as pointer<NormalType>
+            val right: pointer<NormalType> = other.getHost() as pointer<NormalType>
+
+            if left == null || right == null:
+                return left == right
+
+            return left.equals(right)
+        }
+
+        if this.kind == FUNCTION_KIND:
+        {
+            val left: pointer<FunctionType> = this.host as pointer<FunctionType>
+            val right: pointer<FunctionType> = other.getHost() as pointer<FunctionType>
+
+            if left == null || right == null:
+                return left == right
+
+            return left.equals(right)
+        }
+
+        if this.kind == BLOB_KIND:
+        {
+            val left: pointer<BlobType> = this.host as pointer<BlobType>
+            val right: pointer<BlobType> = other.getHost() as pointer<BlobType>
+
+            if left == null || right == null:
+                return left == right
+
+            return left.equals(right)
+        }
+
+        return this.host == other.getHost()
+    }
 
 
     /**
