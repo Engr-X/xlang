@@ -52,194 +52,6 @@ import xlang.util.string.String
 import xlang.util.string.StringBuilder
 
 
-private fun getLastPathPart(path: pointer<ArrayList>) -> pointer<char>
-{
-    if path == null || path.length <= 0:
-        return null
-
-    val slot: pointer<pointer<char>> = path.get(path.length - 1) as pointer<pointer<char>>
-
-    if slot == null:
-        return null
-
-    return slot.deref
-}
-
-
-private fun getPackageNameFromPath(path: pointer<ArrayList>) -> pointer<char>
-{
-    if path == null || path.length <= 1:
-        return null
-
-    val builder: pointer<StringBuilder> = new StringBuilder()
-
-    for (var i = 0; i < path.length - 1; i++):
-    {
-        val slot: pointer<pointer<char>> = path.get(i) as pointer<pointer<char>>
-
-        if slot == null || slot.deref == null:
-            continue
-
-        if builder.length > 0:
-            builder.append('.')
-
-        builder.append(slot.deref)
-    }
-
-    val packageNameSpace: blob[(builder.length + 1) * sizeof(char)]
-    val packageName: pointer<char> = packageNameSpace as pointer<char>
-
-    builder.toString(packageName)
-    return String.strdup(packageName)
-}
-
-
-private fun getImportPath(importDecl: pointer<ImportDeclaration>) -> pointer<ArrayList>
-{
-    if importDecl == null || importDecl.getKind() != ImportDeclaration.NAMESPACE_TYPE:
-        return null
-
-    val namespaceImport: pointer<NamespaceImport> = importDecl.getHost() as pointer<NamespaceImport>
-
-    if namespaceImport == null || !namespaceImport.isSingle():
-        return null
-
-    val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
-
-    if qualifiedName == null:
-        return null
-
-    return qualifiedName.toPackageDecl().getQualifiedName()
-}
-
-
-private fun pushImportNameLocation(locations: pointer<ArrayList>, importDecl: pointer<ImportDeclaration>)
-{
-    if locations == null || importDecl == null || importDecl.getKind() != ImportDeclaration.NAMESPACE_TYPE:
-        return
-
-    val namespaceImport: pointer<NamespaceImport> = importDecl.getHost() as pointer<NamespaceImport>
-
-    if namespaceImport == null:
-        return
-
-    val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
-
-    if qualifiedName == null:
-        return
-
-    val tokens: pointer<ArrayList> = qualifiedName.getAllTokens()
-
-    if tokens == null || tokens.length <= 0:
-        return
-
-    val token: pointer<Token> = tokens.get(tokens.length - 1) as pointer<Token>
-
-    if token == null || token.pos == null:
-        return
-
-    locations.push(new SourceLocation(
-        null,
-        token.pos.offset,
-        token.pos.line,
-        token.pos.column,
-        token.pos.length))
-}
-
-
-private fun findTypeImports(nProgram: pointer<NormalizedProgram>, typeName: pointer<char>) -> pointer<ArrayList>
-{
-    val result: pointer<ArrayList> = new ArrayList(sizeof(ImportDeclaration))
-
-    if nProgram == null || typeName == null:
-        return result
-
-    val imports: pointer<ArrayList> = nProgram.getImports()
-
-    if imports == null:
-        return result
-
-    for (var i = 0; i < imports.length; i++):
-    {
-        val importDecl: pointer<ImportDeclaration> = imports.get(i) as pointer<ImportDeclaration>
-        val path: pointer<ArrayList> = getImportPath(importDecl)
-        val importedName: pointer<char> = getLastPathPart(path)
-
-        if importedName != null && String.streq(importedName, typeName):
-            result.push(importDecl)
-    }
-
-    return result
-}
-
-
-private fun getAllFiles(classifiedProgram: pointer<HashMap>, imports: pointer<Imports>) -> pointer<ArrayList>
-{
-    val result: pointer<ArrayList> = new ArrayList(sizeof(QualifiedName))
-
-    if classifiedProgram != null:
-    {
-        val entries: pointer<ArrayList> = classifiedProgram.getEntries()
-
-        for (var i = 0; i < entries.length; i++):
-        {
-            val entry: pointer<MapEntry> = entries.get(i) as pointer<MapEntry>
-            val nPrograms: pointer<ArrayList> = entry.value as pointer<ArrayList>
-
-            if nPrograms == null:
-                continue
-
-            for (var j = 0; j < nPrograms.length; j++):
-            {
-                val nProgram: pointer<NormalizedProgram> = nPrograms.get(j) as pointer<NormalizedProgram>
-
-                if nProgram == null:
-                    continue
-
-                val fullPath: pointer<ArrayList> = nProgram.getFullpath()
-
-                if fullPath != null && fullPath.length > 0:
-                    result.push(new QualifiedName(fullPath))
-            }
-        }
-    }
-
-    if imports == null:
-        return result
-
-    val importEntries: pointer<ArrayList> = imports.getEntries()
-
-    for (var i = 0; i < importEntries.length; i++):
-    {
-        val entry: pointer<MapEntry> = importEntries.get(i) as pointer<MapEntry>
-        val importAPIs: pointer<ArrayList> = entry.value as pointer<ArrayList>
-
-        if importAPIs == null:
-            continue
-
-        for (var j = 0; j < importAPIs.length; j++):
-        {
-            val importAPI: pointer<ImportAPI> = importAPIs.get(j) as pointer<ImportAPI>
-
-            if importAPI == null:
-                continue
-
-            val packageName: pointer<ArrayList> = importAPI.getPackageName()
-            val bodyName: pointer<char> = importAPI.getBodyName()
-
-            if packageName == null || bodyName == null:
-                continue
-
-            val fullPath: pointer<ArrayList> = packageName.clone()
-            fullPath.push(bodyName.ref)
-            result.push(new QualifiedName(fullPath))
-        }
-    }
-
-    return result
-}
-
-
 private fun initPreprocessSettings(path: pointer<char>, preprocessSettings: pointer<ArrayList>) -> pointer<CompilerSettings>
 {
     val settings: pointer<CompilerSettings> = new CompilerSettings(path)
@@ -359,32 +171,20 @@ private fun splitProgram(program: pointer<Program>) -> pointer<ArrayList>
 }
 
 
-// hashmap of ArrayList<String>, ArrayList<NormalizedProgram>
-private fun classifyProgram(program: pointer<NormalizedProgram>, dest: pointer<HashMap>)
-{
-    if program == null || dest == null:
-        return
+// private fun flattenNestedStructsIt(nProgram: pointer<NormalizedProgram>, dest: pointer<ArrayList>)
+// {
+//     if nProgram == null || dest == null:
+//         return
 
-    val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
-    val packageName: pointer<ArrayList> = if packageDeclaration == null:
-            new ArrayList(sizeof(pointer<char>))
-        else:
-            packageDeclaration.getQualifiedName()
+//     if nProgram.getBodyType() != NormalizedProgram.STRUCT_TYPE:
+//         return
 
-    if dest.containsKey(packageName):
-    {
-        val programs: pointer<ArrayList> = dest.get(packageName) as pointer<ArrayList>
+//     val config: pointer<CompilerSettings> = initPreprocessSettings(null, nProgram.getPreprocessSettings())
+//     val packageName: pointer<ArrayList> = nProgram.getPackageName()
+//     val imports: pointer<ArrayList> = nProgram.getImports()
 
-        if programs != null:
-            programs.push(program)
 
-        return
-    }
-
-    val programs: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
-    programs.push(program)
-    dest.put(packageName, programs)
-}
+// }
 
 
 private fun classifyPrograsm(programs: pointer<ArrayList>) -> pointer<HashMap>
@@ -397,7 +197,29 @@ private fun classifyPrograsm(programs: pointer<ArrayList>) -> pointer<HashMap>
     for (var i = 0; i < programs.length; i++):
     {
         val program: pointer<NormalizedProgram> = programs.get(i) as pointer<NormalizedProgram>
-        classifyProgram(program, result)
+
+        if program == null:
+            continue
+
+        val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
+        val packageName: pointer<ArrayList> = if packageDeclaration == null:
+                new ArrayList(sizeof(pointer<char>))
+            else:
+                packageDeclaration.getQualifiedName()
+
+        if result.containsKey(packageName):
+        {
+            val classifiedPrograms: pointer<ArrayList> = result.get(packageName) as pointer<ArrayList>
+
+            if classifiedPrograms != null:
+                classifiedPrograms.push(program)
+        }
+        else:
+        {
+            val classifiedPrograms: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
+            classifiedPrograms.push(program)
+            result.put(packageName, classifiedPrograms)
+        }
     }
 
     return result
@@ -633,4 +455,48 @@ private fun getFuncDef(nProgram: pointer<NormalizedProgram>, name: pointer<char>
 private fun expandSelectiveImport(classifiedProgram: pointer<HashMap>, imports: pointer<Imports>)
 {
 
+}
+
+
+fun normalizeProgram(
+    allProgram: pointer<ArrayList>,
+    imports: pointer<Imports>,
+    extraImport: pointer<ArrayList>
+) -> pointer<HashMap>
+{
+    val allNormalizedProgram: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
+
+    if allProgram != null:
+    {
+        for (var i = 0; i < allProgram.length; i++):
+        {
+            val program: pointer<Program> = allProgram.get(i) as pointer<Program>
+
+            if program == null:
+                continue
+
+            allNormalizedProgram.pushAll(splitProgram(program))
+        }
+    }
+
+    val classifiedProgram: pointer<HashMap> = classifyPrograsm(allNormalizedProgram)
+    val diagnostics: pointer<ArrayList> = expandNamespaceImport(
+        classifiedProgram,
+        imports,
+        extraImport)
+
+    if diagnostics != null && diagnostics.length > 0:
+    {
+        for (var i = 0; i < diagnostics.length; i++):
+        {
+            val diagnostic: pointer<Diagnostic> = diagnostics.get(i) as pointer<Diagnostic>
+
+            if diagnostic != null:
+                diagnostic.print()
+        }
+
+        return null
+    }
+
+    return classifiedProgram
 }

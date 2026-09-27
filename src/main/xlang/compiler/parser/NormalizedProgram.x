@@ -480,6 +480,7 @@ struct NormalizedProgram
         else:
             new PackageDeclaration(this.packageName.clone())
 
+
     /**
      * Returns the import-declaration collection associated with this normalized
      * program.
@@ -498,5 +499,4 @@ struct NormalizedProgram
      *                          import-declaration collection
      */
     fun getImports() -> pointer<ArrayList> = this.imports
-
 }

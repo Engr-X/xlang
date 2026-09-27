@@ -25,6 +25,11 @@
 
 package xlang.compiler.type
 
+import xlang.Diagnostic
+import xlang.SourceLocation
+import xlang.compiler.parser.program.ImportDeclaration
+import xlang.compiler.parser.program.NamespaceImport
+import xlang.compiler.parser.program.QualifiedName
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
@@ -547,6 +552,109 @@ struct NormalType
                 packageParts.clone()
 
         return this
+    }
+
+
+    /**
+     * Determines whether this type is equal to another type.
+     *
+     * Equality is determined primarily by the type kind. Types with different
+     * kinds are always considered different. If both types have the same kind,
+     * their underlying type representations are compared according to the
+     * semantics of that kind.
+     *
+     * For {@link #NORMAL_KIND}, the underlying {@link NormalType} instances are
+     * compared using {@link NormalType#equals}. For {@link #FUNCTION_KIND}, the
+     * underlying {@link FunctionType} instances are compared using
+     * {@link FunctionType#equals}. For {@link #BLOB_KIND}, the underlying
+     * {@link BlobType} instances are compared using {@link BlobType#equals}.
+     *
+     * If either underlying host is null, the types are considered equal only when
+     * both hosts refer to the same null value. For kinds without a specialized
+     * comparison rule, equality falls back to direct host-pointer equality.
+     *
+     * This method compares the semantic type representation and does not consider
+     * source-level information such as tokens, source positions, or formatting.
+     *
+     * @param other             type to compare with this instance
+     *
+     * @return                  {@code true} if both instances represent the
+     *                          same type; {@code false} otherwise
+     */
+    fun resolve(imports: pointer<ArrayList>) -> pointer<Diagnostic>
+    {
+        if imports == null || this.typeName == null || !this.isPackageUnresolved():
+            return null
+
+        var matchedCount: int = 0
+        var matchedPackageName: pointer<ArrayList> = null
+        val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
+
+        for (var i = 0; i < imports.length; i++):
+        {
+            val importDecl: pointer<ImportDeclaration> = imports.get(i) as pointer<ImportDeclaration>
+
+            if importDecl == null || importDecl.getKind() != ImportDeclaration.NAMESPACE_TYPE:
+                continue
+
+            val namespaceImport: pointer<NamespaceImport> = importDecl.getHost() as pointer<NamespaceImport>
+
+            if namespaceImport == null || !namespaceImport.isSingle():
+                continue
+
+            val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
+
+            if qualifiedName == null:
+                continue
+
+            val path: pointer<ArrayList> = qualifiedName.toPackageDecl().getQualifiedName()
+
+            if path == null || path.length <= 0:
+                continue
+
+            val nameSlot: pointer<pointer<char>> = path.get(path.length - 1) as pointer<pointer<char>>
+            val name: pointer<char> = if nameSlot == null:
+                    null
+                else:
+                    nameSlot.deref
+
+            if name == null || !String.streq(name, this.typeName):
+                continue
+
+            matchedCount++
+
+            val tokens: pointer<ArrayList> = qualifiedName.getAllTokens()
+
+            if tokens != null && tokens.length > 0:
+            {
+                val token: pointer<Token> = tokens.get(tokens.length - 1) as pointer<Token>
+
+                if token != null && token.pos != null:
+                    locations.push(new SourceLocation(
+                        null,
+                        token.pos.offset,
+                        token.pos.line,
+                        token.pos.column,
+                        token.pos.length))
+            }
+
+            if matchedCount == 1:
+                matchedPackageName = if path.length <= 1:
+                        new ArrayList(sizeof(pointer<char>))
+                    else:
+                        path.sublist(0, path.length - 1)
+        }
+
+        if matchedCount > 1:
+            return Diagnostic.makeError(
+                Diagnostic.CANNOT_PARSE,
+                locations,
+                "ambiguous import")
+
+        if matchedCount == 1:
+            this.setPackageName(matchedPackageName)
+
+        return null
     }
 
 
