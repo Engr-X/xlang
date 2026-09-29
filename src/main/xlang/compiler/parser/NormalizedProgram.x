@@ -215,6 +215,7 @@ struct NormalizedProgram
             packageDeclaration,
             imports,
             STRUCT_TYPE,
+            body,
             functionRegistry.getMembers(),
             variableRegistry.getMembers(),
             constructorRegistry.getMembers())
@@ -248,6 +249,15 @@ struct NormalizedProgram
      * the body has no normalized name yet.</p>
      */
     private var bodyName: pointer<char>
+
+    /**
+     * Raw declaration body referenced by this normalized program.
+     *
+     * <p>The pointer is stored as an untyped host because different body kinds
+     * use different concrete AST node types. For {@code STRUCT_TYPE}, the host
+     * is expected to be a {@code pointer<Struct>}.</p>
+     */
+    private var host: pointer<*>
 
     /**
      * Registry containing function members declared by the body.
@@ -324,6 +334,7 @@ struct NormalizedProgram
      * @param imports           a pointer to the import-declaration collection,
      *                          or {@code null} to create an empty collection
      * @param bodyType          the type of declaration body
+     * @param host              a pointer to the raw declaration body
      * @param functionMembers   a pointer to the normalized function-member list
      * @param variableMembers   a pointer to the normalized variable-member list
      * @param constructorMembers
@@ -334,6 +345,7 @@ struct NormalizedProgram
         packageDeclaration: pointer<PackageDeclaration>,
         imports: pointer<ArrayList>,
         bodyType: int,
+        host: pointer<*>,
         functionMembers: pointer<ArrayList>,
         variableMembers: pointer<ArrayList>,
         constructorMembers: pointer<ArrayList>
@@ -356,6 +368,7 @@ struct NormalizedProgram
 
         this.bodyType = bodyType
         this.bodyName = null
+        this.host = host
         this.functionRegistry = new MemberRegistry(functionMembers)
         this.variableRegistry = new MemberRegistry(variableMembers)
         this.constructorRegistry = new MemberRegistry(constructorMembers)
@@ -423,6 +436,18 @@ struct NormalizedProgram
      * Returns the normalized body type.
      */
     fun getBodyType() -> int = this.bodyType
+
+
+    /**
+     * Returns the raw declaration body referenced by this normalized program.
+     *
+     * <p>The returned pointer is intentionally untyped. Callers should inspect
+     * {@code getBodyType()} before casting it to a concrete AST node type.</p>
+     *
+     * @return                  the raw declaration body pointer, or {@code null}
+     *                          if no body is associated with this program
+     */
+    fun getHost() -> pointer<*> = this.host
 
 
     /**

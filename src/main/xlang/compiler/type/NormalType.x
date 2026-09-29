@@ -621,7 +621,8 @@ struct NormalType
             if name == null || !String.streq(name, this.typeName):
                 continue
 
-            matchedCount++
+            if matchedPackageName == null || String.stringListCmp(matchedPackageName, path) != 0:
+                matchedCount++
 
             val tokens: pointer<ArrayList> = qualifiedName.getAllTokens()
 
@@ -639,10 +640,7 @@ struct NormalType
             }
 
             if matchedCount == 1:
-                matchedPackageName = if path.length <= 1:
-                        new ArrayList(sizeof(pointer<char>))
-                    else:
-                        path.sublist(0, path.length - 1)
+                matchedPackageName = path
         }
 
         if matchedCount > 1:
@@ -652,7 +650,10 @@ struct NormalType
                 "ambiguous import")
 
         if matchedCount == 1:
-            this.setPackageName(matchedPackageName)
+            this.setPackageName(if matchedPackageName.length <= 1:
+                    new ArrayList(sizeof(pointer<char>))
+                else:
+                    matchedPackageName.sublist(0, matchedPackageName.length - 1))
 
         return null
     }
