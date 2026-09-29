@@ -405,39 +405,6 @@ struct NormalType
 
 
     /**
-     * Creates an independent clone of this NormalType.
-     *
-     * The copied NormalType duplicates pointer fields instead of sharing this NormalType's
-     * internal strings or type argument list.
-     *
-     * @return                  copied NormalType
-     */
-    fun clone() -> pointer<NormalType>
-    {
-        val result: pointer<NormalType> = new NormalType(this.packageName, this.typeName, this.memSize)
-
-        for (var i: int = 0; i < this.tokens.length; i++):
-        {
-            val token: pointer<Token> = this.tokens.get(i) as pointer<Token>
-            result.addToken(token)
-        }
-
-        for (var i: int = 0; i < this.length; i++):
-        {
-            val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
-
-            if typeArgument != null:
-            {
-                val copiedArgument: pointer<Type> = typeArgument.clone()
-                result.addTypeArgument(copiedArgument)
-            }
-        }
-
-        return result
-    }
-
-
-    /**
      * Returns a clone of the simple type name.
      *
      * @return                  copied null-terminated simple type name
@@ -556,6 +523,62 @@ struct NormalType
 
 
     /**
+     * Determines whether this type can be resolved by the specified namespace import.
+     *
+     * The import must represent a non-wildcard namespace import with a valid qualified
+     * name. The last component of the imported path is treated as the imported type
+     * name. If the component represents a nested type, only its final simple name is
+      * compared with the current unresolved type name.
+     *
+     * When the imported type matches this type, this method resolves the type in place.
+     * The package name is set to all path components preceding the imported type, while
+     * {@code typeName} is replaced with the complete imported type name, including any
+     * enclosing-type qualification contained in the final path component.
+     *
+     * Wildcard imports, malformed imports, empty qualified names, and imports whose
+     * simple type name does not match this type are rejected without modifying the type.
+     *
+     * @param import            namespace import to test against this type
+     *
+     * @return {@code true}     if the import resolves this type; {@code false} otherwise
+     */
+    fun canResolve(namespaceImport: pointer<NamespaceImport>) -> bool
+    {
+        if namespaceImport == null || namespaceImport.isAll() || this.typeName == null || !this.isPackageUnresolved():
+            return false
+
+        val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
+
+        if qualifiedName == null:
+            return false
+
+        val path: pointer<ArrayList> = qualifiedName.toPackageDecl().getQualifiedName()
+
+        if path == null || path.length <= 0:
+            return false
+
+        val classNameSlot: pointer<pointer<char>> = path.get(path.length - 1) as pointer<pointer<char>>
+
+        if classNameSlot == null || classNameSlot.deref == null:
+            return false
+
+        val classNames: pointer<ArrayList> = String.split(classNameSlot.deref, Type.CLASS_SEPERAtOR)
+
+        if classNames == null || classNames.length <= 0:
+            return false
+
+        val simpleNameSlot: pointer<pointer<char>> = classNames.get(classNames.length - 1) as pointer<pointer<char>>
+
+        if simpleNameSlot == null || !String.streq(simpleNameSlot.deref, this.typeName):
+            return false
+
+        this.packageName = path.sublist(0, path.length - 1)
+        this.typeName = classNameSlot.deref
+        return true
+    }
+
+
+    /**
      * Determines whether this type is equal to another type.
      *
      * Equality is determined primarily by the type kind. Types with different
@@ -586,8 +609,9 @@ struct NormalType
         if imports == null || this.typeName == null || !this.isPackageUnresolved():
             return null
 
+        val unresolvedName: pointer<char> = this.typeName
         var matchedCount: int = 0
-        var matchedPackageName: pointer<ArrayList> = null
+        val matchedPaths: pointer<ArrayList> = new ArrayList(sizeof(pointer<ArrayList>))
         val locations: pointer<ArrayList> = new ArrayList(sizeof(SourceLocation))
 
         for (var i = 0; i < imports.length; i++):
@@ -602,6 +626,11 @@ struct NormalType
             if namespaceImport == null || !namespaceImport.isSingle():
                 continue
 
+            val candidate: pointer<NormalType> = NormalType.unresolved(unresolvedName)
+
+            if !candidate.canResolve(namespaceImport):
+                continue
+
             val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
 
             if qualifiedName == null:
@@ -612,17 +641,27 @@ struct NormalType
             if path == null || path.length <= 0:
                 continue
 
-            val nameSlot: pointer<pointer<char>> = path.get(path.length - 1) as pointer<pointer<char>>
-            val name: pointer<char> = if nameSlot == null:
-                    null
-                else:
-                    nameSlot.deref
+            var alreadyMatched: bool = false
 
-            if name == null || !String.streq(name, this.typeName):
+            for (var j = 0; j < matchedPaths.length; j++):
+            {
+                val matchedPathSlot: pointer<pointer<ArrayList>> = matchedPaths.get(j) as pointer<pointer<ArrayList>>
+
+                if matchedPathSlot != null && String.stringListCmp(matchedPathSlot.deref, path) == 0:
+                    alreadyMatched = true
+            }
+
+            if alreadyMatched:
                 continue
 
-            if matchedPackageName == null || String.stringListCmp(matchedPackageName, path) != 0:
-                matchedCount++
+            if matchedCount == 0:
+            {
+                this.packageName = candidate.packageName
+                this.typeName = candidate.typeName
+            }
+
+            matchedPaths.push(path.ref)
+            matchedCount++
 
             val tokens: pointer<ArrayList> = qualifiedName.getAllTokens()
 
@@ -638,9 +677,6 @@ struct NormalType
                         token.pos.column,
                         token.pos.length))
             }
-
-            if matchedCount == 1:
-                matchedPackageName = path
         }
 
         if matchedCount > 1:
@@ -648,12 +684,6 @@ struct NormalType
                 Diagnostic.CANNOT_PARSE,
                 locations,
                 "ambiguous import")
-
-        if matchedCount == 1:
-            this.setPackageName(if matchedPackageName.length <= 1:
-                    new ArrayList(sizeof(pointer<char>))
-                else:
-                    matchedPackageName.sublist(0, matchedPackageName.length - 1))
 
         return null
     }
@@ -818,5 +848,38 @@ struct NormalType
         }
 
         return sb
+    }
+
+
+    /**
+     * Creates an independent clone of this NormalType.
+     *
+     * The copied NormalType duplicates pointer fields instead of sharing this NormalType's
+     * internal strings or type argument list.
+     *
+     * @return                  copied NormalType
+     */
+    fun clone() -> pointer<NormalType>
+    {
+        val result: pointer<NormalType> = new NormalType(this.packageName, this.typeName, this.memSize)
+
+        for (var i: int = 0; i < this.tokens.length; i++):
+        {
+            val token: pointer<Token> = this.tokens.get(i) as pointer<Token>
+            result.addToken(token)
+        }
+
+        for (var i: int = 0; i < this.length; i++):
+        {
+            val typeArgument: pointer<Type> = this.typeArguments.get(i) as pointer<Type>
+
+            if typeArgument != null:
+            {
+                val copiedArgument: pointer<Type> = typeArgument.clone()
+                result.addTypeArgument(copiedArgument)
+            }
+        }
+
+        return result
     }
 }

@@ -46,20 +46,21 @@ import xlang.util.string.StringBuilder
  */
 struct Type
 {
-    /**
-     * Identifies a Type wrapper whose host is a NormalType.
-     */
+    // Identifies a Type wrapper whose host is a NormalType.
     static val NORMAL_KIND: int = 1
 
-    /**
-     * Identifies a Type wrapper whose host is a FunctionType.
-     */
+    // Identifies a Type wrapper whose host is a FunctionType.
     static val FUNCTION_KIND: int = 2
 
-    /**
-     * Identifies a Type wrapper whose host is a BlobType.
-     */
+    // Identifies a Type wrapper whose host is a BlobType.
     static val BLOB_KIND: int = 3
+
+    /**
+     * Separates enclosing and nested type names in a flattened class name.
+     *
+     * For example, a structure named B nested inside A is emitted as A$B.
+     */
+    static val CLASS_SEPERAtOR: pointer<char> = "$"
 
 
     /**
@@ -321,14 +322,6 @@ struct Type
      *         type has no associated host
      */
     fun getHost() -> pointer<*> = this.host
-
-
-    fun setNormalType(normalType: pointer<NormalType>) -> pointer<Type>
-    {
-        this.kind = NORMAL_KIND
-        this.host = normalType
-        return this
-    }
 
 
     /**

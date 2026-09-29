@@ -187,7 +187,7 @@ private fun flattenNestedIt(nProgram: pointer<NormalizedProgram>, dest: pointer<
         return
 
     val proccessedSettings: pointer<ArrayList> = nProgram.getPreprocessSettings()
-    val packageName: pointer<ArrayList> = nProgram.getPackageName()
+    val packagePath: pointer<ArrayList> = nProgram.getPackageName()
     val imports: pointer<ArrayList> = nProgram.getImports()
     val bodyType: int = nProgram.getBodyType()
 
@@ -221,7 +221,7 @@ private fun flattenNestedIt(nProgram: pointer<NormalizedProgram>, dest: pointer<
                 if innerStruct != null:
                 {
                     val structName: pointer<StringBuilder> = new StringBuilder(structBody.getStructName())
-                    structName.append('$')
+                    structName.append(Type.CLASS_SEPERAtOR)
                     structName.append(innerStruct.getStructName())
                     val newStructName: pointer<char> = System.allocMemory((structName.length + 1) * sizeof(char)) as pointer<char>
                     structName.toString(newStructName)
@@ -231,7 +231,7 @@ private fun flattenNestedIt(nProgram: pointer<NormalizedProgram>, dest: pointer<
 
                     if parentName != null:
                     {
-                        val parentPath: pointer<ArrayList> = packageName.clone()
+                        val parentPath: pointer<ArrayList> = packagePath.clone()
                         parentPath.push(parentName.ref)
 
                         val fromParentStruct: pointer<ImportDeclaration> = ImportDeclaration.fromSelective(
@@ -241,7 +241,7 @@ private fun flattenNestedIt(nProgram: pointer<NormalizedProgram>, dest: pointer<
 
                     val innerProgram: pointer<NormalizedProgram> = NormalizedProgram.fromStruct(
                         proccessedSettings,
-                        new PackageDeclaration(packageName.clone()),
+                        new PackageDeclaration(packagePath.clone()),
                         innerImports,
                         new Struct(newStructName, innerStruct.getMembers()))
                     val innerPrograms: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
@@ -283,7 +283,7 @@ private fun flattenNestedIt(nProgram: pointer<NormalizedProgram>, dest: pointer<
         val body: pointer<Struct> = new Struct(structBody.getStructName(), bodyMembers)
         val flattenedProgram: pointer<NormalizedProgram> = NormalizedProgram.fromStruct(
             proccessedSettings,
-            new PackageDeclaration(packageName),
+            new PackageDeclaration(packagePath),
             imports.clone(),
             body)
 
@@ -325,14 +325,14 @@ private fun classifyPrograsm(programs: pointer<ArrayList>) -> pointer<HashMap>
             continue
 
         val packageDeclaration: pointer<PackageDeclaration> = program.getPackageDeclaration()
-        val packageName: pointer<ArrayList> = if packageDeclaration == null:
+        val packagePath: pointer<ArrayList> = if packageDeclaration == null:
                 new ArrayList(sizeof(pointer<char>))
             else:
                 packageDeclaration.getQualifiedName()
 
-        if result.containsKey(packageName):
+        if result.containsKey(packagePath):
         {
-            val classifiedPrograms: pointer<ArrayList> = result.get(packageName) as pointer<ArrayList>
+            val classifiedPrograms: pointer<ArrayList> = result.get(packagePath) as pointer<ArrayList>
 
             if classifiedPrograms != null:
                 classifiedPrograms.push(program)
@@ -341,7 +341,7 @@ private fun classifyPrograsm(programs: pointer<ArrayList>) -> pointer<HashMap>
         {
             val classifiedPrograms: pointer<ArrayList> = new ArrayList(sizeof(NormalizedProgram))
             classifiedPrograms.push(program)
-            result.put(packageName, classifiedPrograms)
+            result.put(packagePath, classifiedPrograms)
         }
     }
 
