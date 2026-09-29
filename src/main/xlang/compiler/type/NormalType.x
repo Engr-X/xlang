@@ -523,12 +523,13 @@ struct NormalType
 
 
     /**
-     * Determines whether this type can be resolved by the specified namespace import.
+     * Determines whether this type can be resolved by the specified import declaration.
      *
-     * The import must represent a non-wildcard namespace import with a valid qualified
-     * name. The last component of the imported path is treated as the imported type
-     * name. If the component represents a nested type, only its final simple name is
-      * compared with the current unresolved type name.
+     * The declaration must contain a non-wildcard namespace import with a valid
+     * qualified name. Selective imports are rejected. The last component of the
+     * imported path is treated as the imported type name. If the component represents
+     * a nested type, only its final simple name is compared with the current unresolved
+     * type name.
      *
      * When the imported type matches this type, this method resolves the type in place.
      * The package name is set to all path components preceding the imported type, while
@@ -538,13 +539,19 @@ struct NormalType
      * Wildcard imports, malformed imports, empty qualified names, and imports whose
      * simple type name does not match this type are rejected without modifying the type.
      *
-     * @param import            namespace import to test against this type
+     * @param importDecl        import declaration to test against this type
      *
      * @return {@code true}     if the import resolves this type; {@code false} otherwise
      */
-    fun canResolve(namespaceImport: pointer<NamespaceImport>) -> bool
+    fun canResolve(importDecl: pointer<ImportDeclaration>) -> bool
     {
-        if namespaceImport == null || namespaceImport.isAll() || this.typeName == null || !this.isPackageUnresolved():
+        if importDecl == null || importDecl.getKind() != ImportDeclaration.NAMESPACE_TYPE ||
+            this.typeName == null || !this.isPackageUnresolved():
+            return false
+
+        val namespaceImport: pointer<NamespaceImport> = importDecl.getHost() as pointer<NamespaceImport>
+
+        if namespaceImport == null || namespaceImport.isAll():
             return false
 
         val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
@@ -579,35 +586,25 @@ struct NormalType
 
 
     /**
-     * Determines whether this type is equal to another type.
+     * Resolves this type against the available import declarations.
      *
-     * Equality is determined primarily by the type kind. Types with different
-     * kinds are always considered different. If both types have the same kind,
-     * their underlying type representations are compared according to the
-     * semantics of that kind.
+     * Duplicate imports of the same qualified name are treated as one match.
+     * Distinct qualified names that resolve the same unresolved type produce an
+     * ambiguous-import diagnostic. This operation can currently produce at most
+     * one diagnostic, but returns a list so callers can combine it with errors
+     * from compound types.
      *
-     * For {@link #NORMAL_KIND}, the underlying {@link NormalType} instances are
-     * compared using {@link NormalType#equals}. For {@link #FUNCTION_KIND}, the
-     * underlying {@link FunctionType} instances are compared using
-     * {@link FunctionType#equals}. For {@link #BLOB_KIND}, the underlying
-     * {@link BlobType} instances are compared using {@link BlobType#equals}.
+     * @param imports           import declarations available to this type
      *
-     * If either underlying host is null, the types are considered equal only when
-     * both hosts refer to the same null value. For kinds without a specialized
-     * comparison rule, equality falls back to direct host-pointer equality.
-     *
-     * This method compares the semantic type representation and does not consider
-     * source-level information such as tokens, source positions, or formatting.
-     *
-     * @param other             type to compare with this instance
-     *
-     * @return                  {@code true} if both instances represent the
-     *                          same type; {@code false} otherwise
+     * @return                  an empty diagnostic list on success, or a list
+     *                          containing the ambiguous-import diagnostic
      */
-    fun resolve(imports: pointer<ArrayList>) -> pointer<Diagnostic>
+    fun resolve(imports: pointer<ArrayList>) -> pointer<ArrayList>
     {
+        val diagnostics: pointer<ArrayList> = new ArrayList(sizeof(Diagnostic))
+
         if imports == null || this.typeName == null || !this.isPackageUnresolved():
-            return null
+            return diagnostics
 
         val unresolvedName: pointer<char> = this.typeName
         var matchedCount: int = 0
@@ -628,7 +625,7 @@ struct NormalType
 
             val candidate: pointer<NormalType> = NormalType.unresolved(unresolvedName)
 
-            if !candidate.canResolve(namespaceImport):
+            if !candidate.canResolve(importDecl):
                 continue
 
             val qualifiedName: pointer<QualifiedName> = namespaceImport.getQualifiedName()
@@ -680,12 +677,12 @@ struct NormalType
         }
 
         if matchedCount > 1:
-            return Diagnostic.makeError(
+            diagnostics.push(Diagnostic.makeError(
                 Diagnostic.CANNOT_PARSE,
                 locations,
-                "ambiguous import")
+                "ambiguous import"))
 
-        return null
+        return diagnostics
     }
 
 

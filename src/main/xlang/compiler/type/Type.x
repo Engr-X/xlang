@@ -24,6 +24,7 @@
 
 package xlang.compiler.type
 
+import xlang.Diagnostic
 import xlang.compiler.setting.CompilerSettings
 import xlang.compiler.setting.SystemBits
 import xlang.lexer.Token
@@ -492,6 +493,35 @@ struct Type
             type.getAllTokens()
         }
         else: new ArrayList(sizeof(Token))
+
+
+    /**
+     * Resolves every unresolved named type contained by this type.
+     *
+     * Normal types resolve directly against the supplied imports. Function
+     * types recursively resolve their parameter and return types. Blob types do
+     * not contain named types and therefore require no resolution.
+     *
+     * @param imports           import declarations available to this type
+     *
+     * @return                  all resolution diagnostics; empty when resolution
+     *                          succeeds
+     */
+    fun resolve(imports: pointer<ArrayList>) -> pointer<ArrayList> =
+        if this.host == null:
+            new ArrayList(sizeof(Diagnostic))
+        elif this.kind == NORMAL_KIND:
+        {
+            val type: pointer<NormalType> = this.host as pointer<NormalType>
+            type.resolve(imports)
+        }
+        elif this.kind == FUNCTION_KIND:
+        {
+            val type: pointer<FunctionType> = this.host as pointer<FunctionType>
+            type.resolve(imports)
+        }
+        else:
+            new ArrayList(sizeof(Diagnostic))
 
 
     /**

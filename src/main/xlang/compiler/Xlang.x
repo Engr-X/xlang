@@ -28,8 +28,8 @@ package xlang.compiler
 
 import xlang.System
 import xlang.compiler.lexer.Tokenizer
-import xlang.compiler.parser.ASTNormalizer
-import xlang.compiler.parser.NormalizedProgram
+import xlang.compiler.normalizer.ASTNormalizer
+import xlang.compiler.normalizer.NormalizedProgram
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.Member
 import xlang.compiler.parser.program.NamespaceImport

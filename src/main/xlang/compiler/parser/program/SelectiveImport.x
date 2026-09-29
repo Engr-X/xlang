@@ -427,6 +427,15 @@ struct SelectiveImports
     }
 
     /**
+     * Returns whether this declaration imports every symbol from its target.
+     *
+     * @return                  true for an all-symbol selective import;
+     *                          otherwise, false
+     */
+    fun isAll() -> bool = this.type == ALL_KIND
+
+
+    /**
      * Returns the qualified name associated with this selective import.
      *
      * <p>The returned pointer refers directly to the internally stored

@@ -20,7 +20,7 @@
  *
  */
 
-package xlang.compiler.parser
+package xlang.compiler.normalizer
 
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.Member

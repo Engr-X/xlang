@@ -4,7 +4,7 @@
  */
 
 #file.outerClass("ASTNormalizerTest")
-package xlang.compiler.parser
+package xlang.compiler.normalizer
 
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.Member
@@ -26,7 +26,7 @@ val TEST_GROUP: pointer<TestGroup> = genTest()
 
 fun genTest() -> pointer<TestGroup>
 {
-    val result: pointer<TestGroup> = new TestGroup("xlang.compiler.parser.ASTNormalizer")
+    val result: pointer<TestGroup> = new TestGroup("xlang.compiler.normalizer.ASTNormalizer")
 
     result.addTestUnion(new TestUnion(TestCase.TYPE, new TestCase("flattenNestedStruct", flattenNestedStructTest), null))
     result.addTestUnion(new TestUnion(TestCase.TYPE, new TestCase("flattenNestedStructRecursive", flattenNestedStructRecursiveTest), null))
@@ -114,7 +114,7 @@ private fun flattenStruct(structBody: pointer<Struct>) -> pointer<ArrayList>
         makeImports(),
         structBody)
 
-    return ASTNormalizer.flattenNested(nProgram)
+    return ClassFlattener.flattenNested(nProgram)
 }
 
 

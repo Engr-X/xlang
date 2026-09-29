@@ -22,6 +22,7 @@
 
 package xlang.compiler.type
 
+import xlang.Diagnostic
 import xlang.lexer.Token
 import xlang.lexer.TokenPosition
 import xlang.util.ArrayList
@@ -330,6 +331,44 @@ struct FunctionType
         result.pushAll(this.extraTokens)
         result.setComparator(TokenPosition.compareToken)
         result.sort()
+        return result
+    }
+
+
+    /**
+     * Resolves the parameter and return types of this function type.
+     *
+     * Parameter types are resolved in declaration order, followed by the return
+     * type. Resolution continues after an error so every contained type is
+     * checked. Diagnostics from every contained type are appended to the result.
+     * Null parameter entries and a null return type are ignored.
+     *
+     * @param imports           import declarations available to this function
+     *                          type
+     *
+     * @return                  all resolution diagnostics; empty when every
+     *                          contained type resolves successfully
+     */
+    fun resolve(imports: pointer<ArrayList>) -> pointer<ArrayList>
+    {
+        val result: pointer<ArrayList> = new ArrayList(sizeof(Diagnostic))
+
+        if this.parameterTypes != null:
+        {
+            for (var i = 0; i < this.parameterTypes.length; i++):
+            {
+                val parameterType: pointer<Type> = this.parameterTypes.get(i) as pointer<Type>
+
+                if parameterType == null:
+                    continue
+
+                result.pushAll(parameterType.resolve(imports))
+            }
+        }
+
+        if this.returnType != null:
+            result.pushAll(this.returnType.resolve(imports))
+
         return result
     }
 

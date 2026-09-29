@@ -9,6 +9,7 @@ package xlang.compiler.type
 import xlang.compiler.parser.program.ImportDeclaration
 import xlang.compiler.parser.program.NamespaceImport
 import xlang.compiler.parser.program.QualifiedName
+import xlang.compiler.parser.program.SelectiveImports
 import xlang.test.TestCase
 import xlang.test.TestGroup
 import xlang.test.TestUnion
@@ -32,6 +33,10 @@ fun genTest() -> pointer<TestGroup>
     canResolveTG.addTestUnion(new TestUnion(
         TestCase.TYPE,
         new TestCase("rootNestedType", rootNestedTypeCanResolveTest),
+        null))
+    canResolveTG.addTestUnion(new TestUnion(
+        TestCase.TYPE,
+        new TestCase("selectiveImport", selectiveImportCanResolveTest),
         null))
 
     resolveTG.addTestUnion(new TestUnion(
@@ -71,7 +76,7 @@ private fun qualifiedNestedTypeCanResolveTest() -> int
         .push("ArrayList$Node")
     val namespaceImport: pointer<NamespaceImport> = NamespaceImport.fromSingle(qualifiedName)
 
-    if !normalType.canResolve(namespaceImport):
+    if !normalType.canResolve(ImportDeclaration.fromNamespace(namespaceImport)):
         return 1
 
     val packageName: pointer<ArrayList> = normalType.getPackageName()
@@ -95,7 +100,7 @@ private fun rootNestedTypeCanResolveTest() -> int
     val namespaceImport: pointer<NamespaceImport> = NamespaceImport.fromSingle(
         new QualifiedName("ArrayList$Node"))
 
-    if !normalType.canResolve(namespaceImport):
+    if !normalType.canResolve(ImportDeclaration.fromNamespace(namespaceImport)):
         return 1
 
     val packageName: pointer<ArrayList> = normalType.getPackageName()
@@ -104,6 +109,25 @@ private fun rootNestedTypeCanResolveTest() -> int
         return 2
 
     if !String.streq(normalType.getTypeName(), "ArrayList$Node"):
+        return 3
+
+    return 0
+}
+
+
+private fun selectiveImportCanResolveTest() -> int
+{
+    val normalType: pointer<NormalType> = NormalType.unresolved("Node")
+    val importDecl: pointer<ImportDeclaration> = ImportDeclaration.fromSelective(
+        SelectiveImports.fromAll(new QualifiedName("com").push("wangdi")))
+
+    if normalType.canResolve(importDecl):
+        return 1
+
+    if !normalType.isPackageUnresolved():
+        return 2
+
+    if !String.streq(normalType.getTypeName(), "Node"):
         return 3
 
     return 0
@@ -120,7 +144,9 @@ private fun singleImportResolveTest() -> int
 
     imports.push(ImportDeclaration.fromNamespace(NamespaceImport.fromSingle(qualifiedName)))
 
-    if normalType.resolve(imports) != null:
+    val diagnostics: pointer<ArrayList> = normalType.resolve(imports)
+
+    if diagnostics == null || diagnostics.length != 0:
         return 1
 
     val packageName: pointer<ArrayList> = normalType.getPackageName()
@@ -148,7 +174,9 @@ private fun duplicateImportResolveTest() -> int
     imports.push(ImportDeclaration.fromNamespace(NamespaceImport.fromSingle(
         new QualifiedName("com").push("wangdi").push("ArrayList$Node"))))
 
-    if normalType.resolve(imports) != null:
+    val diagnostics: pointer<ArrayList> = normalType.resolve(imports)
+
+    if diagnostics == null || diagnostics.length != 0:
         return 1
 
     if !String.streq(normalType.getPackageNameText(), "com.wangdi"):
@@ -171,7 +199,9 @@ private fun ambiguousNestedTypeResolveTest() -> int
     imports.push(ImportDeclaration.fromNamespace(NamespaceImport.fromSingle(
         new QualifiedName("com").push("wangdi").push("LinkedList$Node"))))
 
-    if normalType.resolve(imports) == null:
+    val diagnostics: pointer<ArrayList> = normalType.resolve(imports)
+
+    if diagnostics == null || diagnostics.length != 1:
         return 1
 
     if !String.streq(normalType.getPackageNameText(), "com.wangdi"):

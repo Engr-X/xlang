@@ -35,7 +35,7 @@ import xlang.lexer.TokenTest
 import xlang.lexer.TokenizeFSMTest
 import xlang.compiler.lexer.TokenizerTest
 import xlang.compiler.lexer.TokenNormalizerTest
-import xlang.compiler.parser.ASTNormalizerTest
+import xlang.compiler.normalizer.ASTNormalizerTest
 import xlang.compiler.parser.ParserTest
 import xlang.compiler.parser.ParserRegressionTest
 import xlang.compiler.type.NormalTypeTest

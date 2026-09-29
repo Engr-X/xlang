@@ -142,6 +142,19 @@ struct FunctionParam
 
 
     /**
+     * Replaces the declared type associated with this parameter.
+     *
+     * @param paramType         the new parameter type, or null
+     * @return                  this parameter
+     */
+    fun setParamType(paramType: pointer<Type>) -> pointer<FunctionParam>
+    {
+        this.paramType = paramType
+        return this
+    }
+
+
+    /**
      * Marks this function parameter as mutable.
      *
      * <p>The internal modifier is replaced with the value returned by
